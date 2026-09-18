@@ -31,7 +31,13 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.DOWNLOAD_EXECUTE, RecyclingPermission.DOWNLOAD_QUERY,
             RecyclingPermission.DOWNLOAD_RETRY, RecyclingPermission.DOWNLOAD_FILE,
             RecyclingPermission.API_LOG_QUERY, RecyclingPermission.CALLBACK_QUERY,
-            RecyclingPermission.TEST_QUERY, RecyclingPermission.TENANT_ROLE_INIT)),
+            RecyclingPermission.TEST_QUERY, RecyclingPermission.TENANT_ROLE_INIT,
+            RecyclingPermission.QUALIFICATION_CREATE, RecyclingPermission.QUALIFICATION_UPDATE,
+            RecyclingPermission.QUALIFICATION_DELETE, RecyclingPermission.QUALIFICATION_QUERY,
+            RecyclingPermission.GOODS_CONFIG_CREATE, RecyclingPermission.GOODS_CONFIG_UPDATE,
+            RecyclingPermission.GOODS_CONFIG_DELETE, RecyclingPermission.GOODS_CONFIG_QUERY,
+            RecyclingPermission.ENTERPRISE_AUTH_INIT, RecyclingPermission.ENTERPRISE_AUTH_UPDATE,
+            RecyclingPermission.ENTERPRISE_AUTH_QUERY)),
 
     /**
      * 收货员：收购现场登记，维护出售者档案与收购单。
@@ -49,7 +55,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.INVOICE_CREATE, RecyclingPermission.INVOICE_QUERY,
             RecyclingPermission.PAYMENT_CREATE, RecyclingPermission.PAYMENT_QUERY,
             RecyclingPermission.DOWNLOAD_EXECUTE, RecyclingPermission.DOWNLOAD_QUERY,
-            RecyclingPermission.DOWNLOAD_RETRY, RecyclingPermission.DOWNLOAD_FILE)),
+            RecyclingPermission.DOWNLOAD_RETRY, RecyclingPermission.DOWNLOAD_FILE,
+            RecyclingPermission.GOODS_CONFIG_QUERY)),
 
     /**
      * 财务：代办税费、对账、归集发票。
@@ -64,7 +71,10 @@ public enum RecyclingRoleEnum {
      */
     PLATFORM_OPERATOR("recycling_platform_operator", "平台运营", Set.of(
             RecyclingPermission.API_LOG_QUERY, RecyclingPermission.CALLBACK_QUERY,
-            RecyclingPermission.CALLBACK_RETRY, RecyclingPermission.PLATFORM_INVOICE_QUERY));
+            RecyclingPermission.CALLBACK_RETRY, RecyclingPermission.PLATFORM_INVOICE_QUERY,
+            RecyclingPermission.QUALIFICATION_QUERY, RecyclingPermission.QUALIFICATION_UPDATE,
+            RecyclingPermission.GOODS_CONFIG_CREATE, RecyclingPermission.GOODS_CONFIG_UPDATE,
+            RecyclingPermission.GOODS_CONFIG_DELETE, RecyclingPermission.GOODS_CONFIG_QUERY));
 
     /**
      * yudao 超级管理员：平台自有系统租户的最高权限，绕过角色映射。

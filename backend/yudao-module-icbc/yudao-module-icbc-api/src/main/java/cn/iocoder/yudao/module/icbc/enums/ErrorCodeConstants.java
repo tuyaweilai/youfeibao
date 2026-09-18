@@ -95,4 +95,10 @@ public interface ErrorCodeConstants {
     ErrorCode CALLBACK_NOTIFY_SIGN_INVALID = new ErrorCode(1_004_017_003, "回调通知签名无效");
     ErrorCode CALLBACK_NOTIFY_TYPE_INVALID = new ErrorCode(1_004_017_004, "回调通知类型无效");
     ErrorCode CALLBACK_NOTIFY_PROCESS_FAILED = new ErrorCode(1_004_017_005, "回调通知处理失败");
+
+    // ========== 租户开票就绪 1-030-010-000 ==========
+    ErrorCode QUALIFICATION_NOT_EXISTS = new ErrorCode(1_030_010_000, "资质不存在");
+    ErrorCode GOODS_CONFIG_NOT_EXISTS = new ErrorCode(1_030_010_001, "品类配置不存在");
+    ErrorCode GOODS_CONFIG_NAME_EXISTS = new ErrorCode(1_030_010_002, "品类名称已存在");
+    ErrorCode ENTERPRISE_AUTH_NOT_EXISTS = new ErrorCode(1_030_010_003, "企业授权记录不存在");
 } 

@@ -2,7 +2,7 @@
 -- 幂等：先按固定 id 范围删除，再插入。
 -- 组件路径对应前端 backend/yudao-ui/yudao-ui-admin-vue3/src/views/icbc/* 与 views/enterprise/*
 
-DELETE FROM `system_menu` WHERE `id` BETWEEN 5100 AND 5130;
+DELETE FROM `system_menu` WHERE `id` BETWEEN 5100 AND 5140;
 
 INSERT INTO `system_menu`
 (`id`, `name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
@@ -30,4 +30,18 @@ VALUES
 (5114, '租户开票就绪', '', 1, 61, 0, '/readiness', 'ep:document-checked', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5115, '企业信息', 'enterprise:info:query', 2, 1, 5114, 'enterprise-info', '', 'enterprise/info/index', 'Info', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5116, '企业资质', 'enterprise:cert:query', 2, 2, 5114, 'enterprise-qualification', '', 'enterprise/qualification/index', 'EnterpriseQualification', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5117, '开票就绪自检', 'icbc:test:query', 2, 3, 5114, 'self-check', '', 'icbc/readiness/index', 'IcbcReadiness', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5117, '开票就绪自检', 'icbc:test:query', 2, 3, 5114, 'self-check', '', 'icbc/readiness/index', 'IcbcReadiness', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 三层资质
+(5122, '三层资质', 'icbc:qualification:query', 2, 4, 5114, 'qualification', '', 'icbc/qualification/index', 'IcbcQualification', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5123, '资质新增', 'icbc:qualification:create', 3, 1, 5122, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5124, '资质修改', 'icbc:qualification:update', 3, 2, 5122, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5125, '资质删除', 'icbc:qualification:delete', 3, 3, 5122, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 编码配置
+(5126, '编码配置', 'icbc:goods-config:query', 2, 5, 5114, 'goods-config', '', 'icbc/goodsConfig/index', 'IcbcGoodsConfig', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5127, '品类新增', 'icbc:goods-config:create', 3, 1, 5126, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5128, '品类修改', 'icbc:goods-config:update', 3, 2, 5126, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5129, '品类删除', 'icbc:goods-config:delete', 3, 3, 5126, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 企业授权
+(5130, '企业授权', 'icbc:enterprise-auth:query', 2, 6, 5114, 'enterprise-auth', '', 'icbc/enterpriseAuth/index', 'IcbcEnterpriseAuth', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5131, '发起授权', 'icbc:enterprise-auth:init', 3, 1, 5130, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5132, '回填授权结果', 'icbc:enterprise-auth:update', 3, 2, 5130, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');

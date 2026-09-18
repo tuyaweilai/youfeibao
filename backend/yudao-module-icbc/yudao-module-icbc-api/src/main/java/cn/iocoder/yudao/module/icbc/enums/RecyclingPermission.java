@@ -56,6 +56,26 @@ public interface RecyclingPermission {
 
     String TENANT_ROLE_INIT = "icbc:tenant:role:init";
 
+    // ========== 租户开票就绪：资质 ==========
+
+    String QUALIFICATION_CREATE = "icbc:qualification:create";
+    String QUALIFICATION_UPDATE = "icbc:qualification:update";
+    String QUALIFICATION_DELETE = "icbc:qualification:delete";
+    String QUALIFICATION_QUERY = "icbc:qualification:query";
+
+    // ========== 租户开票就绪：编码配置 ==========
+
+    String GOODS_CONFIG_CREATE = "icbc:goods-config:create";
+    String GOODS_CONFIG_UPDATE = "icbc:goods-config:update";
+    String GOODS_CONFIG_DELETE = "icbc:goods-config:delete";
+    String GOODS_CONFIG_QUERY = "icbc:goods-config:query";
+
+    // ========== 租户开票就绪：企业授权 ==========
+
+    String ENTERPRISE_AUTH_INIT = "icbc:enterprise-auth:init";
+    String ENTERPRISE_AUTH_UPDATE = "icbc:enterprise-auth:update";
+    String ENTERPRISE_AUTH_QUERY = "icbc:enterprise-auth:query";
+
     // ========== 平台运营跨租户 ==========
 
     String PLATFORM_INVOICE_QUERY = "icbc:platform:invoice:query";
