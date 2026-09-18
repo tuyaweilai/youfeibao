@@ -4,6 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.evidence.vo.*;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.evidence.IcbcEvidenceDO;
@@ -12,6 +13,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.OrderItemDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.evidence.IcbcEvidenceMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
@@ -70,6 +72,8 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
     private InvoiceFileMapper invoiceFileMapper;
     @Resource
     private IcbcEvidenceMapper evidenceMapper;
+    @Resource
+    private IcbcAcquisitionMapper acquisitionMapper;
     @Resource
     private EvidencePackageWriter evidencePackageWriter;
 
@@ -245,10 +249,41 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
             flowSources.put(flow, new ArrayList<>());
         }
 
+        // 收购登记单：该笔的合同流（收购确认书）、货物流（磅单 + 车辆照片）与信息流骨架
+        IcbcAcquisitionDO acquisition = ctx.acquisitionByInvoiceOrder.get(order.getPartnerOrderId());
+
         // 人工补录的证据，按各自归属的流落位
         for (IcbcEvidenceDO evidence : evidenceList) {
             EvidenceFlowEnum.ofCode(evidence.getFlow())
                     .ifPresent(flow -> flowSources.get(flow).add(toSource(evidence)));
+        }
+
+        // 合同流：收购登记单本身就是该笔收购的确认书
+        if (acquisition != null) {
+            EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+            source.setSourceType("ACQUISITION");
+            source.setTitle("单笔收购确认书");
+            source.setRef(acquisition.getAcquisitionNo());
+            source.setOccurredTime(acquisition.getTradeTime());
+            flowSources.get(EvidenceFlowEnum.CONTRACT).add(source);
+        }
+
+        // 货物流：磅单与车头车尾照片直接从收购登记单取
+        if (acquisition != null) {
+            if (StrUtil.isNotBlank(acquisition.getWeightTicketNo())
+                    || StrUtil.isNotBlank(acquisition.getWeightTicketImageUrl())) {
+                EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+                source.setSourceType("ACQUISITION");
+                source.setTitle("过磅单");
+                source.setRef(acquisition.getWeightTicketNo());
+                source.setUrl(acquisition.getWeightTicketImageUrl());
+                source.setOccurredTime(acquisition.getTradeTime());
+                flowSources.get(EvidenceFlowEnum.GOODS).add(source);
+            }
+            addImageSource(flowSources.get(EvidenceFlowEnum.GOODS), "车头照片",
+                    acquisition.getVehicleFrontImageUrl(), acquisition.getTradeTime());
+            addImageSource(flowSources.get(EvidenceFlowEnum.GOODS), "车尾照片",
+                    acquisition.getVehicleRearImageUrl(), acquisition.getTradeTime());
         }
 
         // 资金流：支付成功即视为回单齐备
@@ -282,13 +317,21 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
             flowSources.get(EvidenceFlowEnum.INVOICE).add(source);
         }
 
-        // 信息流：整张票就是一个台账条目
+        // 信息流：整张票就是一个台账条目；有收购登记单时以登记单为准
         if (CollUtil.isNotEmpty(items)) {
             EvidenceSourceRespVO source = new EvidenceSourceRespVO();
             source.setSourceType("INVOICE_ORDER");
             source.setTitle("收购台账条目");
             source.setRef(order.getOrderNo());
             source.setOccurredTime(order.getCreateTime());
+            flowSources.get(EvidenceFlowEnum.INFO).add(source);
+        }
+        if (acquisition != null) {
+            EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+            source.setSourceType("ACQUISITION");
+            source.setTitle("收购台账条目");
+            source.setRef(acquisition.getAcquisitionNo());
+            source.setOccurredTime(acquisition.getTradeTime());
             flowSources.get(EvidenceFlowEnum.INFO).add(source);
         }
 
@@ -327,11 +370,35 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
 
     private List<AcquisitionLedgerRespVO> buildLedgerRows(InvoiceOrderDO order, ChainContext ctx) {
         PayeeInfoDO payee = order.getPayeeId() != null ? ctx.payeeById.get(order.getPayeeId()) : null;
+        IcbcAcquisitionDO acquisition = ctx.acquisitionByInvoiceOrder.get(order.getPartnerOrderId());
+
+        // 信息流以收购登记单为准：时间、地点、出售者及联系方式、报废产品、数量、价格都在单上
+        if (acquisition != null) {
+            AcquisitionLedgerRespVO row = new AcquisitionLedgerRespVO();
+            row.setTradeTime(acquisition.getTradeTime() != null ? acquisition.getTradeTime()
+                    : (order.getInvoiceDate() != null ? order.getInvoiceDate() : order.getCreateTime()));
+            row.setTradeAddress(StrUtil.blankToDefault(acquisition.getTradeAddress(),
+                    payee != null ? payee.getAddress() : null));
+            row.setSellerName(StrUtil.blankToDefault(acquisition.getSellerName(),
+                    payee != null ? payee.getName() : null));
+            row.setSellerMobile(StrUtil.blankToDefault(acquisition.getSellerMobile(),
+                    payee != null ? payee.getMobile() : null));
+            row.setProductName(acquisition.getCategoryName());
+            row.setSpecification(acquisition.getSpecification());
+            row.setQuantity(acquisition.getQuantity());
+            row.setUnit(acquisition.getUnit());
+            row.setUnitPrice(acquisition.getUnitPrice());
+            row.setAmount(acquisition.getAmount());
+            row.setInvoiceNo(order.getInvoiceNo());
+            row.setPartnerOrderId(order.getPartnerOrderId());
+            return Collections.singletonList(row);
+        }
+
         List<AcquisitionLedgerRespVO> rows = new ArrayList<>();
         for (OrderItemDO item : ctx.itemsByOrderId.getOrDefault(order.getId(), Collections.emptyList())) {
             AcquisitionLedgerRespVO row = new AcquisitionLedgerRespVO();
             row.setTradeTime(order.getInvoiceDate() != null ? order.getInvoiceDate() : order.getCreateTime());
-            // 交易地点等 #7 收购登记落地后再取真实值；先用出售者登记地址兜底，不伪造现场地址
+            // 没有收购登记单时先用出售者登记地址兜底，不伪造现场地址
             row.setTradeAddress(payee != null ? payee.getAddress() : null);
             row.setSellerName(payee != null ? payee.getName() : null);
             row.setSellerMobile(payee != null ? payee.getMobile() : null);
@@ -373,6 +440,9 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
                 .filter(Objects::nonNull).distinct().collect(Collectors.toList());
 
         if (CollUtil.isNotEmpty(partnerOrderIds)) {
+            for (IcbcAcquisitionDO acquisition : acquisitionMapper.selectListByInvoicePartnerOrderIds(partnerOrderIds)) {
+                ctx.acquisitionByInvoiceOrder.put(acquisition.getInvoicePartnerOrderId(), acquisition);
+            }
             for (IcbcEvidenceDO evidence : evidenceMapper.selectListByPartnerOrderIds(partnerOrderIds)) {
                 ctx.evidenceByOrder.computeIfAbsent(evidence.getPartnerOrderId(), key -> new ArrayList<>())
                         .add(evidence);
@@ -429,6 +499,19 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
 
     // ==================== VO 转换 ====================
 
+    private void addImageSource(List<EvidenceSourceRespVO> sources, String title, String url,
+                                LocalDateTime occurredTime) {
+        if (StrUtil.isBlank(url)) {
+            return;
+        }
+        EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+        source.setSourceType("ACQUISITION");
+        source.setTitle(title);
+        source.setUrl(url);
+        source.setOccurredTime(occurredTime);
+        sources.add(source);
+    }
+
     private EvidenceSourceRespVO toSource(IcbcEvidenceDO evidence) {
         EvidenceSourceRespVO source = new EvidenceSourceRespVO();
         source.setSourceType("EVIDENCE");
@@ -461,6 +544,7 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
      */
     private static class ChainContext {
         private final Map<String, List<IcbcEvidenceDO>> evidenceByOrder = new HashMap<>();
+        private final Map<String, IcbcAcquisitionDO> acquisitionByInvoiceOrder = new HashMap<>();
         private final Map<String, PaymentOrderDO> paymentByOrder = new HashMap<>();
         private final Map<String, InvoiceDownloadDO> downloadByOrder = new HashMap<>();
         private final Map<Long, List<InvoiceFileDO>> filesByDownload = new HashMap<>();

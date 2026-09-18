@@ -4,12 +4,14 @@ import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
@@ -53,6 +55,8 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
     private InvoiceDownloadMapper invoiceDownloadMapper;
     @Resource
     private InvoiceFileMapper invoiceFileMapper;
+    @Resource
+    private IcbcAcquisitionMapper acquisitionMapper;
     @Resource
     private PlatformInvoiceQueryService platformInvoiceQueryService;
 
@@ -184,6 +188,24 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
             assertNull(invoiceFileMapper.selectById(fileId));
             assertTrue(invoiceFileMapper.selectList().isEmpty());
             assertTrue(invoiceDownloadMapper.selectList().isEmpty());
+        });
+    }
+
+    @Test
+    public void testAcquisitionIsolatedByTenant() {
+        Long acquisitionId = TenantUtils.execute(1L, () -> {
+            IcbcAcquisitionDO acquisition = new IcbcAcquisitionDO();
+            acquisition.setAcquisitionNo("ACQ_TENANT_1");
+            acquisition.setPayeeId(1L);
+            acquisition.setStatus(0);
+            acquisitionMapper.insert(acquisition);
+            return acquisition.getId();
+        });
+
+        TenantUtils.execute(1L, () -> assertNotNull(acquisitionMapper.selectById(acquisitionId)));
+        TenantUtils.execute(2L, () -> {
+            assertNull(acquisitionMapper.selectById(acquisitionId));
+            assertTrue(acquisitionMapper.selectList().isEmpty());
         });
     }
 

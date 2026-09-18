@@ -133,4 +133,15 @@ public interface ErrorCodeConstants {
     ErrorCode SELLER_AUTHORIZATION_INCOMPLETE = new ErrorCode(1_030_013_005, "出售者尚未完成反向开票与代办税费授权");
     ErrorCode SELLER_REAL_NAME_RESULT_UNKNOWN = new ErrorCode(1_030_013_006, "实人认证结果尚未返回");
     ErrorCode SELLER_BANK_CARD_REQUIRED = new ErrorCode(1_030_013_007, "出售者未绑定银行卡，不能发起收方入驻");
-} 
+
+    // ========== 收购登记 1-030-014-000 ==========
+    ErrorCode ACQUISITION_NOT_EXISTS = new ErrorCode(1_030_014_000, "收购单不存在");
+    ErrorCode ACQUISITION_REQUIRED_ELEMENT_MISSING = new ErrorCode(1_030_014_001, "收购登记缺少关键要件：{}");
+    ErrorCode ACQUISITION_GOODS_CONFIG_REQUIRED = new ErrorCode(1_030_014_002, "收购登记未选择品类");
+    ErrorCode ACQUISITION_GOODS_CONFIG_NOT_EXISTS = new ErrorCode(1_030_014_003, "品类配置不存在");
+    ErrorCode ACQUISITION_WEIGHT_INVALID = new ErrorCode(1_030_014_004, "重量不合法：毛重不能小于皮重");
+    ErrorCode ACQUISITION_AMOUNT_INVALID = new ErrorCode(1_030_014_005, "金额不合法：数量与单价必须大于 0");
+    ErrorCode ACQUISITION_STATUS_NOT_ALLOW_UPDATE = new ErrorCode(1_030_014_006, "收购单状态不允许修改");
+    ErrorCode ACQUISITION_CONFIRMATION_EXPORT_FAILED = new ErrorCode(1_030_014_007, "收购确认书导出失败");
+    ErrorCode ACQUISITION_SELLER_NOT_EXISTS = new ErrorCode(1_030_014_008, "出售者档案不存在，请先建档再登记收购");
+}

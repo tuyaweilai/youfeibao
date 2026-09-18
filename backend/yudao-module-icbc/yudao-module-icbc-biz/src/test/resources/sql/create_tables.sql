@@ -482,4 +482,54 @@ CREATE TABLE IF NOT EXISTS icbc_seller_authorization (
     PRIMARY KEY (id)
 );
 CREATE INDEX IF NOT EXISTS idx_seller_authorization_payee_id ON icbc_seller_authorization(payee_id);
+
+-- icbc_acquisition table (收购登记单，合同流 / 货物流 / 信息流骨架)
+CREATE TABLE IF NOT EXISTS icbc_acquisition (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    acquisition_no VARCHAR(64) NOT NULL,
+    client_request_id VARCHAR(64),
+    payee_id BIGINT NOT NULL,
+    partner_payee_id VARCHAR(64),
+    seller_name VARCHAR(100),
+    seller_mobile VARCHAR(32),
+    goods_config_id BIGINT,
+    category_name VARCHAR(100),
+    unit VARCHAR(20),
+    tax_rate DECIMAL(5,4),
+    tax_method VARCHAR(20),
+    merged_code VARCHAR(19),
+    specification VARCHAR(100),
+    quantity DECIMAL(14,4),
+    unit_price DECIMAL(14,2),
+    amount DECIMAL(14,2),
+    gross_weight DECIMAL(14,4),
+    tare_weight DECIMAL(14,4),
+    net_weight DECIMAL(14,4),
+    weight_ticket_no VARCHAR(64),
+    weight_ticket_image_url VARCHAR(500),
+    weight_ticket_plate_no VARCHAR(32),
+    vehicle_plate_no VARCHAR(32),
+    plate_matched BOOLEAN,
+    vehicle_front_image_url VARCHAR(500),
+    vehicle_rear_image_url VARCHAR(500),
+    trade_address VARCHAR(255),
+    trade_time DATETIME,
+    settlement_method VARCHAR(200),
+    status TINYINT NOT NULL DEFAULT 0,
+    invoice_partner_order_id VARCHAR(64),
+    source VARCHAR(20),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_acquisition_no UNIQUE (acquisition_no),
+    CONSTRAINT uk_acquisition_client_request UNIQUE (tenant_id, client_request_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_acquisition_payee_id ON icbc_acquisition(payee_id);
+CREATE INDEX IF NOT EXISTS idx_acquisition_invoice_order ON icbc_acquisition(invoice_partner_order_id);
  

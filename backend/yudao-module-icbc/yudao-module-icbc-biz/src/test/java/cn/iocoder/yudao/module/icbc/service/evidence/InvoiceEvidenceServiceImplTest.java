@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.service.evidence;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.controller.admin.evidence.vo.*;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
@@ -10,6 +11,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.OrderItemDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
@@ -63,6 +65,52 @@ public class InvoiceEvidenceServiceImplTest extends BaseDbUnitTest {
     private InvoiceDownloadMapper invoiceDownloadMapper;
     @Resource
     private InvoiceFileMapper invoiceFileMapper;
+    @Resource
+    private IcbcAcquisitionMapper acquisitionMapper;
+
+    @Test
+    public void testGetEvidenceChain_acquisitionSuppliesContractGoodsAndInfo() {
+        // 一笔收购登记单挂到这张票上：合同流 / 货物流 / 信息流应自动成形，无需人工补录
+        PayeeInfoDO payee = insertPayee("秦十五", "13300133000", "北京市朝阳区");
+        InvoiceOrderDO order = insertOrder("ORDER_ACQ", "INV_ACQ", payee.getId(), "55555555555555555555");
+        insertAcquisition(order.getPartnerOrderId(), "ACQ20261201000001", payee.getId());
+
+        // 调用
+        EvidenceChainRespVO chain = invoiceEvidenceService.getEvidenceChain("ORDER_ACQ");
+
+        // 断言：三流来自收购登记单
+        assertTrue(flowPresent(chain, "CONTRACT"));
+        assertTrue(flowPresent(chain, "GOODS"));
+        assertTrue(flowPresent(chain, "INFO"));
+        assertTrue(flowSources(chain, "CONTRACT").stream()
+                .anyMatch(source -> "单笔收购确认书".equals(source.getTitle())));
+        assertTrue(flowSources(chain, "GOODS").stream()
+                .anyMatch(source -> "过磅单".equals(source.getTitle())));
+        assertTrue(flowSources(chain, "GOODS").stream()
+                .anyMatch(source -> "车头照片".equals(source.getTitle())));
+        assertTrue(flowSources(chain, "INFO").stream()
+                .anyMatch(source -> "ACQ20261201000001".equals(source.getRef())));
+    }
+
+    @Test
+    public void testGetLedgerRows_prefersAcquisitionTradeFields() {
+        PayeeInfoDO payee = insertPayee("尤十六", "13200132000", "上海市");
+        InvoiceOrderDO order = insertOrder("ORDER_ACQ_LEDGER", "INV_ACQ_LEDGER", payee.getId(), null);
+        insertAcquisition(order.getPartnerOrderId(), "ACQ20261201000002", payee.getId());
+
+        AcquisitionLedgerReqVO reqVO = new AcquisitionLedgerReqVO();
+        reqVO.setPartnerOrderId("ORDER_ACQ_LEDGER");
+        List<AcquisitionLedgerRespVO> rows = invoiceEvidenceService.getLedgerRows(reqVO);
+
+        assertEquals(1, rows.size());
+        AcquisitionLedgerRespVO row = rows.get(0);
+        assertEquals(LocalDateTime.of(2026, 12, 1, 10, 0), row.getTradeTime());
+        assertEquals("北京市朝阳区回收站", row.getTradeAddress());
+        assertEquals("废钢", row.getProductName());
+        assertEquals("吨", row.getUnit());
+        assertEquals(0, new BigDecimal("5").compareTo(row.getQuantity()));
+        assertEquals(0, new BigDecimal("500.00").compareTo(row.getAmount()));
+    }
 
     @Test
     public void testGetEvidenceChain_allFiveFlowsPresent() {
@@ -342,6 +390,40 @@ public class InvoiceEvidenceServiceImplTest extends BaseDbUnitTest {
                 .paymentTime(LocalDateTime.of(2024, 12, 1, 11, 0))
                 .build();
         paymentOrderMapper.insert(payment);
+    }
+
+    private void insertAcquisition(String invoicePartnerOrderId, String acquisitionNo, Long payeeId) {
+        IcbcAcquisitionDO acquisition = IcbcAcquisitionDO.builder()
+                .acquisitionNo(acquisitionNo)
+                .clientRequestId(acquisitionNo)
+                .payeeId(payeeId)
+                .partnerPayeeId("PARTNER_ACQ")
+                .sellerName("张三")
+                .sellerMobile("13800138000")
+                .categoryName("废钢")
+                .unit("吨")
+                .taxRate(new BigDecimal("0.01"))
+                .mergedCode("1090101010000000000")
+                .quantity(new BigDecimal("5"))
+                .unitPrice(new BigDecimal("100.00"))
+                .amount(new BigDecimal("500.00"))
+                .grossWeight(new BigDecimal("18000"))
+                .tareWeight(new BigDecimal("5500"))
+                .netWeight(new BigDecimal("12500"))
+                .weightTicketNo("WD20261201001")
+                .weightTicketImageUrl("https://cdn.example.com/weight/wd.jpg")
+                .weightTicketPlateNo("京A12345")
+                .vehiclePlateNo("京A12345")
+                .plateMatched(true)
+                .vehicleFrontImageUrl("https://cdn.example.com/vehicle/front.jpg")
+                .tradeAddress("北京市朝阳区回收站")
+                .tradeTime(LocalDateTime.of(2026, 12, 1, 10, 0))
+                .settlementMethod("银行转账")
+                .status(0)
+                .invoicePartnerOrderId(invoicePartnerOrderId)
+                .source("ONLINE")
+                .build();
+        acquisitionMapper.insert(acquisition);
     }
 
     private void insertDownloadAndFile(String partnerOrderId, Long invoiceOrderId, String invoiceNumber) {

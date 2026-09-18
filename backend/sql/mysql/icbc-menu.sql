@@ -62,4 +62,9 @@ VALUES
 -- 出售者建档（实名 / 入驻 / 框架协议 / 首次授权）
 (5133, '出售者建档', 'icbc:seller-onboarding:execute', 2, 2, 5100, 'payee-onboarding', '', 'icbc/payeeOnboarding/index', 'IcbcPayeeOnboarding', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5134, '框架收购协议', 'icbc:seller-agreement:manage', 3, 1, 5133, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5135, '首次授权', 'icbc:seller-authorization:manage', 3, 2, 5133, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5135, '首次授权', 'icbc:seller-authorization:manage', 3, 2, 5133, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 收购登记（#7）
+(5136, '收购登记', 'icbc:acquisition:query', 2, 7, 5100, 'acquisition', '', 'icbc/acquisition/index', 'IcbcAcquisition', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5137, '登记收购', 'icbc:acquisition:create', 3, 1, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5138, '修正识别结果', 'icbc:acquisition:update', 3, 2, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5139, '导出收购确认书', 'icbc:acquisition:export', 3, 3, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');

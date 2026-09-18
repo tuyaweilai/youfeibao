@@ -28,10 +28,11 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - `d36dc4e` #5 收口：资质失效冻结开票 + 平台运营跨租户核实
 - 本次提交 #5 剩余口子：品类计税方法（简易/一般）并约束专票、企业授权录入有效期、平台级报废产品编码表、资质到期提醒定时任务
 - 本次提交 #6：出售者建档——实人认证 H5、收方入驻两条成败线四种组合、留联系方式兜底、框架收购协议、首次反向开票与代办税费授权、回头客带档、开票门禁
+- 本次提交 #7：收购登记——从既有出售者档案发起、按品类带出单位/税率/编码、毛重皮重净重、磅单与车牌识别回填及人工修正、交易地点时间、缺要件拦截、离线补传去重、单笔收购确认书导出、状态可见；证据链的合同流/货物流/信息流改从收购单自动取
 
 ## 管理后台菜单现状
 
-- 反向开票：出售者档案 / 付方档案 / 开票申请 / 付款 / 发票下载与证据
+- 反向开票：出售者档案 / 出售者建档 / 收购登记 / 付方档案 / 开票申请 / 付款 / 发票下载与证据 / 一票一档
 - 租户开票就绪：企业信息 / 企业资质 / 开票就绪自检 / 三层资质 / 编码配置 / 企业授权
 - 平台运营：资质核实（跨租户）/ 报废产品编码表
 
@@ -60,11 +61,26 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 > 待联调确认：实人认证查询的 `authResult` 成功取值（当前只有 `1` 视为通过，通知的 `verifyResult` 是权威路径）；收方入驻回调我们只用页面接口的报文，含 `openacctStatus`。
 
+## #7 收购登记（已完成）
+
+收货员在现场完整登记一笔收购，登记完这一笔的合同流、货物流、信息流骨架就成形了。
+
+1. **收购单** `icbc_acquisition`：从既有出售者档案发起，选品类后自动带出计量单位 / 税率 / 计税方法 / 税收分类合并编码（`IcbcGoodsConfigDO`）。
+2. **必须要件**：出售者、品类、数量、金额、磅单缺一即拒，报错逐个列出缺了什么（`ACQUISITION_REQUIRED_ELEMENT_MISSING`）。金额或净重可留空，分别按「数量 × 单价」「毛重 − 皮重」推算。
+3. **识别**：`AcquisitionRecognitionPort` 新端口（见 ADR 0013），默认 `StubAcquisitionRecognition` 返回空、不阻断；识别只在空缺处回填，人工值优先。磅单车牌与车辆照片车牌在业务层比对，结论为 `plateMatched`（`null` 表示无法比对）。识别结果可经 `POST /icbc/acquisition/correct` 人工修正并重新比对。
+4. **离线补传**：`POST /icbc/acquisition/sync-offline`，按 `client_request_id` 幂等（`(tenant_id, client_request_id)` 唯一），逐条返回成败，重复补传返回既有单据、不产生重复。
+5. **确认书**：`GET /icbc/acquisition/confirmation/export` 导出单笔收购确认书（Excel，可打印），含名称 / 数量 / 规格 / 单价 / 金额 / 时间 / 地点 / 车牌 / 结算方式。
+6. **状态**：`AcquisitionStatusEnum`（已登记 / 待付款 / 已付款 / 已开票 / 已取消）。`linkInvoice(acquisitionId, partnerOrderId)` 挂票并置待付款；`markPaidByInvoicePartnerOrderId` / `markInvoicedByInvoicePartnerOrderId` 供付款 / 开票回调推进。**#8 发起开票时应调用 `linkInvoice`**。
+7. **证据链接线**：`icbc_evidence` 的合同流 / 货物流 / 信息流在 `InvoiceEvidenceServiceImpl` 里改为从收购单自动取（合同流=收购确认书、货物流=磅单+车头车尾照片、信息流=收购台账条目并以收购单字段为准）；无收购单时保持原人工补录 / 发票明细兜底。
+8. **权限**：`icbc:acquisition:create|update|query|export`，已登记进 `RecyclingPermission` + `RecyclingRoleEnum`（管理员、收货员可写；开票员只读；财务可读可导出）。
+
+> 现场端（拍照、相机、断网本地暂存）由 #20（uni-app H5）承载；后端已提供照片 URL 字段、识别回填、幂等补传与去重。一期无真实 OCR 供应商，磅单 / 车牌默认手工录入。
+
 ## 下一步建议
 
-- **A.** #7 收购登记与五流证据骨架——#6 建档已完成，是它的直接前置；现场登记会同时产出合同流 / 货物流 / 信息流；
-- **B.** #8 开票申请：预下单与自然人确认——`payChannel` 按工行答复固定上送 `05 公对私结算`，且已接入 #6 的开票门禁；
-- **C.** #11 一票一档证据链 / 齐备率 / 台账导出（已完成主体，剩余见票据）。
+- **A.** #8 开票申请：预下单与自然人确认——发起时从已登记收购单选择并调 `AcquisitionService.linkInvoice`，把状态推到待付款；`payChannel` 固定 `05 公对私结算`，已接入 #6 的开票门禁；
+- **B.** #9 付款与资金流回单；成功后调 `markPaidByInvoicePartnerOrderId`；
+- **C.** #20 收货员现场端（uni-app H5）：相机、离线暂存与补传（对接 `sync-offline`）。
 
 ## 约定与坑
 

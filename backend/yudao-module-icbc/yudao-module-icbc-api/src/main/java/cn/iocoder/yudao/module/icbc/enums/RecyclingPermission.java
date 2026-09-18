@@ -24,6 +24,13 @@ public interface RecyclingPermission {
     String SELLER_AGREEMENT_MANAGE = "icbc:seller-agreement:manage";
     String SELLER_AUTHORIZATION_MANAGE = "icbc:seller-authorization:manage";
 
+    // ========== 收购登记（#7） ==========
+
+    String ACQUISITION_CREATE = "icbc:acquisition:create";
+    String ACQUISITION_UPDATE = "icbc:acquisition:update";
+    String ACQUISITION_QUERY = "icbc:acquisition:query";
+    String ACQUISITION_EXPORT = "icbc:acquisition:export";
+
     // ========== 回收企业自身档案（付方） ==========
 
     String PAYER_CREATE = "icbc:payer-info:create";
