@@ -3,9 +3,6 @@ package cn.iocoder.yudao.module.icbc.service.evidence.impl;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
-import cn.iocoder.yudao.framework.common.util.http.HttpUtils;
-import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
-import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.evidence.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
@@ -25,26 +22,17 @@ import cn.iocoder.yudao.module.icbc.enums.EvidenceFlowEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcEvidenceTypeEnum;
 import cn.iocoder.yudao.module.icbc.service.evidence.InvoiceEvidenceService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
@@ -55,8 +43,10 @@ import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
  * <p>五流里能从业务表自动取到的三流（资金流=支付单、发票流=发票+原件、信息流=台账条目）
  * 在读取时聚合；合同流与货物流暂由人工补录（{@code icbc_evidence}），
  * 等 #7 收购登记落地后再把自动来源接进来。
+ *
+ * <p>本类只负责取数与装配；证据包 / 台账的输出格式（zip、CSV、Excel）交给
+ * {@link EvidencePackageWriter}。
  */
-@Slf4j
 @Service
 @Validated
 public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
@@ -65,7 +55,6 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
     private static final int TOTAL_FLOW_COUNT = 5;
     /** 工行支付状态：2-支付成功 */
     private static final int PAYMENT_STATUS_SUCCESS = 2;
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Resource
     private InvoiceOrderMapper invoiceOrderMapper;
@@ -81,6 +70,8 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
     private InvoiceFileMapper invoiceFileMapper;
     @Resource
     private IcbcEvidenceMapper evidenceMapper;
+    @Resource
+    private EvidencePackageWriter evidencePackageWriter;
 
     @Override
     public EvidenceChainRespVO getEvidenceChain(String partnerOrderId) {
@@ -202,24 +193,7 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
         ChainContext ctx = buildContext(orders);
         List<AcquisitionLedgerRespVO> rows = new ArrayList<>();
         for (InvoiceOrderDO order : orders) {
-            PayeeInfoDO payee = order.getPayeeId() != null ? ctx.payeeById.get(order.getPayeeId()) : null;
-            for (OrderItemDO item : ctx.itemsByOrderId.getOrDefault(order.getId(), Collections.emptyList())) {
-                AcquisitionLedgerRespVO row = new AcquisitionLedgerRespVO();
-                row.setTradeTime(order.getInvoiceDate() != null ? order.getInvoiceDate() : order.getCreateTime());
-                // 交易地点等 #7 收购登记落地后再取真实值；先用出售者登记地址兜底，不伪造现场地址
-                row.setTradeAddress(payee != null ? payee.getAddress() : null);
-                row.setSellerName(payee != null ? payee.getName() : null);
-                row.setSellerMobile(payee != null ? payee.getMobile() : null);
-                row.setProductName(item.getItemName());
-                row.setSpecification(item.getSpecification());
-                row.setQuantity(item.getQuantity());
-                row.setUnit(item.getUnit());
-                row.setUnitPrice(item.getUnitPrice());
-                row.setAmount(item.getAmount());
-                row.setInvoiceNo(order.getInvoiceNo());
-                row.setPartnerOrderId(order.getPartnerOrderId());
-                rows.add(row);
-            }
+            rows.addAll(buildLedgerRows(order, ctx));
         }
         return rows;
     }
@@ -230,8 +204,9 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
         if (order == null) {
             throw exception(INVOICE_ORDER_NOT_EXISTS);
         }
-        writeEvidenceZip(Collections.singletonList(order), buildContext(Collections.singletonList(order)),
-                response, "证据包_" + partnerOrderId);
+        ChainContext ctx = buildContext(Collections.singletonList(order));
+        evidencePackageWriter.writeZip(response, "证据包_" + partnerOrderId,
+                Collections.singletonList(buildPackageContent(order, ctx)));
     }
 
     @Override
@@ -240,18 +215,16 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
         if (CollUtil.isEmpty(orders)) {
             throw exception(EVIDENCE_PACKAGE_NO_INVOICE);
         }
-        writeEvidenceZip(orders, buildContext(orders), response, "证据包_" + orders.size() + "票");
+        ChainContext ctx = buildContext(orders);
+        List<EvidencePackageWriter.PackageContent> packages = orders.stream()
+                .map(order -> buildPackageContent(order, ctx))
+                .collect(Collectors.toList());
+        evidencePackageWriter.writeZip(response, "证据包_" + orders.size() + "票", packages);
     }
 
     @Override
     public void exportAcquisitionLedger(AcquisitionLedgerReqVO reqVO, HttpServletResponse response) {
-        List<AcquisitionLedgerRespVO> rows = getLedgerRows(reqVO);
-        try {
-            ExcelUtils.write(response, "收购台账.xls", "收购台账", AcquisitionLedgerRespVO.class, rows);
-        } catch (IOException e) {
-            log.error("导出收购台账失败", e);
-            throw exception(EVIDENCE_EXPORT_FAILED);
-        }
+        evidencePackageWriter.writeLedgerExcel(response, getLedgerRows(reqVO));
     }
 
     // ==================== 证据装配 ====================
@@ -352,6 +325,41 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
         return chain;
     }
 
+    private List<AcquisitionLedgerRespVO> buildLedgerRows(InvoiceOrderDO order, ChainContext ctx) {
+        PayeeInfoDO payee = order.getPayeeId() != null ? ctx.payeeById.get(order.getPayeeId()) : null;
+        List<AcquisitionLedgerRespVO> rows = new ArrayList<>();
+        for (OrderItemDO item : ctx.itemsByOrderId.getOrDefault(order.getId(), Collections.emptyList())) {
+            AcquisitionLedgerRespVO row = new AcquisitionLedgerRespVO();
+            row.setTradeTime(order.getInvoiceDate() != null ? order.getInvoiceDate() : order.getCreateTime());
+            // 交易地点等 #7 收购登记落地后再取真实值；先用出售者登记地址兜底，不伪造现场地址
+            row.setTradeAddress(payee != null ? payee.getAddress() : null);
+            row.setSellerName(payee != null ? payee.getName() : null);
+            row.setSellerMobile(payee != null ? payee.getMobile() : null);
+            row.setProductName(item.getItemName());
+            row.setSpecification(item.getSpecification());
+            row.setQuantity(item.getQuantity());
+            row.setUnit(item.getUnit());
+            row.setUnitPrice(item.getUnitPrice());
+            row.setAmount(item.getAmount());
+            row.setInvoiceNo(order.getInvoiceNo());
+            row.setPartnerOrderId(order.getPartnerOrderId());
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    private EvidencePackageWriter.PackageContent buildPackageContent(InvoiceOrderDO order, ChainContext ctx) {
+        List<EvidencePackageWriter.EvidenceFileRef> files = new ArrayList<>();
+        InvoiceDownloadDO download = ctx.downloadByOrder.get(order.getPartnerOrderId());
+        if (download != null) {
+            for (InvoiceFileDO file : ctx.filesByDownload.getOrDefault(download.getId(), Collections.emptyList())) {
+                files.add(new EvidencePackageWriter.EvidenceFileRef(file.getFileName(), file.getFilePath()));
+            }
+        }
+        return new EvidencePackageWriter.PackageContent(order.getPartnerOrderId(),
+                assembleChain(order, ctx), buildLedgerRows(order, ctx), files);
+    }
+
     private ChainContext buildContext(List<InvoiceOrderDO> orders) {
         ChainContext ctx = new ChainContext();
         if (CollUtil.isEmpty(orders)) {
@@ -409,114 +417,6 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
         }
         wrapper.orderByAsc(InvoiceOrderDO::getId);
         return invoiceOrderMapper.selectList(wrapper);
-    }
-
-    // ==================== 导出 ====================
-
-    private void writeEvidenceZip(List<InvoiceOrderDO> orders, ChainContext ctx,
-                                  HttpServletResponse response, String baseName) {
-        response.setContentType("application/zip");
-        response.setHeader("Content-Disposition",
-                "attachment;filename=" + HttpUtils.encodeUtf8(baseName + ".zip"));
-        Set<String> usedFolders = new HashSet<>();
-        try (ZipOutputStream zos = new ZipOutputStream(response.getOutputStream())) {
-            for (InvoiceOrderDO order : orders) {
-                String folder = uniqueFolder(order.getPartnerOrderId(), usedFolders);
-                EvidenceChainRespVO chain = assembleChain(order, ctx);
-                putTextEntry(zos, folder + "/证据链.json", JsonUtils.toJsonPrettyString(chain));
-                putTextEntry(zos, folder + "/证据清单.csv", buildEvidenceCsv(chain));
-                putTextEntry(zos, folder + "/收购台账.csv", buildLedgerCsv(order, ctx));
-                copyInvoiceFiles(zos, folder, order, ctx);
-            }
-        } catch (IOException e) {
-            log.error("导出证据包失败", e);
-            throw exception(EVIDENCE_EXPORT_FAILED);
-        }
-    }
-
-    private void copyInvoiceFiles(ZipOutputStream zos, String folder,
-                                  InvoiceOrderDO order, ChainContext ctx) throws IOException {
-        InvoiceDownloadDO download = ctx.downloadByOrder.get(order.getPartnerOrderId());
-        if (download == null) {
-            return;
-        }
-        for (InvoiceFileDO file : ctx.filesByDownload.getOrDefault(download.getId(), Collections.emptyList())) {
-            File local = new File(file.getFilePath());
-            if (!local.exists() || !local.isFile()) {
-                continue; // 外部 URL 形态的原件不入包，证据清单里已列地址
-            }
-            zos.putNextEntry(new ZipEntry(folder + "/发票/" + safeName(file.getFileName())));
-            Files.copy(local.toPath(), zos);
-            zos.closeEntry();
-        }
-    }
-
-    private String buildEvidenceCsv(EvidenceChainRespVO chain) {
-        StringBuilder sb = new StringBuilder("\ufeff");
-        sb.append("流,来源类型,标题,引用,文件地址,发生时间\n");
-        for (EvidenceFlowRespVO flow : chain.getFlows()) {
-            for (EvidenceSourceRespVO source : flow.getSources()) {
-                sb.append(csvRow(flow.getFlowName(), source.getSourceType(), source.getTitle(),
-                        source.getRef(), source.getUrl(),
-                        source.getOccurredTime() != null ? source.getOccurredTime().format(TIME_FORMATTER) : ""));
-            }
-        }
-        return sb.toString();
-    }
-
-    private String buildLedgerCsv(InvoiceOrderDO order, ChainContext ctx) {
-        StringBuilder sb = new StringBuilder("\ufeff");
-        sb.append("交易时间,交易地点,出售者姓名,出售者联系方式,报废产品名称,规格型号,数量,计量单位,含税单价,金额,发票号码,合作方订单号\n");
-        PayeeInfoDO payee = order.getPayeeId() != null ? ctx.payeeById.get(order.getPayeeId()) : null;
-        LocalDateTime tradeTime = order.getInvoiceDate() != null ? order.getInvoiceDate() : order.getCreateTime();
-        for (OrderItemDO item : ctx.itemsByOrderId.getOrDefault(order.getId(), Collections.emptyList())) {
-            sb.append(csvRow(tradeTime != null ? tradeTime.format(TIME_FORMATTER) : "",
-                    payee != null ? payee.getAddress() : "",
-                    payee != null ? payee.getName() : "",
-                    payee != null ? payee.getMobile() : "",
-                    item.getItemName(), item.getSpecification(),
-                    item.getQuantity() != null ? item.getQuantity().toPlainString() : "",
-                    item.getUnit(),
-                    item.getUnitPrice() != null ? item.getUnitPrice().toPlainString() : "",
-                    item.getAmount() != null ? item.getAmount().toPlainString() : "",
-                    order.getInvoiceNo(), order.getPartnerOrderId()));
-        }
-        return sb.toString();
-    }
-
-    private String csvRow(String... cells) {
-        StringBuilder row = new StringBuilder();
-        for (int i = 0; i < cells.length; i++) {
-            if (i > 0) {
-                row.append(',');
-            }
-            String cell = cells[i] == null ? "" : cells[i];
-            row.append('"').append(cell.replace("\"", "\"\"")).append('"');
-        }
-        return row.append('\n').toString();
-    }
-
-    private void putTextEntry(ZipOutputStream zos, String name, String content) throws IOException {
-        zos.putNextEntry(new ZipEntry(name));
-        // 不能关闭 writer：它会连带关闭底层的 ZipOutputStream，后续 entry 就无法写入
-        OutputStreamWriter writer = new OutputStreamWriter(zos, StandardCharsets.UTF_8);
-        writer.write(content);
-        writer.flush();
-        zos.closeEntry();
-    }
-
-    private String uniqueFolder(String partnerOrderId, Set<String> used) {
-        String base = safeName(StrUtil.blankToDefault(partnerOrderId, "未命名"));
-        String folder = base;
-        int index = 1;
-        while (!used.add(folder)) {
-            folder = base + "_" + index++;
-        }
-        return folder;
-    }
-
-    private String safeName(String name) {
-        return name == null ? "未命名" : name.replaceAll("[\\\\/:*?\"<>|]", "_");
     }
 
     private boolean isHttpUrl(String url) {

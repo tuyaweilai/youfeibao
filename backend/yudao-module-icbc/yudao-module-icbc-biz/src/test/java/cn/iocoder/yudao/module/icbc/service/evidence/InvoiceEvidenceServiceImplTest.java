@@ -15,6 +15,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
+import cn.iocoder.yudao.module.icbc.service.evidence.impl.EvidencePackageWriter;
 import cn.iocoder.yudao.module.icbc.service.evidence.impl.InvoiceEvidenceServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
@@ -43,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>从 Service 接口进去，用真实 Mapper 读真库，验证的是「一张票的五流能不能被
  * 正确聚合、缺哪一流能不能被指出」这类行为，不碰实现细节。
  */
-@Import({InvoiceEvidenceServiceImpl.class})
+@Import({InvoiceEvidenceServiceImpl.class, EvidencePackageWriter.class})
 @Sql(scripts = "/sql/create_tables.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Transactional
 public class InvoiceEvidenceServiceImplTest extends BaseDbUnitTest {
