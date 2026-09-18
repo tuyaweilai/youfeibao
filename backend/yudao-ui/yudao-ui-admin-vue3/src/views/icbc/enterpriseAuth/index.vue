@@ -34,7 +34,7 @@
       <el-table-column label="userType" align="center" prop="userType" width="100" />
       <el-table-column label="授权状态" align="center" prop="authStatus" width="110">
         <template #default="{ row }">
-          <el-tag :type="statusType(row)">{{ statusLabel(row) }}</el-tag>
+          <el-tag :type="effectiveStatus(row).type">{{ effectiveStatus(row).label }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="授权时间" align="center" prop="authTime" :formatter="dateFormatter" width="170" />
@@ -67,7 +67,7 @@
         <el-date-picker
           v-model="updateForm.authTime"
           type="datetime"
-          value-format="YYYY-MM-DD HH:mm:ss"
+          value-format="x"
           placeholder="不填且已授权时默认当前时间"
           class="w-full"
         />
@@ -76,7 +76,7 @@
         <el-date-picker
           v-model="updateForm.expireTime"
           type="datetime"
-          value-format="YYYY-MM-DD HH:mm:ss"
+          value-format="x"
           placeholder="请选择有效期止"
           class="w-full"
         />
@@ -95,7 +95,7 @@
 <script setup lang="ts">
 import { EnterpriseAuthApi, EnterpriseAuthVO } from '@/api/icbc/enterpriseAuth'
 import { openIcbcForm } from '../util'
-import { dateFormatter, formatDate } from '@/utils/formatTime'
+import { dateFormatter } from '@/utils/formatTime'
 
 defineOptions({ name: 'IcbcEnterpriseAuth' })
 
@@ -137,17 +137,12 @@ const STATUS: Record<number, { label: string; type: 'info' | 'success' | 'danger
   1: { label: '已授权', type: 'success' },
   2: { label: '已失效', type: 'danger' }
 }
-const statusLabel = (row: EnterpriseAuthVO) => {
-  if (row.authStatus === 1 && row.expireTime && new Date(row.expireTime).getTime() < Date.now()) {
-    return '已过期'
-  }
-  return row.authStatus !== undefined ? STATUS[row.authStatus]?.label ?? row.authStatus : '-'
-}
-const statusType = (row: EnterpriseAuthVO): 'info' | 'success' | 'danger' => {
-  if (row.authStatus === 1 && row.expireTime && new Date(row.expireTime).getTime() < Date.now()) {
-    return 'danger'
-  }
-  return row.authStatus !== undefined ? STATUS[row.authStatus]?.type ?? 'info' : 'info'
+// 已授权但有效期已过时，展示为「已过期」
+const isExpired = (row: EnterpriseAuthVO) =>
+  row.authStatus === 1 && !!row.expireTime && row.expireTime < Date.now()
+const effectiveStatus = (row: EnterpriseAuthVO) => {
+  if (isExpired(row)) return { label: '已过期', type: 'danger' as const }
+  return STATUS[row.authStatus ?? -1] ?? { label: '-', type: 'info' as const }
 }
 
 const getList = async () => {
@@ -169,8 +164,8 @@ const updateForm = reactive({
   id: 0,
   outVendorId: '',
   authStatus: 1,
-  authTime: undefined as string | undefined,
-  expireTime: undefined as string | undefined,
+  authTime: undefined as number | undefined,
+  expireTime: undefined as number | undefined,
   remark: undefined as string | undefined
 })
 
@@ -178,8 +173,8 @@ const openUpdate = (row: EnterpriseAuthVO) => {
   updateForm.id = row.id!
   updateForm.outVendorId = row.outVendorId ?? ''
   updateForm.authStatus = row.authStatus ?? 1
-  updateForm.authTime = row.authTime ? formatDate(row.authTime) : undefined
-  updateForm.expireTime = row.expireTime ? formatDate(row.expireTime) : undefined
+  updateForm.authTime = row.authTime
+  updateForm.expireTime = row.expireTime
   updateForm.remark = row.remark
   updateVisible.value = true
 }

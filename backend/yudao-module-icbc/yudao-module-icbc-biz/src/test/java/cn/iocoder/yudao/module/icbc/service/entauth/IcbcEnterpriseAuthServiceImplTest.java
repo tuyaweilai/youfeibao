@@ -93,6 +93,39 @@ public class IcbcEnterpriseAuthServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testUpdateAuthResult_respectsExplicitStatus() {
+        IcbcEnterpriseAuthDO record = insertRecord("010020200513111111");
+
+        // 显式标记未授权时，即使有效期已过也尊重管理员的选择，不强改为已失效
+        IcbcEnterpriseAuthUpdateReqVO reqVO = new IcbcEnterpriseAuthUpdateReqVO();
+        reqVO.setId(record.getId());
+        reqVO.setAuthStatus(0);
+        reqVO.setExpireTime(LocalDateTime.now().minusDays(1));
+
+        enterpriseAuthService.updateAuthResult(reqVO);
+
+        assertEquals(0, enterpriseAuthMapper.selectById(record.getId()).getAuthStatus());
+    }
+
+    @Test
+    public void testUpdateAuthResult_canClearExpireTime() {
+        IcbcEnterpriseAuthDO record = insertRecord("010020200513111111");
+        IcbcEnterpriseAuthUpdateReqVO first = new IcbcEnterpriseAuthUpdateReqVO();
+        first.setId(record.getId());
+        first.setAuthStatus(1);
+        first.setExpireTime(LocalDateTime.now().plusYears(1));
+        enterpriseAuthService.updateAuthResult(first);
+
+        // 再次回填时不传有效期，应能把有效期置空
+        IcbcEnterpriseAuthUpdateReqVO second = new IcbcEnterpriseAuthUpdateReqVO();
+        second.setId(record.getId());
+        second.setAuthStatus(1);
+        enterpriseAuthService.updateAuthResult(second);
+
+        assertNull(enterpriseAuthMapper.selectById(record.getId()).getExpireTime());
+    }
+
+    @Test
     public void testUpdateAuthResult_notExists() {
         IcbcEnterpriseAuthUpdateReqVO reqVO = new IcbcEnterpriseAuthUpdateReqVO();
         reqVO.setId(999L);

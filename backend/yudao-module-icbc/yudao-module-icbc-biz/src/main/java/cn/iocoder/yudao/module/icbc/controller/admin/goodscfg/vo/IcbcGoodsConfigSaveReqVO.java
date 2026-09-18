@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.icbc.controller.admin.goodscfg.vo;
 
+import cn.iocoder.yudao.module.icbc.enums.IcbcTaxMethodEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -27,7 +28,7 @@ public class IcbcGoodsConfigSaveReqVO {
 
     @Schema(description = "计税方法：SIMPLE-简易计税，GENERAL-一般计税", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotEmpty(message = "计税方法不能为空")
-    @Pattern(regexp = "^(SIMPLE|GENERAL)$", message = "计税方法只能是 SIMPLE 或 GENERAL")
+    @Pattern(regexp = IcbcTaxMethodEnum.PATTERN, message = "计税方法只能是 SIMPLE 或 GENERAL")
     private String taxMethod = "GENERAL";
 
     @Schema(description = "商品和服务税收分类合并编码")

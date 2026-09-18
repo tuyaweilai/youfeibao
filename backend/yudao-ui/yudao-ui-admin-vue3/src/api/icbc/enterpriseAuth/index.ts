@@ -6,8 +6,8 @@ export interface EnterpriseAuthVO {
   siteType?: string
   userType?: string
   authStatus?: number // 0-未授权，1-已授权，2-已失效
-  authTime?: Date
-  expireTime?: Date
+  authTime?: number // 毫秒时间戳
+  expireTime?: number // 毫秒时间戳
   remark?: string
   createTime?: Date
 }
@@ -15,8 +15,8 @@ export interface EnterpriseAuthVO {
 export interface EnterpriseAuthUpdateVO {
   id: number
   authStatus: number
-  authTime?: string
-  expireTime?: string
+  authTime?: number
+  expireTime?: number
   remark?: string
 }
 

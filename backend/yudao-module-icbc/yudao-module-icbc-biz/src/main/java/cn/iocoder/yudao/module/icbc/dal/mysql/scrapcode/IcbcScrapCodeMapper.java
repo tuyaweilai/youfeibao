@@ -29,8 +29,14 @@ public interface IcbcScrapCodeMapper extends BaseMapperX<IcbcScrapCodeDO> {
                 .orderByDesc(IcbcScrapCodeDO::getId));
     }
 
+    /**
+     * 按税收分类合并编码查询品类配置。同一个编码可能被多条品类复用，取第一条即可。
+     */
     default IcbcScrapCodeDO selectByMergedCode(String mergedCode) {
-        return selectOne(IcbcScrapCodeDO::getMergedCode, mergedCode);
+        return selectList(new LambdaQueryWrapperX<IcbcScrapCodeDO>()
+                .eq(IcbcScrapCodeDO::getMergedCode, mergedCode)
+                .orderByAsc(IcbcScrapCodeDO::getId))
+                .stream().findFirst().orElse(null);
     }
 
 }

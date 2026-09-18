@@ -2,7 +2,6 @@ package cn.iocoder.yudao.module.icbc.controller.admin.entauth.vo;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
-import org.springframework.format.annotation.DateTimeFormat;
 
 import javax.validation.constraints.NotNull;
 import java.time.LocalDateTime;
@@ -19,12 +18,10 @@ public class IcbcEnterpriseAuthUpdateReqVO {
     @NotNull(message = "授权状态不能为空")
     private Integer authStatus;
 
-    @Schema(description = "授权时间（不传且状态为已授权时，默认取当前时间）")
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @Schema(description = "授权时间（不传且状态为已授权时，默认取当前时间；毫秒时间戳）")
     private LocalDateTime authTime;
 
-    @Schema(description = "授权有效期止")
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @Schema(description = "授权有效期止（毫秒时间戳）")
     private LocalDateTime expireTime;
 
     @Schema(description = "备注")

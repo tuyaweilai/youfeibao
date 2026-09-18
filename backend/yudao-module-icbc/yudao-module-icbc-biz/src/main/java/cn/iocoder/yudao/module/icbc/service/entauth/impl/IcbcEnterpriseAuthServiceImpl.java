@@ -11,6 +11,7 @@ import cn.iocoder.yudao.module.icbc.gateway.IcbcGatewayResult;
 import cn.iocoder.yudao.module.icbc.gateway.model.EnterpriseAuthReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
 import cn.iocoder.yudao.module.icbc.service.entauth.IcbcEnterpriseAuthService;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -77,17 +78,19 @@ public class IcbcEnterpriseAuthServiceImpl implements IcbcEnterpriseAuthService 
         if (Integer.valueOf(1).equals(authStatus) && authTime == null) {
             authTime = LocalDateTime.now();
         }
-        // 有效期已过则状态归为已失效，避免出现「已授权但已过期」的自相矛盾数据
-        if (expireTime != null && !expireTime.isAfter(LocalDateTime.now())) {
+        // 显式标记「已授权」但有效期已过时，归为已失效，避免出现自相矛盾的数据
+        if (Integer.valueOf(1).equals(authStatus)
+                && expireTime != null && !expireTime.isAfter(LocalDateTime.now())) {
             authStatus = 2;
         }
-        IcbcEnterpriseAuthDO updateObj = new IcbcEnterpriseAuthDO();
-        updateObj.setId(reqVO.getId());
-        updateObj.setAuthStatus(authStatus);
-        updateObj.setAuthTime(authTime);
-        updateObj.setExpireTime(expireTime);
-        updateObj.setRemark(reqVO.getRemark());
-        enterpriseAuthMapper.updateById(updateObj);
+        // 用 UpdateWrapper 显式 set，允许把授权时间 / 有效期置空（updateById 会跳过 null）
+        LambdaUpdateWrapper<IcbcEnterpriseAuthDO> update = new LambdaUpdateWrapper<IcbcEnterpriseAuthDO>()
+                .eq(IcbcEnterpriseAuthDO::getId, reqVO.getId())
+                .set(IcbcEnterpriseAuthDO::getAuthStatus, authStatus)
+                .set(IcbcEnterpriseAuthDO::getAuthTime, authTime)
+                .set(IcbcEnterpriseAuthDO::getExpireTime, expireTime)
+                .set(IcbcEnterpriseAuthDO::getRemark, reqVO.getRemark());
+        enterpriseAuthMapper.update(null, update);
     }
 
 }

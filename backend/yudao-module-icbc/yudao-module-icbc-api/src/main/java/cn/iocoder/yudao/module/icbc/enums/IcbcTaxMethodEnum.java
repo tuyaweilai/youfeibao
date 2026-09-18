@@ -16,6 +16,11 @@ public enum IcbcTaxMethodEnum {
     /** 一般计税 */
     GENERAL("GENERAL", "一般计税");
 
+    /**
+     * 合法取值的正则。供 {@code @Pattern} 与枚举共用，避免合法集合散落多处。
+     */
+    public static final String PATTERN = "^(SIMPLE|GENERAL)$";
+
     private final String code;
     private final String name;
 
