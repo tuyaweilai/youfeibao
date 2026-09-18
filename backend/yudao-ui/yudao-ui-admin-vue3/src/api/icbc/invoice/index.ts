@@ -2,6 +2,7 @@ import request from '@/config/axios'
 
 // 商品明细
 export interface GoodsInfoVO {
+  goodsConfigId?: number // 选择的品类配置（仅前端用，不发给工行）
   goodsSeqno?: string // 商品信息子序号
   projectName?: string // 项目名称
   goodsNum?: number // 商品总数

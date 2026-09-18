@@ -105,6 +105,19 @@
 
       <el-divider content-position="left">商品明细</el-divider>
       <el-table :data="form.goodsInfo" border size="small" class="mb-10px">
+        <el-table-column label="选择品类" width="150">
+          <template #default="scope">
+            <el-select
+              v-model="scope.row.goodsConfigId"
+              size="small"
+              placeholder="选品类"
+              class="w-full"
+              @change="(id: number) => applyGoodsConfig(scope.row, id)"
+            >
+              <el-option v-for="g in goodsOptions" :key="g.id" :label="g.name" :value="g.id!" />
+            </el-select>
+          </template>
+        </el-table-column>
         <el-table-column label="序号" width="70" align="center">
           <template #default="scope">
             <el-input v-model="scope.row.goodsSeqno" size="small" />
@@ -186,6 +199,7 @@
 
 <script setup lang="ts">
 import { GoodsInfoVO, InvoiceApi, InvoicePreOrderVO, InvoiceQueryRespVO } from '@/api/icbc/invoice'
+import { GoodsConfigApi, GoodsConfigVO } from '@/api/icbc/goodsConfig'
 import { openIcbcForm } from '../util'
 
 defineOptions({ name: 'IcbcInvoice' })
@@ -203,6 +217,7 @@ const stepLabel = (map: Record<number, string>, s?: number) => (s !== undefined 
 
 function newGoods(seq: number): GoodsInfoVO {
   return {
+    goodsConfigId: undefined,
     goodsSeqno: String(seq),
     projectName: undefined,
     goodsNum: undefined,
@@ -212,6 +227,17 @@ function newGoods(seq: number): GoodsInfoVO {
     taxRate: 0.01,
     mergedCode: undefined
   }
+}
+
+// 编码配置：按品类带出单位 / 税率 / 税收分类编码
+const goodsOptions = ref<GoodsConfigVO[]>([])
+const applyGoodsConfig = (row: GoodsInfoVO, configId: number) => {
+  const cfg = goodsOptions.value.find((g) => g.id === configId)
+  if (!cfg) return
+  row.projectName = cfg.name
+  row.units = cfg.unit
+  row.taxRate = cfg.taxRate
+  row.mergedCode = cfg.mergedCode
 }
 
 function buildForm(): InvoicePreOrderVO {
@@ -268,6 +294,16 @@ const handleSubmit = async () => {
     const origin = window.location.origin
     const payload: InvoicePreOrderVO = {
       ...form.value,
+      goodsInfo: (form.value.goodsInfo || []).map((g) => ({
+        goodsSeqno: g.goodsSeqno,
+        projectName: g.projectName,
+        goodsNum: g.goodsNum,
+        goodsAmt: g.goodsAmt,
+        price: g.price,
+        units: g.units,
+        taxRate: g.taxRate,
+        mergedCode: g.mergedCode
+      })),
       trxChannel: '01',
       asynFlag: '0',
       currency: '001',
@@ -302,4 +338,12 @@ const handleQuery = async () => {
   }
   queryResult.value = await InvoiceApi.query({ outOrderId: queryOrderId.value })
 }
+
+onMounted(async () => {
+  try {
+    goodsOptions.value = (await GoodsConfigApi.getEnabledList()) || []
+  } catch {
+    goodsOptions.value = []
+  }
+})
 </script>
