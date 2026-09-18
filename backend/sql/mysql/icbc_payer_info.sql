@@ -1,7 +1,7 @@
 -- 工行付方信息表
 CREATE TABLE IF NOT EXISTS `icbc_payer_info` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `payer_no` varchar(64) NOT NULL COMMENT '工行付方编号',
+  `payer_no` varchar(64) DEFAULT NULL COMMENT '工行付方编号（建档时为空）',
   `partner_payer_id` varchar(64) NOT NULL COMMENT '合作方付方编号',
   `name` varchar(100) NOT NULL COMMENT '企业名称',
   `credit_code` varchar(18) NOT NULL COMMENT '统一社会信用代码',
