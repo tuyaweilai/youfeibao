@@ -51,21 +51,21 @@ public class IcbcApiTestController {
 
     @GetMapping("/config")
     @Operation(summary = "适配层运行信息", description = "查看适配层运行模式（不展示密钥与网关地址）")
-    @PreAuthorize("@ss.hasPermission('icbc:test:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:test:query')")
     public CommonResult<Map<String, Object>> testConfig() {
         return icbcTestService.testConfig();
     }
 
     @GetMapping("/connectivity")
     @Operation(summary = "真实连通性校验", description = "打一条数据接口到工行网关，验证网络与签名配置")
-    @PreAuthorize("@ss.hasPermission('icbc:test:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:test:query')")
     public CommonResult<IcbcConnectivity> checkConnectivity() {
         return icbcTestService.checkConnectivity();
     }
 
     @GetMapping("/invoice-query")
     @Operation(summary = "发票 / 预开票信息查询", description = "经适配层调用工行预查询接口")
-    @PreAuthorize("@ss.hasPermission('icbc:test:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:test:query')")
     public CommonResult<InvoiceInfo> testInvoiceQuery(
             @RequestParam(value = "outOrderId") String outOrderId,
             @RequestParam(value = "outUserId", required = false) String outUserId) {
@@ -74,7 +74,7 @@ public class IcbcApiTestController {
 
     @GetMapping("/payment-form-json")
     @Operation(summary = "支付页面表单生成测试", description = "经适配层生成工行支付页面表单 HTML")
-    @PreAuthorize("@ss.hasPermission('icbc:test:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:test:query')")
     public CommonResult<String> generatePaymentFormJson(
             @RequestParam(value = "outOrderId") String outOrderId,
             @RequestParam(value = "outUserId", required = false) String outUserId) {

@@ -1,6 +1,6 @@
 package cn.iocoder.yudao.module.icbc.dal.dataobject.payee;
 
-import cn.iocoder.yudao.framework.mybatis.core.dataobject.BaseDO;
+import cn.iocoder.yudao.framework.tenant.core.db.TenantBaseDO;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import com.baomidou.mybatisplus.annotation.KeySequence;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -20,7 +20,7 @@ import lombok.*;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PayeeInfoDO extends BaseDO {
+public class PayeeInfoDO extends TenantBaseDO {
 
     /**
      * 主键
@@ -114,10 +114,5 @@ public class PayeeInfoDO extends BaseDO {
      * 关联企业名称
      */
     private String companyName;
-    
-    /**
-     * 租户ID
-     */
-    private Long tenantId;
 
 } 

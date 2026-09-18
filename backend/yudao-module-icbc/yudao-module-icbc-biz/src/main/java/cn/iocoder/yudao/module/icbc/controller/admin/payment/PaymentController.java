@@ -38,7 +38,7 @@ public class PaymentController {
 
     @PostMapping("/create")
     @Operation(summary = "创建付方支付")
-    @PreAuthorize("@ss.hasPermission('icbc:payment:create')")
+    @PreAuthorize("@icbc.hasPermission('icbc:payment:create')")
     @ApiAccessLog(operateType = CREATE)
     public CommonResult<PaymentRespVO> createPayment(@Valid @RequestBody PaymentReqVO createReqVO) {
         log.info("收到付方支付请求 - partnerOrderId: {}", createReqVO.getOutOrderId());
@@ -48,7 +48,7 @@ public class PaymentController {
 
     @GetMapping("/query")
     @Operation(summary = "查询支付状态")
-    @PreAuthorize("@ss.hasPermission('icbc:payment:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:payment:query')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<PaymentStatusQueryRespVO> queryPaymentStatus(@Valid PaymentStatusQueryReqVO queryReqVO) {
         log.info("收到支付状态查询请求 - partnerOrderId: {}", queryReqVO.getOutOrderId());
@@ -58,7 +58,7 @@ public class PaymentController {
 
     @PostMapping("/query")
     @Operation(summary = "查询支付状态（POST方式）")
-    @PreAuthorize("@ss.hasPermission('icbc:payment:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:payment:query')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<PaymentStatusQueryRespVO> queryPaymentStatusPost(@Valid @RequestBody PaymentStatusQueryReqVO queryReqVO) {
         log.info("收到支付状态查询请求（POST） - partnerOrderId: {}", queryReqVO.getOutOrderId());

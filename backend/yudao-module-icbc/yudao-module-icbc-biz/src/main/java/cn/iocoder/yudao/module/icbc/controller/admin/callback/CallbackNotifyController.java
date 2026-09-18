@@ -41,7 +41,7 @@ public class CallbackNotifyController {
 
     @GetMapping("/page")
     @Operation(summary = "获得工行回调通知分页")
-    @PreAuthorize("@ss.hasPermission('icbc:callback:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:callback:query')")
     public CommonResult<PageResult<CallbackNotifyRespVO>> getCallbackNotifyPage(@Valid CallbackNotifyPageReqVO pageReqVO) {
         PageResult<CallbackNotifyDO> pageResult = callbackNotifyService.getCallbackNotifyPage(pageReqVO);
         return success(BeanUtils.toBean(pageResult, CallbackNotifyRespVO.class));
@@ -50,7 +50,7 @@ public class CallbackNotifyController {
     @GetMapping("/get")
     @Operation(summary = "获得工行回调通知")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
-    @PreAuthorize("@ss.hasPermission('icbc:callback:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:callback:query')")
     public CommonResult<CallbackNotifyRespVO> getCallbackNotify(@RequestParam("id") Long id) {
         CallbackNotifyDO callbackNotify = callbackNotifyService.getCallbackNotify(id);
         return success(BeanUtils.toBean(callbackNotify, CallbackNotifyRespVO.class));
@@ -76,7 +76,7 @@ public class CallbackNotifyController {
     @PostMapping("/replay")
     @Operation(summary = "重放回调通知")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
-    @PreAuthorize("@ss.hasPermission('icbc:callback:retry')")
+    @PreAuthorize("@icbc.hasPermission('icbc:callback:retry')")
     public CommonResult<Boolean> replayCallback(@RequestParam("id") Long id) {
         callbackNotifyService.replay(id);
         return success(true);

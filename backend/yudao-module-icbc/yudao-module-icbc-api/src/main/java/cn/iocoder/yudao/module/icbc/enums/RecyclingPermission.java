@@ -1,0 +1,63 @@
+package cn.iocoder.yudao.module.icbc.enums;
+
+/**
+ * 回收企业反向开票域的权限标识。
+ *
+ * <p>权限标识是本平台自己的语言，不直接等于工行或税务侧的接口名。它们既用于
+ * Controller 上的 {@code @PreAuthorize}，也用于 {@link RecyclingRoleEnum} 里
+ * 「哪个租户内角色能做什么」的映射。角色与权限的对应关系只在本模块内维护，
+ * 不依赖数据库里的菜单数据。
+ */
+public interface RecyclingPermission {
+
+    // ========== 出售者档案 / 收购登记 ==========
+
+    String PAYEE_CREATE = "icbc:payee-info:create";
+    String PAYEE_UPDATE = "icbc:payee-info:update";
+    String PAYEE_DELETE = "icbc:payee-info:delete";
+    String PAYEE_QUERY = "icbc:payee-info:query";
+    String PAYEE_EXPORT = "icbc:payee-info:export";
+
+    // ========== 回收企业自身档案（付方） ==========
+
+    String PAYER_CREATE = "icbc:payer-info:create";
+    String PAYER_UPDATE = "icbc:payer-info:update";
+    String PAYER_DELETE = "icbc:payer-info:delete";
+    String PAYER_QUERY = "icbc:payer-info:query";
+
+    // ========== 开票 ==========
+
+    String INVOICE_CREATE = "icbc:invoice-order:create";
+    String INVOICE_QUERY = "icbc:invoice-order:query";
+
+    // ========== 付款 ==========
+
+    String PAYMENT_CREATE = "icbc:payment:create";
+    String PAYMENT_QUERY = "icbc:payment:query";
+
+    // ========== 发票下载 / 证据 ==========
+
+    String DOWNLOAD_EXECUTE = "icbc:invoice-download:download";
+    String DOWNLOAD_QUERY = "icbc:invoice-download:query";
+    String DOWNLOAD_RETRY = "icbc:invoice-download:retry";
+    String DOWNLOAD_FILE = "icbc:invoice-download:download-file";
+
+    // ========== 工行调用日志与异步通知（平台运营） ==========
+
+    String API_LOG_QUERY = "icbc:api-log:query";
+    String CALLBACK_QUERY = "icbc:callback:query";
+    String CALLBACK_RETRY = "icbc:callback:retry";
+
+    // ========== 连通性自检 ==========
+
+    String TEST_QUERY = "icbc:test:query";
+
+    // ========== 租户初始化 ==========
+
+    String TENANT_ROLE_INIT = "icbc:tenant:role:init";
+
+    // ========== 平台运营跨租户 ==========
+
+    String PLATFORM_INVOICE_QUERY = "icbc:platform:invoice:query";
+
+}

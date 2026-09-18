@@ -1,6 +1,6 @@
 package cn.iocoder.yudao.module.icbc.dal.dataobject.callback;
 
-import cn.iocoder.yudao.framework.mybatis.core.dataobject.BaseDO;
+import cn.iocoder.yudao.framework.tenant.core.db.TenantBaseDO;
 import com.baomidou.mybatisplus.annotation.KeySequence;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CallbackNotifyDO extends BaseDO {
+public class CallbackNotifyDO extends TenantBaseDO {
 
     /**
      * 主键
@@ -69,9 +69,5 @@ public class CallbackNotifyDO extends BaseDO {
      * 重试次数
      */
     private Integer retryCount;
-    /**
-     * 租户ID
-     */
-    private Long tenantId;
 
 } 

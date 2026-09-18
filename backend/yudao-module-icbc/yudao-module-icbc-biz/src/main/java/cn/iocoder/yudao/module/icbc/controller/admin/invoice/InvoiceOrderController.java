@@ -38,7 +38,7 @@ public class InvoiceOrderController {
 
     @PostMapping("/pre-order")
     @Operation(summary = "创建反向开票预下单")
-    @PreAuthorize("@ss.hasPermission('icbc:invoice-order:create')")
+    @PreAuthorize("@icbc.hasPermission('icbc:invoice-order:create')")
     @ApiAccessLog(operateType = CREATE)
     public CommonResult<InvoicePreOrderRespVO> createPreOrder(@Valid @RequestBody InvoicePreOrderReqVO createReqVO) {
         log.info("收到反向开票预下单请求 - partnerOrderId: {}", createReqVO.getOutOrderId());
@@ -48,7 +48,7 @@ public class InvoiceOrderController {
 
     @GetMapping("/query")
     @Operation(summary = "查询反向开票信息")
-    @PreAuthorize("@ss.hasPermission('icbc:invoice-order:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:invoice-order:query')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<InvoiceQueryRespVO> queryInvoiceInfo(@Valid InvoiceQueryReqVO queryReqVO) {
         log.info("收到反向开票查询请求 - partnerOrderId: {}", queryReqVO.getOutOrderId());
@@ -58,7 +58,7 @@ public class InvoiceOrderController {
 
     @PostMapping("/query")
     @Operation(summary = "查询反向开票信息（POST方式）")
-    @PreAuthorize("@ss.hasPermission('icbc:invoice-order:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:invoice-order:query')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<InvoiceQueryRespVO> queryInvoiceInfoPost(@Valid @RequestBody InvoiceQueryReqVO queryReqVO) {
         log.info("收到反向开票查询请求（POST） - partnerOrderId: {}", queryReqVO.getOutOrderId());

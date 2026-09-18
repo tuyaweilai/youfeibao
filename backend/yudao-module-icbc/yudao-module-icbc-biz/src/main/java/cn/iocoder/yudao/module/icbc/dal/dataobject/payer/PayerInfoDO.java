@@ -1,6 +1,6 @@
 package cn.iocoder.yudao.module.icbc.dal.dataobject.payer;
 
-import cn.iocoder.yudao.framework.mybatis.core.dataobject.BaseDO;
+import cn.iocoder.yudao.framework.tenant.core.db.TenantBaseDO;
 import com.baomidou.mybatisplus.annotation.KeySequence;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -18,7 +18,7 @@ import lombok.ToString;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @ToString(callSuper = true)
-public class PayerInfoDO extends BaseDO {
+public class PayerInfoDO extends TenantBaseDO {
 
     /**
      * 主键
@@ -115,10 +115,5 @@ public class PayerInfoDO extends BaseDO {
      * 工行开户状态：00-初始，01-开户中，02-开户成功，03-开户失败
      */
     private String icbcOpenacctStatus;
-
-    /**
-     * 租户ID
-     */
-    private Long tenantId;
 
 } 

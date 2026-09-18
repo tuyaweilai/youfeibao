@@ -64,6 +64,17 @@ public class RoleServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testGetRoleByCode() {
+        // mock 数据
+        RoleDO roleDO = randomPojo(RoleDO.class, o -> o.setCode("recycling_receiver"));
+        roleMapper.insert(roleDO);
+        // 调用
+        RoleDO result = roleService.getRoleByCode("recycling_receiver");
+        // 断言
+        assertPojoEquals(roleDO, result);
+    }
+
+    @Test
     public void testUpdateRole() {
         // mock 数据
         RoleDO roleDO = randomPojo(RoleDO.class, o -> o.setType(RoleTypeEnum.CUSTOM.getType()));

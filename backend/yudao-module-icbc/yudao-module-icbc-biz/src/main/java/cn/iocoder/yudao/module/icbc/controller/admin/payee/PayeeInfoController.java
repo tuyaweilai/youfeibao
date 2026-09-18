@@ -35,14 +35,14 @@ public class PayeeInfoController {
 
     @PostMapping("/create")
     @Operation(summary = "创建收方信息")
-    @PreAuthorize("@ss.hasPermission('icbc:payee-info:create')")
+    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:create')")
     public CommonResult<Long> createPayeeInfo(@Valid @RequestBody PayeeInfoSaveReqVO createReqVO) {
         return success(payeeInfoService.createPayeeInfo(createReqVO));
     }
 
     @PutMapping("/update")
     @Operation(summary = "更新收方信息")
-    @PreAuthorize("@ss.hasPermission('icbc:payee-info:update')")
+    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:update')")
     public CommonResult<Boolean> updatePayeeInfo(@Valid @RequestBody PayeeInfoSaveReqVO updateReqVO) {
         payeeInfoService.updatePayeeInfo(updateReqVO);
         return success(true);
@@ -51,7 +51,7 @@ public class PayeeInfoController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除收方信息")
     @Parameter(name = "id", description = "编号", required = true)
-    @PreAuthorize("@ss.hasPermission('icbc:payee-info:delete')")
+    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:delete')")
     public CommonResult<Boolean> deletePayeeInfo(@RequestParam("id") Long id) {
         payeeInfoService.deletePayeeInfo(id);
         return success(true);
@@ -60,7 +60,7 @@ public class PayeeInfoController {
     @GetMapping("/get")
     @Operation(summary = "获得收方信息")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
-    @PreAuthorize("@ss.hasPermission('icbc:payee-info:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:query')")
     public CommonResult<PayeeInfoRespVO> getPayeeInfo(@RequestParam("id") Long id) {
         PayeeInfoDO payeeInfo = payeeInfoService.getPayeeInfo(id);
         return success(BeanUtils.toBean(payeeInfo, PayeeInfoRespVO.class));
@@ -68,7 +68,7 @@ public class PayeeInfoController {
 
     @GetMapping("/page")
     @Operation(summary = "获得收方信息分页")
-    @PreAuthorize("@ss.hasPermission('icbc:payee-info:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:query')")
     public CommonResult<PageResult<PayeeInfoRespVO>> getPayeeInfoPage(@Valid PayeeInfoPageReqVO pageReqVO) {
         PageResult<PayeeInfoDO> pageResult = payeeInfoService.getPayeeInfoPage(pageReqVO);
         return success(PayeeInfoConvert.INSTANCE.convertPage(pageResult));
@@ -76,7 +76,7 @@ public class PayeeInfoController {
 
     @GetMapping("/export-excel")
     @Operation(summary = "导出收方信息 Excel")
-    @PreAuthorize("@ss.hasPermission('icbc:payee-info:export')")
+    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:export')")
     public void exportPayeeInfoExcel(@Valid PayeeInfoPageReqVO exportReqVO,
               HttpServletResponse response) throws IOException {
         exportReqVO.setPageSize(PageParam.PAGE_SIZE_NONE);
@@ -90,14 +90,14 @@ public class PayeeInfoController {
 
     @PostMapping("/reverse/receiver/add")
     @Operation(summary = "工行收方新增接口")
-    @PreAuthorize("@ss.hasPermission('icbc:payee-info:create')")
+    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:create')")
     public CommonResult<Long> addPayeeToIcbc(@Valid @RequestBody PayeeAddReqVO reqVO) {
         return success(payeeInfoService.addPayeeToIcbc(reqVO));
     }
 
     @PostMapping("/reverse/receiver/query")
     @Operation(summary = "工行收方查询接口")
-    @PreAuthorize("@ss.hasPermission('icbc:payee-info:query')")
+    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:query')")
     public CommonResult<List<PayeeInfoRespVO>> queryPayeeFromIcbc(@Valid @RequestBody PayeeQueryReqVO reqVO) {
         List<PayeeInfoDO> list = payeeInfoService.queryPayeeFromIcbc(reqVO);
         return success(PayeeInfoConvert.INSTANCE.convertList(list));

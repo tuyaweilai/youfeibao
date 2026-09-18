@@ -18,4 +18,24 @@ public interface RoleApi {
      */
     void validRoleList(Collection<Long> ids);
 
+    /**
+     * 根据角色标识，获得角色编号
+     *
+     * @param code 角色标识
+     * @return 角色编号；不存在时返回 {@code null}
+     */
+    Long getRoleIdByCode(String code);
+
+    /**
+     * 创建一个不含菜单授权的内置角色。
+     *
+     * <p>只用于业务模块初始化自己的固定角色（例如反向开票的收货员 / 开票员 / 财务），
+     * 这类角色的权限不走菜单，而由业务模块自己的权限判断维护。
+     *
+     * @param code 角色标识
+     * @param name 角色名称
+     * @return 角色编号
+     */
+    Long createRole(String code, String name);
+
 }

@@ -1,0 +1,149 @@
+package cn.iocoder.yudao.module.icbc.enums;
+
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * 回收企业租户内的角色，以及平台运营角色。
+ *
+ * <p>四个租户内角色（管理员 / 开票员 / 收货员 / 财务）都属于回收企业这一租户，
+ * 只能在本租户内做事；平台运营是跨租户角色，只存在于平台自己的租户里。
+ *
+ * <p>角色的 {@code code} 是 {@code system_role.code}，由业务侧的权限判断组件
+ * 依据它判断「谁能做哪个操作」。管理员直接复用 yudao 建租户时自动生成的
+ * {@code tenant_admin}，这样新租户开出来就天然是管理员，不必额外造角色。
+ */
+public enum RecyclingRoleEnum {
+
+    /**
+     * 管理员：回收企业负责人，本租户内全部操作的最终责任人。
+     */
+    ADMIN("tenant_admin", "管理员", Set.of(
+            RecyclingPermission.PAYEE_CREATE, RecyclingPermission.PAYEE_UPDATE,
+            RecyclingPermission.PAYEE_DELETE, RecyclingPermission.PAYEE_QUERY,
+            RecyclingPermission.PAYEE_EXPORT,
+            RecyclingPermission.PAYER_CREATE, RecyclingPermission.PAYER_UPDATE,
+            RecyclingPermission.PAYER_DELETE, RecyclingPermission.PAYER_QUERY,
+            RecyclingPermission.INVOICE_CREATE, RecyclingPermission.INVOICE_QUERY,
+            RecyclingPermission.PAYMENT_CREATE, RecyclingPermission.PAYMENT_QUERY,
+            RecyclingPermission.DOWNLOAD_EXECUTE, RecyclingPermission.DOWNLOAD_QUERY,
+            RecyclingPermission.DOWNLOAD_RETRY, RecyclingPermission.DOWNLOAD_FILE,
+            RecyclingPermission.API_LOG_QUERY, RecyclingPermission.CALLBACK_QUERY,
+            RecyclingPermission.TEST_QUERY, RecyclingPermission.TENANT_ROLE_INIT)),
+
+    /**
+     * 收货员：收购现场登记，维护出售者档案与收购单。
+     */
+    RECEIVER("recycling_receiver", "收货员", Set.of(
+            RecyclingPermission.PAYEE_CREATE, RecyclingPermission.PAYEE_UPDATE,
+            RecyclingPermission.PAYEE_DELETE, RecyclingPermission.PAYEE_QUERY,
+            RecyclingPermission.PAYEE_EXPORT)),
+
+    /**
+     * 开票员：发起反向开票与付款，下载发票原件。
+     */
+    INVOICER("recycling_invoicer", "开票员", Set.of(
+            RecyclingPermission.PAYER_QUERY,
+            RecyclingPermission.INVOICE_CREATE, RecyclingPermission.INVOICE_QUERY,
+            RecyclingPermission.PAYMENT_CREATE, RecyclingPermission.PAYMENT_QUERY,
+            RecyclingPermission.DOWNLOAD_EXECUTE, RecyclingPermission.DOWNLOAD_QUERY,
+            RecyclingPermission.DOWNLOAD_RETRY, RecyclingPermission.DOWNLOAD_FILE)),
+
+    /**
+     * 财务：代办税费、对账、归集发票。
+     */
+    FINANCE("recycling_finance", "财务", Set.of(
+            RecyclingPermission.INVOICE_QUERY,
+            RecyclingPermission.PAYMENT_QUERY,
+            RecyclingPermission.DOWNLOAD_QUERY, RecyclingPermission.DOWNLOAD_FILE)),
+
+    /**
+     * 平台运营：平台方角色，可跨租户查看工行日志、通知与全平台发票。
+     */
+    PLATFORM_OPERATOR("recycling_platform_operator", "平台运营", Set.of(
+            RecyclingPermission.API_LOG_QUERY, RecyclingPermission.CALLBACK_QUERY,
+            RecyclingPermission.CALLBACK_RETRY, RecyclingPermission.PLATFORM_INVOICE_QUERY));
+
+    /**
+     * yudao 超级管理员：平台自有系统租户的最高权限，绕过角色映射。
+     */
+    public static final String SUPER_ADMIN_CODE = "super_admin";
+
+    private final String code;
+    private final String name;
+    private final Set<String> permissions;
+
+    RecyclingRoleEnum(String code, String name, Set<String> permissions) {
+        this.code = code;
+        this.name = name;
+        this.permissions = permissions;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Set<String> getPermissions() {
+        return permissions;
+    }
+
+    /**
+     * 是否跨租户角色。只有平台运营（以及 yudao 超管）可以越过租户边界。
+     */
+    public boolean isCrossTenant() {
+        return this == PLATFORM_OPERATOR;
+    }
+
+    public static Optional<RecyclingRoleEnum> ofCode(String code) {
+        return Arrays.stream(values())
+                .filter(role -> role.code.equals(code))
+                .findFirst();
+    }
+
+    /**
+     * 获得某个权限允许的角色标识集合。超管对任意已登记权限都放行。
+     *
+     * @param permission 权限标识
+     * @return 角色标识集合；权限未登记时返回空集合，表示拒绝
+     */
+    public static Set<String> roleCodesForPermission(String permission) {
+        if (permission == null || !allPermissions().contains(permission)) {
+            return Set.of(); // 未登记的权限一律拒绝，超管也不例外
+        }
+        Set<String> codes = new LinkedHashSet<>();
+        codes.add(SUPER_ADMIN_CODE);
+        for (RecyclingRoleEnum role : values()) {
+            if (role.permissions.contains(permission)) {
+                codes.add(role.code);
+            }
+        }
+        return codes;
+    }
+
+    /**
+     * 某角色是否拥有某权限。
+     */
+    public static boolean roleHasPermission(String roleCode, String permission) {
+        return ofCode(roleCode)
+                .map(role -> role.permissions.contains(permission))
+                .orElse(false);
+    }
+
+    /**
+     * 本平台登记的全部权限标识。
+     */
+    public static Set<String> allPermissions() {
+        Set<String> permissions = new LinkedHashSet<>();
+        for (RecyclingRoleEnum role : values()) {
+            permissions.addAll(role.permissions);
+        }
+        return permissions;
+    }
+
+}
