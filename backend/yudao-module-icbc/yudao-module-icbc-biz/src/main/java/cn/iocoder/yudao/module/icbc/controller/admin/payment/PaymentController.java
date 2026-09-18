@@ -75,14 +75,4 @@ public class PaymentController {
         return success(result);
     }
 
-    @GetMapping("/generate-url")
-    @Operation(summary = "生成支付页面URL")
-    @PreAuthorize("@ss.hasPermission('icbc:payment:create')")
-    @ApiAccessLog(operateType = GET)
-    public CommonResult<String> generatePaymentUrl(@Valid PaymentReqVO paymentReqVO) {
-        log.info("生成支付页面URL - partnerOrderId: {}", paymentReqVO.getOutOrderId());
-        String url = paymentService.generatePaymentUrl(paymentReqVO);
-        return success(url);
-    }
-
 } 

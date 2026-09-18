@@ -3,7 +3,6 @@ package cn.iocoder.yudao.module.icbc.service.invoice.impl;
 import cn.hutool.core.util.RandomUtil;
 import cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
-import cn.iocoder.yudao.module.icbc.config.IcbcProperties;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoicePreOrderReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoicePreOrderRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryReqVO;
@@ -12,6 +11,11 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.OrderItemDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
+import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
+import cn.iocoder.yudao.module.icbc.gateway.IcbcGatewayResult;
+import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
+import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderGoods;
+import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderReq;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,7 +45,7 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
     private OrderItemMapper orderItemMapper;
     
     @Resource
-    private IcbcProperties icbcProperties;
+    private IcbcGateway icbcGateway;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -68,8 +72,12 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
             orderItemMapper.insert(item);
         }
         
-        // 6. 调用工行预下单接口（当前尚未实现，会立即失败；见 AC #2）
-        String redirectUrl = callIcbcPreOrderApi(createReqVO);
+        // 6. 经端口调用工行预下单（UI 接口，返回自然人确认页面表单）
+        IcbcGatewayResult<IcbcPage> preOrderResult = icbcGateway.submitPreOrder(toPreOrderReq(createReqVO));
+        if (!preOrderResult.isSuccess()) {
+            throw exception(ErrorCodeConstants.ICBC_API_CALL_FAILED);
+        }
+        String redirectUrl = preOrderResult.getData().getFormHtml();
 
         // 7. 构造响应
         InvoicePreOrderRespVO response = new InvoicePreOrderRespVO();
@@ -255,15 +263,61 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
     }
 
     /**
-     * 调用工行预下单接口
-     *
-     * 工行反向开票预下单是 UI 页面接口（{@code /ui/jft/ui/invoice/pre/order/V1}），
-     * 需要基于 {@code UiIcbcClient} 生成自动提交表单，不能当作 REST 接口直接请求。
-     * 当前基线尚未实现该调用：这里明确失败，而不是返回拼接出来的伪造跳转地址，
-     * 避免调用方把未经工行受理的订单误认为已下单。详见 issue #2。
+     * 把平台预下单请求转成端口请求
      */
-    private String callIcbcPreOrderApi(InvoicePreOrderReqVO request) {
-        throw exception(ErrorCodeConstants.ICBC_PRE_ORDER_NOT_IMPLEMENTED);
+    private PreOrderReq toPreOrderReq(InvoicePreOrderReqVO request) {
+        List<PreOrderGoods> goods = new ArrayList<>();
+        if (request.getGoodsInfo() != null) {
+            for (InvoicePreOrderReqVO.GoodsInfoVO item : request.getGoodsInfo()) {
+                goods.add(PreOrderGoods.builder()
+                        .goodsSeqno(item.getGoodsSeqno())
+                        .projectName(item.getProjectName())
+                        .goodsNum(item.getGoodsNum() != null ? item.getGoodsNum().toPlainString() : null)
+                        .goodsAmt(item.getGoodsAmt() != null ? item.getGoodsAmt().toPlainString() : null)
+                        .weight(item.getWeight())
+                        .price(item.getPrice() != null ? item.getPrice().toPlainString() : null)
+                        .units(item.getUnits())
+                        .taxRate(item.getTaxRate() != null ? item.getTaxRate().toPlainString() : null)
+                        .mergedCode(item.getMergedCode())
+                        .build());
+            }
+        }
+        return PreOrderReq.builder()
+                .outOrderId(request.getOutOrderId())
+                .outVendorId(request.getOutVendorId())
+                .outUserId(request.getOutUserId())
+                .invoiceType(request.getInvoiceType())
+                .orderAmount(request.getOrderAmount() != null ? request.getOrderAmount().toPlainString() : null)
+                .specificElements(request.getSpecificElements())
+                .buyerInvTypeCode(request.getBuyerInvTypeCode())
+                .taxpayerNo(request.getTaxpayerNo())
+                .taxpayerName(request.getTaxpayerName())
+                .drawerName(request.getDrawerName())
+                .drawerCardType(request.getDrawerCardType())
+                .drawerCardNumber(request.getDrawerCardNumber())
+                .naturalPersonName(request.getNaturalPersonName())
+                .cardType(request.getCardType())
+                .cardNumber(request.getCardNumber())
+                .sellerAddress(request.getSellerAddress())
+                .sellerTelephone(request.getSellerTelephone())
+                .areaCode(request.getAreaCode())
+                .payChannel(request.getPayChannel())
+                .isSellerPersonProduct(request.getIsSellerPersonProduct())
+                .iitProject(request.getIitProject())
+                .notes(request.getNotes())
+                .taxRate(request.getTaxRate() != null ? request.getTaxRate().toPlainString() : null)
+                .supplementaryTax(request.getSupplementaryTax())
+                .unuseReduceTaxCode(request.getUnuseReduceTaxCode())
+                .taxPayerAccountNo(request.getTaxPayerAccountNo())
+                .taxPayerBankCode(request.getTaxPayerBankCode())
+                .taxPayerOrgName(request.getTaxPayerOrgName())
+                .invoiceNotifyUrl(request.getInvoiceNotifyUrl())
+                .payJumpUrl(request.getPayJumpUrl())
+                .invoiceJumpUrl(request.getInvoiceJumpUrl())
+                .payRem(request.getPayRem())
+                .orderRem(request.getOrderRem())
+                .goods(goods)
+                .build();
     }
 
 } 

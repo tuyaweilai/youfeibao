@@ -50,7 +50,6 @@ public interface ErrorCodeConstants {
     ErrorCode ICBC_API_ENCRYPT_ERROR = new ErrorCode(1_030_006_002, "工行接口加密错误");
     ErrorCode ICBC_API_RESPONSE_ERROR = new ErrorCode(1_030_006_003, "工行接口响应异常");
     ErrorCode ICBC_API_TIMEOUT = new ErrorCode(1_030_006_004, "工行接口调用超时");
-    ErrorCode ICBC_PRE_ORDER_NOT_IMPLEMENTED = new ErrorCode(1_030_006_005, "工行反向开票预下单接口尚未实现");
 
     // ========== 回调处理 1-030-007-000 ==========
     ErrorCode CALLBACK_SIGN_VERIFY_FAILED = new ErrorCode(1_030_007_000, "回调签名验证失败");

@@ -12,14 +12,23 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StreamUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
+/**
+ * 管理后台 - 工行回调通知
+ *
+ * 九类异步通知走同一个入口 {@code POST /icbc/callback/notify}：先落表，再处理。
+ */
 @Tag(name = "管理后台 - 工行回调通知")
 @RestController
 @RequestMapping("/icbc/callback")
@@ -47,26 +56,30 @@ public class CallbackNotifyController {
         return success(BeanUtils.toBean(callbackNotify, CallbackNotifyRespVO.class));
     }
 
+    /**
+     * 工行异步通知唯一入口
+     *
+     * 支持两种投递：JSON body（外层 {@code {notifyData, signData}}）与表单参数 {@code biz_content}。
+     * 通知先落表再处理，投递失败不影响记录，可重放。
+     */
     @PostMapping("/notify")
     @Operation(summary = "接收工行回调通知")
-    public CommonResult<String> receiveNotify(@RequestParam("notifyId") String notifyId,
-                                              @RequestParam("notifyType") String notifyType,
-                                              @RequestParam("businessId") String businessId,
-                                              @RequestParam("notifyData") String notifyData,
-                                              @RequestParam(value = "sign", required = false) String sign) {
-        log.info("接收工行回调通知，notifyId: {}, notifyType: {}, businessId: {}", notifyId, notifyType, businessId);
-        
-        String result = callbackNotifyService.processCallback(notifyId, notifyType, businessId, notifyData, sign);
+    public CommonResult<String> receiveNotify(HttpServletRequest request) throws IOException {
+        String bizContent = request.getParameter("biz_content");
+        String body = bizContent != null ? bizContent
+                : StreamUtils.copyToString(request.getInputStream(), StandardCharsets.UTF_8);
+        log.info("接收工行回调通知，报文字节数: {}", body == null ? 0 : body.length());
+        String result = callbackNotifyService.receive(body);
         return success(result);
     }
 
-    @PostMapping("/retry")
-    @Operation(summary = "重试回调通知")
+    @PostMapping("/replay")
+    @Operation(summary = "重放回调通知")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('icbc:callback:retry')")
-    public CommonResult<Boolean> retryCallback(@RequestParam("id") Long id) {
-        callbackNotifyService.retryCallback(id);
+    public CommonResult<Boolean> replayCallback(@RequestParam("id") Long id) {
+        callbackNotifyService.replay(id);
         return success(true);
     }
 
-} 
+}

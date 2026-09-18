@@ -18,7 +18,7 @@ public class InvoicePreOrderRespVO {
     @Schema(description = "返回码说明", requiredMode = Schema.RequiredMode.REQUIRED, example = "成功")
     private String returnMsg;
 
-    @Schema(description = "工行页面跳转URL", example = "https://gw.open.icbc.com.cn/ui/jft/ui/invoice/pre/order/V1?...")
+    @Schema(description = "自然人确认页面表单 HTML", example = "<form ...></form>")
     private String redirectUrl;
 
     @Schema(description = "订单号（我方生成）", example = "ORD202312010001")

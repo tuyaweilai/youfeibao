@@ -8,16 +8,32 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.callback.CallbackNotifyMapper;
 import cn.iocoder.yudao.module.icbc.enums.CallbackNotifyTypeEnum;
 import cn.iocoder.yudao.module.icbc.enums.CallbackProcessStatusEnum;
 import cn.iocoder.yudao.module.icbc.service.callback.CallbackNotifyService;
+import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyContext;
+import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyHandler;
+import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyMessage;
+import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyParser;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
+
+import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
+import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.CALLBACK_NOTIFY_NOT_EXISTS;
 
 /**
  * 工行回调通知 Service 实现类
+ *
+ * 处理顺序固定为：解析 → 落表（PENDING）→ 分发处理 → 回写状态。
+ * 落表与处理分离，保证「通知先于平台数据到达」也能成立：
+ * 处理器可以查不到业务数据而失败，通知记录仍在，待数据落库后可重放。
  *
  * @author 芋道源码
  */
@@ -29,9 +45,33 @@ public class CallbackNotifyServiceImpl implements CallbackNotifyService {
     @Resource
     private CallbackNotifyMapper callbackNotifyMapper;
 
+    @Resource
+    private IcbcNotifyParser notifyParser;
+
+    /**
+     * 九类通知的处理器，按类型索引
+     */
+    @Autowired(required = false)
+    private List<IcbcNotifyHandler> notifyHandlers;
+
+    private final Map<CallbackNotifyTypeEnum, IcbcNotifyHandler> handlerRegistry =
+            new EnumMap<>(CallbackNotifyTypeEnum.class);
+
+    @PostConstruct
+    public void initHandlerRegistry() {
+        if (notifyHandlers == null) {
+            return;
+        }
+        for (IcbcNotifyHandler handler : notifyHandlers) {
+            IcbcNotifyHandler previous = handlerRegistry.put(handler.supportType(), handler);
+            if (previous != null) {
+                throw new IllegalStateException("重复的通知处理器：" + handler.supportType());
+            }
+        }
+    }
+
     @Override
     public Long createCallbackNotify(CallbackNotifyCreateReqVO createReqVO) {
-        // 插入
         CallbackNotifyDO callbackNotify = CallbackNotifyDO.builder()
                 .notifyId(createReqVO.getNotifyId())
                 .notifyType(createReqVO.getNotifyType())
@@ -43,7 +83,6 @@ public class CallbackNotifyServiceImpl implements CallbackNotifyService {
                 .retryCount(createReqVO.getRetryCount() != null ? createReqVO.getRetryCount() : 0)
                 .build();
         callbackNotifyMapper.insert(callbackNotify);
-        // 返回
         return callbackNotify.getId();
     }
 
@@ -64,72 +103,99 @@ public class CallbackNotifyServiceImpl implements CallbackNotifyService {
 
     @Override
     @TenantIgnore
-    public String processCallback(String notifyId, String notifyType, String businessId, String notifyData, String sign) {
+    public String receive(String body) {
+        IcbcNotifyMessage message = notifyParser.parse(body);
+        Long id = ingest(message);
+        process(id);
+        CallbackNotifyDO record = callbackNotifyMapper.selectById(id);
+        return record != null && CallbackProcessStatusEnum.SUCCESS.getStatus().equals(record.getProcessStatus())
+                ? "SUCCESS" : "FAILURE";
+    }
+
+    /**
+     * 先落表：同一 notifyId 只保留一条，天然去重
+     */
+    @TenantIgnore
+    public Long ingest(IcbcNotifyMessage message) {
+        CallbackNotifyDO existing = callbackNotifyMapper.selectByNotifyId(message.getNotifyId());
+        if (existing != null) {
+            return existing.getId();
+        }
+        CallbackNotifyDO record = CallbackNotifyDO.builder()
+                .notifyId(message.getNotifyId())
+                .notifyType(message.getNotifyType().getType())
+                .businessId(message.getBusinessId())
+                .notifyData(message.getNotifyData())
+                .sign(message.getSign())
+                .processStatus(CallbackProcessStatusEnum.PENDING.getStatus())
+                .retryCount(0)
+                .build();
         try {
-            // 检查是否已经处理过
-            CallbackNotifyDO existingNotify = getCallbackNotifyByNotifyId(notifyId);
-            if (existingNotify != null && CallbackProcessStatusEnum.SUCCESS.getStatus().equals(existingNotify.getProcessStatus())) {
-                log.info("回调通知已处理过，notifyId: {}", notifyId);
-                return "SUCCESS";
+            callbackNotifyMapper.insert(record);
+            return record.getId();
+        } catch (DuplicateKeyException e) {
+            // 并发重复到达：唯一索引兜底
+            CallbackNotifyDO duplicated = callbackNotifyMapper.selectByNotifyId(message.getNotifyId());
+            if (duplicated == null) {
+                throw e;
             }
+            return duplicated.getId();
+        }
+    }
 
-            // 创建或更新回调通知记录
-            CallbackNotifyDO callbackNotify;
-            if (existingNotify == null) {
-                callbackNotify = CallbackNotifyDO.builder()
-                        .notifyId(notifyId)
-                        .notifyType(notifyType)
-                        .businessId(businessId)
-                        .notifyData(notifyData)
-                        .sign(sign)
-                        .processStatus(CallbackProcessStatusEnum.PENDING.getStatus())
-                        .retryCount(0)
-                        .build();
-                callbackNotifyMapper.insert(callbackNotify);
-            } else {
-                callbackNotify = existingNotify;
-            }
-
-            // 根据通知类型处理业务逻辑
-            boolean processResult = processBusinessLogic(notifyType, businessId, notifyData);
-
-            // 更新处理结果
-            CallbackNotifyDO updateObj = CallbackNotifyDO.builder()
-                    .id(callbackNotify.getId())
-                    .processStatus(processResult ? CallbackProcessStatusEnum.SUCCESS.getStatus() : CallbackProcessStatusEnum.FAILURE.getStatus())
-                    .processMsg(processResult ? "处理成功" : "处理失败")
-                    .processTime(LocalDateTime.now())
-                    .build();
-            callbackNotifyMapper.updateById(updateObj);
-
-            return processResult ? "SUCCESS" : "FAILURE";
-
+    /**
+     * 再处理：已成功的通知不重复处理
+     */
+    @TenantIgnore
+    public void process(Long id) {
+        CallbackNotifyDO record = callbackNotifyMapper.selectById(id);
+        if (record == null) {
+            throw exception(CALLBACK_NOTIFY_NOT_EXISTS);
+        }
+        if (CallbackProcessStatusEnum.SUCCESS.getStatus().equals(record.getProcessStatus())) {
+            log.info("[process][通知已处理成功，跳过] notifyId={}", record.getNotifyId());
+            return;
+        }
+        CallbackNotifyTypeEnum notifyType = CallbackNotifyTypeEnum.of(record.getNotifyType());
+        IcbcNotifyHandler handler = notifyType != null ? handlerRegistry.get(notifyType) : null;
+        if (handler == null) {
+            markFailure(record, "通知类型处理器未实现：" + record.getNotifyType());
+            return;
+        }
+        try {
+            handler.handle(IcbcNotifyContext.builder()
+                    .recordId(record.getId())
+                    .notifyId(record.getNotifyId())
+                    .notifyType(notifyType)
+                    .businessId(record.getBusinessId())
+                    .notifyData(record.getNotifyData())
+                    .build());
+            markSuccess(record);
         } catch (Exception e) {
-            log.error("处理回调通知异常，notifyId: {}", notifyId, e);
-            return "FAILURE";
+            log.error("[process][通知处理失败] notifyId={}", record.getNotifyId(), e);
+            markFailure(record, e.getMessage());
         }
     }
 
     @Override
-    public void retryCallback(Long id) {
-        CallbackNotifyDO callbackNotify = getCallbackNotify(id);
-        if (callbackNotify == null) {
-            log.warn("回调通知不存在，id: {}", id);
+    @TenantIgnore
+    public void replay(Long id) {
+        CallbackNotifyDO record = callbackNotifyMapper.selectById(id);
+        if (record == null) {
+            throw exception(CALLBACK_NOTIFY_NOT_EXISTS);
+        }
+        if (CallbackProcessStatusEnum.SUCCESS.getStatus().equals(record.getProcessStatus())) {
+            // 已成功的通知不重放，避免重复业务（issue #3 验收）
+            log.info("[replay][通知已处理成功，忽略重放] notifyId={}", record.getNotifyId());
             return;
         }
-
-        // 重新处理
-        String result = processCallback(callbackNotify.getNotifyId(), callbackNotify.getNotifyType(),
-                callbackNotify.getBusinessId(), callbackNotify.getNotifyData(), callbackNotify.getSign());
-
-        // 更新重试次数
-        CallbackNotifyDO updateObj = CallbackNotifyDO.builder()
+        CallbackNotifyDO update = CallbackNotifyDO.builder()
                 .id(id)
-                .retryCount(callbackNotify.getRetryCount() + 1)
+                .processStatus(CallbackProcessStatusEnum.PENDING.getStatus())
+                .retryCount((record.getRetryCount() == null ? 0 : record.getRetryCount()) + 1)
                 .build();
-        callbackNotifyMapper.updateById(updateObj);
-
-        log.info("重试回调通知完成，id: {}, result: {}", id, result);
+        callbackNotifyMapper.updateById(update);
+        process(id);
     }
 
     @Override
@@ -137,72 +203,22 @@ public class CallbackNotifyServiceImpl implements CallbackNotifyService {
         return callbackNotifyMapper.selectListByProcessStatus(CallbackProcessStatusEnum.PENDING.getStatus());
     }
 
-    /**
-     * 处理业务逻辑
-     *
-     * @param notifyType 通知类型
-     * @param businessId 业务ID
-     * @param notifyData 通知数据
-     * @return 处理结果
-     */
-    private boolean processBusinessLogic(String notifyType, String businessId, String notifyData) {
-        try {
-            CallbackNotifyTypeEnum typeEnum = getNotifyTypeEnum(notifyType);
-            if (typeEnum == null) {
-                log.warn("未知的通知类型: {}", notifyType);
-                return false;
-            }
-
-            switch (typeEnum) {
-                case PAYEE_AUDIT:
-                    return processPayeeAudit(businessId, notifyData);
-                case PAYER_AUDIT:
-                    return processPayerAudit(businessId, notifyData);
-                case INVOICE_STATUS:
-                    return processInvoiceStatus(businessId, notifyData);
-                case PAYMENT_STATUS:
-                    return processPaymentStatus(businessId, notifyData);
-                default:
-                    log.warn("未处理的通知类型: {}", notifyType);
-                    return false;
-            }
-        } catch (Exception e) {
-            log.error("处理业务逻辑异常，notifyType: {}, businessId: {}", notifyType, businessId, e);
-            return false;
-        }
+    private void markSuccess(CallbackNotifyDO record) {
+        callbackNotifyMapper.updateById(CallbackNotifyDO.builder()
+                .id(record.getId())
+                .processStatus(CallbackProcessStatusEnum.SUCCESS.getStatus())
+                .processMsg("处理成功")
+                .processTime(LocalDateTime.now())
+                .build());
     }
 
-    private CallbackNotifyTypeEnum getNotifyTypeEnum(String notifyType) {
-        for (CallbackNotifyTypeEnum typeEnum : CallbackNotifyTypeEnum.values()) {
-            if (typeEnum.getType().equals(notifyType)) {
-                return typeEnum;
-            }
-        }
-        return null;
+    private void markFailure(CallbackNotifyDO record, String message) {
+        callbackNotifyMapper.updateById(CallbackNotifyDO.builder()
+                .id(record.getId())
+                .processStatus(CallbackProcessStatusEnum.FAILURE.getStatus())
+                .processMsg(message)
+                .processTime(LocalDateTime.now())
+                .build());
     }
 
-    private boolean processPayeeAudit(String businessId, String notifyData) {
-        // TODO: 实现收方审核逻辑
-        log.info("处理收方审核通知，businessId: {}, notifyData: {}", businessId, notifyData);
-        return true;
-    }
-
-    private boolean processPayerAudit(String businessId, String notifyData) {
-        // TODO: 实现付方审核逻辑
-        log.info("处理付方审核通知，businessId: {}, notifyData: {}", businessId, notifyData);
-        return true;
-    }
-
-    private boolean processInvoiceStatus(String businessId, String notifyData) {
-        // TODO: 实现发票状态更新逻辑
-        log.info("处理发票状态通知，businessId: {}, notifyData: {}", businessId, notifyData);
-        return true;
-    }
-
-    private boolean processPaymentStatus(String businessId, String notifyData) {
-        // TODO: 实现支付状态更新逻辑
-        log.info("处理支付状态通知，businessId: {}, notifyData: {}", businessId, notifyData);
-        return true;
-    }
-
-} 
+}

@@ -266,6 +266,7 @@ CREATE TABLE IF NOT EXISTS icbc_callback_notify (
 );
 
 CREATE INDEX IF NOT EXISTS idx_icbc_callback_notify_notify_id ON icbc_callback_notify(notify_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_icbc_callback_notify_notify_id ON icbc_callback_notify(notify_id);
 CREATE INDEX IF NOT EXISTS idx_icbc_callback_notify_business_id ON icbc_callback_notify(business_id);
 CREATE INDEX IF NOT EXISTS idx_icbc_callback_notify_process_status ON icbc_callback_notify(process_status);
 CREATE INDEX IF NOT EXISTS idx_icbc_callback_notify_create_time ON icbc_callback_notify(create_time); 

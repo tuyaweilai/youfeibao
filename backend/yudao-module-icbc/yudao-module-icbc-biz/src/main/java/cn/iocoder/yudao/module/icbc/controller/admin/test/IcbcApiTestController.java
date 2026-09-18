@@ -1,7 +1,8 @@
 package cn.iocoder.yudao.module.icbc.controller.admin.test;
 
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
-import cn.iocoder.yudao.module.icbc.config.IcbcProperties;
+import cn.iocoder.yudao.module.icbc.gateway.model.IcbcConnectivity;
+import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceInfo;
 import cn.iocoder.yudao.module.icbc.service.IcbcTestService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,7 +23,10 @@ import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
 /**
  * 工商银行接口测试控制器
- * 
+ *
+ * 仅供连通性联调与排查使用。所有调用经 {@code IcbcGateway} 端口，
+ * 不暴露工行网关地址、密钥或签名细节。
+ *
  * @author 芋道源码
  */
 @Tag(name = "管理后台 - 工商银行接口测试")
@@ -34,9 +38,6 @@ public class IcbcApiTestController {
 
     @Resource
     private IcbcTestService icbcTestService;
-    
-    @Resource
-    private IcbcProperties icbcProperties;
 
     @GetMapping("/health")
     @Operation(summary = "健康检查", description = "无需权限，用于检查模块是否正常运行")
@@ -49,86 +50,35 @@ public class IcbcApiTestController {
     }
 
     @GetMapping("/config")
-    @Operation(summary = "配置信息检查", description = "查看当前配置信息是否正确加载")
+    @Operation(summary = "适配层运行信息", description = "查看适配层运行模式（不展示密钥与网关地址）")
     @PreAuthorize("@ss.hasPermission('icbc:test:query')")
-    public CommonResult<Object> testConfig() {
+    public CommonResult<Map<String, Object>> testConfig() {
         return icbcTestService.testConfig();
     }
 
-    @GetMapping("/connection")
-    @Operation(summary = "SDK连接测试", description = "测试与工行API网关的连接")
+    @GetMapping("/connectivity")
+    @Operation(summary = "真实连通性校验", description = "打一条数据接口到工行网关，验证网络与签名配置")
     @PreAuthorize("@ss.hasPermission('icbc:test:query')")
-    public CommonResult<String> testConnection() {
-        return icbcTestService.testConnection();
-    }
-
-    @GetMapping("/signature")
-    @Operation(summary = "签名验证测试", description = "验证RSA私钥和公钥配置是否正确")
-    @PreAuthorize("@ss.hasPermission('icbc:test:query')")
-    public CommonResult<String> testSignature() {
-        return icbcTestService.testSignature();
+    public CommonResult<IcbcConnectivity> checkConnectivity() {
+        return icbcTestService.checkConnectivity();
     }
 
     @GetMapping("/invoice-query")
-    @Operation(summary = "发票查询接口测试", description = "测试工行发票查询接口调用")
+    @Operation(summary = "发票 / 预开票信息查询", description = "经适配层调用工行预查询接口")
     @PreAuthorize("@ss.hasPermission('icbc:test:query')")
-    public CommonResult<Object> testInvoiceQuery(
-            @RequestParam(value = "outOrderId", required = false) String outOrderId,
+    public CommonResult<InvoiceInfo> testInvoiceQuery(
+            @RequestParam(value = "outOrderId") String outOrderId,
             @RequestParam(value = "outUserId", required = false) String outUserId) {
-        return icbcTestService.testInvoiceQuery(outOrderId, outUserId);
-    }
-
-    @GetMapping("/user-query")
-    @Operation(summary = "聚富通智慧清分收方查询接口测试", description = "测试工行聚富通智慧清分收方查询接口调用")
-    @PreAuthorize("@ss.hasPermission('icbc:test:query')")
-    public CommonResult<Object> testUserQuery(
-            @RequestParam(value = "outUserId", required = false) String outUserId,
-            @RequestParam(value = "receiverAccount", required = false) String receiverAccount,
-            @RequestParam(value = "businessType", defaultValue = "0001") String businessType) {
-        return icbcTestService.testUserQuery(outUserId, receiverAccount, businessType);
-    }
-
-    @GetMapping("/user-query-manual")
-    @Operation(summary = "聚富通智慧清分收方查询接口测试（手动HTTP调用）", description = "绕开官方SDK，使用手动HTTP POST方式调用工行接口")
-    @PreAuthorize("@ss.hasPermission('icbc:test:query')")
-    public CommonResult<Object> testUserQueryManual(
-            @RequestParam(value = "outUserId", required = false) String outUserId,
-            @RequestParam(value = "receiverAccount", required = false) String receiverAccount,
-            @RequestParam(value = "businessType", defaultValue = "0004") String businessType) {
-        return icbcTestService.testUserQueryManual(outUserId, receiverAccount, businessType);
+        return icbcTestService.queryInvoiceInfo(outOrderId, outUserId);
     }
 
     @GetMapping("/payment-form-json")
-    @Operation(summary = "支付表单生成测试(JSON格式)", description = "生成工行支付表单HTML并以JSON格式返回")
+    @Operation(summary = "支付页面表单生成测试", description = "经适配层生成工行支付页面表单 HTML")
     @PreAuthorize("@ss.hasPermission('icbc:test:query')")
     public CommonResult<String> generatePaymentFormJson(
-            @RequestParam(value = "outOrderId", required = false) String outOrderId,
+            @RequestParam(value = "outOrderId") String outOrderId,
             @RequestParam(value = "outUserId", required = false) String outUserId) {
         return icbcTestService.generatePaymentForm(outOrderId, outUserId);
     }
 
-    @GetMapping("/urls")
-    @Operation(summary = "查看URL配置", description = "显示工行接口URL配置")
-    public CommonResult<Map<String, String>> getUrls() {
-        Map<String, String> urls = new HashMap<>();
-        urls.put("baseUrl", icbcProperties.getBaseUrl());
-        urls.put("paymentUrl", icbcProperties.getPaymentUrl());
-        urls.put("invoiceQueryUrl", icbcProperties.getInvoiceQueryUrl());
-        urls.put("userQueryUrl", icbcProperties.getUserQueryUrl());
-        return success(urls);
-    }
-
-    @GetMapping("/health-test")
-    @Operation(summary = "健康检查测试", description = "无需权限，用于检查模块是否正常运行")
-    public CommonResult<Map<String, Object>> healthTest() {
-        Map<String, Object> result = new HashMap<>();
-        result.put("status", "UP");
-        result.put("module", "工商银行反向开票模块");
-        result.put("timestamp", LocalDateTime.now());
-        result.put("baseUrl", icbcProperties.getBaseUrl());
-        result.put("paymentUrl", icbcProperties.getPaymentUrl());
-        result.put("invoiceQueryUrl", icbcProperties.getInvoiceQueryUrl());
-        result.put("userQueryUrl", icbcProperties.getUserQueryUrl());
-        return success(result);
-    }
-} 
+}

@@ -41,14 +41,12 @@ icbc:
     # 接口超时时间（毫秒）
     timeout: 30000
 
-    # 工行网关基础URL
-    base-url: https://gw.open.icbc.com.cn
+    # 工行网关基础地址
+    base-url: ${ICBC_BASE_URL:https://gw.open.icbc.com.cn}
 
-    # 支付页面URL
-    payment-url: https://gw.open.icbc.com.cn/ui/jft/ui/invoice/pay/V1
-
-    # 发票查询URL
-    invoice-query-url: https://gw.open.icbc.com.cn/api/jft/api/invoice/queryInvoiceInfo/V1
+  # 适配层运行模式：sdk（默认，经工行 SDK 出站）/ fake（假适配层，不触网）
+  gateway:
+    mode: ${ICBC_GATEWAY_MODE:sdk}
 
 # 日志配置
 logging:

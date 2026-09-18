@@ -1,70 +1,38 @@
 package cn.iocoder.yudao.module.icbc.service;
 
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
+import cn.iocoder.yudao.module.icbc.gateway.model.IcbcConnectivity;
+import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceInfo;
+
+import java.util.Map;
 
 /**
- * 工商银行接口测试服务
+ * 工行接口连通性与调试服务
+ *
+ * 所有方法都经 {@code IcbcGateway} 端口，测试控制器不直接接触 SDK、密钥或网关地址。
  *
  * @author 芋道源码
  */
 public interface IcbcTestService {
 
     /**
-     * 测试工行SDK连接
-     *
-     * @return 测试结果
+     * 真实连通性校验：打一条数据接口到工行网关，验证网络与签名配置
      */
-    CommonResult<String> testConnection();
+    CommonResult<IcbcConnectivity> checkConnectivity();
 
     /**
-     * 测试签名验证
-     *
-     * @return 签名验证结果
+     * 发票 / 预开票信息查询
      */
-    CommonResult<String> testSignature();
+    CommonResult<InvoiceInfo> queryInvoiceInfo(String outOrderId, String outUserId);
 
     /**
-     * 测试发票查询接口
-     *
-     * @param outOrderId 订单ID
-     * @param outUserId 用户ID
-     * @return 查询结果
-     */
-    CommonResult<Object> testInvoiceQuery(String outOrderId, String outUserId);
-
-    /**
-     * 生成支付表单HTML
-     *
-     * @param outOrderId 订单ID
-     * @param outUserId 用户ID
-     * @return 支付表单HTML
+     * 生成付方支付页面表单
      */
     CommonResult<String> generatePaymentForm(String outOrderId, String outUserId);
 
     /**
-     * 测试配置信息
-     *
-     * @return 配置信息
+     * 适配层运行信息（不暴露任何密钥或网关地址）
      */
-    CommonResult<Object> testConfig();
+    CommonResult<Map<String, Object>> testConfig();
 
-    /**
-     * 测试聚富通智慧清分收方查询接口
-     *
-     * @param outUserId 外部用户编号
-     * @param receiverAccount 收方账号
-     * @param businessType 业务类型
-     * @return 查询结果
-     */
-    CommonResult<Object> testUserQuery(String outUserId, String receiverAccount, String businessType);
-
-    /**
-     * 手动HTTP调用聚富通智慧清分收方查询接口（绕开官方SDK）
-     *
-     * @param outUserId 外部用户编号
-     * @param receiverAccount 收方账号
-     * @param businessType 业务类型
-     * @return 查询结果
-     */
-    CommonResult<Object> testUserQueryManual(String outUserId, String receiverAccount, String businessType);
-} 
+}

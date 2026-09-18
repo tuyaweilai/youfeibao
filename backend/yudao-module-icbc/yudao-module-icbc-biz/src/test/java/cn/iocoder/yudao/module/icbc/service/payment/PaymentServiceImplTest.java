@@ -11,6 +11,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
 import cn.iocoder.yudao.module.icbc.service.payment.impl.PaymentServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 
 import javax.annotation.Resource;
 import java.math.BigDecimal;
@@ -25,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author 芋道源码
  */
 @Import({UnitTestConfiguration.class, PaymentServiceImpl.class})
+@TestPropertySource(properties = "icbc.gateway.mode=fake")
 public class PaymentServiceImplTest extends BaseDbUnitTest {
 
     @Resource
@@ -95,26 +97,6 @@ public class PaymentServiceImplTest extends BaseDbUnitTest {
         assertEquals("ICBC_ORDER_002", result.getIcbcOrderNo());
         assertEquals("SUCCESS", result.getPaymentStatus());
         assertEquals(new BigDecimal("1000.00"), result.getPaymentAmount());
-    }
-
-    @Test
-    public void testGeneratePaymentUrl() {
-        // 准备参数
-        PaymentReqVO reqVO = new PaymentReqVO();
-        reqVO.setAppId("test-app-id");
-        reqVO.setOutOrderId("TEST_ORDER_003");
-        reqVO.setOutVendorId("010020200513111111");
-        reqVO.setOutUserId("10000000000000003");
-
-        // 调用
-        String url = paymentService.generatePaymentUrl(reqVO);
-
-        // 断言
-        assertNotNull(url);
-        assertTrue(url.contains("appId=test-app-id"));
-        assertTrue(url.contains("outOrderId=TEST_ORDER_003"));
-        assertTrue(url.contains("outVendorId=010020200513111111"));
-        assertTrue(url.contains("outUserId=10000000000000003"));
     }
 
 } 

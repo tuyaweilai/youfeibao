@@ -18,7 +18,7 @@ public class PaymentRespVO {
     @Schema(description = "返回消息", example = "成功")
     private String returnMsg;
 
-    @Schema(description = "支付页面重定向URL", example = "https://gw.open.icbc.com.cn/ui/jft/ui/invoice/pay/V1")
+    @Schema(description = "支付页面表单 HTML", example = "<form ...></form>")
     private String redirectUrl;
 
     @Schema(description = "消息通讯唯一编号", example = "urcnl24ciutr9")

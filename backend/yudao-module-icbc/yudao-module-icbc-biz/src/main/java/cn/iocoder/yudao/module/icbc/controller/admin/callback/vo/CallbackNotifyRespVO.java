@@ -15,7 +15,7 @@ public class CallbackNotifyRespVO {
     @Schema(description = "通知ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "NOTIFY123456")
     private String notifyId;
 
-    @Schema(description = "通知类型", requiredMode = Schema.RequiredMode.REQUIRED, example = "PAYEE_AUDIT")
+    @Schema(description = "通知类型", requiredMode = Schema.RequiredMode.REQUIRED, example = "03")
     private String notifyType;
 
     @Schema(description = "业务ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "ORDER123456")

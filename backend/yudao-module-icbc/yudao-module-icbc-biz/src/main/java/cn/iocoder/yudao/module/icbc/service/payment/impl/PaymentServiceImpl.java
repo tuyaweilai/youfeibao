@@ -1,8 +1,6 @@
 package cn.iocoder.yudao.module.icbc.service.payment.impl;
 
 import cn.hutool.core.util.RandomUtil;
-import cn.iocoder.yudao.framework.common.exception.ServiceException;
-import cn.iocoder.yudao.module.icbc.config.IcbcProperties;
 import cn.iocoder.yudao.module.icbc.controller.admin.payment.vo.PaymentReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.payment.vo.PaymentRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.payment.vo.PaymentStatusQueryReqVO;
@@ -10,6 +8,10 @@ import cn.iocoder.yudao.module.icbc.controller.admin.payment.vo.PaymentStatusQue
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
 import cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants;
+import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
+import cn.iocoder.yudao.module.icbc.gateway.IcbcGatewayResult;
+import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
+import cn.iocoder.yudao.module.icbc.gateway.model.PaymentReq;
 import cn.iocoder.yudao.module.icbc.service.payment.PaymentService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,13 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 
 /**
  * 工行付方支付 Service 实现类
+ *
+ * 出站调用一律经 {@link IcbcGateway} 端口；本类不再出现工行网关地址或签名逻辑。
  *
  * @author 芋道源码
  */
@@ -35,7 +38,7 @@ public class PaymentServiceImpl implements PaymentService {
     private PaymentOrderMapper paymentOrderMapper;
 
     @Resource
-    private IcbcProperties icbcProperties;
+    private IcbcGateway icbcGateway;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -54,36 +57,40 @@ public class PaymentServiceImpl implements PaymentService {
         String orderNo = generateOrderNo();
         String msgId = generateMsgId();
 
-        // 4. 创建支付订单记录
+        // 4. 创建支付订单记录（先落库再调用工行）
         PaymentOrderDO paymentOrder = createPaymentOrderFromRequest(paymentReqVO, orderNo, msgId);
         paymentOrderMapper.insert(paymentOrder);
 
-        // 5. 生成支付页面重定向URL
-        try {
-            String redirectUrl = generatePaymentUrl(paymentReqVO);
-            
-            // 6. 更新订单的重定向URL
-            paymentOrder.setRedirectUrl(redirectUrl);
-            paymentOrderMapper.updateById(paymentOrder);
-
-            // 7. 构造响应
-            PaymentRespVO response = new PaymentRespVO();
-            response.setReturnCode("0");
-            response.setReturnMsg("成功");
-            response.setRedirectUrl(redirectUrl);
-            response.setMsgId(msgId);
-            response.setOutOrderId(paymentReqVO.getOutOrderId());
-            response.setIcbcOrderNo(orderNo);
-            response.setPaymentStatus("PENDING");
-
-            log.info("付方支付订单创建成功 - orderNo: {}, partnerOrderId: {}", orderNo, paymentReqVO.getOutOrderId());
-            return response;
-
-        } catch (Exception e) {
-            log.error("生成支付URL失败 - orderNo: {}, partnerOrderId: {}", 
-                orderNo, paymentReqVO.getOutOrderId(), e);
+        // 5. 经端口生成企业支付页面
+        IcbcGatewayResult<IcbcPage> result = icbcGateway.submitPayment(PaymentReq.builder()
+                .outOrderId(paymentReqVO.getOutOrderId())
+                .outVendorId(paymentReqVO.getOutVendorId())
+                .outUserId(paymentReqVO.getOutUserId())
+                .verifiedCode(paymentReqVO.getVerifiedCode())
+                .ukeyId(paymentReqVO.getUkeyId())
+                .build());
+        if (!result.isSuccess()) {
+            // 结果未知时不重复提交，由上层按业务单号查询确认；此处仅落库为待支付
+            log.warn("生成支付页面失败 - orderNo: {}, outcome: {}, returnMsg: {}",
+                    orderNo, result.getOutcome(), result.getReturnMsg());
             throw exception(ErrorCodeConstants.ICBC_API_CALL_FAILED);
         }
+
+        // 6. 保存页面表单并返回
+        paymentOrder.setRedirectUrl(result.getData().getFormHtml());
+        paymentOrderMapper.updateById(paymentOrder);
+
+        PaymentRespVO response = new PaymentRespVO();
+        response.setReturnCode("0");
+        response.setReturnMsg("成功");
+        response.setRedirectUrl(result.getData().getFormHtml());
+        response.setMsgId(msgId);
+        response.setOutOrderId(paymentReqVO.getOutOrderId());
+        response.setIcbcOrderNo(orderNo);
+        response.setPaymentStatus("PENDING");
+
+        log.info("付方支付订单创建成功 - orderNo: {}, partnerOrderId: {}", orderNo, paymentReqVO.getOutOrderId());
+        return response;
     }
 
     @Override
@@ -100,73 +107,32 @@ public class PaymentServiceImpl implements PaymentService {
             throw exception(ErrorCodeConstants.PAYMENT_ORDER_NOT_EXISTS);
         }
 
-        // 2. 调用工行查询接口（暂时返回本地数据）
-        try {
-            PaymentStatusQueryRespVO response = new PaymentStatusQueryRespVO();
-            response.setReturnCode("0");
-            response.setReturnMsg("成功");
-            response.setOutOrderId(paymentOrder.getPartnerOrderId());
-            response.setIcbcOrderNo(paymentOrder.getIcbcOrderNo());
-            response.setPaymentStatus(getPaymentStatusText(paymentOrder.getPaymentStatus()));
-            response.setPaymentAmount(paymentOrder.getPaymentAmount());
-            response.setPaymentTime(paymentOrder.getPaymentTime());
-            response.setOutVendorId(paymentOrder.getPayerNo());
-            response.setOutUserId(paymentOrder.getPayeeNo());
-            response.setPaymentSerialNo(paymentOrder.getPaymentSerialNo());
-            response.setErrorCode(paymentOrder.getErrorCode());
-            response.setErrorMsg(paymentOrder.getErrorMsg());
+        // 2. 返回本地状态（与工行对账由异步通知与预查询完成）
+        PaymentStatusQueryRespVO response = new PaymentStatusQueryRespVO();
+        response.setReturnCode("0");
+        response.setReturnMsg("成功");
+        response.setOutOrderId(paymentOrder.getPartnerOrderId());
+        response.setIcbcOrderNo(paymentOrder.getIcbcOrderNo());
+        response.setPaymentStatus(getPaymentStatusText(paymentOrder.getPaymentStatus()));
+        response.setPaymentAmount(paymentOrder.getPaymentAmount());
+        response.setPaymentTime(paymentOrder.getPaymentTime());
+        response.setOutVendorId(paymentOrder.getPayerNo());
+        response.setOutUserId(paymentOrder.getPayeeNo());
+        response.setPaymentSerialNo(paymentOrder.getPaymentSerialNo());
+        response.setErrorCode(paymentOrder.getErrorCode());
+        response.setErrorMsg(paymentOrder.getErrorMsg());
 
-            log.info("支付状态查询成功 - orderNo: {}, partnerOrderId: {}, status: {}", 
+        log.info("支付状态查询成功 - orderNo: {}, partnerOrderId: {}, status: {}",
                 paymentOrder.getOrderNo(), paymentOrder.getPartnerOrderId(), paymentOrder.getPaymentStatus());
-            return response;
-
-        } catch (Exception e) {
-            log.error("查询支付状态失败 - partnerOrderId: {}", queryReqVO.getOutOrderId(), e);
-            throw exception(ErrorCodeConstants.ICBC_API_CALL_FAILED);
-        }
+        return response;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean handlePaymentNotify(String notifyData) {
-        // TODO: 实现支付回调通知处理逻辑
+        // 支付类异步通知由统一入口 IcbcNotifyService 落表后处理（见 issue #3 / #9）
         log.info("收到支付回调通知: {}", notifyData);
-        
-        try {
-            // 1. 解析回调数据
-            // 2. 验证签名
-            // 3. 更新支付订单状态
-            // 4. 发送业务通知
-            
-            return true;
-        } catch (Exception e) {
-            log.error("处理支付回调通知失败", e);
-            return false;
-        }
-    }
-
-    @Override
-    public String generatePaymentUrl(PaymentReqVO paymentReqVO) {
-        // 根据聚富通开票付方支付接口文档生成支付URL
-        StringBuilder urlBuilder = new StringBuilder();
-        urlBuilder.append(icbcProperties.getPaymentUrl());
-        urlBuilder.append("?appId=").append(paymentReqVO.getAppId());
-        urlBuilder.append("&outOrderId=").append(paymentReqVO.getOutOrderId());
-        
-        if (paymentReqVO.getOutVendorId() != null) {
-            urlBuilder.append("&outVendorId=").append(paymentReqVO.getOutVendorId());
-        }
-        if (paymentReqVO.getOutUserId() != null) {
-            urlBuilder.append("&outUserId=").append(paymentReqVO.getOutUserId());
-        }
-        if (paymentReqVO.getVerifiedCode() != null) {
-            urlBuilder.append("&verifiedCode=").append(paymentReqVO.getVerifiedCode());
-        }
-        if (paymentReqVO.getUkeyId() != null) {
-            urlBuilder.append("&ukeyId=").append(paymentReqVO.getUkeyId());
-        }
-
-        return urlBuilder.toString();
+        return true;
     }
 
     /**
@@ -229,4 +195,4 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
-} 
+}

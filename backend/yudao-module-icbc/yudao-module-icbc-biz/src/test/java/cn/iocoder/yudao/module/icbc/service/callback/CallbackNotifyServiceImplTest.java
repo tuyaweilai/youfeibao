@@ -6,20 +6,25 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.callback.CallbackNotifyMapper;
 import cn.iocoder.yudao.module.icbc.enums.CallbackNotifyTypeEnum;
 import cn.iocoder.yudao.module.icbc.enums.CallbackProcessStatusEnum;
 import cn.iocoder.yudao.module.icbc.service.callback.impl.CallbackNotifyServiceImpl;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.jdbc.Sql;
 
 import javax.annotation.Resource;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * {@link CallbackNotifyServiceImpl} 的单元测试类
  *
- * @author 芋道源码
+ * 覆盖 issue #3 的四条验收：九类通知同一入口、先落表后处理、可重放、重放不产生重复业务。
  */
-@Import(CallbackNotifyServiceImpl.class)
+@Import({CallbackNotifyServiceImpl.class, IcbcNotifyParser.class,
+        CallbackNotifyServiceImplTest.TestPaymentHandler.class})
 @Sql(scripts = "/sql/create_tables.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Sql(scripts = "/sql/clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
 public class CallbackNotifyServiceImplTest extends BaseDbUnitTest {
@@ -30,82 +35,140 @@ public class CallbackNotifyServiceImplTest extends BaseDbUnitTest {
     @Resource
     private CallbackNotifyMapper callbackNotifyMapper;
 
+    @Resource
+    private TestPaymentHandler paymentHandler;
+
+    @BeforeEach
+    public void setUp() {
+        paymentHandler.setCount(0);
+        paymentHandler.setFail(false);
+    }
+
     @Test
-    public void testProcessCallback_Success() {
-        // 准备参数
-        String notifyId = "NOTIFY123456";
-        String notifyType = CallbackNotifyTypeEnum.PAYEE_AUDIT.getType();
-        String businessId = "ORDER123456";
-        String notifyData = "{\"status\":\"APPROVED\"}";
-        String sign = "ABC123";
-
+    public void testReceive_persistsThenProcesses() {
         // 调用
-        String result = callbackNotifyService.processCallback(notifyId, notifyType, businessId, notifyData, sign);
+        String result = callbackNotifyService.receive(envelope("PAY_NOTIFY_1", "02", "ORDER_1"));
 
-        // 断言
+        // 断言：处理成功
         assertEquals("SUCCESS", result);
-        
-        CallbackNotifyDO callbackNotify = callbackNotifyMapper.selectByNotifyId(notifyId);
-        assertNotNull(callbackNotify);
-        assertEquals(notifyId, callbackNotify.getNotifyId());
-        assertEquals(notifyType, callbackNotify.getNotifyType());
-        assertEquals(businessId, callbackNotify.getBusinessId());
-        assertEquals(notifyData, callbackNotify.getNotifyData());
-        assertEquals(sign, callbackNotify.getSign());
-        assertEquals(CallbackProcessStatusEnum.SUCCESS.getStatus(), callbackNotify.getProcessStatus());
-        assertEquals("处理成功", callbackNotify.getProcessMsg());
-        assertNotNull(callbackNotify.getProcessTime());
+        assertEquals(1, paymentHandler.getCount());
+        CallbackNotifyDO record = callbackNotifyMapper.selectByNotifyId("PAY_NOTIFY_1");
+        assertNotNull(record);
+        assertEquals(CallbackNotifyTypeEnum.PAYMENT.getType(), record.getNotifyType());
+        assertEquals("ORDER_1", record.getBusinessId());
+        assertEquals(CallbackProcessStatusEnum.SUCCESS.getStatus(), record.getProcessStatus());
+        assertNotNull(record.getProcessTime());
     }
 
     @Test
-    public void testProcessCallback_AlreadyProcessed() {
-        // 准备数据 - 已处理的回调通知
-        String notifyId = "NOTIFY123456";
-        CallbackNotifyDO existingNotify = CallbackNotifyDO.builder()
-                .notifyId(notifyId)
-                .notifyType(CallbackNotifyTypeEnum.PAYEE_AUDIT.getType())
-                .businessId("ORDER123456")
-                .notifyData("{\"status\":\"APPROVED\"}")
-                .sign("ABC123")
-                .processStatus(CallbackProcessStatusEnum.SUCCESS.getStatus())
-                .processMsg("处理成功")
-                .retryCount(0)
-                .build();
-        callbackNotifyMapper.insert(existingNotify);
+    public void testReceive_duplicateDeliveryProcessesOnce() {
+        // 同一报文投递两次
+        String body = envelope("PAY_NOTIFY_DUP", "02", "ORDER_DUP");
+        callbackNotifyService.receive(body);
+        callbackNotifyService.receive(body);
 
-        // 调用
-        String result = callbackNotifyService.processCallback(notifyId, 
-                CallbackNotifyTypeEnum.PAYEE_AUDIT.getType(), 
-                "ORDER123456", 
-                "{\"status\":\"APPROVED\"}", 
-                "ABC123");
-
-        // 断言
-        assertEquals("SUCCESS", result);
+        // 断言：只落一条、只处理一次
+        assertEquals(1, paymentHandler.getCount());
+        assertEquals(1L, callbackNotifyMapper.selectList().size());
     }
 
     @Test
-    public void testRetryCallback() {
-        // 准备数据
-        CallbackNotifyDO callbackNotify = CallbackNotifyDO.builder()
-                .notifyId("NOTIFY123456")
-                .notifyType(CallbackNotifyTypeEnum.INVOICE_STATUS.getType())
-                .businessId("ORDER123456")
-                .notifyData("{\"status\":\"COMPLETED\"}")
-                .sign("ABC123")
-                .processStatus(CallbackProcessStatusEnum.FAILURE.getStatus())
-                .processMsg("处理失败")
-                .retryCount(0)
-                .build();
-        callbackNotifyMapper.insert(callbackNotify);
+    public void testReceive_allNineTypesPersisted() {
+        // 九类通知各投递一条（只有支付类有处理器，其余落表为待处理失败）
+        int index = 0;
+        for (CallbackNotifyTypeEnum type : CallbackNotifyTypeEnum.values()) {
+            index++;
+            callbackNotifyService.receive(envelope("NOTIFY_" + index, type.getType(), "ORDER_" + index));
+        }
 
-        // 调用
-        callbackNotifyService.retryCallback(callbackNotify.getId());
-
-        // 断言
-        CallbackNotifyDO updatedNotify = callbackNotifyMapper.selectById(callbackNotify.getId());
-        assertNotNull(updatedNotify);
-        assertEquals(1, updatedNotify.getRetryCount());
+        // 断言：九条都落表，通知类型齐全
+        List<CallbackNotifyDO> records = callbackNotifyMapper.selectList();
+        assertEquals(9, records.size());
+        assertEquals(9L, records.stream().map(CallbackNotifyDO::getNotifyType).distinct().count());
     }
 
-} 
+    @Test
+    public void testReceive_noHandlerPersistsAsFailure() {
+        // 开票类通知暂无处理器
+        callbackNotifyService.receive(envelope("INVOICE_NOTIFY_1", "03", "ORDER_INV_1"));
+
+        CallbackNotifyDO record = callbackNotifyMapper.selectByNotifyId("INVOICE_NOTIFY_1");
+        assertNotNull(record);
+        assertEquals(CallbackProcessStatusEnum.FAILURE.getStatus(), record.getProcessStatus());
+    }
+
+    @Test
+    public void testReplay_reprocessesFailedNotification() {
+        // 第一次处理失败
+        paymentHandler.setFail(true);
+        callbackNotifyService.receive(envelope("PAY_NOTIFY_RETRY", "02", "ORDER_RETRY"));
+        CallbackNotifyDO failed = callbackNotifyMapper.selectByNotifyId("PAY_NOTIFY_RETRY");
+        assertEquals(CallbackProcessStatusEnum.FAILURE.getStatus(), failed.getProcessStatus());
+
+        // 修复后重放
+        paymentHandler.setFail(false);
+        callbackNotifyService.replay(failed.getId());
+
+        CallbackNotifyDO replayed = callbackNotifyMapper.selectById(failed.getId());
+        assertEquals(CallbackProcessStatusEnum.SUCCESS.getStatus(), replayed.getProcessStatus());
+        assertEquals(1, replayed.getRetryCount());
+        assertEquals(2, paymentHandler.getCount());
+    }
+
+    @Test
+    public void testReplay_successfulNotificationIsNoOp() {
+        callbackNotifyService.receive(envelope("PAY_NOTIFY_NOOP", "02", "ORDER_NOOP"));
+        CallbackNotifyDO record = callbackNotifyMapper.selectByNotifyId("PAY_NOTIFY_NOOP");
+
+        // 重放已成功的通知：不再重复处理
+        callbackNotifyService.replay(record.getId());
+
+        assertEquals(1, paymentHandler.getCount());
+    }
+
+    /**
+     * 构造工行外层报文：{ "notifyData": "<base64>", "signData": "..." }
+     */
+    private String envelope(String notifyId, String notifyType, String businessId) {
+        String payload = "{\"notifyId\":\"" + notifyId + "\",\"notifyType\":\"" + notifyType
+                + "\",\"outOrderId\":\"" + businessId + "\",\"invoiceStatus\":\"02\"}";
+        String notifyData = Base64.getEncoder().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
+        return "{\"notifyData\":\"" + notifyData + "\",\"signData\":\"SIGN\"}";
+    }
+
+    /**
+     * 仅处理支付类通知的测试处理器
+     */
+    public static class TestPaymentHandler implements IcbcNotifyHandler {
+
+        private int count = 0;
+        private boolean fail = false;
+
+        @Override
+        public CallbackNotifyTypeEnum supportType() {
+            return CallbackNotifyTypeEnum.PAYMENT;
+        }
+
+        @Override
+        public void handle(IcbcNotifyContext context) {
+            count++;
+            if (fail) {
+                throw new IllegalStateException("boom");
+            }
+        }
+
+        public int getCount() {
+            return count;
+        }
+
+        public void setCount(int count) {
+            this.count = count;
+        }
+
+        public void setFail(boolean fail) {
+            this.fail = fail;
+        }
+
+    }
+
+}

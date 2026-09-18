@@ -9,6 +9,9 @@ import java.util.List;
 /**
  * 工行回调通知 Service 接口
  *
+ * 九类异步通知的<strong>唯一</strong>入口。所有通知一律「先落表、再处理」，
+ * 支持重放，重放不产生重复业务。
+ *
  * @author 芋道源码
  */
 public interface CallbackNotifyService {
@@ -23,51 +26,34 @@ public interface CallbackNotifyService {
 
     /**
      * 获得回调通知分页
-     *
-     * @param pageReqVO 分页查询
-     * @return 回调通知分页
      */
     PageResult<CallbackNotifyDO> getCallbackNotifyPage(CallbackNotifyPageReqVO pageReqVO);
 
     /**
      * 获得回调通知
-     *
-     * @param id 编号
-     * @return 回调通知
      */
     CallbackNotifyDO getCallbackNotify(Long id);
 
     /**
      * 根据通知ID获得回调通知
-     *
-     * @param notifyId 通知ID
-     * @return 回调通知
      */
     CallbackNotifyDO getCallbackNotifyByNotifyId(String notifyId);
 
     /**
-     * 处理回调通知
+     * 接收工行通知报文：解析 → 先落表 → 再处理
      *
-     * @param notifyId 通知ID
-     * @param notifyType 通知类型
-     * @param businessId 业务ID
-     * @param notifyData 通知数据
-     * @param sign 签名
-     * @return 处理结果
+     * @param body 工行通知报文（{@code {notifyData, signData}} 或明文 JSON）
+     * @return "SUCCESS" / "FAILURE"
      */
-    String processCallback(String notifyId, String notifyType, String businessId, String notifyData, String sign);
+    String receive(String body);
 
     /**
-     * 重试失败的回调通知
-     *
-     * @param id 回调通知ID
+     * 重放一条通知：重新分发处理（已成功的通知不会被重复处理）
      */
-    void retryCallback(Long id);
+    void replay(Long id);
 
     /**
      * 获取待处理的回调通知
-     *
-     * @return 待处理的回调通知列表
      */
     List<CallbackNotifyDO> getPendingCallbacks();
 
@@ -84,7 +70,6 @@ public interface CallbackNotifyService {
         private String processMsg;
         private Integer retryCount;
 
-        // getters and setters
         public String getNotifyId() { return notifyId; }
         public void setNotifyId(String notifyId) { this.notifyId = notifyId; }
         public String getNotifyType() { return notifyType; }
@@ -103,4 +88,4 @@ public interface CallbackNotifyService {
         public void setRetryCount(Integer retryCount) { this.retryCount = retryCount; }
     }
 
-} 
+}

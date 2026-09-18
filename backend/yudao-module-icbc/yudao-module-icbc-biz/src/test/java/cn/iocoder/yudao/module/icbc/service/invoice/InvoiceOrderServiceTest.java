@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.service.invoice;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoicePreOrderReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoicePreOrderRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
@@ -10,15 +11,14 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
 import cn.iocoder.yudao.module.icbc.service.invoice.impl.InvoiceOrderServiceImpl;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 
 import javax.annotation.Resource;
 import java.math.BigDecimal;
 import java.util.Collections;
 
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
-import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.ICBC_PRE_ORDER_NOT_IMPLEMENTED;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author 芋道源码
  */
 @Import({UnitTestConfiguration.class, InvoiceOrderServiceImpl.class})
+@TestPropertySource(properties = "icbc.gateway.mode=fake")
 public class InvoiceOrderServiceTest extends BaseDbUnitTest {
 
     @Resource
@@ -39,7 +40,7 @@ public class InvoiceOrderServiceTest extends BaseDbUnitTest {
     private OrderItemMapper orderItemMapper;
 
     @Test
-    public void testCreatePreOrder_notImplemented() {
+    public void testCreatePreOrder_success() {
         // 准备参数
         InvoicePreOrderReqVO reqVO = new InvoicePreOrderReqVO();
         reqVO.setOutOrderId("TEST_ORDER_001");
@@ -77,9 +78,16 @@ public class InvoiceOrderServiceTest extends BaseDbUnitTest {
         goodsInfo.setMergedCode("1090101010000000000");
         reqVO.setGoodsInfo(Collections.singletonList(goodsInfo));
 
-        // 调用：预下单尚未实现，必须立即失败，而不是返回伪造的跳转地址
-        assertServiceException(() -> invoiceOrderService.createPreOrder(reqVO),
-            ICBC_PRE_ORDER_NOT_IMPLEMENTED);
+        // 调用：经假适配层返回自然人确认页面表单
+        InvoicePreOrderRespVO respVO = invoiceOrderService.createPreOrder(reqVO);
+
+        // 断言
+        assertNotNull(respVO);
+        assertEquals(0, respVO.getReturnCode());
+        assertEquals("TEST_ORDER_001", respVO.getPartnerOrderId());
+        assertNotNull(respVO.getRedirectUrl());
+        assertTrue(respVO.getRedirectUrl().contains("pre-order"));
+        assertNotNull(invoiceOrderMapper.selectByPartnerOrderId("TEST_ORDER_001"));
     }
 
     @Test

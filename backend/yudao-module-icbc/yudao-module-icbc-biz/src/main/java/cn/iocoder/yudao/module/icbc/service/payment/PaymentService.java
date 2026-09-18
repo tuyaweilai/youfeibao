@@ -38,12 +38,4 @@ public interface PaymentService {
      */
     boolean handlePaymentNotify(String notifyData);
 
-    /**
-     * 生成支付页面重定向URL
-     *
-     * @param paymentReqVO 支付请求信息
-     * @return 重定向URL
-     */
-    String generatePaymentUrl(PaymentReqVO paymentReqVO);
-
 } 

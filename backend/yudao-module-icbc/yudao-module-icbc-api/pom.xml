@@ -28,12 +28,9 @@
             <artifactId>spring-boot-starter-validation</artifactId>
             <optional>true</optional>
         </dependency>
-        
-        <!-- 工行SDK依赖 -->
-        <dependency>
-            <groupId>com.icbc</groupId>
-            <artifactId>icbc-api-sdk-cop</artifactId>
-            <version>1.0.0</version>
-        </dependency>
+        <!--
+            注意：本模块是对外暴露的端口（IcbcGateway）与领域模型，
+            绝不依赖工行 SDK。网关地址、签名与加解密只允许出现在 -biz 的 gateway.sdk 包内。
+        -->
     </dependencies>
 </project> 

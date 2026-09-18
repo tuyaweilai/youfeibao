@@ -33,7 +33,8 @@ public class CallbackNotifyDO extends BaseDO {
      */
     private String notifyId;
     /**
-     * 通知类型：PAYEE_AUDIT-收方审核，INVOICE_STATUS-发票状态
+     * 通知类型：01 预下单异常、02 支付、03 开票、04 缴税、05 发票上传、
+     * 06 发票取消、07 红票申请、08 红票上传、09 红票撤销
      *
      * 枚举 {@link cn.iocoder.yudao.module.icbc.enums.CallbackNotifyTypeEnum}
      */

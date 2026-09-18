@@ -20,7 +20,7 @@ public class CallbackNotifyPageReqVO extends PageParam {
     @Schema(description = "通知ID", example = "NOTIFY123456")
     private String notifyId;
 
-    @Schema(description = "通知类型", example = "PAYEE_AUDIT")
+    @Schema(description = "通知类型", example = "03")
     private String notifyType;
 
     @Schema(description = "业务ID", example = "ORDER123456")
