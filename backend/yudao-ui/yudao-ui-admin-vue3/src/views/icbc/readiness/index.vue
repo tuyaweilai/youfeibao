@@ -18,6 +18,9 @@
         <el-tag :type="tenantReady ? 'success' : 'danger'">{{ tenantReady ? '是' : '否' }}</el-tag>
       </el-descriptions-item>
       <el-descriptions-item label="临近到期资质数（30 天）">{{ expiringCount }}</el-descriptions-item>
+      <el-descriptions-item label="待处理到期预警">
+        <el-tag :type="warnings.length > 0 ? 'warning' : 'success'">{{ warnings.length }}</el-tag>
+      </el-descriptions-item>
       <el-descriptions-item label="付方档案（子商户）数">{{ payerCount }}</el-descriptions-item>
       <el-descriptions-item label="启用品类数">{{ goodsCount }}</el-descriptions-item>
       <el-descriptions-item label="企业授权记录数">{{ authCount }}</el-descriptions-item>
@@ -33,6 +36,27 @@
       </el-table-column>
       <el-table-column label="说明" prop="desc" min-width="360" />
     </el-table>
+
+    <div class="mt-15px" v-if="warnings.length > 0">
+      <el-alert
+        type="warning"
+        :closable="false"
+        class="mb-10px"
+        title="以下资质由定时任务扫描到临近到期，请尽快更新；处理后可关闭预警。"
+      />
+      <el-table :data="warnings" border>
+        <el-table-column label="资质层" prop="type" width="140" />
+        <el-table-column label="资质名称" prop="name" min-width="200" />
+        <el-table-column label="有效期止" prop="validTo" width="140" />
+        <el-table-column label="操作" align="center" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="ackWarning(row.id)" v-hasPermi="['icbc:expiry-warning:ack']">
+              标为已处理
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <div class="mt-15px">
       <el-button @click="load" :loading="loading">重新自检</el-button>
@@ -50,6 +74,7 @@ import { PayerApi } from '@/api/icbc/payer'
 import { QualificationApi } from '@/api/icbc/qualification'
 import { GoodsConfigApi } from '@/api/icbc/goodsConfig'
 import { EnterpriseAuthApi } from '@/api/icbc/enterpriseAuth'
+import { ExpiryWarningApi, ExpiryWarningVO } from '@/api/icbc/expiryWarning'
 
 defineOptions({ name: 'IcbcReadiness' })
 
@@ -64,6 +89,7 @@ const payerCount = ref(0)
 const goodsCount = ref(0)
 const authCount = ref(0)
 const authApprovedCount = ref(0)
+const warnings = ref<ExpiryWarningVO[]>([])
 
 const checklist = computed(() => [
   {
@@ -103,14 +129,15 @@ const checklist = computed(() => [
 const load = async () => {
   loading.value = true
   try {
-    const [cfg, conn, ready, expiring, payers, goods, auths] = await Promise.allSettled([
+    const [cfg, conn, ready, expiring, payers, goods, auths, warns] = await Promise.allSettled([
       IcbcTestApi.getConfig(),
       IcbcTestApi.checkConnectivity(),
       QualificationApi.isTenantReady(),
       QualificationApi.getExpiring(30),
       PayerApi.getPayerPage({ pageNo: 1, pageSize: 1 }),
       GoodsConfigApi.getEnabledList(),
-      EnterpriseAuthApi.getEnterpriseAuthPage({ pageNo: 1, pageSize: 100 })
+      EnterpriseAuthApi.getEnterpriseAuthPage({ pageNo: 1, pageSize: 100 }),
+      ExpiryWarningApi.getOpenList()
     ])
     if (cfg.status === 'fulfilled') config.value = cfg.value || {}
     if (conn.status === 'fulfilled') connectivity.value = conn.value
@@ -123,9 +150,16 @@ const load = async () => {
       authCount.value = auths.value?.total ?? list.length
       authApprovedCount.value = list.filter((a: any) => a.authStatus === 1).length
     }
+    if (warns.status === 'fulfilled') warnings.value = warns.value || []
   } finally {
     loading.value = false
   }
+}
+
+const ackWarning = async (id?: number) => {
+  if (!id) return
+  await ExpiryWarningApi.acknowledge(id)
+  await load()
 }
 
 const go = (path: string) => router.push(path)

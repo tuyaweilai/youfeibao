@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.service.entauth.impl;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.entauth.vo.IcbcEnterpriseAuthInitReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.entauth.vo.IcbcEnterpriseAuthPageReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.entauth.vo.IcbcEnterpriseAuthUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.entauth.IcbcEnterpriseAuthDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.entauth.IcbcEnterpriseAuthMapper;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.ENTERPRISE_AUTH_NOT_EXISTS;
@@ -64,13 +66,27 @@ public class IcbcEnterpriseAuthServiceImpl implements IcbcEnterpriseAuthService 
     }
 
     @Override
-    public void updateAuthStatus(Long id, Integer authStatus) {
-        if (id == null || enterpriseAuthMapper.selectById(id) == null) {
+    public void updateAuthResult(IcbcEnterpriseAuthUpdateReqVO reqVO) {
+        if (reqVO.getId() == null || enterpriseAuthMapper.selectById(reqVO.getId()) == null) {
             throw exception(ENTERPRISE_AUTH_NOT_EXISTS);
         }
+        Integer authStatus = reqVO.getAuthStatus();
+        LocalDateTime authTime = reqVO.getAuthTime();
+        LocalDateTime expireTime = reqVO.getExpireTime();
+        // 已授权但未填授权时间时，默认取当前时间
+        if (Integer.valueOf(1).equals(authStatus) && authTime == null) {
+            authTime = LocalDateTime.now();
+        }
+        // 有效期已过则状态归为已失效，避免出现「已授权但已过期」的自相矛盾数据
+        if (expireTime != null && !expireTime.isAfter(LocalDateTime.now())) {
+            authStatus = 2;
+        }
         IcbcEnterpriseAuthDO updateObj = new IcbcEnterpriseAuthDO();
-        updateObj.setId(id);
+        updateObj.setId(reqVO.getId());
         updateObj.setAuthStatus(authStatus);
+        updateObj.setAuthTime(authTime);
+        updateObj.setExpireTime(expireTime);
+        updateObj.setRemark(reqVO.getRemark());
         enterpriseAuthMapper.updateById(updateObj);
     }
 

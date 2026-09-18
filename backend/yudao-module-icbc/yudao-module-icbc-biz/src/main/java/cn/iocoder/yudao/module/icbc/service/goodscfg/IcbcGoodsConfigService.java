@@ -20,6 +20,11 @@ public interface IcbcGoodsConfigService {
 
     IcbcGoodsConfigDO getGoodsConfig(Long id);
 
+    /**
+     * 按税收分类合并编码查询品类配置（供开票申请校验计税方法）
+     */
+    IcbcGoodsConfigDO getGoodsConfigByMergedCode(String mergedCode);
+
     PageResult<IcbcGoodsConfigDO> getGoodsConfigPage(IcbcGoodsConfigPageReqVO pageReqVO);
 
     /**

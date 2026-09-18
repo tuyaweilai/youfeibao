@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS `icbc_goods_config` (
   `name` varchar(100) NOT NULL COMMENT '品类名称',
   `unit` varchar(20) DEFAULT NULL COMMENT '计量单位',
   `tax_rate` decimal(5,4) DEFAULT NULL COMMENT '税率',
+  `tax_method` varchar(20) DEFAULT NULL COMMENT '计税方法：SIMPLE-简易计税，GENERAL-一般计税',
   `merged_code` varchar(19) DEFAULT NULL COMMENT '商品和服务税收分类合并编码',
   `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态：0-启用，1-停用',
   `remark` varchar(500) DEFAULT NULL COMMENT '备注',
@@ -64,3 +65,54 @@ CREATE TABLE IF NOT EXISTS `icbc_enterprise_auth` (
   PRIMARY KEY (`id`),
   KEY `idx_tenant_id` (`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工行企业授权记录';
+
+-- 兼容已存在的库：补 `tax_method` 列（幂等）
+SET @col_exists := (
+  SELECT COUNT(1) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'icbc_goods_config' AND COLUMN_NAME = 'tax_method'
+);
+SET @ddl := IF(@col_exists = 0,
+  'ALTER TABLE `icbc_goods_config` ADD COLUMN `tax_method` varchar(20) DEFAULT NULL COMMENT ''计税方法：SIMPLE-简易计税，GENERAL-一般计税'' AFTER `tax_rate`',
+  'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 4. 平台级报废产品税收分类编码表（全局，无租户维度）
+CREATE TABLE IF NOT EXISTS `icbc_scrap_code` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `name` varchar(100) NOT NULL COMMENT '报废产品名称',
+  `merged_code` varchar(19) NOT NULL COMMENT '商品和服务税收分类合并编码',
+  `unit` varchar(20) DEFAULT NULL COMMENT '计量单位',
+  `tax_rate` decimal(5,4) DEFAULT NULL COMMENT '税率',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态：0-启用，1-停用',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '是否删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_merged_code` (`merged_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='平台级报废产品税收分类编码表';
+
+-- 5. 资质到期预警（租户级）
+CREATE TABLE IF NOT EXISTS `icbc_expiry_warning` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `qualification_id` bigint unsigned NOT NULL COMMENT '资质编号',
+  `type` varchar(20) DEFAULT NULL COMMENT '资质层',
+  `name` varchar(100) DEFAULT NULL COMMENT '资质名称',
+  `valid_to` date DEFAULT NULL COMMENT '有效期止',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态：0-待处理，1-已处理',
+  `warned_at` datetime DEFAULT NULL COMMENT '预警时间',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `tenant_id` bigint unsigned NOT NULL DEFAULT '0' COMMENT '租户编号',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '是否删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_tenant_id` (`tenant_id`),
+  KEY `idx_qualification_id` (`qualification_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='资质到期预警';

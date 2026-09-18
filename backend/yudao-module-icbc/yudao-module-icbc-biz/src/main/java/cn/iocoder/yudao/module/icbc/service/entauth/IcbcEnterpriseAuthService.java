@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.service.entauth;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.entauth.vo.IcbcEnterpriseAuthInitReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.entauth.vo.IcbcEnterpriseAuthPageReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.entauth.vo.IcbcEnterpriseAuthUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.entauth.IcbcEnterpriseAuthDO;
 
 /**
@@ -20,8 +21,8 @@ public interface IcbcEnterpriseAuthService {
     PageResult<IcbcEnterpriseAuthDO> getEnterpriseAuthPage(IcbcEnterpriseAuthPageReqVO pageReqVO);
 
     /**
-     * 人工回填授权结果（工行无查询接口，暂由管理员确认）
+     * 人工回填授权结果与授权有效期（工行无查询接口，由管理员确认）
      */
-    void updateAuthStatus(Long id, Integer authStatus);
+    void updateAuthResult(IcbcEnterpriseAuthUpdateReqVO reqVO);
 
 }

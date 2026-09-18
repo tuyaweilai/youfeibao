@@ -26,6 +26,13 @@
       <el-table-column label="品类名称" prop="name" min-width="160" />
       <el-table-column label="计量单位" align="center" prop="unit" width="110" />
       <el-table-column label="税率" align="center" prop="taxRate" width="100" />
+      <el-table-column label="计税方法" align="center" prop="taxMethod" width="110">
+        <template #default="{ row }">
+          <el-tag :type="row.taxMethod === 'SIMPLE' ? 'warning' : 'info'">
+            {{ row.taxMethod === 'SIMPLE' ? '简易计税' : '一般计税' }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="税收分类合并编码" prop="mergedCode" min-width="220" />
       <el-table-column label="状态" align="center" prop="status" width="90">
         <template #default="{ row }">

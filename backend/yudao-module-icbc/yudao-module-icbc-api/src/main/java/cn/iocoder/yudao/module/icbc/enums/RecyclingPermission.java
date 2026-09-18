@@ -82,4 +82,16 @@ public interface RecyclingPermission {
     String PLATFORM_QUALIFICATION_QUERY = "icbc:platform:qualification:query";
     String PLATFORM_QUALIFICATION_AUDIT = "icbc:platform:qualification:audit";
 
+    // ========== 平台运营：报废产品税收分类编码表 ==========
+
+    String SCRAP_CODE_CREATE = "icbc:scrap-code:create";
+    String SCRAP_CODE_UPDATE = "icbc:scrap-code:update";
+    String SCRAP_CODE_DELETE = "icbc:scrap-code:delete";
+    String SCRAP_CODE_QUERY = "icbc:scrap-code:query";
+
+    // ========== 租户：资质到期预警 ==========
+
+    String EXPIRY_WARNING_QUERY = "icbc:expiry-warning:query";
+    String EXPIRY_WARNING_ACK = "icbc:expiry-warning:ack";
+
 }

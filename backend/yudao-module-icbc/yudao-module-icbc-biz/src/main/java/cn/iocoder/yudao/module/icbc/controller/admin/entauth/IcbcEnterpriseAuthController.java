@@ -6,9 +6,9 @@ import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.entauth.vo.IcbcEnterpriseAuthInitReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.entauth.vo.IcbcEnterpriseAuthPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.entauth.vo.IcbcEnterpriseAuthRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.entauth.vo.IcbcEnterpriseAuthUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.service.entauth.IcbcEnterpriseAuthService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -46,14 +46,11 @@ public class IcbcEnterpriseAuthController {
                 IcbcEnterpriseAuthRespVO.class));
     }
 
-    @PutMapping("/update-status")
-    @Operation(summary = "人工回填授权结果")
-    @Parameter(name = "id", description = "编号", required = true)
-    @Parameter(name = "authStatus", description = "0-未授权，1-已授权，2-已失效", required = true)
+    @PutMapping("/update-result")
+    @Operation(summary = "人工回填授权结果与授权有效期")
     @PreAuthorize("@icbc.hasPermission('icbc:enterprise-auth:update')")
-    public CommonResult<Boolean> updateStatus(@RequestParam("id") Long id,
-                                              @RequestParam("authStatus") Integer authStatus) {
-        enterpriseAuthService.updateAuthStatus(id, authStatus);
+    public CommonResult<Boolean> updateResult(@Valid @RequestBody IcbcEnterpriseAuthUpdateReqVO reqVO) {
+        enterpriseAuthService.updateAuthResult(reqVO);
         return success(true);
     }
 

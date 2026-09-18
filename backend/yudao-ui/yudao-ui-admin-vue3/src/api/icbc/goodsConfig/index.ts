@@ -6,6 +6,7 @@ export interface GoodsConfigVO {
   name?: string
   unit?: string
   taxRate?: number
+  taxMethod?: string // SIMPLE-简易计税，GENERAL-一般计税
   mergedCode?: string
   status?: number // 0-启用，1-停用
   remark?: string

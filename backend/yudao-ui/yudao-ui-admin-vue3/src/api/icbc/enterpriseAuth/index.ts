@@ -12,15 +12,21 @@ export interface EnterpriseAuthVO {
   createTime?: Date
 }
 
+export interface EnterpriseAuthUpdateVO {
+  id: number
+  authStatus: number
+  authTime?: string
+  expireTime?: string
+  remark?: string
+}
+
 export const EnterpriseAuthApi = {
   // 发起授权，返回工行授权页面表单 HTML
   init: async (data: { outVendorId: string; siteType?: string; userType?: string }) =>
     await request.post({ url: `/icbc/enterprise-auth/init`, data }),
   getEnterpriseAuthPage: async (params: any) =>
     await request.get({ url: `/icbc/enterprise-auth/page`, params }),
-  updateStatus: async (id: number, authStatus: number) =>
-    await request.put({
-      url: `/icbc/enterprise-auth/update-status`,
-      params: { id, authStatus }
-    })
+  // 人工回填授权结果与授权有效期（工行无查询接口）
+  updateResult: async (data: EnterpriseAuthUpdateVO) =>
+    await request.put({ url: `/icbc/enterprise-auth/update-result`, data })
 }

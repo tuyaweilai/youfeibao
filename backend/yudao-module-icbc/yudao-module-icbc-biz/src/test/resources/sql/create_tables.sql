@@ -269,4 +269,100 @@ CREATE INDEX IF NOT EXISTS idx_icbc_callback_notify_notify_id ON icbc_callback_n
 CREATE UNIQUE INDEX IF NOT EXISTS uk_icbc_callback_notify_notify_id ON icbc_callback_notify(notify_id);
 CREATE INDEX IF NOT EXISTS idx_icbc_callback_notify_business_id ON icbc_callback_notify(business_id);
 CREATE INDEX IF NOT EXISTS idx_icbc_callback_notify_process_status ON icbc_callback_notify(process_status);
-CREATE INDEX IF NOT EXISTS idx_icbc_callback_notify_create_time ON icbc_callback_notify(create_time); 
+CREATE INDEX IF NOT EXISTS idx_icbc_callback_notify_create_time ON icbc_callback_notify(create_time);
+
+-- icbc_qualification table (租户三层资质)
+CREATE TABLE IF NOT EXISTS icbc_qualification (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    type VARCHAR(20) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    issuing_authority VARCHAR(200),
+    cert_no VARCHAR(100),
+    valid_from DATE,
+    valid_to DATE,
+    file_url VARCHAR(500),
+    status TINYINT NOT NULL DEFAULT 0,
+    audit_remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- icbc_goods_config table (品类与税收分类编码配置)
+CREATE TABLE IF NOT EXISTS icbc_goods_config (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    unit VARCHAR(20),
+    tax_rate DECIMAL(5,4),
+    tax_method VARCHAR(20),
+    merged_code VARCHAR(19),
+    status TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- icbc_enterprise_auth table (工行企业授权)
+CREATE TABLE IF NOT EXISTS icbc_enterprise_auth (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    out_vendor_id VARCHAR(40),
+    site_type VARCHAR(10),
+    user_type VARCHAR(10),
+    auth_status TINYINT NOT NULL DEFAULT 0,
+    auth_time DATETIME,
+    expire_time DATETIME,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- icbc_scrap_code table (平台级报废产品税收分类编码表，全局无租户)
+CREATE TABLE IF NOT EXISTS icbc_scrap_code (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    merged_code VARCHAR(19) NOT NULL,
+    unit VARCHAR(20),
+    tax_rate DECIMAL(5,4),
+    status TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(500),
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- icbc_expiry_warning table (资质到期预警)
+CREATE TABLE IF NOT EXISTS icbc_expiry_warning (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    qualification_id BIGINT NOT NULL,
+    type VARCHAR(20),
+    name VARCHAR(100),
+    valid_to DATE,
+    status TINYINT NOT NULL DEFAULT 0,
+    warned_at DATETIME,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+ 

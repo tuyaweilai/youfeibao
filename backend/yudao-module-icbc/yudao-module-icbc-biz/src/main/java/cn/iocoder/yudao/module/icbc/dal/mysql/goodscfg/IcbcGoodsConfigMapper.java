@@ -32,4 +32,14 @@ public interface IcbcGoodsConfigMapper extends BaseMapperX<IcbcGoodsConfigDO> {
         return selectOne(IcbcGoodsConfigDO::getName, name);
     }
 
+    /**
+     * 按税收分类合并编码查询品类配置。同一个编码可能被多条品类复用，取第一条即可。
+     */
+    default IcbcGoodsConfigDO selectByMergedCode(String mergedCode) {
+        return selectList(new LambdaQueryWrapperX<IcbcGoodsConfigDO>()
+                .eq(IcbcGoodsConfigDO::getMergedCode, mergedCode)
+                .orderByAsc(IcbcGoodsConfigDO::getId))
+                .stream().findFirst().orElse(null);
+    }
+
 }

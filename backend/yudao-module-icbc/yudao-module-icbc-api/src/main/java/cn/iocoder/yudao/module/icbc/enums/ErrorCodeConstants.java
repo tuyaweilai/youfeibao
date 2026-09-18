@@ -102,4 +102,9 @@ public interface ErrorCodeConstants {
     ErrorCode GOODS_CONFIG_NAME_EXISTS = new ErrorCode(1_030_010_002, "品类名称已存在");
     ErrorCode ENTERPRISE_AUTH_NOT_EXISTS = new ErrorCode(1_030_010_003, "企业授权记录不存在");
     ErrorCode TENANT_NOT_READY = new ErrorCode(1_030_010_004, "租户开票未就绪：三层资质不齐或已失效");
+    ErrorCode GOODS_CONFIG_TAX_METHOD_INVALID = new ErrorCode(1_030_010_005, "计税方法不合法：只能是 SIMPLE 或 GENERAL");
+    ErrorCode SIMPLE_TAX_METHOD_NO_SPECIAL_INVOICE = new ErrorCode(1_030_010_006, "简易计税不得开具增值税专用发票");
+    ErrorCode SCRAP_CODE_NOT_EXISTS = new ErrorCode(1_030_010_007, "报废产品编码不存在");
+    ErrorCode SCRAP_CODE_MERGED_CODE_EXISTS = new ErrorCode(1_030_010_008, "报废产品编码已存在");
+    ErrorCode EXPIRY_WARNING_NOT_EXISTS = new ErrorCode(1_030_010_009, "到期预警记录不存在");
 } 

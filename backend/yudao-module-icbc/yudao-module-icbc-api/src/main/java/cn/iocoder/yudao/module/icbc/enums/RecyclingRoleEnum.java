@@ -37,7 +37,10 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.GOODS_CONFIG_CREATE, RecyclingPermission.GOODS_CONFIG_UPDATE,
             RecyclingPermission.GOODS_CONFIG_DELETE, RecyclingPermission.GOODS_CONFIG_QUERY,
             RecyclingPermission.ENTERPRISE_AUTH_INIT, RecyclingPermission.ENTERPRISE_AUTH_UPDATE,
-            RecyclingPermission.ENTERPRISE_AUTH_QUERY)),
+            RecyclingPermission.ENTERPRISE_AUTH_QUERY,
+            RecyclingPermission.SCRAP_CODE_QUERY,
+            RecyclingPermission.EXPIRY_WARNING_QUERY,
+            RecyclingPermission.EXPIRY_WARNING_ACK)),
 
     /**
      * 收货员：收购现场登记，维护出售者档案与收购单。
@@ -56,7 +59,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PAYMENT_CREATE, RecyclingPermission.PAYMENT_QUERY,
             RecyclingPermission.DOWNLOAD_EXECUTE, RecyclingPermission.DOWNLOAD_QUERY,
             RecyclingPermission.DOWNLOAD_RETRY, RecyclingPermission.DOWNLOAD_FILE,
-            RecyclingPermission.GOODS_CONFIG_QUERY)),
+            RecyclingPermission.GOODS_CONFIG_QUERY,
+            RecyclingPermission.SCRAP_CODE_QUERY)),
 
     /**
      * 财务：代办税费、对账、归集发票。
@@ -75,7 +79,9 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PLATFORM_QUALIFICATION_QUERY, RecyclingPermission.PLATFORM_QUALIFICATION_AUDIT,
             RecyclingPermission.QUALIFICATION_QUERY, RecyclingPermission.QUALIFICATION_UPDATE,
             RecyclingPermission.GOODS_CONFIG_CREATE, RecyclingPermission.GOODS_CONFIG_UPDATE,
-            RecyclingPermission.GOODS_CONFIG_DELETE, RecyclingPermission.GOODS_CONFIG_QUERY));
+            RecyclingPermission.GOODS_CONFIG_DELETE, RecyclingPermission.GOODS_CONFIG_QUERY,
+            RecyclingPermission.SCRAP_CODE_CREATE, RecyclingPermission.SCRAP_CODE_UPDATE,
+            RecyclingPermission.SCRAP_CODE_DELETE, RecyclingPermission.SCRAP_CODE_QUERY));
 
     /**
      * yudao 超级管理员：平台自有系统租户的最高权限，绕过角色映射。

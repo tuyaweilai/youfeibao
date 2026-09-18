@@ -286,6 +286,7 @@ yudao:
     ignore-tables:
       - system_tenant
       - system_tenant_package
+      - icbc_scrap_code
       - system_dict_data
       - system_dict_type
       - system_error_code

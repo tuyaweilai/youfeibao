@@ -9,14 +9,17 @@ import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryReqV
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.OrderItemDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
+import cn.iocoder.yudao.module.icbc.enums.IcbcTaxMethodEnum;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGatewayResult;
 import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderGoods;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderReq;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
+import cn.iocoder.yudao.module.icbc.service.goodscfg.IcbcGoodsConfigService;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -50,6 +53,9 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
 
     @Resource
     private IcbcQualificationService qualificationService;
+
+    @Resource
+    private IcbcGoodsConfigService goodsConfigService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -207,6 +213,9 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
         if (request.getGoodsInfo() == null || request.getGoodsInfo().isEmpty()) {
             throw exception(ErrorCodeConstants.INVOICE_ORDER_ITEMS_EMPTY);
         }
+
+        // 简易计税的品类不得开具增值税专用发票（票种 01）
+        validateTaxMethodInvoiceType(request);
         
         // 验证商品金额总和是否等于订单总金额
         BigDecimal totalGoodsAmount = request.getGoodsInfo().stream()
@@ -215,6 +224,22 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
         
         if (totalGoodsAmount.compareTo(request.getOrderAmount()) != 0) {
             throw exception(ErrorCodeConstants.INVOICE_ORDER_AMOUNT_ERROR);
+        }
+    }
+
+    /**
+     * 按商品明细的税收分类合并编码回查品类计税方法：简易计税只能开普票。
+     * 未配置计税方法的品类按一般计税放行，保持对历史数据的兼容。
+     */
+    private void validateTaxMethodInvoiceType(InvoicePreOrderReqVO request) {
+        if (!"01".equals(request.getInvoiceType())) {
+            return;
+        }
+        for (InvoicePreOrderReqVO.GoodsInfoVO goods : request.getGoodsInfo()) {
+            IcbcGoodsConfigDO config = goodsConfigService.getGoodsConfigByMergedCode(goods.getMergedCode());
+            if (config != null && IcbcTaxMethodEnum.isSimple(config.getTaxMethod())) {
+                throw exception(ErrorCodeConstants.SIMPLE_TAX_METHOD_NO_SPECIAL_INVOICE);
+            }
         }
     }
 

@@ -5,6 +5,7 @@ import lombok.Data;
 
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Pattern;
 import java.math.BigDecimal;
 
 @Schema(description = "管理后台 - 品类与税收分类编码配置新增/修改 Request VO")
@@ -23,6 +24,11 @@ public class IcbcGoodsConfigSaveReqVO {
 
     @Schema(description = "税率")
     private BigDecimal taxRate;
+
+    @Schema(description = "计税方法：SIMPLE-简易计税，GENERAL-一般计税", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotEmpty(message = "计税方法不能为空")
+    @Pattern(regexp = "^(SIMPLE|GENERAL)$", message = "计税方法只能是 SIMPLE 或 GENERAL")
+    private String taxMethod = "GENERAL";
 
     @Schema(description = "商品和服务税收分类合并编码")
     private String mergedCode;

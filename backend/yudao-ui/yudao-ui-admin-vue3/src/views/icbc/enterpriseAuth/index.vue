@@ -5,7 +5,7 @@
       type="info"
       :closable="false"
       class="mb-10px"
-      title="由法定代表人或财务负责人用税务 App 扫码完成实人认证并录入授权有效期。平台经适配层生成工行授权页面。"
+      title="由法定代表人或财务负责人用税务 App 扫码完成实人认证。平台经适配层生成工行授权页面，授权结果与有效期由管理员回填。"
     />
     <el-form :inline="true" label-width="100px">
       <el-form-item label="付方编号">
@@ -34,25 +34,68 @@
       <el-table-column label="userType" align="center" prop="userType" width="100" />
       <el-table-column label="授权状态" align="center" prop="authStatus" width="110">
         <template #default="{ row }">
-          <el-tag :type="statusType(row.authStatus)">{{ statusLabel(row.authStatus) }}</el-tag>
+          <el-tag :type="statusType(row)">{{ statusLabel(row) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="创建时间" align="center" prop="createTime" :formatter="dateFormatter" width="170" />
-      <el-table-column label="操作" align="center" width="180" fixed="right">
+      <el-table-column label="授权时间" align="center" prop="authTime" :formatter="dateFormatter" width="170" />
+      <el-table-column label="有效期止" align="center" prop="expireTime" :formatter="dateFormatter" width="170" />
+      <el-table-column label="操作" align="center" width="120" fixed="right">
         <template #default="{ row }">
-          <el-button link type="success" @click="markStatus(row.id, 1)" v-hasPermi="['icbc:enterprise-auth:update']">标记已授权</el-button>
-          <el-button link type="danger" @click="markStatus(row.id, 2)" v-hasPermi="['icbc:enterprise-auth:update']">标记失效</el-button>
+          <el-button link type="primary" @click="openUpdate(row)" v-hasPermi="['icbc:enterprise-auth:update']">
+            回填结果
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
     <Pagination :total="total" v-model:page="queryParams.pageNo" v-model:limit="queryParams.pageSize" @pagination="getList" />
   </ContentWrap>
+
+  <!-- 回填授权结果对话框 -->
+  <Dialog v-model="updateVisible" title="回填授权结果" width="520">
+    <el-form ref="updateFormRef" :model="updateForm" label-width="110px">
+      <el-form-item label="付方编号">
+        <el-input v-model="updateForm.outVendorId" disabled />
+      </el-form-item>
+      <el-form-item label="授权状态" prop="authStatus" :rules="[{ required: true, message: '请选择授权状态' }]">
+        <el-select v-model="updateForm.authStatus" class="w-full">
+          <el-option label="未授权" :value="0" />
+          <el-option label="已授权" :value="1" />
+          <el-option label="已失效" :value="2" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="授权时间">
+        <el-date-picker
+          v-model="updateForm.authTime"
+          type="datetime"
+          value-format="YYYY-MM-DD HH:mm:ss"
+          placeholder="不填且已授权时默认当前时间"
+          class="w-full"
+        />
+      </el-form-item>
+      <el-form-item label="授权有效期止">
+        <el-date-picker
+          v-model="updateForm.expireTime"
+          type="datetime"
+          value-format="YYYY-MM-DD HH:mm:ss"
+          placeholder="请选择有效期止"
+          class="w-full"
+        />
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="updateForm.remark" type="textarea" :rows="2" placeholder="选填" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button type="primary" :loading="updateLoading" @click="submitUpdate">确 定</el-button>
+      <el-button @click="updateVisible = false">取 消</el-button>
+    </template>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
 import { EnterpriseAuthApi, EnterpriseAuthVO } from '@/api/icbc/enterpriseAuth'
 import { openIcbcForm } from '../util'
-import { dateFormatter } from '@/utils/formatTime'
+import { dateFormatter, formatDate } from '@/utils/formatTime'
 
 defineOptions({ name: 'IcbcEnterpriseAuth' })
 
@@ -94,8 +137,18 @@ const STATUS: Record<number, { label: string; type: 'info' | 'success' | 'danger
   1: { label: '已授权', type: 'success' },
   2: { label: '已失效', type: 'danger' }
 }
-const statusLabel = (s?: number) => (s !== undefined ? STATUS[s]?.label ?? s : '-')
-const statusType = (s?: number): 'info' | 'success' | 'danger' => (s !== undefined ? STATUS[s]?.type ?? 'info' : 'info')
+const statusLabel = (row: EnterpriseAuthVO) => {
+  if (row.authStatus === 1 && row.expireTime && new Date(row.expireTime).getTime() < Date.now()) {
+    return '已过期'
+  }
+  return row.authStatus !== undefined ? STATUS[row.authStatus]?.label ?? row.authStatus : '-'
+}
+const statusType = (row: EnterpriseAuthVO): 'info' | 'success' | 'danger' => {
+  if (row.authStatus === 1 && row.expireTime && new Date(row.expireTime).getTime() < Date.now()) {
+    return 'danger'
+  }
+  return row.authStatus !== undefined ? STATUS[row.authStatus]?.type ?? 'info' : 'info'
+}
 
 const getList = async () => {
   loading.value = true
@@ -108,10 +161,46 @@ const getList = async () => {
   }
 }
 
-const markStatus = async (id: number, authStatus: number) => {
-  await EnterpriseAuthApi.updateStatus(id, authStatus)
-  message.success('已更新')
-  await getList()
+// ===== 回填授权结果 =====
+const updateVisible = ref(false)
+const updateLoading = ref(false)
+const updateFormRef = ref()
+const updateForm = reactive({
+  id: 0,
+  outVendorId: '',
+  authStatus: 1,
+  authTime: undefined as string | undefined,
+  expireTime: undefined as string | undefined,
+  remark: undefined as string | undefined
+})
+
+const openUpdate = (row: EnterpriseAuthVO) => {
+  updateForm.id = row.id!
+  updateForm.outVendorId = row.outVendorId ?? ''
+  updateForm.authStatus = row.authStatus ?? 1
+  updateForm.authTime = row.authTime ? formatDate(row.authTime) : undefined
+  updateForm.expireTime = row.expireTime ? formatDate(row.expireTime) : undefined
+  updateForm.remark = row.remark
+  updateVisible.value = true
+}
+
+const submitUpdate = async () => {
+  await updateFormRef.value.validate()
+  updateLoading.value = true
+  try {
+    await EnterpriseAuthApi.updateResult({
+      id: updateForm.id,
+      authStatus: updateForm.authStatus,
+      authTime: updateForm.authTime,
+      expireTime: updateForm.expireTime,
+      remark: updateForm.remark
+    })
+    message.success('已更新')
+    updateVisible.value = false
+    await getList()
+  } finally {
+    updateLoading.value = false
+  }
 }
 
 onMounted(getList)

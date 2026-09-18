@@ -7,8 +7,10 @@ import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoicePreOrderR
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
+import cn.iocoder.yudao.module.icbc.service.goodscfg.IcbcGoodsConfigService;
 import cn.iocoder.yudao.module.icbc.service.invoice.impl.InvoiceOrderServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +24,7 @@ import java.math.BigDecimal;
 import java.util.Collections;
 
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
+import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.SIMPLE_TAX_METHOD_NO_SPECIAL_INVOICE;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.TENANT_NOT_READY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
@@ -47,6 +50,9 @@ public class InvoiceOrderServiceTest extends BaseDbUnitTest {
     @MockBean
     private IcbcQualificationService qualificationService;
 
+    @MockBean
+    private IcbcGoodsConfigService goodsConfigService;
+
     @BeforeEach
     public void setUp() {
         // 默认资质就绪；冻结场景由单独用例覆盖
@@ -63,12 +69,55 @@ public class InvoiceOrderServiceTest extends BaseDbUnitTest {
     @Test
     public void testCreatePreOrder_success() {
         // 准备参数
+        InvoicePreOrderReqVO reqVO = buildValidPreOrder("02");
+
+        // 调用：经假适配层返回自然人确认页面表单
+        InvoicePreOrderRespVO respVO = invoiceOrderService.createPreOrder(reqVO);
+
+        // 断言
+        assertNotNull(respVO);
+        assertEquals(0, respVO.getReturnCode());
+        assertEquals("TEST_ORDER_001", respVO.getPartnerOrderId());
+        assertNotNull(respVO.getRedirectUrl());
+        assertTrue(respVO.getRedirectUrl().contains("pre-order"));
+        assertNotNull(invoiceOrderMapper.selectByPartnerOrderId("TEST_ORDER_001"));
+    }
+
+    @Test
+    public void testCreatePreOrder_simpleTaxMethodRejectsSpecialInvoice() {
+        // mock 商品明细命中简易计税
+        IcbcGoodsConfigDO config = new IcbcGoodsConfigDO();
+        config.setMergedCode("1090101010000000000");
+        config.setTaxMethod("SIMPLE");
+        when(goodsConfigService.getGoodsConfigByMergedCode("1090101010000000000")).thenReturn(config);
+
+        // 调用：专票 + 简易计税品类 → 拦截
+        InvoicePreOrderReqVO reqVO = buildValidPreOrder("01");
+        assertServiceException(() -> invoiceOrderService.createPreOrder(reqVO),
+                SIMPLE_TAX_METHOD_NO_SPECIAL_INVOICE);
+    }
+
+    @Test
+    public void testCreatePreOrder_simpleTaxMethodAllowsPlainInvoice() {
+        // mock 商品明细命中简易计税
+        IcbcGoodsConfigDO config = new IcbcGoodsConfigDO();
+        config.setMergedCode("1090101010000000000");
+        config.setTaxMethod("SIMPLE");
+        when(goodsConfigService.getGoodsConfigByMergedCode("1090101010000000000")).thenReturn(config);
+
+        // 调用：普票 + 简易计税品类 → 放行
+        InvoicePreOrderRespVO respVO = invoiceOrderService.createPreOrder(buildValidPreOrder("02"));
+        assertNotNull(respVO);
+        assertEquals(0, respVO.getReturnCode());
+    }
+
+    private InvoicePreOrderReqVO buildValidPreOrder(String invoiceType) {
         InvoicePreOrderReqVO reqVO = new InvoicePreOrderReqVO();
         reqVO.setOutOrderId("TEST_ORDER_001");
         reqVO.setOutVendorId("010020200513111111");
         reqVO.setOutUserId("10000000000000003");
         reqVO.setOrderAmount(new BigDecimal("1000.00"));
-        reqVO.setInvoiceType("02");
+        reqVO.setInvoiceType(invoiceType);
         reqVO.setSpecificElements("24");
         reqVO.setBuyerInvTypeCode("04");
         reqVO.setNaturalPersonName("张三");
@@ -87,7 +136,6 @@ public class InvoiceOrderServiceTest extends BaseDbUnitTest {
         reqVO.setPayJumpUrl("https://example.com/pay/return");
         reqVO.setInvoiceNotifyUrl("https://example.com/invoice/notify");
 
-        // 商品信息
         InvoicePreOrderReqVO.GoodsInfoVO goodsInfo = new InvoicePreOrderReqVO.GoodsInfoVO();
         goodsInfo.setGoodsSeqno("1");
         goodsInfo.setProjectName("废铁回收");
@@ -98,17 +146,7 @@ public class InvoiceOrderServiceTest extends BaseDbUnitTest {
         goodsInfo.setTaxRate(new BigDecimal("0.13"));
         goodsInfo.setMergedCode("1090101010000000000");
         reqVO.setGoodsInfo(Collections.singletonList(goodsInfo));
-
-        // 调用：经假适配层返回自然人确认页面表单
-        InvoicePreOrderRespVO respVO = invoiceOrderService.createPreOrder(reqVO);
-
-        // 断言
-        assertNotNull(respVO);
-        assertEquals(0, respVO.getReturnCode());
-        assertEquals("TEST_ORDER_001", respVO.getPartnerOrderId());
-        assertNotNull(respVO.getRedirectUrl());
-        assertTrue(respVO.getRedirectUrl().contains("pre-order"));
-        assertNotNull(invoiceOrderMapper.selectByPartnerOrderId("TEST_ORDER_001"));
+        return reqVO;
     }
 
     @Test
