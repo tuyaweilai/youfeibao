@@ -18,7 +18,7 @@ public class OpenAiImageModelTests {
 
     private final OpenAiImageModel imageModel = new OpenAiImageModel(OpenAiImageApi.builder()
             .baseUrl("https://api.holdai.top") // apiKey
-            .apiKey("sk-aN6nWn3fILjrgLFT0fC4Aa60B72e4253826c77B29dC94f17")
+            .apiKey("test-key")
             .build());
 
     @Test

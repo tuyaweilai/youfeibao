@@ -52,20 +52,20 @@ spring:
       primary: master
       datasource:
         master:
-          url: jdbc:mysql://dbconn.sealosbja.site:40314/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true&connectTimeout=60000&socketTimeout=60000&autoReconnect=true&failOverReadOnly=false&maxReconnects=3&initialTimeout=1
-          username: root
-          password: cxv28q9w
+          url: ${MYSQL_URL:jdbc:mysql://dbconn.sealosbja.site:40314/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true&connectTimeout=60000&socketTimeout=60000&autoReconnect=true&failOverReadOnly=false&maxReconnects=3&initialTimeout=1}
+          username: ${MYSQL_USERNAME:root}
+          password: ${MYSQL_PASSWORD:}
           driver-class-name: com.mysql.cj.jdbc.Driver
         slave: # 模拟从库，可根据自己需要修改
           lazy: true # 开启懒加载，保证启动速度
-          url: jdbc:mysql://dbconn.sealosbja.site:40314/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true&connectTimeout=60000&socketTimeout=60000&autoReconnect=true&failOverReadOnly=false&maxReconnects=3&initialTimeout=1
-          username: root
-          password: cxv28q9w
+          url: ${MYSQL_URL:jdbc:mysql://dbconn.sealosbja.site:40314/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true&connectTimeout=60000&socketTimeout=60000&autoReconnect=true&failOverReadOnly=false&maxReconnects=3&initialTimeout=1}
+          username: ${MYSQL_USERNAME:root}
+          password: ${MYSQL_PASSWORD:}
           driver-class-name: com.mysql.cj.jdbc.Driver
 #        tdengine: # IoT 数据库（需要 IoT 物联网再开启噢！）
 #          url: jdbc:TAOS-RS://127.0.0.1:6041/ruoyi_vue_pro
 #          driver-class-name: com.taosdata.jdbc.rs.RestfulDriver
-#          username: root
+#          username: ${MYSQL_USERNAME:root}
 #          password: taosdata
 #          druid:
 #            validation-query: SELECT SERVER_STATUS() # TDengine 数据源的有效性检查 SQL
@@ -117,7 +117,7 @@ spring:
     host: 127.0.0.1 # RabbitMQ 服务的地址
     port: 5672 # RabbitMQ 服务的端口
     username: rabbit # RabbitMQ 服务的账号
-    password: rabbit # RabbitMQ 服务的密码
+    password: ${RABBITMQ_PASSWORD:rabbit} # RabbitMQ 服务的密码
   # Kafka 配置项，对应 KafkaProperties 配置类
   kafka:
     bootstrap-servers: 127.0.0.1:9092 # 指定 Kafka Broker 地址，可以设置多个，以逗号分隔
@@ -191,26 +191,16 @@ debug: false
 --- #################### 微信公众号、小程序相关配置 ####################
 wx:
   mp: # 公众号配置（必填），参见 https://github.com/Wechat-Group/WxJava/blob/develop/spring-boot-starters/wx-java-mp-spring-boot-starter/README.md 文档
-#    app-id: wx041349c6f39b268b # 测试号（牛希尧提供的）
-#    secret: 5abee519483bc9f8cb37ce280e814bd0
-    app-id: wx5b23ba7a5589ecbb # 测试号（自己的）
-    secret: 2a7b3b20c537e52e74afd395eb85f61f
-#    app-id: wxa69ab825b163be19 # 测试号（Kongdy 提供的）
-#    secret: bd4f9fab889591b62aeac0d7b8d8b4a0
+    app-id: ${WX_MP_APP_ID:} # 测试号（自己的）
+    secret: ${WX_MP_SECRET:}
     # 存储配置，解决 AccessToken 的跨节点的共享
     config-storage:
       type: RedisTemplate # 采用 RedisTemplate 操作 Redis，会自动从 Spring 中获取
       key-prefix: wx # Redis Key 的前缀
       http-client-type: HttpClient # 采用 HttpClient 请求微信公众号平台
   miniapp: # 小程序配置（必填），参见 https://github.com/Wechat-Group/WxJava/blob/develop/spring-boot-starters/wx-java-miniapp-spring-boot-starter/README.md 文档
-    #    appid: wx62056c0d5e8db250 # 测试号（牛希尧提供的）
-    #    secret: 333ae72f41552af1e998fe1f54e1584a
-#    appid: wx63c280fe3248a3e7 # wenhualian的接口测试号
-#    secret: 6f270509224a7ae1296bbf1c8cb97aed
-    appid: wxc4598c446f8a9cb3 # 测试号（Kongdy 提供的）
-    secret: 4a1a04e07f6a4a0751b39c3064a92c8b
-#    appid: wx66186af0759f47c9 # 测试号（puhui 提供的）
-#    secret: 3218bcbd112cbc614c7264ceb20144ac
+    appid: ${WX_MINIAPP_APP_ID:} # 测试号（Kongdy 提供的）
+    secret: ${WX_MINIAPP_SECRET:}
     config-storage:
       type: RedisTemplate # 采用 RedisTemplate 操作 Redis，会自动从 Spring 中获取
       key-prefix: wa # Redis Key 的前缀
@@ -235,18 +225,18 @@ yudao:
     env-version: develop # 小程序版本: 正式版为 "release"；体验版为 "trial"；开发版为 "develop"
   wxa-subscribe-message:
     miniprogram-state: developer # 跳转小程序类型：开发版为 "developer"；体验版为 "trial"为；正式版为 "formal"
-  tencent-lbs-key: TVDBZ-TDILD-4ON4B-PFDZA-RNLKH-VVF6E # QQ 地图的密钥 https://lbs.qq.com/service/staticV2/staticGuide/staticDoc
+  tencent-lbs-key: ${TENCENT_LBS_KEY:} # QQ 地图的密钥 https://lbs.qq.com/service/staticV2/staticGuide/staticDoc
 
 justauth:
   enabled: true
   type:
     DINGTALK: # 钉钉
-      client-id: dingvrnreaje3yqvzhxg
-      client-secret: i8E6iZyDvZj51JIb0tYsYfVQYOks9Cq1lgryEjFRqC79P3iJcrxEwT6Qk2QvLrLI
+      client-id: ${JUSTAUTH_DINGTALK_CLIENT_ID:}
+      client-secret: ${JUSTAUTH_DINGTALK_CLIENT_SECRET:}
       ignore-check-redirect-uri: true
     WECHAT_ENTERPRISE: # 企业微信
-      client-id: wwd411c69a39ad2e54
-      client-secret: 1wTb7hYxnpT2TUbIeHGXGo7T0odav1ic10mLdyyATOw
+      client-id: ${JUSTAUTH_WECOM_CLIENT_ID:}
+      client-secret: ${JUSTAUTH_WECOM_CLIENT_SECRET:}
       agent-id: 1000004
       ignore-check-redirect-uri: true
     # noinspection SpringBootApplicationYaml
@@ -277,6 +267,11 @@ pf4j:
 # ICBC_PRIVATE_KEY、ICBC_APIGW_PUBLIC_KEY、ICBC_AES_KEY、ICBC_SM2_PRIVATE_KEY、
 # ICBC_SM2_APIGW_PUBLIC_KEY）。
 icbc:
+  # 适配层运行模式：sdk（默认，经工行 SDK 出站）/ fake（假适配层，不触网）
+  # 本地默认 fake，没配工行密钥时也能启动、能跑业务链路。
+  gateway:
+    mode: ${ICBC_GATEWAY_MODE:fake}
+
   api:
     # 应用ID（合作方编号）
     app-id: ${ICBC_APP_ID:}

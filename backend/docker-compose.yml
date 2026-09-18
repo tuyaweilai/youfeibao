@@ -1,0 +1,43 @@
+# 本地开发依赖：MySQL 8 + Redis 7。
+#
+#   cd backend && docker compose up -d
+#
+# 说明：
+# - Redis 是启动后端的硬依赖，起不来后端就起不来。
+# - MySQL 默认是空的，需要自行导入 yudao 库表结构（仓库未含全量 schema，
+#   见 ADR 0008）。若不导入，可让后端继续指向共享开发库（MYSQL_URL 默认值）。
+# - 口令走环境变量，默认值仅用于本地，勿用于任何共享/线上环境。
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: youfeibao-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-root}
+      MYSQL_DATABASE: ruoyi-vue-pro
+    ports:
+      - "3306:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: youfeibao-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+volumes:
+  mysql-data:
+  redis-data:

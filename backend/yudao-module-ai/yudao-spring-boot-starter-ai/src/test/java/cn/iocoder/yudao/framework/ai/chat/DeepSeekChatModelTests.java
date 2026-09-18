@@ -26,7 +26,7 @@ public class DeepSeekChatModelTests {
     private final OpenAiChatModel openAiChatModel = OpenAiChatModel.builder()
             .openAiApi(OpenAiApi.builder()
                     .baseUrl(DeepSeekChatModel.BASE_URL)
-                    .apiKey("sk-e52047409b144d97b791a6a46a2d") // apiKey
+                    .apiKey("test-key") // apiKey
                     .build())
             .defaultOptions(OpenAiChatOptions.builder()
                     .model("deepseek-chat") // 模型

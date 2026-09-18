@@ -78,7 +78,7 @@ mybatis-plus:
     banner: false # 关闭控制台的 Banner 打印
   type-aliases-package: ${yudao.info.base-package}.module.*.dal.dataobject
   encryptor:
-    password: XDV71a+xqStEA3WH # 加解密的秘钥，可使用 https://www.imaegoo.com/2020/aes-key-generator/ 网站生成
+    password: ${YUDAO_ENCRYPTOR_PASSWORD:} # 加解密的秘钥，可使用 https://www.imaegoo.com/2020/aes-key-generator/ 网站生成
 
 mybatis-plus-join:
   banner: false # 是否打印 mybatis plus join banner，默认true
@@ -165,12 +165,12 @@ spring:
           host: 127.0.0.1
           port: 19530
     qianfan: # 文心一言
-      api-key: x0cuLZ7XsaTCU08vuJWO87Lg
-      secret-key: R9mYF9dl9KASgi5RUq0FQt3wRisSnOcK
+      api-key: ${AI_QIANFAN_API_KEY:}
+      secret-key: ${AI_QIANFAN_SECRET_KEY:}
     zhipuai: # 智谱 AI
-      api-key: 32f84543e54eee31f8d56b2bd6020573.3vh9idLJZ2ZhxDEs
+      api-key: ${AI_ZHIPUAI_API_KEY:}
     openai: # OpenAI 官方
-      api-key: sk-aN6nWn3fILjrgLFT0fC4Aa60B72e4253826c77B29dC94f17
+      api-key: ${AI_OPENAI_API_KEY:}
       base-url: https://api.gptsapi.net
     azure: # OpenAI 微软
       openai:
@@ -181,7 +181,7 @@ spring:
       chat:
         model: llama3
     stabilityai:
-      api-key: sk-e53UqbboF8QJCscYvzJscJxJXoFcFg4iJjl1oqgE7baJETmx
+      api-key: ${AI_STABILITYAI_API_KEY:}
     dashscope: # 通义千问
       api-key: sk-71800982914041848008480000000000
     minimax: # Minimax：https://www.minimaxi.com/
@@ -193,11 +193,11 @@ yudao:
   ai:
     deep-seek: # DeepSeek
       enable: true
-      api-key: sk-e94db327cc7d457d99a8de8810fc6b12
+      api-key: ${AI_DEEPSEEK_API_KEY:}
       model: deepseek-chat
     doubao: # 字节豆包
       enable: true
-      api-key: 5c1b5747-26d2-4ebd-a4e0-dd0e8d8b4272
+      api-key: ${AI_DOUBAO_API_KEY:}
       model: doubao-1-5-lite-32k-250115
     hunyuan: # 腾讯混元
       enable: true
@@ -205,12 +205,12 @@ yudao:
       model: hunyuan-turbo
     siliconflow: # 硅基流动
       enable: true
-      api-key: sk-epsakfenqnyzoxhmbucsxlhkdqlcbnimslqoivkshalvdozz
+      api-key: ${AI_SILICONFLOW_API_KEY:}
       model: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
     xinghuo: # 讯飞星火
       enable: true
-      appKey: 75b161ed2aef4719b275d6e7f2a4d4cd
-      secretKey: YWYxYWI2MTA4ODI2NGZlYTQyNjAzZTcz
+      appKey: ${AI_XINGHUO_APP_KEY:}
+      secretKey: ${AI_XINGHUO_SECRET_KEY:}
       model: generalv3.5
     baichuan: # 百川智能
       enable: true
@@ -220,7 +220,7 @@ yudao:
       enable: true
   #    base-url: https://api.holdai.top/mj-relax/mj
       base-url: https://api.holdai.top/mj
-      api-key: sk-dZEPiVaNcT3FHhef51996bAa0bC74806BeAb620dA5Da10Bf
+      api-key: ${AI_MIDJOURNEY_API_KEY:}
       notify-url: http://java.nat300.top/admin-api/ai/image/midjourney/notify
     suno:
       enable: true
@@ -351,12 +351,12 @@ yudao:
     express:
       client: KD_NIAO
       kd-niao:
-        api-key: cb022f1e-48f1-4c4a-a723-9001ac9676b8
+        api-key: ${KD_NIAO_API_KEY:}
         business-id: 1809751
         request-type: 1002 # 免费版 1002；付费版 8001
       kd100:
-        key: pLXUGAwK5305
-        customer: E77DF18BE109F454A5CD319E44BF5177
+        key: ${KD100_KEY:}
+        customer: ${KD100_CUSTOMER:}
 
 debug: false
 # 插件配置 TODO 芋艿：【IOT】需要处理下

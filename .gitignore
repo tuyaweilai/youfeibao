@@ -1,1 +1,5 @@
 .DS_Store
+
+# 本地环境变量（含口令，不入库；模板见 .env.example）
+/.env
+/backend/.env

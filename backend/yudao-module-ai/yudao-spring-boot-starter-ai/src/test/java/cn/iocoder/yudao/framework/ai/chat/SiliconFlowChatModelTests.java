@@ -27,7 +27,7 @@ public class SiliconFlowChatModelTests {
     private final OpenAiChatModel openAiChatModel = OpenAiChatModel.builder()
             .openAiApi(OpenAiApi.builder()
                     .baseUrl(SiliconFlowApiConstants.DEFAULT_BASE_URL)
-                    .apiKey("sk-epsakfenqnyzoxhmbucsxlhkdqlcbnimslqoivkshalvdozz") // apiKey
+                    .apiKey("test-key") // apiKey
                     .build())
             .defaultOptions(OpenAiChatOptions.builder()
                     .model(SiliconFlowApiConstants.MODEL_DEFAULT) // 模型

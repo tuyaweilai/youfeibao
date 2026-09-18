@@ -17,8 +17,22 @@ mvn -pl yudao-module-icbc/yudao-module-icbc-biz test                      # 运�
 ```bash
 cd backend/yudao-ui/yudao-ui-admin-vue3
 pnpm install        # 首次
-pnpm dev            # 本地开发
+pnpm dev            # 本地开发（端口 3100，联调 http://localhost:48080）
 pnpm build:local    # 生产构建
+```
+
+## 本地运行后端
+
+`local` profile 需要 MySQL 与 Redis；敏感配置一律走环境变量（模板见根目录 `.env.example`）。仓库未含 yudao 全量建表 SQL（见 ADR 0008），`MYSQL_URL` 默认指向共享开发库。
+
+```bash
+cp .env.example .env && $EDITOR .env   # 填 MYSQL_PASSWORD、YUDAO_ENCRYPTOR_PASSWORD 等
+set -a; source .env; set +a
+
+cd backend
+docker compose up -d                   # 起 Redis（以及可选的本机 MySQL；本机 MySQL 需自行导入库表）
+mvn -pl yudao-server -am -DskipTests install   # 首次：安装依赖
+mvn -pl yudao-server spring-boot:run   # 端口 48080，默认 icbc.gateway.mode=fake 不触网
 ```
 
 ## Agent skills

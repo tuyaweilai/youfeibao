@@ -47,14 +47,14 @@ spring:
       primary: master
       datasource:
         master:
-          url: jdbc:mysql://dbconn.sealosbja.site:40314/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
-          username: root
-          password: cxv28q9w
+          url: ${MYSQL_URL:jdbc:mysql://dbconn.sealosbja.site:40314/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true} # MySQL Connector/J 8.X 连接的示例
+          username: ${MYSQL_USERNAME:root}
+          password: ${MYSQL_PASSWORD:}
         slave: # 模拟从库，可根据自己需要修改 # 模拟从库，可根据自己需要修改
           lazy: true # 开启懒加载，保证启动速度
-          url: jdbc:mysql://dbconn.sealosbja.site:40314/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
-          username: root
-          password: cxv28q9w
+          url: ${MYSQL_URL:jdbc:mysql://dbconn.sealosbja.site:40314/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true} # MySQL Connector/J 8.X 连接的示例
+          username: ${MYSQL_USERNAME:root}
+          password: ${MYSQL_PASSWORD:}
 
   # Redis 配置。Redisson 默认的配置足够使用，一般不需要进行调优
   redis:
@@ -106,7 +106,7 @@ spring:
     host: 127.0.0.1 # RabbitMQ 服务的地址
     port: 5672 # RabbitMQ 服务的端口
     username: guest # RabbitMQ 服务的账号
-    password: guest # RabbitMQ 服务的密码
+    password: ${RABBITMQ_PASSWORD:guest} # RabbitMQ 服务的密码
   # Kafka 配置项，对应 KafkaProperties 配置类
   kafka:
     bootstrap-servers: 127.0.0.1:9092 # 指定 Kafka Broker 地址，可以设置多个，以逗号分隔
@@ -149,16 +149,16 @@ logging:
 wx: # 参见 https://github.com/Wechat-Group/WxJava/blob/develop/spring-boot-starters/wx-java-mp-spring-boot-starter/README.md 文档
   mp:
     # 公众号配置(必填)
-    app-id: wx041349c6f39b268b
-    secret: 5abee519483bc9f8cb37ce280e814bd0
+    app-id: ${WX_MP_APP_ID:}
+    secret: ${WX_MP_SECRET:}
     # 存储配置，解决 AccessToken 的跨节点的共享
     config-storage:
       type: RedisTemplate # 采用 RedisTemplate 操作 Redis，会自动从 Spring 中获取
       key-prefix: wx # Redis Key 的前缀
       http-client-type: HttpClient # 采用 HttpClient 请求微信公众号平台
   miniapp: # 小程序配置（必填），参见 https://github.com/Wechat-Group/WxJava/blob/develop/spring-boot-starters/wx-java-miniapp-spring-boot-starter/README.md 文档
-    appid: wx63c280fe3248a3e7
-    secret: 6f270509224a7ae1296bbf1c8cb97aed
+    appid: ${WX_MINIAPP_APP_ID:}
+    secret: ${WX_MINIAPP_SECRET:}
     config-storage:
       type: RedisTemplate # 采用 RedisTemplate 操作 Redis，会自动从 Spring 中获取
       key-prefix: wa # Redis Key 的前缀
@@ -173,18 +173,18 @@ yudao:
     refund-notify-url: http://yunai.natapp1.cc/admin-api/pay/notify/refund # 支付渠道的【退款】回调地址
     transfer-notify-url: https://yunai.natapp1.cc/admin-api/pay/notify/transfer # 支付渠道的【转账】回调地址
   demo: false # 开启演示模式
-  tencent-lbs-key: TVDBZ-TDILD-4ON4B-PFDZA-RNLKH-VVF6E # QQ 地图的密钥 https://lbs.qq.com/service/staticV2/staticGuide/staticDoc
+  tencent-lbs-key: ${TENCENT_LBS_KEY:} # QQ 地图的密钥 https://lbs.qq.com/service/staticV2/staticGuide/staticDoc
 
 justauth:
   enabled: true
   type:
     DINGTALK: # 钉钉
-      client-id: dingvrnreaje3yqvzhxg
-      client-secret: i8E6iZyDvZj51JIb0tYsYfVQYOks9Cq1lgryEjFRqC79P3iJcrxEwT6Qk2QvLrLI
+      client-id: ${JUSTAUTH_DINGTALK_CLIENT_ID:}
+      client-secret: ${JUSTAUTH_DINGTALK_CLIENT_SECRET:}
       ignore-check-redirect-uri: true
     WECHAT_ENTERPRISE: # 企业微信
-      client-id: wwd411c69a39ad2e54
-      client-secret: 1wTb7hYxnpT2TUbIeHGXGo7T0odav1ic10mLdyyATOw
+      client-id: ${JUSTAUTH_WECOM_CLIENT_ID:}
+      client-secret: ${JUSTAUTH_WECOM_CLIENT_SECRET:}
       agent-id: 1000004
       ignore-check-redirect-uri: true
     # noinspection SpringBootApplicationYaml
@@ -207,9 +207,9 @@ justauth:
 iot:
   emq:
     # 账号
-    username: anhaohao
+    username: ${IOT_EMQ_USERNAME:}
     # 密码
-    password: ahh@123456
+    password: ${IOT_EMQ_PASSWORD:}
     # 主机地址
     hostUrl: tcp://chaojiniu.top:1883
     # 客户端Id，不能相同，采用随机数 ${random.value}
