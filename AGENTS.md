@@ -1,3 +1,17 @@
+## 代码库
+
+平台代码在本仓库的 `backend/` 下，是一个 yudao 多模块 Maven 工程（原 `tuyaweilai/tuya-saas-java` 的 `ruoyi-vue-pro`，见 `docs/adr/0008-代码并入本仓库自持.md`）。代码、文档、票据同仓管理；`tuya-saas-java` 已转为只读归档。构建产物 `target/` 不入库，密钥走环境变量 `ICBC_*`。
+
+常用命令（在 `backend/` 下）：
+
+```bash
+mvn -DskipTests compile                 # 全量编译
+mvn -pl yudao-module-icbc/yudao-module-icbc-biz -am -DskipTests install   # 安装上游依赖
+mvn -pl yudao-module-icbc/yudao-module-icbc-biz test                      # 运行 ICBC 模块测试
+```
+
+首次编译前需把 `backend/yudao-module-icbc/lib/` 下的私有 jar 安装进本地 Maven 仓库（`mvn install:install-file`）。
+
 ## Agent skills
 
 ### Issue tracker

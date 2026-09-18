@@ -1,0 +1,1 @@
+TRUNCATE TABLE waste_transfer_appointment; 

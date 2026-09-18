@@ -1,0 +1,59 @@
+# 工商银行接口测试配置
+#
+# 敏感信息（appId、私钥、AES/SM2 密钥）不写入代码库，通过环境变量注入。
+# 运行前请设置：ICBC_APP_ID、ICBC_OUT_VENDOR_ID、ICBC_PRIVATE_KEY、
+# ICBC_APIGW_PUBLIC_KEY、ICBC_AES_KEY、ICBC_SM2_PRIVATE_KEY、ICBC_SM2_APIGW_PUBLIC_KEY
+icbc:
+  api:
+    # 应用ID（合作方编号）
+    app-id: ${ICBC_APP_ID:}
+
+    # 付方平台外部编号（子商户标识）
+    out-vendor-id: ${ICBC_OUT_VENDOR_ID:}
+
+    # RSA私钥
+    private-key: ${ICBC_PRIVATE_KEY:}
+
+    # 工行API网关RSA公钥
+    apigw-public-key: ${ICBC_APIGW_PUBLIC_KEY:}
+
+    # AES加密密钥（Base64，16字节）
+    aes-key: ${ICBC_AES_KEY:}
+
+    # SM2私钥
+    sm2-private-key: ${ICBC_SM2_PRIVATE_KEY:}
+
+    # SM2公钥
+    sm2-apigw-public-key: ${ICBC_SM2_APIGW_PUBLIC_KEY:}
+
+    # 签名算法类型
+    sign-type: RSA2
+
+    # 字符集
+    charset: UTF-8
+
+    # 数据格式
+    format: json
+
+    # 加密类型
+    encrypt-type: AES
+
+    # 接口超时时间（毫秒）
+    timeout: 30000
+
+    # 工行网关基础URL
+    base-url: https://gw.open.icbc.com.cn
+
+    # 支付页面URL
+    payment-url: https://gw.open.icbc.com.cn/ui/jft/ui/invoice/pay/V1
+
+    # 发票查询URL
+    invoice-query-url: https://gw.open.icbc.com.cn/api/jft/api/invoice/queryInvoiceInfo/V1
+
+# 日志配置
+logging:
+  level:
+    cn.iocoder.yudao.module.icbc: DEBUG
+    com.icbc.api: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"

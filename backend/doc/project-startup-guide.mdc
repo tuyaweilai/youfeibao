@@ -1,0 +1,65 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 项目启动指南
+
+## 项目编译
+
+要编译项目，请使用以下Maven命令：
+
+```bash
+cd ruoyi-vue-pro && mvn clean package -DskipTests
+```
+
+该命令会跳过测试并编译整个项目。
+
+## Maven启动方式
+
+要启动项目，请使用以下Maven命令：
+
+```bash
+cd ruoyi-vue-pro && mvn -pl yudao-server exec:java -Dexec.mainClass="cn.iocoder.yudao.server.YudaoServerApplication" -Dexec.classpathScope=runtime
+```
+
+该命令将启动芋道项目服务器，并监听48080端口。
+
+## 项目访问地址
+
+项目启动后，可通过以下地址访问：
+
+- 管理后台接口：http://localhost:48080/admin-api/
+- 用户APP接口：http://localhost:48080/app-api/
+
+## 查看和管理项目进程
+
+要查看项目进程：
+```bash
+ps -ef | grep java | grep yudao
+```
+
+要停止项目进程：
+```bash
+kill -9 <进程ID>
+```
+
+## 常见问题排查
+
+1. 查看端口占用情况：
+```bash
+netstat -tlnp | grep 48080
+```
+
+2. 查看项目日志：
+```bash
+tail -f ~/logs/yudao-server.log
+```
+
+## 启动Redis服务
+
+```bash
+redis-server --daemonize yes
+```
+
+项目完整启动日志包含"Started YudaoServerApplication"信息表示启动成功。

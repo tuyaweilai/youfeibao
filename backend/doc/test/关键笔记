@@ -1,0 +1,6 @@
+创建对应的DO类、Mapper、Service、CreateReqVO 和 UpdateReqVO 类等，确保在创建合同的时候记录日志。
+
+
+1.查看数据库表 logistics_transport_task 物流运输任务表，按照ruoyi-vue-pro 规范 创建对应的DO类、Mapper、Service、CreateReqVO 或UpdateReqVO 类等。
+2.避免@code-generation-errors.md 常规错误
+3.避免生成代码映射类中使用非数据库字段。

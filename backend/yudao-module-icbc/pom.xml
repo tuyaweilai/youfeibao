@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>cn.iocoder.boot</groupId>
+        <artifactId>yudao</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <modules>
+        <module>yudao-module-icbc-api</module>
+        <module>yudao-module-icbc-biz</module>
+    </modules>
+    <artifactId>yudao-module-icbc</artifactId>
+    <packaging>pom</packaging>
+
+    <name>${project.artifactId}</name>
+    <description>
+        工商银行反向开票模块，负责与工行接口对接，实现企业代个人开票的完整业务流程
+    </description>
+
+    <!-- 不再使用系统范围依赖，改为让子模块自己管理依赖 -->
+    <dependencies>
+        <!-- 空依赖，防止解析错误 -->
+    </dependencies>
+</project> 

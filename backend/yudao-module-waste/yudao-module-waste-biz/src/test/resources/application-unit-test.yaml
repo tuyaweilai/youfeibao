@@ -1,0 +1,36 @@
+spring:
+  main:
+    lazy-initialization: true # 开启懒加载，加快速度
+    banner-mode: off # 禁用 Banner
+
+  # 数据源配置项
+  datasource:
+    name: ruoyi-vue-pro
+    url: jdbc:h2:mem:testdb;MODE=MYSQL;DATABASE_TO_LOWER=TRUE;
+    driver-class-name: org.h2.Driver
+    username: root
+    password: 123456
+  sql:
+    init:
+      schema-locations: classpath:sql/create_tables.sql
+
+# MyBatis Plus 的配置项
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true # 虽然默认为 true ，但是还是显示去指定下。
+  global-config:
+    db-config:
+      id-type: NONE # "智能"模式，基于 IdTypeEnvironmentPostProcessor + 数据源的类型，自动适配成 AUTO、INPUT 模式。
+      logic-delete-value: 1 # 逻辑已删除值(默认为 1)
+      logic-not-delete-value: 0 # 逻辑未删除值(默认为 0)
+  type-aliases-package: ${yudao.info.base-package}.module.*.dal.dataobject
+
+# 日志文件配置
+logging:
+  level:
+    # 配置自己写的 MyBatis Mapper 打印日志
+    cn.iocoder.yudao.module.waste.dal.mysql: DEBUG
+
+yudao:
+  info:
+    base-package: cn.iocoder.yudao 

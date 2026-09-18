@@ -1,0 +1,33 @@
+package cn.iocoder.yudao.module.icbc;
+
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
+import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+
+import javax.sql.DataSource;
+
+/**
+ * 单元测试的配置类
+ */
+@TestConfiguration
+@ComponentScan(basePackages = "cn.iocoder.yudao.module.icbc")
+public class UnitTestConfiguration {
+
+    /**
+     * 创建内存数据库，用于测试
+     */
+    @Bean
+    @Primary
+    public DataSource dataSource() {
+        return new EmbeddedDatabaseBuilder()
+                .setType(EmbeddedDatabaseType.H2)
+                .addScript("/sql/create_tables.sql")
+                .build();
+    }
+} 

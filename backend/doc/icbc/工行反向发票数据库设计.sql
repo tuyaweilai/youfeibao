@@ -1,0 +1,240 @@
+-- ========================================
+-- 工商银行反向开票业务数据库表结构设计
+-- ========================================
+
+-- 1. 收方信息表（个人销售方）
+CREATE TABLE `icbc_payee_info` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `payee_no` varchar(64) NOT NULL COMMENT '收方编号（工行返回）',
+  `partner_payee_id` varchar(64) NOT NULL COMMENT '合作方收方编号（我方生成）',
+  `name` varchar(100) NOT NULL COMMENT '收方姓名',
+  `id_card_no` varchar(18) NOT NULL COMMENT '身份证号码',
+  `mobile` varchar(11) NOT NULL COMMENT '手机号码',
+  `bank_card_no` varchar(32) DEFAULT NULL COMMENT '银行卡号',
+  `bank_name` varchar(100) DEFAULT NULL COMMENT '开户银行',
+  `bank_branch` varchar(200) DEFAULT NULL COMMENT '开户支行',
+  `address` varchar(500) DEFAULT NULL COMMENT '地址',
+  `status` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '状态：0-待审核，1-审核通过，2-审核拒绝',
+  `audit_msg` varchar(500) DEFAULT NULL COMMENT '审核信息',
+  `business_type` varchar(50) DEFAULT NULL COMMENT '业务类型：RECYCLE-再生资源等',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `deleted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '是否删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_payee_no` (`payee_no`),
+  UNIQUE KEY `uk_partner_payee_id` (`partner_payee_id`),
+  UNIQUE KEY `uk_id_card_no` (`id_card_no`),
+  KEY `idx_mobile` (`mobile`),
+  KEY `idx_status` (`status`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工行收方信息表';
+
+-- 2. 付方信息表（企业采购方）
+CREATE TABLE `icbc_payer_info` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `payer_no` varchar(64) NOT NULL COMMENT '付方编号（工行返回）',
+  `partner_payer_id` varchar(64) NOT NULL COMMENT '合作方付方编号（我方生成）',
+  `company_name` varchar(200) NOT NULL COMMENT '企业名称',
+  `tax_no` varchar(32) NOT NULL COMMENT '纳税人识别号',
+  `legal_person` varchar(100) DEFAULT NULL COMMENT '法人代表',
+  `contact_name` varchar(100) DEFAULT NULL COMMENT '联系人姓名',
+  `contact_mobile` varchar(11) DEFAULT NULL COMMENT '联系人手机',
+  `contact_email` varchar(100) DEFAULT NULL COMMENT '联系人邮箱',
+  `address` varchar(500) DEFAULT NULL COMMENT '企业地址',
+  `bank_account` varchar(32) DEFAULT NULL COMMENT '银行账号',
+  `bank_name` varchar(100) DEFAULT NULL COMMENT '开户银行',
+  `status` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '状态：0-待审核，1-审核通过，2-审核拒绝',
+  `audit_msg` varchar(500) DEFAULT NULL COMMENT '审核信息',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `deleted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '是否删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_payer_no` (`payer_no`),
+  UNIQUE KEY `uk_partner_payer_id` (`partner_payer_id`),
+  UNIQUE KEY `uk_tax_no` (`tax_no`),
+  KEY `idx_company_name` (`company_name`),
+  KEY `idx_status` (`status`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工行付方信息表';
+
+-- 3. 反向开票订单表
+CREATE TABLE `icbc_invoice_order` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `order_no` varchar(64) NOT NULL COMMENT '订单号（我方生成）',
+  `partner_order_id` varchar(64) NOT NULL COMMENT '合作方订单ID（传给工行）',
+  `payee_id` bigint unsigned NOT NULL COMMENT '收方ID',
+  `payee_no` varchar(64) NOT NULL COMMENT '收方编号',
+  `payer_id` bigint unsigned NOT NULL COMMENT '付方ID',
+  `payer_no` varchar(64) NOT NULL COMMENT '付方编号',
+  `total_amount` decimal(15,2) NOT NULL COMMENT '订单总金额（元）',
+  `invoice_type` tinyint unsigned NOT NULL COMMENT '发票类型：1-增值税普通发票，2-增值税专用发票',
+  `business_type` varchar(50) DEFAULT NULL COMMENT '业务类型：AGRICULTURAL-农产品收购，SCRAP-报废产品收购',
+  `order_status` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '订单状态：0-待确认，1-已确认，2-已支付，3-已开票，4-已完成，9-已取消',
+  `invoice_status` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '开票状态：0-未开票，1-开票中，2-开票成功，3-开票失败',
+  `payment_status` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '支付状态：0-未支付，1-支付中，2-支付成功，3-支付失败',
+  `tax_status` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '缴税状态：0-未缴税，1-缴税中，2-缴税成功，3-缴税失败',
+  `invoice_no` varchar(64) DEFAULT NULL COMMENT '发票号码',
+  `invoice_code` varchar(64) DEFAULT NULL COMMENT '发票代码',
+  `invoice_date` datetime DEFAULT NULL COMMENT '开票日期',
+  `invoice_amount` decimal(15,2) DEFAULT NULL COMMENT '发票金额',
+  `tax_amount` decimal(15,2) DEFAULT NULL COMMENT '税额',
+  `invoice_file_url` varchar(500) DEFAULT NULL COMMENT '发票文件URL',
+  `remark` varchar(1000) DEFAULT NULL COMMENT '备注',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `deleted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '是否删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_order_no` (`order_no`),
+  UNIQUE KEY `uk_partner_order_id` (`partner_order_id`),
+  UNIQUE KEY `uk_invoice_no` (`invoice_no`),
+  KEY `idx_payee_id` (`payee_id`),
+  KEY `idx_payer_id` (`payer_id`),
+  KEY `idx_order_status` (`order_status`),
+  KEY `idx_invoice_status` (`invoice_status`),
+  KEY `idx_payment_status` (`payment_status`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工行反向开票订单表';
+
+-- 4. 订单商品明细表
+CREATE TABLE `icbc_order_item` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `order_id` bigint unsigned NOT NULL COMMENT '订单ID',
+  `order_no` varchar(64) NOT NULL COMMENT '订单号',
+  `item_name` varchar(200) NOT NULL COMMENT '商品名称',
+  `item_code` varchar(100) DEFAULT NULL COMMENT '商品编码',
+  `specification` varchar(200) DEFAULT NULL COMMENT '规格型号',
+  `unit` varchar(20) DEFAULT NULL COMMENT '单位',
+  `quantity` decimal(15,4) NOT NULL COMMENT '数量',
+  `unit_price` decimal(15,4) NOT NULL COMMENT '单价（元）',
+  `amount` decimal(15,2) NOT NULL COMMENT '金额（元）',
+  `tax_rate` decimal(5,4) DEFAULT NULL COMMENT '税率',
+  `tax_amount` decimal(15,2) DEFAULT NULL COMMENT '税额（元）',
+  `category` varchar(100) DEFAULT NULL COMMENT '商品分类',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `deleted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '是否删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_order_id` (`order_id`),
+  KEY `idx_order_no` (`order_no`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工行订单商品明细表';
+
+-- 5. 工行接口调用日志表
+CREATE TABLE `icbc_api_log` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `msg_id` varchar(64) NOT NULL COMMENT '消息通讯唯一编号',
+  `api_name` varchar(100) NOT NULL COMMENT '接口名称',
+  `api_url` varchar(200) NOT NULL COMMENT '接口URL',
+  `method` varchar(10) NOT NULL COMMENT '请求方法',
+  `request_params` text COMMENT '请求参数（脱敏后）',
+  `response_data` text COMMENT '响应数据',
+  `return_code` varchar(20) DEFAULT NULL COMMENT '工行返回码',
+  `return_msg` varchar(500) DEFAULT NULL COMMENT '工行返回消息',
+  `status` tinyint unsigned NOT NULL COMMENT '调用状态：1-成功，2-失败',
+  `cost_time` int unsigned DEFAULT NULL COMMENT '耗时（毫秒）',
+  `business_id` varchar(64) DEFAULT NULL COMMENT '业务ID（订单号等）',
+  `business_type` varchar(50) DEFAULT NULL COMMENT '业务类型',
+  `error_msg` varchar(1000) DEFAULT NULL COMMENT '错误信息',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `deleted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '是否删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_msg_id` (`msg_id`),
+  KEY `idx_api_name` (`api_name`),
+  KEY `idx_business_id` (`business_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工行接口调用日志表';
+
+-- 6. 工行回调通知表
+CREATE TABLE `icbc_callback_notify` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `notify_id` varchar(64) NOT NULL COMMENT '通知ID',
+  `notify_type` varchar(50) NOT NULL COMMENT '通知类型：PAYEE_AUDIT-收方审核，INVOICE_STATUS-发票状态',
+  `business_id` varchar(64) NOT NULL COMMENT '业务ID',
+  `notify_data` text NOT NULL COMMENT '通知数据',
+  `sign` varchar(1000) DEFAULT NULL COMMENT '签名',
+  `process_status` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '处理状态：0-待处理，1-处理成功，2-处理失败',
+  `process_msg` varchar(500) DEFAULT NULL COMMENT '处理结果信息',
+  `process_time` datetime DEFAULT NULL COMMENT '处理时间',
+  `retry_count` int unsigned NOT NULL DEFAULT '0' COMMENT '重试次数',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `deleted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '是否删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_notify_id` (`notify_id`),
+  KEY `idx_notify_type` (`notify_type`),
+  KEY `idx_business_id` (`business_id`),
+  KEY `idx_process_status` (`process_status`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工行回调通知表';
+
+-- 7. 红冲发票表
+CREATE TABLE `icbc_red_invoice` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `red_serial_no` varchar(64) NOT NULL COMMENT '红冲流水号',
+  `original_order_id` bigint unsigned NOT NULL COMMENT '原订单ID',
+  `original_order_no` varchar(64) NOT NULL COMMENT '原订单号',
+  `original_invoice_no` varchar(64) NOT NULL COMMENT '原发票号码',
+  `red_reason` varchar(500) NOT NULL COMMENT '红冲原因',
+  `red_amount` decimal(15,2) NOT NULL COMMENT '红冲金额',
+  `red_status` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '红冲状态：0-申请中，1-红冲成功，2-红冲失败',
+  `red_invoice_no` varchar(64) DEFAULT NULL COMMENT '红票发票号码',
+  `red_invoice_date` datetime DEFAULT NULL COMMENT '红票开票日期',
+  `red_invoice_file_url` varchar(500) DEFAULT NULL COMMENT '红票文件URL',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `deleted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '是否删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_red_serial_no` (`red_serial_no`),
+  KEY `idx_original_order_id` (`original_order_id`),
+  KEY `idx_original_invoice_no` (`original_invoice_no`),
+  KEY `idx_red_status` (`red_status`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工行红冲发票表';
+
+-- 8. 系统配置表
+CREATE TABLE `icbc_config` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `config_key` varchar(100) NOT NULL COMMENT '配置键',
+  `config_value` text NOT NULL COMMENT '配置值',
+  `config_desc` varchar(500) DEFAULT NULL COMMENT '配置描述',
+  `config_type` varchar(50) NOT NULL COMMENT '配置类型：API-接口配置，BUSINESS-业务配置',
+  `is_encrypted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '是否加密：0-否，1-是',
+  `status` tinyint unsigned NOT NULL DEFAULT '1' COMMENT '状态：0-禁用，1-启用',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `deleted` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '是否删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_config_key` (`config_key`),
+  KEY `idx_config_type` (`config_type`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工行系统配置表';
+
+-- 初始化配置数据
+INSERT INTO `icbc_config` (`config_key`, `config_value`, `config_desc`, `config_type`, `is_encrypted`, `status`) VALUES
+('icbc.api.base_url', 'https://api.icbc.com.cn', '工行API基础URL', 'API', 0, 1),
+('icbc.api.app_id', '', '应用ID', 'API', 1, 1),
+('icbc.api.private_key', '', 'RSA私钥', 'API', 1, 1),
+('icbc.api.public_key', '', '工行RSA公钥', 'API', 1, 1),
+('icbc.api.aes_key', '', 'AES加密密钥', 'API', 1, 1),
+('icbc.api.timeout', '30000', '接口超时时间（毫秒）', 'API', 0, 1),
+('icbc.callback.base_url', '', '回调基础URL', 'API', 0, 1),
+('icbc.business.auto_confirm', '0', '是否自动确认订单：0-否，1-是', 'BUSINESS', 0, 1),
+('icbc.business.auto_download', '1', '是否自动下载发票：0-否，1-是', 'BUSINESS', 0, 1); 
