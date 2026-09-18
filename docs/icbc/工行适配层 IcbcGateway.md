@@ -18,7 +18,7 @@
 | `queryPayeeOnboarding` | `/api/jft/api/user/edpopenacct/query/V1` | 数据 | #6 |
 | `submitEnterpriseAuthorization` | `/ui/jft/ui/invoice/authorization/V1` | UI 页面 | #5 |
 | `submitPreOrder` | `/ui/jft/ui/invoice/pre/order/V1` | UI 页面 | #8 |
-| `queryInvoiceInfo` | `/api/jft/api/invoice/queryInvoiceInfo/V1` | 数据 | #8 #10 #14 |
+| `queryInvoiceInfo` | `/api/jft/api/invoice/queryInvoiceInfo/V1` | 数据 | #8 #9 #10 #14 |
 | `submitPayment` | `/ui/jft/ui/invoice/pay/V1` | UI 页面 | #9 |
 | `downloadInvoice` | `/api/jft/api/invoice/download/V1` | 数据 | #11 |
 | `cancelInvoice` | `/api/jft/api/invoice/reversal/V1` | 数据 | #14 |

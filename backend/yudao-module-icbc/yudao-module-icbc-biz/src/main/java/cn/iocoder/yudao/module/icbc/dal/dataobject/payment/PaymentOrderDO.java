@@ -36,9 +36,19 @@ public class PaymentOrderDO extends TenantBaseDO {
     private String orderNo;
 
     /**
-     * 合作方订单ID
+     * 合作方订单ID（等于收购单号；一个业务单号同一时刻只有一笔在途支付）
      */
     private String partnerOrderId;
+
+    /**
+     * 来源收购单编号（资金流证据挂回的那笔收购）
+     */
+    private Long acquisitionId;
+
+    /**
+     * 来源开票订单编号（预开票成功的那张票）
+     */
+    private Long invoiceOrderId;
 
     /**
      * 工行订单号
@@ -61,10 +71,16 @@ public class PaymentOrderDO extends TenantBaseDO {
     private BigDecimal paymentAmount;
 
     /**
-     * 支付状态
-     * 0-待支付，1-支付中，2-支付成功，3-支付失败，4-已取消
+     * 支付状态，枚举 {@link cn.iocoder.yudao.module.icbc.enums.PaymentStatusEnum}
+     * 0-待支付，1-支付中，2-支付成功，3-支付失败，4-订单关闭，5-已冲正，
+     * 6-已退汇，7-他行已扣款本行未入账，8-已支付待签收，9-部分成功
      */
     private Integer paymentStatus;
+
+    /**
+     * 工行原始支付状态码（payStatus）：-1/00/01/02/03/04/05/06/07/12/25
+     */
+    private String payStatus;
 
     /**
      * 支付时间
@@ -75,6 +91,31 @@ public class PaymentOrderDO extends TenantBaseDO {
      * 支付流水号
      */
     private String paymentSerialNo;
+
+    /**
+     * 实际到账金额（部分成功时小于应付金额）
+     */
+    private BigDecimal actuallyReceivedAmount;
+
+    /**
+     * 转账回单号（归档的资金流凭证编号）
+     */
+    private String receiptNo;
+
+    /**
+     * 转账回单归档时间
+     */
+    private LocalDateTime receiptTime;
+
+    /**
+     * 转账回单文件地址（工行回单 PDF / 截图，可空）
+     */
+    private String receiptFileUrl;
+
+    /**
+     * 重新发起次数：异常状态（失败 / 冲正 / 退汇 / 部分成功）后重新发起的累计次数
+     */
+    private Integer retryCount;
 
     /**
      * 机构编码（场景支付时必输）

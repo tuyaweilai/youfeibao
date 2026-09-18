@@ -286,13 +286,16 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
                     acquisition.getVehicleRearImageUrl(), acquisition.getTradeTime());
         }
 
-        // 资金流：支付成功即视为回单齐备
+        // 资金流：支付成功后归档的转账回单（回单号 + 回单文件），挂回该笔收购
         if (payment != null && Objects.equals(payment.getPaymentStatus(), PAYMENT_STATUS_SUCCESS)) {
             EvidenceSourceRespVO source = new EvidenceSourceRespVO();
             source.setSourceType("PAYMENT_ORDER");
-            source.setTitle("支付成功流水");
-            source.setRef(StrUtil.blankToDefault(payment.getPaymentSerialNo(), payment.getOrderNo()));
-            source.setOccurredTime(payment.getPaymentTime());
+            source.setTitle("转账回单");
+            source.setRef(StrUtil.blankToDefault(payment.getReceiptNo(),
+                    StrUtil.blankToDefault(payment.getPaymentSerialNo(), payment.getOrderNo())));
+            source.setUrl(payment.getReceiptFileUrl());
+            source.setOccurredTime(payment.getReceiptTime() != null
+                    ? payment.getReceiptTime() : payment.getPaymentTime());
             flowSources.get(EvidenceFlowEnum.CAPITAL).add(source);
         }
 

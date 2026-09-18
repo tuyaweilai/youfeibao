@@ -24,6 +24,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceQueryReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderGoods;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderReq;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
+import cn.iocoder.yudao.module.icbc.util.AmountUtils;
 import cn.iocoder.yudao.module.icbc.service.goodscfg.IcbcGoodsConfigService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
@@ -183,17 +184,9 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
             update.setInvoiceCode(info.getInvoiceCode());
         }
         if (StrUtil.isNotBlank(info.getTaxAmount())) {
-            update.setTaxAmount(parseAmount(info.getTaxAmount()));
+            update.setTaxAmount(AmountUtils.parse(info.getTaxAmount()));
         }
         invoiceOrderMapper.updateById(update);
-    }
-
-    private BigDecimal parseAmount(String value) {
-        try {
-            return new BigDecimal(value);
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 
     /**

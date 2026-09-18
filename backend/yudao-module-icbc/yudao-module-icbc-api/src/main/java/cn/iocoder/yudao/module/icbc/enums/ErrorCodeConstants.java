@@ -37,6 +37,12 @@ public interface ErrorCodeConstants {
     ErrorCode PAYMENT_FAILED = new ErrorCode(1_030_004_003, "支付失败");
     ErrorCode PAYMENT_ORDER_EXISTS = new ErrorCode(1_030_004_004, "支付订单已存在");
     ErrorCode PAYMENT_PARAM_ERROR = new ErrorCode(1_030_004_005, "支付参数错误");
+    ErrorCode PAYMENT_PRE_INVOICE_NOT_SUCCESS = new ErrorCode(1_030_004_006, "该笔收购尚未预开票成功，不能发起付款");
+    ErrorCode PAYMENT_AMOUNT_MISMATCH = new ErrorCode(1_030_004_007, "付款金额与收购单金额不一致：应付 {}，实付 {}");
+    ErrorCode PAYMENT_ACQUISITION_NOT_LINKED = new ErrorCode(1_030_004_008, "该笔开票申请未挂回收购单，无法付款");
+    ErrorCode PAYMENT_RECEIPT_NOT_AVAILABLE = new ErrorCode(1_030_004_009, "支付尚未成功，暂无转账回单");
+    ErrorCode PAYMENT_RESULT_UNKNOWN = new ErrorCode(1_030_004_010, "工行返回结果未知，请勿重复提交，稍后查询支付状态");
+    ErrorCode PAYMENT_INVOICE_ORDER_NOT_EXISTS = new ErrorCode(1_030_004_011, "按合作方订单号未找到开票申请，不能付款");
 
     // ========== 发票管理 1-030-005-000 ==========
     ErrorCode INVOICE_NOT_EXISTS = new ErrorCode(1_030_005_000, "发票不存在");

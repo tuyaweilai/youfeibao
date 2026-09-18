@@ -136,6 +136,9 @@ public class InvoiceEvidenceServiceImplTest extends BaseDbUnitTest {
         assertTrue(flowPresent(chain, "CAPITAL"));
         assertTrue(flowPresent(chain, "INVOICE"));
         assertTrue(flowPresent(chain, "INFO"));
+        // 资金流取的是支付成功后归档的转账回单
+        assertEquals("转账回单", flowSources(chain, "CAPITAL").get(0).getTitle());
+        assertEquals("PAY20240101001", flowSources(chain, "CAPITAL").get(0).getRef());
     }
 
     @Test
