@@ -12,6 +12,15 @@ mvn -pl yudao-module-icbc/yudao-module-icbc-biz test                      # 运�
 
 首次编译前需把 `backend/yudao-module-icbc/lib/` 下的私有 jar 安装进本地 Maven 仓库（`mvn install:install-file`）。
 
+前端（PC 管理后台）在 `backend/yudao-ui/yudao-ui-admin-vue3/`（vue3 + vite5 + element-plus，pnpm；见 `docs/adr/0011-前端形态与终端矩阵.md`）。依赖的构建脚本在 `pnpm-workspace.yaml` 放行，Node 需 >= 16、pnpm >= 8.6。
+
+```bash
+cd backend/yudao-ui/yudao-ui-admin-vue3
+pnpm install        # 首次
+pnpm dev            # 本地开发
+pnpm build:local    # 生产构建
+```
+
 ## Agent skills
 
 ### Issue tracker

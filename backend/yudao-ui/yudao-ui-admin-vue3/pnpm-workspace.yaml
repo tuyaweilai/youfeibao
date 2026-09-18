@@ -1,0 +1,16 @@
+allowBuilds:
+  '@parcel/watcher': true
+  '@swc/core': true
+  core-js: true
+  core-js-pure: true
+  es5-ext: true
+  esbuild: true
+  vue-demi: true
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - '@swc/core'
+  - core-js
+  - core-js-pure
+  - es5-ext
+  - esbuild
+  - vue-demi
