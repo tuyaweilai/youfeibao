@@ -173,7 +173,7 @@
       <el-table-column label="缺失的流" min-width="220">
         <template #default="{ row }">{{ missingFlows(row).join('、') || '五流齐备' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="110" align="center" fixed="right">
+      <el-table-column label="操作" width="190" align="center" fixed="right">
         <template #default="{ row }">
           <el-button
             link
@@ -182,6 +182,14 @@
             v-hasPermi="['icbc:evidence:export']"
           >
             证据包
+          </el-button>
+          <el-button
+            link
+            type="primary"
+            @click="handleInvoiceQrcode(row)"
+            v-hasPermi="['icbc:public-token:create']"
+          >
+            取票二维码
           </el-button>
         </template>
       </el-table-column>
@@ -193,6 +201,15 @@
       @pagination="getList"
     />
   </ContentWrap>
+
+  <!-- 取票二维码 -->
+  <el-dialog v-model="qrVisible" title="发票取件二维码" width="380px">
+    <div class="qr-wrap">
+      <Qrcode v-if="qrUrl" :text="qrUrl" :width="260" />
+      <p class="qr-tip">扫码即可下载发票 PDF（短期令牌，单次有效）</p>
+      <el-input v-model="qrUrl" readonly />
+    </div>
+  </el-dialog>
 
   <!-- 补录证据 -->
   <el-dialog v-model="attachVisible" title="补录证据" width="560px">
@@ -242,6 +259,8 @@
 <script setup lang="ts">
 import { EvidenceApi, EvidenceChainVO, EvidenceAttachmentVO, EvidenceSourceVO, EvidenceTypeVO, EvidenceCompletenessSummaryVO } from '@/api/icbc/evidence'
 import { InvoiceDownloadApi } from '@/api/icbc/download'
+import { PublicTokenApi, buildPublicUrl } from '@/api/icbc/publicToken'
+import { Qrcode } from '@/components/Qrcode'
 import { formatDate } from '@/utils/formatTime'
 import download from '@/utils/download'
 
@@ -325,6 +344,19 @@ const handleExportPackage = async (row: EvidenceChainVO) => {
   } finally {
     exporting.value = false
   }
+}
+
+/** 生成发票取件二维码（短期单用途令牌，扫码即可下载 PDF） */
+const qrVisible = ref(false)
+const qrUrl = ref('')
+const handleInvoiceQrcode = async (row: EvidenceChainVO) => {
+  if (!row.partnerOrderId) return
+  const token = await PublicTokenApi.create({
+    purpose: 'INVOICE_DOWNLOAD',
+    partnerOrderId: row.partnerOrderId
+  })
+  qrUrl.value = buildPublicUrl('invoice/download', token.token!)
+  qrVisible.value = true
 }
 
 /** 批量导出：勾选了按勾选，否则按搜索的时间范围 */
@@ -432,6 +464,16 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.qr-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.qr-tip {
+  color: #909399;
+  font-size: 13px;
+}
 .source-line {
   display: flex;
   align-items: center;

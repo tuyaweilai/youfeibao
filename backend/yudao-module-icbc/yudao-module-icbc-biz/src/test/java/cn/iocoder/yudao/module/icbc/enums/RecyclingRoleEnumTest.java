@@ -110,6 +110,19 @@ public class RecyclingRoleEnumTest {
     }
 
     @Test
+    public void testPublicTokenPermission() {
+        // 能签发公开令牌的是租户内的四个角色，平台运营不参与
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.INVOICER.getCode(),
+                RecyclingPermission.PUBLIC_TOKEN_CREATE));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.PUBLIC_TOKEN_CREATE));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.PUBLIC_TOKEN_CREATE));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.PUBLIC_TOKEN_CREATE));
+    }
+
+    @Test
     public void testRoleCodesForPermission() {
         Set<String> roles = RecyclingRoleEnum.roleCodesForPermission(RecyclingPermission.PAYEE_CREATE);
         assertTrue(roles.contains(RecyclingRoleEnum.RECEIVER.getCode()));

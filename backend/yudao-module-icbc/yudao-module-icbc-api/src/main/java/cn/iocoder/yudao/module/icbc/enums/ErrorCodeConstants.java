@@ -113,4 +113,14 @@ public interface ErrorCodeConstants {
     ErrorCode EVIDENCE_TYPE_INVALID = new ErrorCode(1_030_011_001, "证据类型不合法");
     ErrorCode EVIDENCE_PACKAGE_NO_INVOICE = new ErrorCode(1_030_011_002, "证据包请求不能为空");
     ErrorCode EVIDENCE_EXPORT_FAILED = new ErrorCode(1_030_011_003, "证据导出失败");
+
+    // ========== 公开令牌端点 1-030-012-000 ==========
+    ErrorCode PUBLIC_TOKEN_INVALID = new ErrorCode(1_030_012_000, "令牌无效");
+    ErrorCode PUBLIC_TOKEN_EXPIRED = new ErrorCode(1_030_012_001, "令牌已过期");
+    ErrorCode PUBLIC_TOKEN_USED_UP = new ErrorCode(1_030_012_002, "令牌已用尽");
+    ErrorCode PUBLIC_TOKEN_PURPOSE_MISMATCH = new ErrorCode(1_030_012_003, "令牌用途不符");
+    ErrorCode PUBLIC_TOKEN_SECRET_MISSING = new ErrorCode(1_030_012_004, "公开令牌签名密钥未配置");
+    ErrorCode CONTACT_LEAD_NOT_EXISTS = new ErrorCode(1_030_012_005, "留联系方式记录不存在");
+    ErrorCode PUBLIC_TOKEN_PURPOSE_INVALID = new ErrorCode(1_030_012_006, "令牌用途不合法");
+    ErrorCode PUBLIC_TOKEN_BUSINESS_KEY_MISSING = new ErrorCode(1_030_012_007, "令牌缺少绑定的业务键");
 } 

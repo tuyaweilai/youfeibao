@@ -49,6 +49,10 @@ public interface RecyclingPermission {
     String EVIDENCE_DELETE = "icbc:evidence:delete";
     String EVIDENCE_EXPORT = "icbc:evidence:export";
 
+    // ========== 公开令牌（自然人免登录端点） ==========
+
+    String PUBLIC_TOKEN_CREATE = "icbc:public-token:create";
+
     // ========== 工行调用日志与异步通知（平台运营） ==========
 
     String API_LOG_QUERY = "icbc:api-log:query";

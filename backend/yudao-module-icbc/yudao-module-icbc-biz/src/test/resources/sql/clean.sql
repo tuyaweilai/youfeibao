@@ -1,4 +1,6 @@
 -- Clean test tables
+DELETE FROM icbc_contact_lead;
+DELETE FROM icbc_public_token;
 DELETE FROM icbc_evidence;
 DELETE FROM icbc_callback_notify;
 DELETE FROM icbc_api_log;

@@ -388,4 +388,43 @@ CREATE TABLE IF NOT EXISTS icbc_evidence (
 );
 
 CREATE INDEX IF NOT EXISTS idx_evidence_partner_order_id ON icbc_evidence(partner_order_id);
+
+-- icbc_public_token table (公开令牌，全局无租户过滤)
+CREATE TABLE IF NOT EXISTS icbc_public_token (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    jti VARCHAR(64) NOT NULL,
+    purpose VARCHAR(40) NOT NULL,
+    tenant_id BIGINT NOT NULL,
+    business_key VARCHAR(64) NOT NULL,
+    max_uses INTEGER NOT NULL DEFAULT 1,
+    used_count INTEGER NOT NULL DEFAULT 0,
+    expires_time DATETIME NOT NULL,
+    last_used_time DATETIME,
+    remark VARCHAR(500),
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_public_token_jti UNIQUE (jti)
+);
+
+-- icbc_contact_lead table (收方入驻失败留联系方式)
+CREATE TABLE IF NOT EXISTS icbc_contact_lead (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    payee_id BIGINT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    mobile VARCHAR(32) NOT NULL,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_contact_lead_payee_id ON icbc_contact_lead(payee_id);
  

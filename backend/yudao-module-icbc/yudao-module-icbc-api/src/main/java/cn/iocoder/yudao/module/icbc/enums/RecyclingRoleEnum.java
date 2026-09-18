@@ -32,6 +32,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.DOWNLOAD_RETRY, RecyclingPermission.DOWNLOAD_FILE,
             RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_ATTACH,
             RecyclingPermission.EVIDENCE_DELETE, RecyclingPermission.EVIDENCE_EXPORT,
+            RecyclingPermission.PUBLIC_TOKEN_CREATE,
             RecyclingPermission.API_LOG_QUERY, RecyclingPermission.CALLBACK_QUERY,
             RecyclingPermission.TEST_QUERY, RecyclingPermission.TENANT_ROLE_INIT,
             RecyclingPermission.QUALIFICATION_CREATE, RecyclingPermission.QUALIFICATION_UPDATE,
@@ -51,7 +52,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PAYEE_CREATE, RecyclingPermission.PAYEE_UPDATE,
             RecyclingPermission.PAYEE_DELETE, RecyclingPermission.PAYEE_QUERY,
             RecyclingPermission.PAYEE_EXPORT,
-            RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_ATTACH)),
+            RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_ATTACH,
+            RecyclingPermission.PUBLIC_TOKEN_CREATE)),
 
     /**
      * 开票员：发起反向开票与付款，下载发票原件。
@@ -63,6 +65,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.DOWNLOAD_EXECUTE, RecyclingPermission.DOWNLOAD_QUERY,
             RecyclingPermission.DOWNLOAD_RETRY, RecyclingPermission.DOWNLOAD_FILE,
             RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_ATTACH,
+            RecyclingPermission.PUBLIC_TOKEN_CREATE,
             RecyclingPermission.GOODS_CONFIG_QUERY,
             RecyclingPermission.SCRAP_CODE_QUERY)),
 
@@ -73,7 +76,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.INVOICE_QUERY,
             RecyclingPermission.PAYMENT_QUERY,
             RecyclingPermission.DOWNLOAD_QUERY, RecyclingPermission.DOWNLOAD_FILE,
-            RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_EXPORT)),
+            RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_EXPORT,
+            RecyclingPermission.PUBLIC_TOKEN_CREATE)),
 
     /**
      * 平台运营：平台方角色，可跨租户查看工行日志、通知与全平台发票。
