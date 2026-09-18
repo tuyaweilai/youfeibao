@@ -42,6 +42,13 @@ public interface RecyclingPermission {
     String DOWNLOAD_RETRY = "icbc:invoice-download:retry";
     String DOWNLOAD_FILE = "icbc:invoice-download:download-file";
 
+    // ========== 一票一档证据链 ==========
+
+    String EVIDENCE_QUERY = "icbc:evidence:query";
+    String EVIDENCE_ATTACH = "icbc:evidence:attach";
+    String EVIDENCE_DELETE = "icbc:evidence:delete";
+    String EVIDENCE_EXPORT = "icbc:evidence:export";
+
     // ========== 工行调用日志与异步通知（平台运营） ==========
 
     String API_LOG_QUERY = "icbc:api-log:query";

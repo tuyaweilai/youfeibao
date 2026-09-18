@@ -107,4 +107,10 @@ public interface ErrorCodeConstants {
     ErrorCode SCRAP_CODE_NOT_EXISTS = new ErrorCode(1_030_010_007, "报废产品编码不存在");
     ErrorCode SCRAP_CODE_MERGED_CODE_EXISTS = new ErrorCode(1_030_010_008, "报废产品编码已存在");
     ErrorCode EXPIRY_WARNING_NOT_EXISTS = new ErrorCode(1_030_010_009, "到期预警记录不存在");
+
+    // ========== 一票一档证据链 1-030-011-000 ==========
+    ErrorCode EVIDENCE_NOT_EXISTS = new ErrorCode(1_030_011_000, "证据记录不存在");
+    ErrorCode EVIDENCE_TYPE_INVALID = new ErrorCode(1_030_011_001, "证据类型不合法");
+    ErrorCode EVIDENCE_PACKAGE_NO_INVOICE = new ErrorCode(1_030_011_002, "证据包请求不能为空");
+    ErrorCode EVIDENCE_EXPORT_FAILED = new ErrorCode(1_030_011_003, "证据导出失败");
 } 

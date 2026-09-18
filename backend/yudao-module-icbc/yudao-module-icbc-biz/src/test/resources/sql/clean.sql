@@ -1,4 +1,5 @@
 -- Clean test tables
+DELETE FROM icbc_evidence;
 DELETE FROM icbc_callback_notify;
 DELETE FROM icbc_api_log;
 DELETE FROM icbc_invoice_file;

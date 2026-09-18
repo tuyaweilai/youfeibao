@@ -365,4 +365,27 @@ CREATE TABLE IF NOT EXISTS icbc_expiry_warning (
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id)
 );
+
+-- icbc_evidence table (一票一档证据)
+CREATE TABLE IF NOT EXISTS icbc_evidence (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    invoice_order_id BIGINT NOT NULL,
+    partner_order_id VARCHAR(64) NOT NULL,
+    flow VARCHAR(20) NOT NULL,
+    evidence_type VARCHAR(40) NOT NULL,
+    title VARCHAR(200),
+    file_url VARCHAR(500),
+    file_name VARCHAR(200),
+    occurred_time DATETIME,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidence_partner_order_id ON icbc_evidence(partner_order_id);
  

@@ -1,0 +1,571 @@
+package cn.iocoder.yudao.module.icbc.service.evidence.impl;
+
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.StrUtil;
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.framework.common.util.http.HttpUtils;
+import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
+import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
+import cn.iocoder.yudao.module.icbc.controller.admin.evidence.vo.*;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.evidence.IcbcEvidenceDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.OrderItemDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
+import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.evidence.IcbcEvidenceMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
+import cn.iocoder.yudao.module.icbc.enums.EvidenceFlowEnum;
+import cn.iocoder.yudao.module.icbc.enums.IcbcEvidenceTypeEnum;
+import cn.iocoder.yudao.module.icbc.service.evidence.InvoiceEvidenceService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
+
+import javax.annotation.Resource;
+import javax.servlet.http.HttpServletResponse;
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
+import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
+import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
+
+/**
+ * 一票一档证据链 Service 实现。
+ *
+ * <p>五流里能从业务表自动取到的三流（资金流=支付单、发票流=发票+原件、信息流=台账条目）
+ * 在读取时聚合；合同流与货物流暂由人工补录（{@code icbc_evidence}），
+ * 等 #7 收购登记落地后再把自动来源接进来。
+ */
+@Slf4j
+@Service
+@Validated
+public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
+
+    /** 五流总数，齐备率的分母 */
+    private static final int TOTAL_FLOW_COUNT = 5;
+    /** 工行支付状态：2-支付成功 */
+    private static final int PAYMENT_STATUS_SUCCESS = 2;
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    @Resource
+    private InvoiceOrderMapper invoiceOrderMapper;
+    @Resource
+    private OrderItemMapper orderItemMapper;
+    @Resource
+    private PayeeInfoMapper payeeInfoMapper;
+    @Resource
+    private PaymentOrderMapper paymentOrderMapper;
+    @Resource
+    private InvoiceDownloadMapper invoiceDownloadMapper;
+    @Resource
+    private InvoiceFileMapper invoiceFileMapper;
+    @Resource
+    private IcbcEvidenceMapper evidenceMapper;
+
+    @Override
+    public EvidenceChainRespVO getEvidenceChain(String partnerOrderId) {
+        InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId(partnerOrderId);
+        if (order == null) {
+            throw exception(INVOICE_ORDER_NOT_EXISTS);
+        }
+        return assembleChain(order, buildContext(Collections.singletonList(order)));
+    }
+
+    @Override
+    public PageResult<EvidenceChainRespVO> getEvidencePage(EvidencePageReqVO pageReqVO) {
+        LambdaQueryWrapper<InvoiceOrderDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(StrUtil.isNotBlank(pageReqVO.getPartnerOrderId()),
+                        InvoiceOrderDO::getPartnerOrderId, pageReqVO.getPartnerOrderId())
+                .like(StrUtil.isNotBlank(pageReqVO.getInvoiceNo()),
+                        InvoiceOrderDO::getInvoiceNo, pageReqVO.getInvoiceNo());
+        if (pageReqVO.getCreateTime() != null && pageReqVO.getCreateTime().length == 2) {
+            wrapper.between(InvoiceOrderDO::getCreateTime, pageReqVO.getCreateTime()[0], pageReqVO.getCreateTime()[1]);
+        }
+        wrapper.orderByDesc(InvoiceOrderDO::getId);
+        PageResult<InvoiceOrderDO> page = invoiceOrderMapper.selectPage(pageReqVO, wrapper);
+
+        ChainContext ctx = buildContext(page.getList());
+        List<EvidenceChainRespVO> chains = page.getList().stream()
+                .map(order -> assembleChain(order, ctx))
+                .collect(Collectors.toList());
+        return new PageResult<>(chains, page.getTotal());
+    }
+
+    @Override
+    public EvidenceCompletenessSummaryRespVO getCompleteness(EvidenceScopeReqVO scopeReqVO) {
+        List<InvoiceOrderDO> orders = resolveOrders(scopeReqVO.getPartnerOrderIds(), scopeReqVO.getCreateTime());
+        ChainContext ctx = buildContext(orders);
+
+        List<EvidenceCompletenessItemRespVO> items = new ArrayList<>();
+        int presentSum = 0;
+        int completeCount = 0;
+        for (InvoiceOrderDO order : orders) {
+            EvidenceChainRespVO chain = assembleChain(order, ctx);
+            presentSum += chain.getPresentCount();
+            if (Boolean.TRUE.equals(chain.getComplete())) {
+                completeCount++;
+            }
+            EvidenceCompletenessItemRespVO item = new EvidenceCompletenessItemRespVO();
+            item.setPartnerOrderId(order.getPartnerOrderId());
+            item.setInvoiceNo(order.getInvoiceNo());
+            item.setPresentCount(chain.getPresentCount());
+            item.setTotalCount(TOTAL_FLOW_COUNT);
+            item.setCompletenessRate(chain.getCompletenessRate());
+            item.setMissingFlows(chain.getFlows().stream()
+                    .filter(flow -> !Boolean.TRUE.equals(flow.getPresent()))
+                    .map(EvidenceFlowRespVO::getFlowName)
+                    .collect(Collectors.toList()));
+            items.add(item);
+        }
+
+        EvidenceCompletenessSummaryRespVO summary = new EvidenceCompletenessSummaryRespVO();
+        summary.setInvoiceCount(orders.size());
+        summary.setCompleteCount(completeCount);
+        summary.setCompletenessRate(orders.isEmpty() ? BigDecimal.ZERO
+                : BigDecimal.valueOf(presentSum * 100.0 / (orders.size() * (double) TOTAL_FLOW_COUNT))
+                        .setScale(2, RoundingMode.HALF_UP));
+        summary.setItems(items);
+        return summary;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long attachEvidence(EvidenceAttachReqVO reqVO) {
+        IcbcEvidenceTypeEnum type = IcbcEvidenceTypeEnum.ofCode(reqVO.getEvidenceType())
+                .orElseThrow(() -> exception(EVIDENCE_TYPE_INVALID));
+        InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId(reqVO.getPartnerOrderId());
+        if (order == null) {
+            throw exception(INVOICE_ORDER_NOT_EXISTS);
+        }
+        IcbcEvidenceDO evidence = IcbcEvidenceDO.builder()
+                .invoiceOrderId(order.getId())
+                .partnerOrderId(order.getPartnerOrderId())
+                .flow(type.getFlow().getCode())
+                .evidenceType(type.getCode())
+                .title(StrUtil.blankToDefault(reqVO.getTitle(), type.getName()))
+                .fileUrl(reqVO.getFileUrl())
+                .fileName(reqVO.getFileName())
+                .occurredTime(reqVO.getOccurredTime())
+                .remark(reqVO.getRemark())
+                .build();
+        evidenceMapper.insert(evidence);
+        return evidence.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteEvidence(Long id) {
+        if (id == null || evidenceMapper.selectById(id) == null) {
+            throw exception(EVIDENCE_NOT_EXISTS);
+        }
+        evidenceMapper.deleteById(id);
+    }
+
+    @Override
+    public List<AcquisitionLedgerRespVO> getLedgerRows(AcquisitionLedgerReqVO reqVO) {
+        List<InvoiceOrderDO> orders;
+        if (StrUtil.isNotBlank(reqVO.getPartnerOrderId())) {
+            InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId(reqVO.getPartnerOrderId());
+            orders = order != null ? Collections.singletonList(order) : Collections.emptyList();
+        } else {
+            LambdaQueryWrapper<InvoiceOrderDO> wrapper = new LambdaQueryWrapper<>();
+            if (reqVO.getStartTime() != null) {
+                wrapper.ge(InvoiceOrderDO::getCreateTime, reqVO.getStartTime());
+            }
+            if (reqVO.getEndTime() != null) {
+                wrapper.le(InvoiceOrderDO::getCreateTime, reqVO.getEndTime());
+            }
+            wrapper.orderByAsc(InvoiceOrderDO::getId);
+            orders = invoiceOrderMapper.selectList(wrapper);
+        }
+
+        ChainContext ctx = buildContext(orders);
+        List<AcquisitionLedgerRespVO> rows = new ArrayList<>();
+        for (InvoiceOrderDO order : orders) {
+            PayeeInfoDO payee = order.getPayeeId() != null ? ctx.payeeById.get(order.getPayeeId()) : null;
+            for (OrderItemDO item : ctx.itemsByOrderId.getOrDefault(order.getId(), Collections.emptyList())) {
+                AcquisitionLedgerRespVO row = new AcquisitionLedgerRespVO();
+                row.setTradeTime(order.getInvoiceDate() != null ? order.getInvoiceDate() : order.getCreateTime());
+                // 交易地点等 #7 收购登记落地后再取真实值；先用出售者登记地址兜底，不伪造现场地址
+                row.setTradeAddress(payee != null ? payee.getAddress() : null);
+                row.setSellerName(payee != null ? payee.getName() : null);
+                row.setSellerMobile(payee != null ? payee.getMobile() : null);
+                row.setProductName(item.getItemName());
+                row.setSpecification(item.getSpecification());
+                row.setQuantity(item.getQuantity());
+                row.setUnit(item.getUnit());
+                row.setUnitPrice(item.getUnitPrice());
+                row.setAmount(item.getAmount());
+                row.setInvoiceNo(order.getInvoiceNo());
+                row.setPartnerOrderId(order.getPartnerOrderId());
+                rows.add(row);
+            }
+        }
+        return rows;
+    }
+
+    @Override
+    public void exportEvidencePackage(String partnerOrderId, HttpServletResponse response) {
+        InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId(partnerOrderId);
+        if (order == null) {
+            throw exception(INVOICE_ORDER_NOT_EXISTS);
+        }
+        writeEvidenceZip(Collections.singletonList(order), buildContext(Collections.singletonList(order)),
+                response, "证据包_" + partnerOrderId);
+    }
+
+    @Override
+    public void exportEvidencePackageBatch(EvidenceScopeReqVO scopeReqVO, HttpServletResponse response) {
+        List<InvoiceOrderDO> orders = resolveOrders(scopeReqVO.getPartnerOrderIds(), scopeReqVO.getCreateTime());
+        if (CollUtil.isEmpty(orders)) {
+            throw exception(EVIDENCE_PACKAGE_NO_INVOICE);
+        }
+        writeEvidenceZip(orders, buildContext(orders), response, "证据包_" + orders.size() + "票");
+    }
+
+    @Override
+    public void exportAcquisitionLedger(AcquisitionLedgerReqVO reqVO, HttpServletResponse response) {
+        List<AcquisitionLedgerRespVO> rows = getLedgerRows(reqVO);
+        try {
+            ExcelUtils.write(response, "收购台账.xls", "收购台账", AcquisitionLedgerRespVO.class, rows);
+        } catch (IOException e) {
+            log.error("导出收购台账失败", e);
+            throw exception(EVIDENCE_EXPORT_FAILED);
+        }
+    }
+
+    // ==================== 证据装配 ====================
+
+    private EvidenceChainRespVO assembleChain(InvoiceOrderDO order, ChainContext ctx) {
+        List<IcbcEvidenceDO> evidenceList = ctx.evidenceByOrder
+                .getOrDefault(order.getPartnerOrderId(), Collections.emptyList());
+        List<OrderItemDO> items = ctx.itemsByOrderId
+                .getOrDefault(order.getId(), Collections.emptyList());
+        PaymentOrderDO payment = ctx.paymentByOrder.get(order.getPartnerOrderId());
+        InvoiceDownloadDO download = ctx.downloadByOrder.get(order.getPartnerOrderId());
+        List<InvoiceFileDO> files = download != null
+                ? ctx.filesByDownload.getOrDefault(download.getId(), Collections.emptyList())
+                : Collections.emptyList();
+
+        Map<EvidenceFlowEnum, List<EvidenceSourceRespVO>> flowSources = new EnumMap<>(EvidenceFlowEnum.class);
+        for (EvidenceFlowEnum flow : EvidenceFlowEnum.ordered()) {
+            flowSources.put(flow, new ArrayList<>());
+        }
+
+        // 人工补录的证据，按各自归属的流落位
+        for (IcbcEvidenceDO evidence : evidenceList) {
+            EvidenceFlowEnum.ofCode(evidence.getFlow())
+                    .ifPresent(flow -> flowSources.get(flow).add(toSource(evidence)));
+        }
+
+        // 资金流：支付成功即视为回单齐备
+        if (payment != null && Objects.equals(payment.getPaymentStatus(), PAYMENT_STATUS_SUCCESS)) {
+            EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+            source.setSourceType("PAYMENT_ORDER");
+            source.setTitle("支付成功流水");
+            source.setRef(StrUtil.blankToDefault(payment.getPaymentSerialNo(), payment.getOrderNo()));
+            source.setOccurredTime(payment.getPaymentTime());
+            flowSources.get(EvidenceFlowEnum.CAPITAL).add(source);
+        }
+
+        // 发票流：发票号码 + 已下载的原件
+        if (StrUtil.isNotBlank(order.getInvoiceNo())) {
+            EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+            source.setSourceType("INVOICE_ORDER");
+            source.setTitle("报废产品收购发票");
+            source.setRef(order.getInvoiceNo());
+            source.setUrl(isHttpUrl(order.getInvoiceFileUrl()) ? order.getInvoiceFileUrl() : null);
+            source.setOccurredTime(order.getInvoiceDate());
+            flowSources.get(EvidenceFlowEnum.INVOICE).add(source);
+        }
+        for (InvoiceFileDO file : files) {
+            EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+            source.setSourceType("INVOICE_FILE");
+            source.setTitle(file.getFileName());
+            source.setRef(file.getInvoiceNumber());
+            source.setDownloadId(file.getDownloadId());
+            source.setFileType(file.getFileType());
+            source.setOccurredTime(file.getUploadTime());
+            flowSources.get(EvidenceFlowEnum.INVOICE).add(source);
+        }
+
+        // 信息流：整张票就是一个台账条目
+        if (CollUtil.isNotEmpty(items)) {
+            EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+            source.setSourceType("INVOICE_ORDER");
+            source.setTitle("收购台账条目");
+            source.setRef(order.getOrderNo());
+            source.setOccurredTime(order.getCreateTime());
+            flowSources.get(EvidenceFlowEnum.INFO).add(source);
+        }
+
+        List<EvidenceFlowRespVO> flows = new ArrayList<>();
+        int presentCount = 0;
+        for (EvidenceFlowEnum flow : EvidenceFlowEnum.ordered()) {
+            List<EvidenceSourceRespVO> sources = flowSources.get(flow);
+            boolean present = CollUtil.isNotEmpty(sources);
+            if (present) {
+                presentCount++;
+            }
+            EvidenceFlowRespVO flowVO = new EvidenceFlowRespVO();
+            flowVO.setFlow(flow.getCode());
+            flowVO.setFlowName(flow.getName());
+            flowVO.setPresent(present);
+            flowVO.setSources(sources);
+            flows.add(flowVO);
+        }
+
+        EvidenceChainRespVO chain = new EvidenceChainRespVO();
+        chain.setPartnerOrderId(order.getPartnerOrderId());
+        chain.setOrderNo(order.getOrderNo());
+        chain.setInvoiceNo(order.getInvoiceNo());
+        PayeeInfoDO payee = order.getPayeeId() != null ? ctx.payeeById.get(order.getPayeeId()) : null;
+        chain.setSellerName(payee != null ? payee.getName() : null);
+        chain.setTotalAmount(order.getTotalAmount());
+        chain.setPresentCount(presentCount);
+        chain.setTotalCount(TOTAL_FLOW_COUNT);
+        chain.setCompletenessRate(rate(presentCount));
+        chain.setComplete(presentCount == TOTAL_FLOW_COUNT);
+        chain.setFlows(flows);
+        chain.setAttachments(evidenceList.stream().map(this::toEvidenceRespVO).collect(Collectors.toList()));
+        chain.setUpdateTime(order.getUpdateTime());
+        return chain;
+    }
+
+    private ChainContext buildContext(List<InvoiceOrderDO> orders) {
+        ChainContext ctx = new ChainContext();
+        if (CollUtil.isEmpty(orders)) {
+            return ctx;
+        }
+        List<String> partnerOrderIds = orders.stream().map(InvoiceOrderDO::getPartnerOrderId)
+                .filter(StrUtil::isNotBlank).distinct().collect(Collectors.toList());
+        List<Long> orderIds = orders.stream().map(InvoiceOrderDO::getId)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        List<Long> payeeIds = orders.stream().map(InvoiceOrderDO::getPayeeId)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+
+        if (CollUtil.isNotEmpty(partnerOrderIds)) {
+            for (IcbcEvidenceDO evidence : evidenceMapper.selectListByPartnerOrderIds(partnerOrderIds)) {
+                ctx.evidenceByOrder.computeIfAbsent(evidence.getPartnerOrderId(), key -> new ArrayList<>())
+                        .add(evidence);
+            }
+            for (PaymentOrderDO payment : paymentOrderMapper.selectList(
+                    PaymentOrderDO::getPartnerOrderId, partnerOrderIds)) {
+                ctx.paymentByOrder.put(payment.getPartnerOrderId(), payment);
+            }
+            List<InvoiceDownloadDO> downloads = invoiceDownloadMapper.selectList(
+                    InvoiceDownloadDO::getPartnerOrderId, partnerOrderIds);
+            for (InvoiceDownloadDO download : downloads) {
+                ctx.downloadByOrder.put(download.getPartnerOrderId(), download);
+            }
+            List<Long> downloadIds = downloads.stream().map(InvoiceDownloadDO::getId)
+                    .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+            if (CollUtil.isNotEmpty(downloadIds)) {
+                for (InvoiceFileDO file : invoiceFileMapper.selectList(InvoiceFileDO::getDownloadId, downloadIds)) {
+                    ctx.filesByDownload.computeIfAbsent(file.getDownloadId(), key -> new ArrayList<>()).add(file);
+                }
+            }
+        }
+        if (CollUtil.isNotEmpty(orderIds)) {
+            for (OrderItemDO item : orderItemMapper.selectList(OrderItemDO::getOrderId, orderIds)) {
+                ctx.itemsByOrderId.computeIfAbsent(item.getOrderId(), key -> new ArrayList<>()).add(item);
+            }
+        }
+        if (CollUtil.isNotEmpty(payeeIds)) {
+            for (PayeeInfoDO payee : payeeInfoMapper.selectByIds(payeeIds)) {
+                ctx.payeeById.put(payee.getId(), payee);
+            }
+        }
+        return ctx;
+    }
+
+    private List<InvoiceOrderDO> resolveOrders(List<String> partnerOrderIds, LocalDateTime[] createTime) {
+        if (CollUtil.isNotEmpty(partnerOrderIds)) {
+            return invoiceOrderMapper.selectList(InvoiceOrderDO::getPartnerOrderId, partnerOrderIds);
+        }
+        LambdaQueryWrapper<InvoiceOrderDO> wrapper = new LambdaQueryWrapper<>();
+        if (createTime != null && createTime.length == 2) {
+            wrapper.between(InvoiceOrderDO::getCreateTime, createTime[0], createTime[1]);
+        }
+        wrapper.orderByAsc(InvoiceOrderDO::getId);
+        return invoiceOrderMapper.selectList(wrapper);
+    }
+
+    // ==================== 导出 ====================
+
+    private void writeEvidenceZip(List<InvoiceOrderDO> orders, ChainContext ctx,
+                                  HttpServletResponse response, String baseName) {
+        response.setContentType("application/zip");
+        response.setHeader("Content-Disposition",
+                "attachment;filename=" + HttpUtils.encodeUtf8(baseName + ".zip"));
+        Set<String> usedFolders = new HashSet<>();
+        try (ZipOutputStream zos = new ZipOutputStream(response.getOutputStream())) {
+            for (InvoiceOrderDO order : orders) {
+                String folder = uniqueFolder(order.getPartnerOrderId(), usedFolders);
+                EvidenceChainRespVO chain = assembleChain(order, ctx);
+                putTextEntry(zos, folder + "/证据链.json", JsonUtils.toJsonPrettyString(chain));
+                putTextEntry(zos, folder + "/证据清单.csv", buildEvidenceCsv(chain));
+                putTextEntry(zos, folder + "/收购台账.csv", buildLedgerCsv(order, ctx));
+                copyInvoiceFiles(zos, folder, order, ctx);
+            }
+        } catch (IOException e) {
+            log.error("导出证据包失败", e);
+            throw exception(EVIDENCE_EXPORT_FAILED);
+        }
+    }
+
+    private void copyInvoiceFiles(ZipOutputStream zos, String folder,
+                                  InvoiceOrderDO order, ChainContext ctx) throws IOException {
+        InvoiceDownloadDO download = ctx.downloadByOrder.get(order.getPartnerOrderId());
+        if (download == null) {
+            return;
+        }
+        for (InvoiceFileDO file : ctx.filesByDownload.getOrDefault(download.getId(), Collections.emptyList())) {
+            File local = new File(file.getFilePath());
+            if (!local.exists() || !local.isFile()) {
+                continue; // 外部 URL 形态的原件不入包，证据清单里已列地址
+            }
+            zos.putNextEntry(new ZipEntry(folder + "/发票/" + safeName(file.getFileName())));
+            Files.copy(local.toPath(), zos);
+            zos.closeEntry();
+        }
+    }
+
+    private String buildEvidenceCsv(EvidenceChainRespVO chain) {
+        StringBuilder sb = new StringBuilder("\ufeff");
+        sb.append("流,来源类型,标题,引用,文件地址,发生时间\n");
+        for (EvidenceFlowRespVO flow : chain.getFlows()) {
+            for (EvidenceSourceRespVO source : flow.getSources()) {
+                sb.append(csvRow(flow.getFlowName(), source.getSourceType(), source.getTitle(),
+                        source.getRef(), source.getUrl(),
+                        source.getOccurredTime() != null ? source.getOccurredTime().format(TIME_FORMATTER) : ""));
+            }
+        }
+        return sb.toString();
+    }
+
+    private String buildLedgerCsv(InvoiceOrderDO order, ChainContext ctx) {
+        StringBuilder sb = new StringBuilder("\ufeff");
+        sb.append("交易时间,交易地点,出售者姓名,出售者联系方式,报废产品名称,规格型号,数量,计量单位,含税单价,金额,发票号码,合作方订单号\n");
+        PayeeInfoDO payee = order.getPayeeId() != null ? ctx.payeeById.get(order.getPayeeId()) : null;
+        LocalDateTime tradeTime = order.getInvoiceDate() != null ? order.getInvoiceDate() : order.getCreateTime();
+        for (OrderItemDO item : ctx.itemsByOrderId.getOrDefault(order.getId(), Collections.emptyList())) {
+            sb.append(csvRow(tradeTime != null ? tradeTime.format(TIME_FORMATTER) : "",
+                    payee != null ? payee.getAddress() : "",
+                    payee != null ? payee.getName() : "",
+                    payee != null ? payee.getMobile() : "",
+                    item.getItemName(), item.getSpecification(),
+                    item.getQuantity() != null ? item.getQuantity().toPlainString() : "",
+                    item.getUnit(),
+                    item.getUnitPrice() != null ? item.getUnitPrice().toPlainString() : "",
+                    item.getAmount() != null ? item.getAmount().toPlainString() : "",
+                    order.getInvoiceNo(), order.getPartnerOrderId()));
+        }
+        return sb.toString();
+    }
+
+    private String csvRow(String... cells) {
+        StringBuilder row = new StringBuilder();
+        for (int i = 0; i < cells.length; i++) {
+            if (i > 0) {
+                row.append(',');
+            }
+            String cell = cells[i] == null ? "" : cells[i];
+            row.append('"').append(cell.replace("\"", "\"\"")).append('"');
+        }
+        return row.append('\n').toString();
+    }
+
+    private void putTextEntry(ZipOutputStream zos, String name, String content) throws IOException {
+        zos.putNextEntry(new ZipEntry(name));
+        // 不能关闭 writer：它会连带关闭底层的 ZipOutputStream，后续 entry 就无法写入
+        OutputStreamWriter writer = new OutputStreamWriter(zos, StandardCharsets.UTF_8);
+        writer.write(content);
+        writer.flush();
+        zos.closeEntry();
+    }
+
+    private String uniqueFolder(String partnerOrderId, Set<String> used) {
+        String base = safeName(StrUtil.blankToDefault(partnerOrderId, "未命名"));
+        String folder = base;
+        int index = 1;
+        while (!used.add(folder)) {
+            folder = base + "_" + index++;
+        }
+        return folder;
+    }
+
+    private String safeName(String name) {
+        return name == null ? "未命名" : name.replaceAll("[\\\\/:*?\"<>|]", "_");
+    }
+
+    private boolean isHttpUrl(String url) {
+        return StrUtil.isNotBlank(url) && (url.startsWith("http://") || url.startsWith("https://"));
+    }
+
+    private BigDecimal rate(int presentCount) {
+        return BigDecimal.valueOf(presentCount * 100.0 / TOTAL_FLOW_COUNT).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    // ==================== VO 转换 ====================
+
+    private EvidenceSourceRespVO toSource(IcbcEvidenceDO evidence) {
+        EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+        source.setSourceType("EVIDENCE");
+        source.setTitle(evidence.getTitle());
+        source.setRef(IcbcEvidenceTypeEnum.ofCode(evidence.getEvidenceType())
+                .map(IcbcEvidenceTypeEnum::getName).orElse(evidence.getEvidenceType()));
+        source.setUrl(evidence.getFileUrl());
+        source.setOccurredTime(evidence.getOccurredTime());
+        return source;
+    }
+
+    private EvidenceRespVO toEvidenceRespVO(IcbcEvidenceDO evidence) {
+        EvidenceRespVO vo = new EvidenceRespVO();
+        vo.setId(evidence.getId());
+        vo.setFlow(evidence.getFlow());
+        EvidenceFlowEnum.ofCode(evidence.getFlow()).ifPresent(flow -> vo.setFlowName(flow.getName()));
+        vo.setEvidenceType(evidence.getEvidenceType());
+        IcbcEvidenceTypeEnum.ofCode(evidence.getEvidenceType()).ifPresent(type -> vo.setEvidenceTypeName(type.getName()));
+        vo.setTitle(evidence.getTitle());
+        vo.setFileUrl(evidence.getFileUrl());
+        vo.setFileName(evidence.getFileName());
+        vo.setOccurredTime(evidence.getOccurredTime());
+        vo.setRemark(evidence.getRemark());
+        vo.setCreateTime(evidence.getCreateTime());
+        return vo;
+    }
+
+    /**
+     * 一次装配所需的关联数据，批量场景下只查一次，避免逐票 N+1。
+     */
+    private static class ChainContext {
+        private final Map<String, List<IcbcEvidenceDO>> evidenceByOrder = new HashMap<>();
+        private final Map<String, PaymentOrderDO> paymentByOrder = new HashMap<>();
+        private final Map<String, InvoiceDownloadDO> downloadByOrder = new HashMap<>();
+        private final Map<Long, List<InvoiceFileDO>> filesByDownload = new HashMap<>();
+        private final Map<Long, List<OrderItemDO>> itemsByOrderId = new HashMap<>();
+        private final Map<Long, PayeeInfoDO> payeeById = new HashMap<>();
+    }
+
+}

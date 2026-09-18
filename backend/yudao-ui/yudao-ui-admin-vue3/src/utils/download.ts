@@ -17,6 +17,10 @@ const download = {
   excel: (data: Blob, fileName: string) => {
     download0(data, fileName, 'application/vnd.ms-excel')
   },
+  // 下载 PDF 方法
+  pdf: (data: Blob, fileName: string) => {
+    download0(data, fileName, 'application/pdf')
+  },
   // 下载 Word 方法
   word: (data: Blob, fileName: string) => {
     download0(data, fileName, 'application/msword')

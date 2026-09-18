@@ -90,6 +90,26 @@ public class RecyclingRoleEnumTest {
     }
 
     @Test
+    public void testEvidencePermissionsAcrossRoles() {
+        // 收货员能在现场补录证据，但不能导出
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.EVIDENCE_ATTACH));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.EVIDENCE_EXPORT));
+        // 财务能查阅与导出，但不补录
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.EVIDENCE_EXPORT));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.EVIDENCE_ATTACH));
+        // 开票员能查、能补录
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.INVOICER.getCode(),
+                RecyclingPermission.EVIDENCE_QUERY));
+        // 平台运营不参与租户内的证据补录
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.EVIDENCE_ATTACH));
+    }
+
+    @Test
     public void testRoleCodesForPermission() {
         Set<String> roles = RecyclingRoleEnum.roleCodesForPermission(RecyclingPermission.PAYEE_CREATE);
         assertTrue(roles.contains(RecyclingRoleEnum.RECEIVER.getCode()));
