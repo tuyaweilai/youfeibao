@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.icbc.service.qualification.impl;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
+import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.qualification.vo.IcbcQualificationPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.qualification.vo.IcbcQualificationSaveReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.qualification.IcbcQualificationDO;
@@ -85,6 +86,24 @@ public class IcbcQualificationServiceImpl implements IcbcQualificationService {
                 .map(IcbcQualificationDO::getType)
                 .collect(java.util.stream.Collectors.toSet());
         return readyLayers.containsAll(ALL_LAYERS);
+    }
+
+    @Override
+    public PageResult<IcbcQualificationDO> getQualificationPageIgnoreTenant(IcbcQualificationPageReqVO pageReqVO) {
+        // 平台运营：跨租户读，显式关掉租户过滤，读完即恢复
+        return TenantUtils.executeIgnore(() -> qualificationMapper.selectPage(pageReqVO));
+    }
+
+    @Override
+    public void auditQualification(Long id, Integer status, String auditRemark) {
+        TenantUtils.executeIgnore(() -> {
+            validateExists(id);
+            IcbcQualificationDO updateObj = new IcbcQualificationDO();
+            updateObj.setId(id);
+            updateObj.setStatus(status);
+            updateObj.setAuditRemark(auditRemark);
+            qualificationMapper.updateById(updateObj);
+        });
     }
 
     private void validateExists(Long id) {

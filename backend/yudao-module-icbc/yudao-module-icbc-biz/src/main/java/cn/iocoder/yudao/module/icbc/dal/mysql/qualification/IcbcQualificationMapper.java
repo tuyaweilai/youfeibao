@@ -17,6 +17,7 @@ public interface IcbcQualificationMapper extends BaseMapperX<IcbcQualificationDO
 
     default PageResult<IcbcQualificationDO> selectPage(IcbcQualificationPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<IcbcQualificationDO>()
+                .eqIfPresent(IcbcQualificationDO::getTenantId, reqVO.getTenantId())
                 .eqIfPresent(IcbcQualificationDO::getType, reqVO.getType())
                 .likeIfPresent(IcbcQualificationDO::getName, reqVO.getName())
                 .eqIfPresent(IcbcQualificationDO::getStatus, reqVO.getStatus())

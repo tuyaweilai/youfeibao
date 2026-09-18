@@ -17,6 +17,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderGoods;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderReq;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
+import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,10 +48,18 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
     @Resource
     private IcbcGateway icbcGateway;
 
+    @Resource
+    private IcbcQualificationService qualificationService;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public InvoicePreOrderRespVO createPreOrder(InvoicePreOrderReqVO createReqVO) {
-        // 1. 参数校验
+        // 1. 租户开票就绪校验：任一层资质失效即冻结开票（入口先拦）
+        if (!qualificationService.isTenantReady()) {
+            throw exception(ErrorCodeConstants.TENANT_NOT_READY);
+        }
+
+        // 2. 参数校验
         validatePreOrderRequest(createReqVO);
         
         // 2. 检查订单是否已存在

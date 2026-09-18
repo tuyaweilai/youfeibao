@@ -12,6 +12,9 @@ import lombok.ToString;
 @ToString(callSuper = true)
 public class IcbcQualificationPageReqVO extends PageParam {
 
+    @Schema(description = "租户编号（平台运营跨租户查时使用）")
+    private Long tenantId;
+
     @Schema(description = "资质层")
     private String type;
 

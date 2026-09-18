@@ -2,7 +2,7 @@
 -- 幂等：先按固定 id 范围删除，再插入。
 -- 组件路径对应前端 backend/yudao-ui/yudao-ui-admin-vue3/src/views/icbc/* 与 views/enterprise/*
 
-DELETE FROM `system_menu` WHERE `id` BETWEEN 5100 AND 5140;
+DELETE FROM `system_menu` WHERE `id` BETWEEN 5100 AND 5150;
 
 INSERT INTO `system_menu`
 (`id`, `name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
@@ -44,4 +44,8 @@ VALUES
 -- 企业授权
 (5130, '企业授权', 'icbc:enterprise-auth:query', 2, 6, 5114, 'enterprise-auth', '', 'icbc/enterpriseAuth/index', 'IcbcEnterpriseAuth', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5131, '发起授权', 'icbc:enterprise-auth:init', 3, 1, 5130, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5132, '回填授权结果', 'icbc:enterprise-auth:update', 3, 2, 5130, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5132, '回填授权结果', 'icbc:enterprise-auth:update', 3, 2, 5130, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- ===== 平台运营 =====
+(5140, '平台运营', '', 1, 62, 0, '/platform', 'ep:data-analysis', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5141, '资质核实', 'icbc:platform:qualification:query', 2, 1, 5140, 'qualification', '', 'icbc/platformQualification/index', 'IcbcPlatformQualification', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5142, '核实资质', 'icbc:platform:qualification:audit', 3, 1, 5141, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');

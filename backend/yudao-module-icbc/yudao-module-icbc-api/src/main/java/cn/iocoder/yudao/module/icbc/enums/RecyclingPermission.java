@@ -79,5 +79,7 @@ public interface RecyclingPermission {
     // ========== 平台运营跨租户 ==========
 
     String PLATFORM_INVOICE_QUERY = "icbc:platform:invoice:query";
+    String PLATFORM_QUALIFICATION_QUERY = "icbc:platform:qualification:query";
+    String PLATFORM_QUALIFICATION_AUDIT = "icbc:platform:qualification:audit";
 
 }

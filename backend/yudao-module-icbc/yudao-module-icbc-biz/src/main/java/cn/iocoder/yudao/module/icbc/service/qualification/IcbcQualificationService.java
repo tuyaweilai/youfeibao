@@ -34,4 +34,14 @@ public interface IcbcQualificationService {
      */
     boolean isTenantReady();
 
+    /**
+     * 【平台运营】跨租户分页查询资质
+     */
+    PageResult<IcbcQualificationDO> getQualificationPageIgnoreTenant(IcbcQualificationPageReqVO pageReqVO);
+
+    /**
+     * 【平台运营】跨租户核实资质：回写状态与核实意见
+     */
+    void auditQualification(Long id, Integer status, String auditRemark);
+
 }

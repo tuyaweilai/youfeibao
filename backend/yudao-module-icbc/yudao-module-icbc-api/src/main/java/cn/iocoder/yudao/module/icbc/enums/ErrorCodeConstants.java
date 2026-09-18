@@ -101,4 +101,5 @@ public interface ErrorCodeConstants {
     ErrorCode GOODS_CONFIG_NOT_EXISTS = new ErrorCode(1_030_010_001, "品类配置不存在");
     ErrorCode GOODS_CONFIG_NAME_EXISTS = new ErrorCode(1_030_010_002, "品类名称已存在");
     ErrorCode ENTERPRISE_AUTH_NOT_EXISTS = new ErrorCode(1_030_010_003, "企业授权记录不存在");
+    ErrorCode TENANT_NOT_READY = new ErrorCode(1_030_010_004, "租户开票未就绪：三层资质不齐或已失效");
 } 

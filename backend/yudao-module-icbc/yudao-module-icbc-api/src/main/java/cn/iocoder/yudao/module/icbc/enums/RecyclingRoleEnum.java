@@ -72,6 +72,7 @@ public enum RecyclingRoleEnum {
     PLATFORM_OPERATOR("recycling_platform_operator", "平台运营", Set.of(
             RecyclingPermission.API_LOG_QUERY, RecyclingPermission.CALLBACK_QUERY,
             RecyclingPermission.CALLBACK_RETRY, RecyclingPermission.PLATFORM_INVOICE_QUERY,
+            RecyclingPermission.PLATFORM_QUALIFICATION_QUERY, RecyclingPermission.PLATFORM_QUALIFICATION_AUDIT,
             RecyclingPermission.QUALIFICATION_QUERY, RecyclingPermission.QUALIFICATION_UPDATE,
             RecyclingPermission.GOODS_CONFIG_CREATE, RecyclingPermission.GOODS_CONFIG_UPDATE,
             RecyclingPermission.GOODS_CONFIG_DELETE, RecyclingPermission.GOODS_CONFIG_QUERY));

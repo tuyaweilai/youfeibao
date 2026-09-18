@@ -61,6 +61,8 @@ public class RecyclingRoleEnumTest {
     public void testAdminOwnsAllTenantScopedPermissions() {
         for (String permission : RecyclingRoleEnum.allPermissions()) {
             if (permission.equals(RecyclingPermission.PLATFORM_INVOICE_QUERY)
+                    || permission.equals(RecyclingPermission.PLATFORM_QUALIFICATION_QUERY)
+                    || permission.equals(RecyclingPermission.PLATFORM_QUALIFICATION_AUDIT)
                     || permission.equals(RecyclingPermission.CALLBACK_RETRY)) {
                 continue; // 平台运营专属，租户管理员不碰
             }

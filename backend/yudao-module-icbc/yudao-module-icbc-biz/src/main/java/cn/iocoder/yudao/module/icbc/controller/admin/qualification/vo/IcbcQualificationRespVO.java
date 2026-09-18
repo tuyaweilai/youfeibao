@@ -13,6 +13,9 @@ import java.time.LocalDateTime;
 @ToString(callSuper = true)
 public class IcbcQualificationRespVO extends IcbcQualificationSaveReqVO {
 
+    @Schema(description = "租户编号")
+    private Long tenantId;
+
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
 

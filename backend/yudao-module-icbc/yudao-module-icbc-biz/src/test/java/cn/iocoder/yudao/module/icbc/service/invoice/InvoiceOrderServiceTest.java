@@ -10,8 +10,11 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
 import cn.iocoder.yudao.module.icbc.service.invoice.impl.InvoiceOrderServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.TestPropertySource;
 
 import javax.annotation.Resource;
@@ -19,7 +22,9 @@ import java.math.BigDecimal;
 import java.util.Collections;
 
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
+import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.TENANT_NOT_READY;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
 
 /**
  * {@link InvoiceOrderServiceImpl} 的单元测试类
@@ -38,6 +43,22 @@ public class InvoiceOrderServiceTest extends BaseDbUnitTest {
 
     @Resource
     private OrderItemMapper orderItemMapper;
+
+    @MockBean
+    private IcbcQualificationService qualificationService;
+
+    @BeforeEach
+    public void setUp() {
+        // 默认资质就绪；冻结场景由单独用例覆盖
+        when(qualificationService.isTenantReady()).thenReturn(true);
+    }
+
+    @Test
+    public void testCreatePreOrder_tenantNotReady() {
+        when(qualificationService.isTenantReady()).thenReturn(false);
+        assertServiceException(() -> invoiceOrderService.createPreOrder(new InvoicePreOrderReqVO()),
+                TENANT_NOT_READY);
+    }
 
     @Test
     public void testCreatePreOrder_success() {
