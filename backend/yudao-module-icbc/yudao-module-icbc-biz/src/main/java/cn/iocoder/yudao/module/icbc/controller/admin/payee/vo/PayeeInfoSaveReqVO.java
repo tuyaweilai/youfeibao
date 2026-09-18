@@ -14,8 +14,7 @@ public class PayeeInfoSaveReqVO {
     @Schema(description = "收方编号（工行返回）", example = "ICBC001")
     private String payeeNo;
 
-    @Schema(description = "合作方收方编号（我方生成）", requiredMode = Schema.RequiredMode.REQUIRED, example = "PARTNER001")
-    @NotEmpty(message = "合作方收方编号不能为空")
+    @Schema(description = "合作方收方编号（我方生成，留空则后端生成）", example = "PARTNER001")
     private String partnerPayeeId;
 
     @Schema(description = "收方姓名", requiredMode = Schema.RequiredMode.REQUIRED, example = "张三")

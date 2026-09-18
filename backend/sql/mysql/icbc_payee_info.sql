@@ -5,7 +5,7 @@
 -- 收方信息表（个人销售方）
 CREATE TABLE `icbc_payee_info` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `payee_no` varchar(64) NOT NULL COMMENT '收方编号（工行返回）',
+  `payee_no` varchar(64) DEFAULT NULL COMMENT '收方编号（工行返回，建档时为空）',
   `partner_payee_id` varchar(64) NOT NULL COMMENT '合作方收方编号（我方生成）',
   `name` varchar(100) NOT NULL COMMENT '收方姓名',
   `id_card_no` varchar(18) NOT NULL COMMENT '身份证号码',
