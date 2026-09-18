@@ -95,7 +95,7 @@ public class IcbcSdkGateway implements IcbcGateway {
         biz.setOutUserId(req.getOutUserId());
         biz.setCorpSerno(req.getCorpSerno());
         biz.setTrxChannel(req.getTrxChannel());
-        biz.setOpenWallet(req.getOpenWallet());
+        // 不主动开通电子钱包（见 ADR 0010）；工行若要求该字段必填，联调时再由适配层补默认值
         biz.setSkipImgUpload(req.getSkipImgUpload());
         biz.setSignDate(req.getSignDate());
         biz.setValidityPeriod(req.getValidityPeriod());
@@ -126,9 +126,6 @@ public class IcbcSdkGateway implements IcbcGateway {
                 .freezeStatus(response.getFreezeStatus())
                 .openacctStatus(response.getOpenacctStatus())
                 .mediumId(response.getMediumId())
-                .subWalletId(response.getSubWalletId())
-                .subWalletStatus(response.getSubWalletStatus())
-                .subWalletName(response.getSubWalletName())
                 .custStatusDetail(response.getCustStatusDetail())
                 .build());
     }

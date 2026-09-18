@@ -22,10 +22,10 @@ public class PayerInfoRespVO extends PayerInfoSaveReqVO {
     @Schema(description = "工行付方状态：0-不可用，1-可用", example = "1")
     private String icbcPayerStatus;
 
-    @Schema(description = "工行介质ID", example = "MEDIUM123456")
+    @Schema(description = "工行介质标识（mediumId）", example = "MEDIUM123456")
     private String icbcMediumId;
 
-    @Schema(description = "工行开户状态：00-初始，01-开户中，02-开户成功，03-开户失败", example = "02")
+    @Schema(description = "工行侧开户状态（openacctStatus）：00-初始，01-开户中，02-开户成功，03-开户失败", example = "02")
     private String icbcOpenacctStatus;
 
     @Schema(description = "创建时间", requiredMode = Schema.RequiredMode.REQUIRED)

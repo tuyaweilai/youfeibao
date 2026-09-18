@@ -107,12 +107,12 @@ public class PayerInfoDO extends TenantBaseDO {
     private String icbcPayerStatus;
 
     /**
-     * 工行介质ID
+     * 工行返回的介质标识（mediumId，原样透传）
      */
     private String icbcMediumId;
 
     /**
-     * 工行开户状态：00-初始，01-开户中，02-开户成功，03-开户失败
+     * 工行侧开户状态（openacctStatus，原样透传）：00-初始，01-开户中，02-开户成功，03-开户失败
      */
     private String icbcOpenacctStatus;
 

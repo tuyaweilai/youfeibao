@@ -26,25 +26,13 @@ public class PayeeOnboardingStatus {
      */
     private String freezeStatus;
     /**
-     * 开户状态
+     * 工行侧开户状态（openacctStatus，原样透传）
      */
     private String openacctStatus;
     /**
-     * 电子钱包介质号
+     * 工行返回的账户标识（mediumId，原样透传）
      */
     private String mediumId;
-    /**
-     * 子钱包编号
-     */
-    private String subWalletId;
-    /**
-     * 子钱包状态
-     */
-    private String subWalletStatus;
-    /**
-     * 子钱包名称
-     */
-    private String subWalletName;
     /**
      * 明细信息
      */

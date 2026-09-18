@@ -140,7 +140,7 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
         // 模拟工行返回的收方编号
         payeeInfo.setPayeeNo("ICBC" + System.currentTimeMillis());
         payeeInfo.setIcbcReceiverStatus("0"); // 初始状态为不可用
-        payeeInfo.setIcbcOpenacctStatus("01"); // 开户中
+        payeeInfo.setIcbcOpenacctStatus("01"); // 工行开户状态（openacctStatus）：开户中
         
         // 保存到数据库
         payeeInfoMapper.insert(payeeInfo);
@@ -179,12 +179,12 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
             // 审核通过
             updateObj.setStatus(IcbcStatusEnum.AuditStatus.APPROVED.getStatus());
             updateObj.setIcbcReceiverStatus("1"); // 可用
-            updateObj.setIcbcOpenacctStatus("02"); // 开户成功
+            updateObj.setIcbcOpenacctStatus("02"); // 工行开户状态（openacctStatus）：开户成功
         } else {
             // 审核拒绝
             updateObj.setStatus(IcbcStatusEnum.AuditStatus.REJECTED.getStatus());
             updateObj.setIcbcReceiverStatus("0"); // 不可用
-            updateObj.setIcbcOpenacctStatus("03"); // 开户失败
+            updateObj.setIcbcOpenacctStatus("03"); // 工行开户状态（openacctStatus）：开户失败
         }
         
         payeeInfoMapper.updateById(updateObj);

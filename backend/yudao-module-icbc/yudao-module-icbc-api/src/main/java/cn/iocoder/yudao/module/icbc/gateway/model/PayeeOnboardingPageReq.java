@@ -6,7 +6,8 @@ import lombok.Data;
 /**
  * 收方入驻页面接口请求
  *
- * 对应工行 `/ui/jft/ui/user/edpopenacct/submit/V1`，返回自然人开户 + 电子钱包开通页面。
+ * 对应工行 `/ui/jft/ui/user/edpopenacct/submit/V1`，收方入驻页面（实名 + 绑定银行卡 + 入驻）。
+ * `edpopenacct` 是工行历史接口名；本项目**不开电子钱包**（见 ADR 0010），也不在端口上暴露钱包概念。
  * 再生资源场景固定 `businessType=0004`、`accountKind=02`、`receiverType=03`，
  * 由适配层填充，平台只给业务字段。
  */
@@ -70,10 +71,6 @@ public class PayeeOnboardingPageReq {
      * 交易渠道：01 安卓 APP、02 iOS APP、03 H5、04 微信公众号、05 微信小程序、06 支付宝场景号
      */
     private String trxChannel;
-    /**
-     * 是否开通电子钱包
-     */
-    private String openWallet;
     /**
      * 是否跳过影像上传
      */

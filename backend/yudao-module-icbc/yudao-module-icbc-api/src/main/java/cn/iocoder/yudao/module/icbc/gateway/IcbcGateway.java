@@ -36,7 +36,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.RedInvoiceRevokeResult;
 public interface IcbcGateway {
 
     /**
-     * 收方入驻页面：返回自然人开户 + 电子钱包开通页面
+     * 收方入驻页面（实名 + 绑定银行卡）
      */
     IcbcGatewayResult<IcbcPage> submitPayeeOnboarding(PayeeOnboardingPageReq req);
 
