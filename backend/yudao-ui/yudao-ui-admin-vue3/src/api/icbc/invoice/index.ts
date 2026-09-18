@@ -62,11 +62,64 @@ export interface InvoiceQueryRespVO {
   invoiceStatus?: number
   paymentStatus?: number
   taxStatus?: number
+  confirmStatus?: number
+  preInvoiceStatus?: number
   invoiceNo?: string
   invoiceCode?: string
   invoiceDate?: Date
   invoiceAmount?: number
   taxAmount?: number
+}
+
+// ==================== 开票申请（#8：按收购单发起，预下单与自然人确认） ====================
+
+export interface InvoicePreCheckItemVO {
+  code?: string
+  name?: string
+  passed?: boolean
+  message?: string
+  remedy?: string
+}
+
+export interface InvoicePreCheckRespVO {
+  acquisitionId?: number
+  acquisitionNo?: string
+  allPassed?: boolean
+  items?: InvoicePreCheckItemVO[]
+}
+
+export interface InvoiceApplicationResultVO {
+  acquisitionId?: number
+  acquisitionNo?: string
+  success?: boolean
+  duplicate?: boolean
+  partnerOrderId?: string
+  orderNo?: string
+  confirmPageHtml?: string
+  confirmStatus?: number
+  preInvoiceStatus?: number
+  orderStatus?: number
+  message?: string
+  failures?: InvoicePreCheckItemVO[]
+}
+
+export interface InvoiceApplicationBaseVO {
+  invoiceType?: string // 01-专票，02-普票
+  areaCode?: string
+  drawerName?: string
+  drawerCardType?: string
+  drawerCardNumber?: string
+  jumpUrlBase?: string
+  mac?: string
+  notes?: string
+}
+
+export interface InvoiceApplicationApplyVO extends InvoiceApplicationBaseVO {
+  acquisitionId: number
+}
+
+export interface InvoiceApplicationBatchVO extends InvoiceApplicationBaseVO {
+  acquisitionIds: number[]
 }
 
 // 开票申请 API
@@ -78,5 +131,21 @@ export const InvoiceApi = {
   // 预查询
   query: async (params: { outOrderId: string }) => {
     return await request.get({ url: `/icbc/invoice-order/query`, params })
+  }
+}
+
+// 开票申请 API（按已登记的收购单发起）
+export const InvoiceApplicationApi = {
+  // 发起前校验：逐项返回是否通过、哪里不满足、怎么补齐
+  preCheck: async (params: { acquisitionId: number; invoiceType?: string }) => {
+    return await request.get({ url: `/icbc/invoice-application/pre-check`, params })
+  },
+  // 单笔发起
+  apply: async (data: InvoiceApplicationApplyVO) => {
+    return await request.post({ url: `/icbc/invoice-application/apply`, data })
+  },
+  // 批量发起：逐笔独立成败
+  applyBatch: async (data: InvoiceApplicationBatchVO) => {
+    return await request.post({ url: `/icbc/invoice-application/apply-batch`, data })
   }
 }

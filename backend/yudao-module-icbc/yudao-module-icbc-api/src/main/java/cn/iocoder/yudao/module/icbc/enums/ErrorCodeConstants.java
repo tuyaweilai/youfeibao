@@ -144,4 +144,12 @@ public interface ErrorCodeConstants {
     ErrorCode ACQUISITION_STATUS_NOT_ALLOW_UPDATE = new ErrorCode(1_030_014_006, "收购单状态不允许修改");
     ErrorCode ACQUISITION_CONFIRMATION_EXPORT_FAILED = new ErrorCode(1_030_014_007, "收购确认书导出失败");
     ErrorCode ACQUISITION_SELLER_NOT_EXISTS = new ErrorCode(1_030_014_008, "出售者档案不存在，请先建档再登记收购");
+
+    // ========== 开票申请（#8） 1-030-015-000 ==========
+    ErrorCode INVOICE_APPLICATION_PRECHECK_FAILED = new ErrorCode(1_030_015_000, "开票申请校验未通过");
+    ErrorCode INVOICE_APPLICATION_ACQUISITION_STATUS_INVALID = new ErrorCode(1_030_015_001, "收购单当前状态不允许发起开票申请：{}");
+    ErrorCode INVOICE_APPLICATION_PAYER_NOT_READY = new ErrorCode(1_030_015_002, "回收企业付方档案未就绪，请先在「付方档案」补齐纳税人识别号与付方编号");
+    ErrorCode INVOICE_APPLICATION_PAYEE_NOT_READY = new ErrorCode(1_030_015_003, "出售者档案信息不全，请先在「出售者建档」补齐姓名、身份证、手机号与地址");
+    ErrorCode INVOICE_APPLICATION_ELEMENT_MISSING = new ErrorCode(1_030_015_004, "收购单关键要件不全：{}");
+    ErrorCode INVOICE_APPLICATION_GOODS_CODE_MISSING = new ErrorCode(1_030_015_005, "品类未配置商品和服务税收分类合并编码，请先在「编码配置」补齐");
 }

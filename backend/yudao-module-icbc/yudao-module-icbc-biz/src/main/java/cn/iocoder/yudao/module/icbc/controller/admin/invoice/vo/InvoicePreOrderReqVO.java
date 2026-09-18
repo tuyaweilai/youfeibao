@@ -272,9 +272,9 @@ public class InvoicePreOrderReqVO {
     @Pattern(regexp = "^(Y|N)$", message = "是否重复下单只能是Y或N")
     private String isRedo = "N";
 
-    @Schema(description = "支付渠道：01-e企付，02-场景结算", example = "02")
-    @Pattern(regexp = "^(01|02)$", message = "支付渠道只能是01或02")
-    private String payChannel = "02";
+    @Schema(description = "支付渠道：01-e企付，02-场景结算，04-公对公结算，05-公对私结算", example = "05")
+    @Pattern(regexp = "^(01|02|04|05)$", message = "支付渠道只能是01、02、04或05")
+    private String payChannel = "05";
 
     @Schema(description = "机构编码", example = "20201128531215026")
     @Size(max = 30, message = "机构编码长度不能超过30个字符")

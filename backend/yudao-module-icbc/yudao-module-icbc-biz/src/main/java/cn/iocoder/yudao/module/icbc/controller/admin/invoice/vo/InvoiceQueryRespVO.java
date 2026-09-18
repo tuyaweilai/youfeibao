@@ -39,6 +39,12 @@ public class InvoiceQueryRespVO {
     @Schema(description = "缴税状态：0-未缴税，1-缴税中，2-缴税成功，3-缴税失败", example = "2")
     private Integer taxStatus;
 
+    @Schema(description = "自然人确认状态：0-未确认，1-自然人确认完成，2-全部确认完成", example = "1")
+    private Integer confirmStatus;
+
+    @Schema(description = "预开票状态：0-初始，1-预开票中，2-预开票成功，3-预开票失败，4-预开票取消", example = "2")
+    private Integer preInvoiceStatus;
+
     @Schema(description = "发票号码", example = "12345678")
     private String invoiceNo;
 

@@ -39,7 +39,12 @@ public class InvoiceOrderDO extends TenantBaseDO {
      * 合作方订单ID（传给工行）
      */
     private String partnerOrderId;
-    
+
+    /**
+     * 来源收购单编号（开票申请由已登记的收购单发起，一个收购单对应一张票）
+     */
+    private Long acquisitionId;
+
     /**
      * 收方ID
      */
@@ -94,6 +99,25 @@ public class InvoiceOrderDO extends TenantBaseDO {
      * 缴税状态：0-未缴税，1-缴税中，2-缴税成功，3-缴税失败
      */
     private Integer taxStatus;
+
+    /**
+     * 自然人确认状态：0-未确认，1-自然人确认完成，2-全部确认完成
+     *
+     * 枚举 {@link cn.iocoder.yudao.module.icbc.enums.InvoiceConfirmStatusEnum}
+     */
+    private Integer confirmStatus;
+
+    /**
+     * 预开票状态：0-初始，1-预开票中，2-预开票成功，3-预开票失败，4-预开票取消
+     *
+     * 枚举 {@link cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum}
+     */
+    private Integer preInvoiceStatus;
+
+    /**
+     * 预下单发起时间（预下单成功、等待自然人确认的时刻）
+     */
+    private LocalDateTime preOrderTime;
     
     /**
      * 发票号码

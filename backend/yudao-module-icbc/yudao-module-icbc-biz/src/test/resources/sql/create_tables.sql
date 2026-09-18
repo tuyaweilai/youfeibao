@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS icbc_invoice_order (
     id BIGINT NOT NULL AUTO_INCREMENT,
     order_no VARCHAR(64) NOT NULL,
     partner_order_id VARCHAR(64),
+    acquisition_id BIGINT,
     payee_id BIGINT,
     payee_no VARCHAR(64),
     payer_id BIGINT,
@@ -91,6 +92,9 @@ CREATE TABLE IF NOT EXISTS icbc_invoice_order (
     invoice_status INTEGER NOT NULL DEFAULT 0,
     payment_status INTEGER NOT NULL DEFAULT 0,
     tax_status INTEGER NOT NULL DEFAULT 0,
+    confirm_status INTEGER NOT NULL DEFAULT 0,
+    pre_invoice_status INTEGER NOT NULL DEFAULT 0,
+    pre_order_time DATETIME,
     invoice_no VARCHAR(64),
     invoice_code VARCHAR(64),
     invoice_date DATETIME,
@@ -105,7 +109,8 @@ CREATE TABLE IF NOT EXISTS icbc_invoice_order (
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
-    CONSTRAINT uk_order_no UNIQUE (order_no)
+    CONSTRAINT uk_order_no UNIQUE (order_no),
+    CONSTRAINT uk_invoice_partner_order_id UNIQUE (tenant_id, partner_order_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_invoice_order_no ON icbc_invoice_order(order_no);

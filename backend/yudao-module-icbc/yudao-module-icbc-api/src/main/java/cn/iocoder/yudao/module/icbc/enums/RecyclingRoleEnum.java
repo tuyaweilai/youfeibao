@@ -31,6 +31,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PAYER_CREATE, RecyclingPermission.PAYER_UPDATE,
             RecyclingPermission.PAYER_DELETE, RecyclingPermission.PAYER_QUERY,
             RecyclingPermission.INVOICE_CREATE, RecyclingPermission.INVOICE_QUERY,
+            RecyclingPermission.INVOICE_APPLICATION_APPLY, RecyclingPermission.INVOICE_APPLICATION_QUERY,
             RecyclingPermission.PAYMENT_CREATE, RecyclingPermission.PAYMENT_QUERY,
             RecyclingPermission.DOWNLOAD_EXECUTE, RecyclingPermission.DOWNLOAD_QUERY,
             RecyclingPermission.DOWNLOAD_RETRY, RecyclingPermission.DOWNLOAD_FILE,
@@ -69,6 +70,7 @@ public enum RecyclingRoleEnum {
     INVOICER("recycling_invoicer", "开票员", Set.of(
             RecyclingPermission.PAYER_QUERY,
             RecyclingPermission.INVOICE_CREATE, RecyclingPermission.INVOICE_QUERY,
+            RecyclingPermission.INVOICE_APPLICATION_APPLY, RecyclingPermission.INVOICE_APPLICATION_QUERY,
             RecyclingPermission.ACQUISITION_QUERY,
             RecyclingPermission.PAYMENT_CREATE, RecyclingPermission.PAYMENT_QUERY,
             RecyclingPermission.DOWNLOAD_EXECUTE, RecyclingPermission.DOWNLOAD_QUERY,
@@ -83,6 +85,7 @@ public enum RecyclingRoleEnum {
      */
     FINANCE("recycling_finance", "财务", Set.of(
             RecyclingPermission.INVOICE_QUERY,
+            RecyclingPermission.INVOICE_APPLICATION_QUERY,
             RecyclingPermission.ACQUISITION_QUERY, RecyclingPermission.ACQUISITION_EXPORT,
             RecyclingPermission.PAYMENT_QUERY,
             RecyclingPermission.DOWNLOAD_QUERY, RecyclingPermission.DOWNLOAD_FILE,

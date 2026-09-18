@@ -43,6 +43,11 @@ public interface RecyclingPermission {
     String INVOICE_CREATE = "icbc:invoice-order:create";
     String INVOICE_QUERY = "icbc:invoice-order:query";
 
+    // ========== 开票申请（#8：预下单与自然人确认） ==========
+
+    String INVOICE_APPLICATION_APPLY = "icbc:invoice-application:apply";
+    String INVOICE_APPLICATION_QUERY = "icbc:invoice-application:query";
+
     // ========== 付款 ==========
 
     String PAYMENT_CREATE = "icbc:payment:create";

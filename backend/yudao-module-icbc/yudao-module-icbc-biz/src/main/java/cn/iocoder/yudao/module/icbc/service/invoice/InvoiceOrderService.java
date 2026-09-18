@@ -69,4 +69,28 @@ public interface InvoiceOrderService {
     void updateInvoiceInfo(Long id, String invoiceNo, String invoiceCode, 
                           java.math.BigDecimal invoiceAmount, java.math.BigDecimal taxAmount);
 
+    // ==================== 开票申请（#8 预下单与自然人确认） ====================
+
+    /**
+     * 把订单挂回它来源的收购单，并补齐收方 / 付方档案编号。
+     *
+     * @param partnerOrderId 合作方订单号
+     * @param acquisitionId  收购单编号
+     * @param payeeId        收方（出售者）档案编号
+     * @param payerId        付方（回收企业）档案编号
+     */
+    void bindAcquisition(String partnerOrderId, Long acquisitionId, Long payeeId, Long payerId);
+
+    /**
+     * 用工行通知 / 预查询里的自然人确认状态与预开票状态收敛平台侧状态。
+     *
+     * <p>确认完成且预开票成功时订单状态推进为「已确认」；预开票失败 / 取消时保留在「待确认」。
+     * 这两条状态线独立更新，不互相覆盖，允许通知乱序到达。
+     *
+     * @param partnerOrderId     合作方订单号
+     * @param confirmStatusCode  自然人确认状态码：00/01/02，可空
+     * @param preInvoiceStatusCode 预开票状态码：00/01/02/03/04，可空
+     */
+    void applyPreInvoiceStatus(String partnerOrderId, String confirmStatusCode, String preInvoiceStatusCode);
+
 } 
