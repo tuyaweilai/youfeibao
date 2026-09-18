@@ -51,3 +51,7 @@ The five canonical triage roles, using the default label strings (`needs-triage`
 ### Domain docs
 
 Single-context: a root `CONTEXT.md` plus ADRs under `docs/adr/`. See `docs/agents/domain.md`.
+
+### 当前进度 / 交接
+
+见 `docs/agents/handoff.md`：本地起环境、已完成提交、剩余缺口与约定。
