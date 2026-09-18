@@ -23,17 +23,20 @@ pnpm build:local    # 生产构建
 
 ## 本地运行后端
 
-`local` profile 需要 MySQL 与 Redis；敏感配置一律走环境变量（模板见根目录 `.env.example`）。仓库未含 yudao 全量建表 SQL（见 ADR 0008），`MYSQL_URL` 默认指向共享开发库。
+`local` profile 需要 MySQL 与 Redis；敏感配置一律走环境变量（模板见根目录 `.env.example`）。建表与种子数据在 `backend/sql/mysql/`（已脱敏，见 ADR 0012）。
 
 ```bash
-cp .env.example .env && $EDITOR .env   # 填 MYSQL_PASSWORD、YUDAO_ENCRYPTOR_PASSWORD 等
+cp .env.example .env && $EDITOR .env   # 填 MYSQL_PASSWORD、YUDAO_ENCRYPTOR_PASSWORD 等；值含 & 要加引号
 set -a; source .env; set +a
 
 cd backend
-docker compose up -d                   # 起 Redis（以及可选的本机 MySQL；本机 MySQL 需自行导入库表）
+docker compose up -d                   # MySQL(13308) + Redis(16382)，避免与常见端口冲突
+# 首次：按 backend/sql/mysql/README.md 导入建表与种子数据
 mvn -pl yudao-server -am -DskipTests install   # 首次：安装依赖
 mvn -pl yudao-server spring-boot:run   # 端口 48080，默认 icbc.gateway.mode=fake 不触网
 ```
+
+默认登录：请求头 `tenant-id: 1`，账号 `admin` / `admin123`。
 
 ## Agent skills
 
