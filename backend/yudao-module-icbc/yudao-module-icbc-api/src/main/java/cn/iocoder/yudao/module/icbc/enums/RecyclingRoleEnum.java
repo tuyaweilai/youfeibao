@@ -24,6 +24,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PAYEE_CREATE, RecyclingPermission.PAYEE_UPDATE,
             RecyclingPermission.PAYEE_DELETE, RecyclingPermission.PAYEE_QUERY,
             RecyclingPermission.PAYEE_EXPORT,
+            RecyclingPermission.SELLER_ONBOARDING_EXECUTE, RecyclingPermission.SELLER_AGREEMENT_MANAGE,
+            RecyclingPermission.SELLER_AUTHORIZATION_MANAGE,
             RecyclingPermission.PAYER_CREATE, RecyclingPermission.PAYER_UPDATE,
             RecyclingPermission.PAYER_DELETE, RecyclingPermission.PAYER_QUERY,
             RecyclingPermission.INVOICE_CREATE, RecyclingPermission.INVOICE_QUERY,
@@ -52,6 +54,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PAYEE_CREATE, RecyclingPermission.PAYEE_UPDATE,
             RecyclingPermission.PAYEE_DELETE, RecyclingPermission.PAYEE_QUERY,
             RecyclingPermission.PAYEE_EXPORT,
+            RecyclingPermission.SELLER_ONBOARDING_EXECUTE, RecyclingPermission.SELLER_AGREEMENT_MANAGE,
+            RecyclingPermission.SELLER_AUTHORIZATION_MANAGE,
             RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_ATTACH,
             RecyclingPermission.PUBLIC_TOKEN_CREATE)),
 

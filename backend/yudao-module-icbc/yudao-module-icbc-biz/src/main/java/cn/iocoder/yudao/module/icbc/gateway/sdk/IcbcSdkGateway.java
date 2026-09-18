@@ -6,6 +6,8 @@ import cn.iocoder.yudao.module.icbc.gateway.IcbcGatewayResult;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcOutcome;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcReturnCodes;
 import cn.iocoder.yudao.module.icbc.gateway.model.EnterpriseAuthReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.FaceVerifyPageReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.FaceVerifyStatus;
 import cn.iocoder.yudao.module.icbc.gateway.model.IcbcConnectivity;
 import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceCancelReq;
@@ -31,6 +33,7 @@ import com.icbc.api.request.JftApiInvoiceRedOffsetRevokeRequestV1;
 import com.icbc.api.request.JftApiInvoiceReversalRequestV1;
 import com.icbc.api.request.JftApiUserEdpopenacctQueryRequestV1;
 import com.icbc.api.request.JftApiUserEdpreceiveQueryRequestV1;
+import com.icbc.api.request.JftUiUserFaceH5SubmitRequestV1;
 import com.icbc.api.request.JftUiInvoicePayRequestV1;
 import com.icbc.api.request.JftUiInvoicePreOrderRequestV1;
 import com.icbc.api.request.JftUiRedInvoiceOffsetRequestV1;
@@ -81,6 +84,45 @@ public class IcbcSdkGateway implements IcbcGateway {
     @Resource
     private IcbcClientFactory clientFactory;
 
+    // ==================== 实人认证 ====================
+
+    @Override
+    public IcbcGatewayResult<IcbcPage> submitFaceVerification(FaceVerifyPageReq req) {
+        JftUiUserFaceH5SubmitRequestV1 request = new JftUiUserFaceH5SubmitRequestV1();
+        request.setServiceUrl(clientFactory.url(IcbcApiPaths.FACE_VERIFY_PAGE));
+        JftUiUserFaceH5SubmitRequestV1.JftUiUserFaceH5SubmitRequestV1Biz biz =
+                new JftUiUserFaceH5SubmitRequestV1.JftUiUserFaceH5SubmitRequestV1Biz();
+        biz.setAppId(clientFactory.appId());
+        // 固定反向开票场景；证件目前仅支持身份证（见工行答复 §五）
+        biz.setAuthScene("01");
+        biz.setOutUserId(req.getOutUserId());
+        biz.setCustName(req.getCustName());
+        biz.setCertNo(req.getCertNo());
+        biz.setMobile(req.getMobile());
+        biz.setTransNo(req.getTransNo());
+        biz.setCallbackUrl(req.getCallbackUrl());
+        biz.setJumpUrl(req.getJumpUrl());
+        biz.setFailJumpUrl(req.getFailJumpUrl());
+        request.setBizContent(biz);
+        return buildForm(request, null);
+    }
+
+    @Override
+    public IcbcGatewayResult<FaceVerifyStatus> queryFaceVerification(String outUserId) {
+        FaceH5QueryRequest request = new FaceH5QueryRequest();
+        request.setServiceUrl(clientFactory.url(IcbcApiPaths.FACE_VERIFY_QUERY));
+        FaceH5QueryRequest.Biz biz = request.getBizContent();
+        biz.setAppId(clientFactory.appId());
+        biz.setOutUserId(outUserId);
+
+        return execute(request, IcbcApiPaths.RECEIVE_SUCCESS_CODE, response -> FaceVerifyStatus.builder()
+                .outUserId(response.getOutUserId())
+                .authResult(response.getAuthResult())
+                .passed("1".equals(response.getAuthResult()))
+                .failReason(response.getFailReason())
+                .build());
+    }
+
     // ==================== 收方入驻 ====================
 
     @Override
@@ -123,6 +165,8 @@ public class IcbcSdkGateway implements IcbcGateway {
                 .outUserId(response.getOutUserId())
                 .receiverStatus(response.getReceiverStatus())
                 .auditStatus(response.getAuditStatus())
+                // 数据接口不回传 result；审核通过时以 auditStatus=1 归一为 pass，其余留空等待异步通知
+                .result("1".equals(response.getAuditStatus()) ? "pass" : null)
                 .freezeStatus(response.getFreezeStatus())
                 .openacctStatus(response.getOpenacctStatus())
                 .mediumId(response.getMediumId())

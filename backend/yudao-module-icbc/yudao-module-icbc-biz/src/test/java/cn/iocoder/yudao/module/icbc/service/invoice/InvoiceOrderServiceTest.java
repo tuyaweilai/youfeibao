@@ -12,6 +12,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
 import cn.iocoder.yudao.module.icbc.service.goodscfg.IcbcGoodsConfigService;
 import cn.iocoder.yudao.module.icbc.service.invoice.impl.InvoiceOrderServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,9 @@ public class InvoiceOrderServiceTest extends BaseDbUnitTest {
 
     @MockBean
     private IcbcGoodsConfigService goodsConfigService;
+
+    @MockBean
+    private SellerOnboardingService sellerOnboardingService;
 
     @BeforeEach
     public void setUp() {
@@ -109,6 +113,23 @@ public class InvoiceOrderServiceTest extends BaseDbUnitTest {
         InvoicePreOrderRespVO respVO = invoiceOrderService.createPreOrder(buildValidPreOrder("02"));
         assertNotNull(respVO);
         assertEquals(0, respVO.getReturnCode());
+    }
+
+    @Test
+    public void testCreatePreOrder_sellerOnboardingGateBlocks() {
+        // 出售者建档未完成时，门禁抛出，预下单不得下发到工行
+        org.mockito.Mockito.doThrow(cn.iocoder.yudao.framework.common.exception.ServiceException.class)
+                .when(sellerOnboardingService).assertReadyForInvoiceByOutUserId("10000000000000003");
+
+        assertThrows(cn.iocoder.yudao.framework.common.exception.ServiceException.class,
+                () -> invoiceOrderService.createPreOrder(buildValidPreOrder("02")));
+    }
+
+    @Test
+    public void testCreatePreOrder_sellerOnboardingGateInvoked() {
+        invoiceOrderService.createPreOrder(buildValidPreOrder("02"));
+        org.mockito.Mockito.verify(sellerOnboardingService)
+                .assertReadyForInvoiceByOutUserId("10000000000000003");
     }
 
     private InvoicePreOrderReqVO buildValidPreOrder(String invoiceType) {

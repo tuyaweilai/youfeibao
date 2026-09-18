@@ -58,6 +58,26 @@ public class IcbcNotifyParserTest {
     }
 
     @Test
+    public void testParse_infersFaceVerifyWithoutNotifyType() {
+        String body = "{\"appId\":\"A\",\"transNode\":\"N1\",\"outUserId\":\"USER_1\",\"verifyResult\":\"1\"}";
+
+        IcbcNotifyMessage message = parser.parse(body);
+
+        assertEquals(CallbackNotifyTypeEnum.FACE_VERIFY, message.getNotifyType());
+        assertEquals("USER_1", message.getBusinessId());
+    }
+
+    @Test
+    public void testParse_infersPayeeOnboardingWithoutNotifyType() {
+        String body = "{\"appId\":\"A\",\"outUserId\":\"USER_2\",\"result\":\"pass\",\"openacctStatus\":\"02\"}";
+
+        IcbcNotifyMessage message = parser.parse(body);
+
+        assertEquals(CallbackNotifyTypeEnum.PAYEE_ONBOARDING, message.getNotifyType());
+        assertEquals("USER_2", message.getBusinessId());
+    }
+
+    @Test
     public void testParse_invalidFormat() {
         assertServiceException(() -> parser.parse("not-json"), CALLBACK_DATA_FORMAT_ERROR);
         assertServiceException(() -> parser.parse("{\"notifyType\":\"99\"}"), CALLBACK_DATA_FORMAT_ERROR);

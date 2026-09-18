@@ -276,6 +276,14 @@ icbc:
   public-token:
     secret: ${ICBC_PUBLIC_TOKEN_SECRET:}
 
+  # 出售者建档：工行 UI 页面接口的回调 / 跳转地址，须为外网可达地址（不是工行地址）。
+  # 本地 fake 模式留空即可；联调时用 ngrok 等暴露出去。
+  seller-onboarding:
+    callback-url: ${ICBC_ONBOARDING_CALLBACK_URL:}
+    jump-url: ${ICBC_ONBOARDING_JUMP_URL:}
+    fail-jump-url: ${ICBC_ONBOARDING_FAIL_JUMP_URL:}
+    face-callback-url: ${ICBC_FACE_CALLBACK_URL:}
+
   api:
     # 应用ID（合作方编号）
     app-id: ${ICBC_APP_ID:}

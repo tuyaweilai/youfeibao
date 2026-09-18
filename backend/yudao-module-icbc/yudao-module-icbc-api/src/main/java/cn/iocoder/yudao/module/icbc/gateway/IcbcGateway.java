@@ -1,6 +1,8 @@
 package cn.iocoder.yudao.module.icbc.gateway;
 
 import cn.iocoder.yudao.module.icbc.gateway.model.EnterpriseAuthReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.FaceVerifyPageReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.FaceVerifyStatus;
 import cn.iocoder.yudao.module.icbc.gateway.model.IcbcConnectivity;
 import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceCancelReq;
@@ -34,6 +36,16 @@ import cn.iocoder.yudao.module.icbc.gateway.model.RedInvoiceRevokeResult;
  * 实现可替换：生产用 {@code IcbcSdkGateway}，测试注入 {@code FakeIcbcGateway}，测试不触网。
  */
 public interface IcbcGateway {
+
+    /**
+     * 实人认证 H5 页面：出售者建档的实名核验前置环节
+     */
+    IcbcGatewayResult<IcbcPage> submitFaceVerification(FaceVerifyPageReq req);
+
+    /**
+     * 实人认证结果查询
+     */
+    IcbcGatewayResult<FaceVerifyStatus> queryFaceVerification(String outUserId);
 
     /**
      * 收方入驻页面（实名 + 绑定银行卡）

@@ -2,10 +2,14 @@ package cn.iocoder.yudao.module.icbc.dal.dataobject.payee;
 
 import cn.iocoder.yudao.framework.tenant.core.db.TenantBaseDO;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOutcomeEnum;
+import cn.iocoder.yudao.module.icbc.enums.PayeeRealNameStatusEnum;
 import com.baomidou.mybatisplus.annotation.KeySequence;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.*;
+
+import java.time.LocalDateTime;
 
 /**
  * 工行收方信息 DO
@@ -114,5 +118,49 @@ public class PayeeInfoDO extends TenantBaseDO {
      * 关联企业名称
      */
     private String companyName;
+
+    // ==================== 出售者建档（#6） ====================
+
+    /**
+     * 实人认证状态：0-未认证，1-认证中，2-认证通过，3-认证未通过
+     *
+     * 枚举 {@link PayeeRealNameStatusEnum}
+     */
+    private Integer realNameStatus;
+
+    /**
+     * 实人认证失败原因
+     */
+    private String realNameMsg;
+
+    /**
+     * 实人认证通过时间
+     */
+    private LocalDateTime realNameTime;
+
+    /**
+     * 收方审核结果（result，原样透传）：pass / reject
+     */
+    private String auditResult;
+
+    /**
+     * 审核拒绝原因（可前置展示给收货员）
+     */
+    private String rejectReason;
+
+    /**
+     * 收方入驻结果：四种组合之一，见 {@link PayeeOnboardingOutcomeEnum}
+     */
+    private String onboardingState;
+
+    /**
+     * 证件签发日期 yyyy-MM-dd（收方入驻页面入参，透传）
+     */
+    private String idSignDate;
+
+    /**
+     * 证件截止日期 yyyy-MM-dd，永久有效传 9999-12-30（收方入驻页面入参，透传）
+     */
+    private String idValidityPeriod;
 
 } 

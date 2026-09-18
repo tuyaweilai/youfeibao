@@ -18,6 +18,12 @@ public interface RecyclingPermission {
     String PAYEE_QUERY = "icbc:payee-info:query";
     String PAYEE_EXPORT = "icbc:payee-info:export";
 
+    // ========== 出售者建档（实名 / 入驻 / 协议 / 授权） ==========
+
+    String SELLER_ONBOARDING_EXECUTE = "icbc:seller-onboarding:execute";
+    String SELLER_AGREEMENT_MANAGE = "icbc:seller-agreement:manage";
+    String SELLER_AUTHORIZATION_MANAGE = "icbc:seller-authorization:manage";
+
     // ========== 回收企业自身档案（付方） ==========
 
     String PAYER_CREATE = "icbc:payer-info:create";

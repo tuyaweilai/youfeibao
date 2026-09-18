@@ -34,7 +34,8 @@ public class IcbcNotifyParser {
         String decoded = decodeNotifyData(trimmed, outer);
         JSONObject payload = parseJson(decoded);
         String notifyTypeCode = payload.getString("notifyType");
-        CallbackNotifyTypeEnum notifyType = CallbackNotifyTypeEnum.of(notifyTypeCode);
+        CallbackNotifyTypeEnum notifyType = notifyTypeCode != null
+                ? CallbackNotifyTypeEnum.of(notifyTypeCode) : inferNotifyType(payload);
         if (notifyType == null) {
             throw exception(CALLBACK_DATA_FORMAT_ERROR);
         }
@@ -53,6 +54,21 @@ public class IcbcNotifyParser {
                 .notifyData(decoded)
                 .sign(sign)
                 .build();
+    }
+
+    /**
+     * 按特征字段推断通知类型。出售者建档的两类回调（实人认证、收方入驻）没有
+     * {@code notifyType}，但报文字段足以区分，据此复用同一个落表 / 重放入口。
+     */
+    private CallbackNotifyTypeEnum inferNotifyType(JSONObject payload) {
+        if (payload.containsKey("verifyResult")) {
+            return CallbackNotifyTypeEnum.FACE_VERIFY;
+        }
+        if (payload.containsKey("openacctStatus")
+                || (payload.containsKey("result") && payload.containsKey("outUserId"))) {
+            return CallbackNotifyTypeEnum.PAYEE_ONBOARDING;
+        }
+        return null;
     }
 
     /**

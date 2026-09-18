@@ -1,5 +1,7 @@
 -- Clean test tables
 DELETE FROM icbc_contact_lead;
+DELETE FROM icbc_seller_authorization;
+DELETE FROM icbc_framework_agreement;
 DELETE FROM icbc_public_token;
 DELETE FROM icbc_evidence;
 DELETE FROM icbc_callback_notify;

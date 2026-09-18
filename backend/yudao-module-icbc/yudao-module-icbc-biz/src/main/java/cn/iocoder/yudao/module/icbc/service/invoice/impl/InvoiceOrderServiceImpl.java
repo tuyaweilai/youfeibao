@@ -20,6 +20,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderGoods;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderReq;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.service.goodscfg.IcbcGoodsConfigService;
+import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -57,6 +58,9 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
     @Resource
     private IcbcGoodsConfigService goodsConfigService;
 
+    @Resource
+    private SellerOnboardingService sellerOnboardingService;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public InvoicePreOrderRespVO createPreOrder(InvoicePreOrderReqVO createReqVO) {
@@ -64,6 +68,9 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
         if (!qualificationService.isTenantReady()) {
             throw exception(ErrorCodeConstants.TENANT_NOT_READY);
         }
+
+        // 1.1 出售者建档门禁：审核未通过 / 未完成建档的出售者不能用于开票
+        sellerOnboardingService.assertReadyForInvoiceByOutUserId(createReqVO.getOutUserId());
 
         // 2. 参数校验
         validatePreOrderRequest(createReqVO);

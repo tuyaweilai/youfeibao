@@ -58,4 +58,8 @@ VALUES
 (5152, '补录证据', 'icbc:evidence:attach', 3, 1, 5151, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5153, '删除证据', 'icbc:evidence:delete', 3, 2, 5151, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5154, '导出证据包与台账', 'icbc:evidence:export', 3, 3, 5151, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5155, '生成公开令牌', 'icbc:public-token:create', 3, 4, 5151, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5155, '生成公开令牌', 'icbc:public-token:create', 3, 4, 5151, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 出售者建档（实名 / 入驻 / 框架协议 / 首次授权）
+(5133, '出售者建档', 'icbc:seller-onboarding:execute', 2, 2, 5100, 'payee-onboarding', '', 'icbc/payeeOnboarding/index', 'IcbcPayeeOnboarding', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5134, '框架收购协议', 'icbc:seller-agreement:manage', 3, 1, 5133, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5135, '首次授权', 'icbc:seller-authorization:manage', 3, 2, 5133, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');

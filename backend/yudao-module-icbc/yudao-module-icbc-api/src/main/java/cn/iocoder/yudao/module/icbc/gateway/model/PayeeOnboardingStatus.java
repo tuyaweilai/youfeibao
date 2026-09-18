@@ -30,6 +30,14 @@ public class PayeeOnboardingStatus {
      */
     private String openacctStatus;
     /**
+     * 收方审核结果（result，原样透传）：pass-审核通过，reject-审核拒绝
+     */
+    private String result;
+    /**
+     * 审核拒绝原因
+     */
+    private String rejectReason;
+    /**
      * 工行返回的账户标识（mediumId，原样透传）
      */
     private String mediumId;

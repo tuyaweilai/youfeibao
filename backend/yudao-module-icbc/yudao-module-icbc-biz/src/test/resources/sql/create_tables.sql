@@ -53,6 +53,14 @@ CREATE TABLE IF NOT EXISTS icbc_payee_info (
     icbc_openacct_status VARCHAR(32),
     occupation VARCHAR(50),
     company_name VARCHAR(100),
+    real_name_status TINYINT DEFAULT 0,
+    real_name_msg VARCHAR(500),
+    real_name_time DATETIME,
+    audit_result VARCHAR(10),
+    reject_reason VARCHAR(500),
+    onboarding_state VARCHAR(20),
+    id_sign_date VARCHAR(10),
+    id_validity_period VARCHAR(10),
     tenant_id BIGINT NOT NULL DEFAULT 0,
     creator VARCHAR(64) DEFAULT '',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -427,4 +435,51 @@ CREATE TABLE IF NOT EXISTS icbc_contact_lead (
 );
 
 CREATE INDEX IF NOT EXISTS idx_contact_lead_payee_id ON icbc_contact_lead(payee_id);
+
+-- icbc_framework_agreement table (框架收购协议)
+CREATE TABLE IF NOT EXISTS icbc_framework_agreement (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    payee_id BIGINT NOT NULL,
+    agreement_no VARCHAR(64) NOT NULL,
+    product_name VARCHAR(200) NOT NULL,
+    quantity VARCHAR(100) NOT NULL,
+    specification VARCHAR(100) NOT NULL,
+    recycle_period VARCHAR(100) NOT NULL,
+    settlement_method VARCHAR(200) NOT NULL,
+    sign_method VARCHAR(20),
+    signed_at DATETIME,
+    file_url VARCHAR(500),
+    status TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_framework_agreement_no UNIQUE (agreement_no)
+);
+CREATE INDEX IF NOT EXISTS idx_framework_agreement_payee_id ON icbc_framework_agreement(payee_id);
+
+-- icbc_seller_authorization table (出售者首次授权)
+CREATE TABLE IF NOT EXISTS icbc_seller_authorization (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    payee_id BIGINT NOT NULL,
+    reverse_invoice_authorized BOOLEAN NOT NULL DEFAULT FALSE,
+    tax_agency_authorized BOOLEAN NOT NULL DEFAULT FALSE,
+    authorized_at DATETIME,
+    channel VARCHAR(20),
+    operator VARCHAR(64),
+    evidence_url VARCHAR(500),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS idx_seller_authorization_payee_id ON icbc_seller_authorization(payee_id);
  

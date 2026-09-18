@@ -123,4 +123,14 @@ public interface ErrorCodeConstants {
     ErrorCode CONTACT_LEAD_NOT_EXISTS = new ErrorCode(1_030_012_005, "留联系方式记录不存在");
     ErrorCode PUBLIC_TOKEN_PURPOSE_INVALID = new ErrorCode(1_030_012_006, "令牌用途不合法");
     ErrorCode PUBLIC_TOKEN_BUSINESS_KEY_MISSING = new ErrorCode(1_030_012_007, "令牌缺少绑定的业务键");
+
+    // ========== 出售者建档 1-030-013-000 ==========
+    ErrorCode SELLER_REAL_NAME_NOT_PASSED = new ErrorCode(1_030_013_000, "出售者实人认证未通过，不能继续收方入驻");
+    ErrorCode SELLER_ONBOARDING_NOT_READY = new ErrorCode(1_030_013_001, "出售者收方入驻未完成或未通过，不能用于开票");
+    ErrorCode FRAMEWORK_AGREEMENT_NOT_EXISTS = new ErrorCode(1_030_013_002, "框架收购协议不存在");
+    ErrorCode FRAMEWORK_AGREEMENT_REQUIRED = new ErrorCode(1_030_013_003, "出售者尚未签署生效的框架收购协议");
+    ErrorCode SELLER_AUTHORIZATION_NOT_EXISTS = new ErrorCode(1_030_013_004, "出售者首次授权不存在");
+    ErrorCode SELLER_AUTHORIZATION_INCOMPLETE = new ErrorCode(1_030_013_005, "出售者尚未完成反向开票与代办税费授权");
+    ErrorCode SELLER_REAL_NAME_RESULT_UNKNOWN = new ErrorCode(1_030_013_006, "实人认证结果尚未返回");
+    ErrorCode SELLER_BANK_CARD_REQUIRED = new ErrorCode(1_030_013_007, "出售者未绑定银行卡，不能发起收方入驻");
 } 

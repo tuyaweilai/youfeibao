@@ -3,6 +3,8 @@ package cn.iocoder.yudao.module.icbc.gateway.fake;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGatewayResult;
 import cn.iocoder.yudao.module.icbc.gateway.model.EnterpriseAuthReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.FaceVerifyPageReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.FaceVerifyStatus;
 import cn.iocoder.yudao.module.icbc.gateway.model.IcbcConnectivity;
 import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceCancelReq;
@@ -43,6 +45,8 @@ public class FakeIcbcGateway implements IcbcGateway {
     /**
      * 操作名常量，供断言使用
      */
+    public static final String OP_SUBMIT_FACE_VERIFICATION = "submitFaceVerification";
+    public static final String OP_QUERY_FACE_VERIFICATION = "queryFaceVerification";
     public static final String OP_SUBMIT_PAYEE_ONBOARDING = "submitPayeeOnboarding";
     public static final String OP_QUERY_PAYEE_ONBOARDING = "queryPayeeOnboarding";
     public static final String OP_SUBMIT_ENTERPRISE_AUTHORIZATION = "submitEnterpriseAuthorization";
@@ -57,6 +61,10 @@ public class FakeIcbcGateway implements IcbcGateway {
 
     private final List<IcbcInvocation> invocations = new CopyOnWriteArrayList<>();
 
+    private IcbcGatewayResult<IcbcPage> faceVerifyPageResult =
+            IcbcGatewayResult.success(IcbcPage.builder().formHtml("<form id=\"face-verify\"></form>").build(), 0, "成功");
+    private IcbcGatewayResult<FaceVerifyStatus> faceVerifyStatusResult =
+            IcbcGatewayResult.success(FaceVerifyStatus.builder().outUserId("x").authResult("02").passed(true).build(), 0, "成功");
     private IcbcGatewayResult<IcbcPage> payeeOnboardingResult =
             IcbcGatewayResult.success(IcbcPage.builder().formHtml("<form id=\"payee-onboarding\"></form>").build(), 0, "成功");
     private IcbcGatewayResult<PayeeOnboardingStatus> payeeOnboardingStatusResult =
@@ -83,6 +91,18 @@ public class FakeIcbcGateway implements IcbcGateway {
                     .returnMsg("未查询到收方信息").build(), 30601006, "未查询到收方信息");
 
     // ==================== 端口实现 ====================
+
+    @Override
+    public IcbcGatewayResult<IcbcPage> submitFaceVerification(FaceVerifyPageReq req) {
+        record(OP_SUBMIT_FACE_VERIFICATION, req);
+        return faceVerifyPageResult;
+    }
+
+    @Override
+    public IcbcGatewayResult<FaceVerifyStatus> queryFaceVerification(String outUserId) {
+        record(OP_QUERY_FACE_VERIFICATION, outUserId);
+        return faceVerifyStatusResult;
+    }
 
     @Override
     public IcbcGatewayResult<IcbcPage> submitPayeeOnboarding(PayeeOnboardingPageReq req) {
@@ -203,6 +223,14 @@ public class FakeIcbcGateway implements IcbcGateway {
     }
 
     // ==================== 结果覆盖 ====================
+
+    public void setFaceVerifyPageResult(IcbcGatewayResult<IcbcPage> result) {
+        this.faceVerifyPageResult = result;
+    }
+
+    public void setFaceVerifyStatusResult(IcbcGatewayResult<FaceVerifyStatus> result) {
+        this.faceVerifyStatusResult = result;
+    }
 
     public void setPayeeOnboardingResult(IcbcGatewayResult<IcbcPage> result) {
         this.payeeOnboardingResult = result;

@@ -9,6 +9,8 @@ public final class IcbcApiPaths {
 
     public static final String PAYEE_ONBOARDING_PAGE = "/ui/jft/ui/user/edpopenacct/submit/V1";
     public static final String PAYEE_ONBOARDING_QUERY = "/api/jft/api/user/edpopenacct/query/V1";
+    public static final String FACE_VERIFY_PAGE = "/ui/jft/ui/user/faceH5/submit/V1";
+    public static final String FACE_VERIFY_QUERY = "/api/jft/api/user/faceH5/query/V1";
     public static final String ENTERPRISE_AUTHORIZATION = "/ui/jft/ui/invoice/authorization/V1";
     public static final String PRE_ORDER = "/ui/jft/ui/invoice/pre/order/V1";
     public static final String INVOICE_QUERY = "/api/jft/api/invoice/queryInvoiceInfo/V1";

@@ -13,8 +13,10 @@ import org.springframework.test.context.jdbc.Sql;
 
 import javax.annotation.Resource;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -74,9 +76,13 @@ public class CallbackNotifyServiceImplTest extends BaseDbUnitTest {
 
     @Test
     public void testReceive_allNineTypesPersisted() {
-        // 九类通知各投递一条（只有支付类有处理器，其余落表为待处理失败）
+        // 银税協同的九类通知各投递一条（只有支付类有处理器，其余落表为待处理失败）
+        List<CallbackNotifyTypeEnum> bankTypes = Arrays.stream(CallbackNotifyTypeEnum.values())
+                .filter(type -> type.getType().matches("0[1-9]"))
+                .collect(Collectors.toList());
+        assertEquals(9, bankTypes.size(), "银税協同应有九类通知");
         int index = 0;
-        for (CallbackNotifyTypeEnum type : CallbackNotifyTypeEnum.values()) {
+        for (CallbackNotifyTypeEnum type : bankTypes) {
             index++;
             callbackNotifyService.receive(envelope("NOTIFY_" + index, type.getType(), "ORDER_" + index));
         }

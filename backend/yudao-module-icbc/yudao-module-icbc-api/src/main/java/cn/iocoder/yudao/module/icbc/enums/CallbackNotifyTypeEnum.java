@@ -11,6 +11,10 @@ import java.util.Arrays;
  * 来源：`docs/icbc/银税协同通知报文说明-250331.doc`，共九类。报文外层为
  * `{ "notifyData": "<base64 JSON>", "signData": "..." }`。
  * 这九类从同一个入口进入、一律先落表后处理。
+ *
+ * <p>此外，出售者建档（#6）的两类回调（实人认证、收方入驻）也收在同一个入口：
+ * 它们的报文没有 {@code notifyType} 字段，由 {@code IcbcNotifyParser} 按特征字段
+ * 推断为 {@link #FACE_VERIFY} 与 {@link #PAYEE_ONBOARDING}，以复用落表 + 重放能力。
  */
 @Getter
 @AllArgsConstructor
@@ -24,7 +28,11 @@ public enum CallbackNotifyTypeEnum {
     INVOICE_CANCEL("06", "发票取消"),
     RED_APPLY("07", "红票申请"),
     RED_UPLOAD("08", "红票上传"),
-    RED_REVOKE("09", "红票撤销");
+    RED_REVOKE("09", "红票撤销"),
+    /** 出售者建档：实人认证结果通知（报文无 notifyType，由特征字段推断） */
+    FACE_VERIFY("10", "实人认证结果"),
+    /** 出售者建档：收方入驻 / 审核结果通知（报文无 notifyType，由特征字段推断） */
+    PAYEE_ONBOARDING("11", "收方入驻结果");
 
     /**
      * 通知类型编码
