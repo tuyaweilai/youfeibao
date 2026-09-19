@@ -85,6 +85,19 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 > **绑定身份的租户口径**：`bindSubject` 运行在扫码企业的租户下，但登录凭证落在平台租户，读凭证必须回到平台租户（`inPlatformTenant`）；否则手机号一致性校验会被静默跳过。
 
+## #32 计价模型（已完成，提交 `6d03243`）
+
+按 [ADR 0019](docs/adr/0019-结算重量为唯一计价基准.md) 让收购单表达现场真实计价，**是 #33 的硬前置**。
+
+1. `icbc_acquisition` 新增：`deduction`（扣杂原始值）、`deduction_method`（WEIGHT/RATIO）、`settlement_weight`、`adjustment_amount`、`adjustment_reason`、`quantity_note`、`driver_name`、`driver_mobile`。字段 `realNameStatus` 之外无其他迁移。
+2. **结算重量 = 毛重 − 皮重 − 扣杂**，唯一计价基准；**金额 = 结算重量 × 单价 + 调整项**；数量降级为展示与发票明细字段。
+3. 扣杂支持按重量 / 按比例，只存原始录法 + 换算结果；调整项非零必须带原因；结算重量不得为负。历史数据扣杂按 0 兼容，旧单金额不回算。
+4. 发票明细 `icbc_order_item.quantity_note` 保留口径说明（发票数量与磅单净重不再相等）。
+5. 现场端（`yudao-ui-field-uniapp/pages/acquisition`）可录扣杂 / 调整项 / 司机，并实时展示结算重量与金额推算。
+6. 迁移 SQL 在 `sql/mysql/icbc-acquisition.sql`（幂等），测试建表同步。
+
+> **#33 现在已解锁**（原 `Blocked by: #32`）。#33 是本次升级的核心：结算单聚合、确认门禁 `SETTLEMENT_CONFIRMED`、异议与版本快照、超时转线下签字、确认记录进合同流。
+
 ## #5 剩余小口子（已处理）
 
 1. 计税方法：已在 `icbc_goods_config` 增加 `tax_method`（SIMPLE/GENERAL），预下单时简易计税品类禁止开专票（票种 01）。
