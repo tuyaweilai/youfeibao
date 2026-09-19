@@ -50,7 +50,7 @@ public interface PaymentService {
                             String actuallyReceivedAmount, String serialNo, String icbcOrderId);
 
     /**
-     * 取转账回单归档信息（仅支付成功 / 部分成功后可取）。
+     * 取转账回单归档信息。仅完整支付成功后才有回单；部分成功等异常态请用状态查询看流水与到账金额。
      */
     PaymentReceiptRespVO getReceipt(String partnerOrderId);
 

@@ -361,8 +361,7 @@ public class PaymentServiceImpl implements PaymentService {
         if (order == null) {
             throw exception(PAYMENT_ORDER_NOT_EXISTS);
         }
-        if (!PaymentStatusEnum.isSuccess(order.getPaymentStatus())
-                && !PaymentStatusEnum.PARTIAL_SUCCESS.getStatus().equals(order.getPaymentStatus())) {
+        if (!PaymentStatusEnum.isSuccess(order.getPaymentStatus())) {
             throw exception(PAYMENT_RECEIPT_NOT_AVAILABLE);
         }
         PaymentReceiptRespVO resp = new PaymentReceiptRespVO();

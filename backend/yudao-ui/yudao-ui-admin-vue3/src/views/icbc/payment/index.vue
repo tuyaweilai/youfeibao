@@ -156,9 +156,7 @@ const handleReInitiate = async () => {
   await handleApply()
 }
 
-const canViewReceipt = computed(
-  () => status.value?.paymentStatus === 2 || status.value?.paymentStatus === 9
-)
+const canViewReceipt = computed(() => status.value?.paymentStatus === 2)
 
 const receiptVisible = ref(false)
 const receipt = ref<PaymentReceiptVO>()

@@ -315,6 +315,25 @@ public class PaymentServiceImplTest extends BaseDbUnitTest {
                 PAYMENT_RECEIPT_NOT_AVAILABLE);
     }
 
+    @Test
+    public void testGetReceipt_notAvailableOnPartialSuccess() {
+        // 部分成功不是完整支付成功：不归档回单，回单接口应拒绝，异常态留在状态查询里看
+        stubInvoiceOrder(PreInvoiceStatusEnum.SUCCESS);
+        insertPaymentOrder(PaymentStatusEnum.PENDING, 0);
+        paymentService.applyPaymentStatus(PARTNER_ORDER_ID, "25", "1000.00", "600.00", "SN-PART", null);
+
+        assertServiceException(() -> paymentService.getReceipt(PARTNER_ORDER_ID),
+                PAYMENT_RECEIPT_NOT_AVAILABLE);
+
+        PaymentOrderDO order = paymentOrderMapper.selectByPartnerOrderId(PARTNER_ORDER_ID);
+        assertEquals(PaymentStatusEnum.PARTIAL_SUCCESS.getStatus(), order.getPaymentStatus());
+        assertNull(order.getReceiptNo());
+        assertNull(order.getReceiptTime());
+        // 到账与流水仍可在支付单上看到
+        assertEquals(new BigDecimal("600.00"), order.getActuallyReceivedAmount());
+        assertEquals("SN-PART", order.getPaymentSerialNo());
+    }
+
     // ==================== 造数据 ====================
 
     private PaymentApplyReqVO buildApply(String partnerOrderId, BigDecimal amount) {
