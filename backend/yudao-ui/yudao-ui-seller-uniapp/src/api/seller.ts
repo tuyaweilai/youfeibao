@@ -49,6 +49,8 @@ export interface SellerHome {
   pendingAgreementCount?: number
   pendingItems?: PendingItem[]
   amountScopeNote?: string
+  stationId?: number
+  stationName?: string
 }
 
 export interface SellerRecord {
@@ -161,8 +163,8 @@ export interface SellerProfile {
   bankCards?: SellerBankCard[]
 }
 
-export const getHome = (naturalPersonId: number) =>
-  appGet<SellerHome>('/icbc/seller/portal/home', { naturalPersonId })
+export const getHome = (naturalPersonId: number, stationId?: number) =>
+  appGet<SellerHome>('/icbc/seller/portal/home', { naturalPersonId, stationId })
 
 export const getRecordGroups = (naturalPersonId: number) =>
   appGet<SellerRecordGroup[]>('/icbc/seller/portal/records', { naturalPersonId })

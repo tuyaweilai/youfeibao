@@ -30,4 +30,10 @@ public class SellerHomeRespVO {
     @Schema(description = "金额口径说明（ADR 0021）：所有金额为本平台累计，不含其他渠道")
     private String amountScopeNote;
 
+    @Schema(description = "当前场站编号（扫码进入时带上；为空表示不是从场站码进来）", example = "3072")
+    private Long stationId;
+
+    @Schema(description = "当前场站名称（只在扫码进入时有值）", example = "城东收货点")
+    private String stationName;
+
 }

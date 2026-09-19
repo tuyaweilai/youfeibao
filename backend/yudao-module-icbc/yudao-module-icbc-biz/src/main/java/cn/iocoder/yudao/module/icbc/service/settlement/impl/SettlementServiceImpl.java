@@ -26,6 +26,7 @@ import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.notify.SellerNotifyService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
 import cn.iocoder.yudao.module.icbc.service.settlement.SettlementService;
+import cn.iocoder.yudao.module.icbc.service.station.StationService;
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -72,6 +73,9 @@ public class SettlementServiceImpl implements SettlementService {
     private int replyTimeoutDays;
     @Value("${icbc.settlement.uninvoiced-timeout-days:30}")
     private int uninvoicedTimeoutDays;
+    /** 班次窗口（小时）：只用来建议把哪几张并进一个结算单，不自动合并（ADR 0018） */
+    @Value("${icbc.settlement.shift-hours:4}")
+    private int shiftHours;
 
     @Resource
     private IcbcSettlementMapper settlementMapper;
@@ -87,6 +91,8 @@ public class SettlementServiceImpl implements SettlementService {
     private NaturalPersonService naturalPersonService;
     @Resource
     private SellerNotifyService sellerNotifyService;
+    @Resource
+    private StationService stationService;
 
     // ==================== 生成 ====================
 
@@ -94,9 +100,11 @@ public class SettlementServiceImpl implements SettlementService {
     @Transactional(rollbackFor = Exception.class)
     public Long generate(@Valid SettlementGenerateReqVO reqVO) {
         PayeeInfoDO payee = payeeInfoService.getPayeeInfo(reqVO.getPayeeId());
-        // 现场动作是唯一可信的批次边界：只取「同一出售者、尚未归入结算单、且未作废」的收购单
-        List<IcbcAcquisitionDO> acquisitions =
-                acquisitionMapper.selectUngroupedByPayeeId(reqVO.getPayeeId(), reqVO.getBatchKey());
+        // 一次到场批次 = 同出售者 + 同场站（ADR 0018）；现场动作是唯一可信的批次边界。
+        Long stationId = reqVO.getStationId();
+        String stationName = resolveStationName(stationId);
+        List<IcbcAcquisitionDO> acquisitions = acquisitionMapper
+                .selectUngroupedByPayeeId(reqVO.getPayeeId(), stationId, reqVO.getBatchKey());
         if (acquisitions.isEmpty()) {
             throw exception(SETTLEMENT_NO_ACQUISITION);
         }
@@ -108,6 +116,8 @@ public class SettlementServiceImpl implements SettlementService {
                 .naturalPersonId(person.getId())
                 .sellerName(payee.getName())
                 .sellerMobile(payee.getMobile())
+                .stationId(stationId)
+                .stationName(stationName)
                 .batchKey(reqVO.getBatchKey())
                 .generateTime(now)
                 .generatedBy(SecurityFrameworkUtils.getLoginUserId())
@@ -139,6 +149,23 @@ public class SettlementServiceImpl implements SettlementService {
     }
 
     // ==================== 查询 ====================
+
+    @Override
+    public SettlementBatchSuggestionVO getBatchSuggestion(Long payeeId, Long stationId) {
+        LocalDateTime after = LocalDateTime.now().minusHours(shiftHours);
+        List<IcbcAcquisitionDO> acquisitions = acquisitionMapper
+                .selectUngroupedInWindow(payeeId, stationId, after);
+        SettlementBatchSuggestionVO resp = new SettlementBatchSuggestionVO();
+        resp.setPayeeId(payeeId);
+        resp.setStationId(stationId);
+        resp.setStationName(resolveStationName(stationId));
+        resp.setShiftHours(shiftHours);
+        resp.setCount(acquisitions.size());
+        resp.setSuggestionNote("系统按同出售者 + 同场站 + 最近 " + shiftHours
+                + " 小时建议，是否合并由你点「结束本次收货」决定（不自动合并）");
+        resp.setAcquisitions(acquisitions.stream().map(this::toLineResp).toList());
+        return resp;
+    }
 
     @Override
     public PageResult<SettlementRespVO> getPage(SettlementPageReqVO reqVO) {
@@ -453,6 +480,8 @@ public class SettlementServiceImpl implements SettlementService {
         snapshot.put("settlementNo", settlement.getSettlementNo());
         snapshot.put("payeeId", settlement.getPayeeId());
         snapshot.put("naturalPersonId", settlement.getNaturalPersonId());
+        snapshot.put("stationId", settlement.getStationId());
+        snapshot.put("stationName", settlement.getStationName());
         List<Map<String, Object>> lines = new ArrayList<>();
         BigDecimal totalWeight = BigDecimal.ZERO;
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -514,6 +543,10 @@ public class SettlementServiceImpl implements SettlementService {
     }
 
     // ==================== 映射 ====================
+
+    private String resolveStationName(Long stationId) {
+        return stationId == null ? null : stationService.getStation(stationId).getName();
+    }
 
     private SettlementRespVO toSimpleResp(IcbcSettlementDO settlement) {
         IcbcSettlementVersionDO current = currentVersion(settlement);

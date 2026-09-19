@@ -32,6 +32,7 @@ import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import cn.iocoder.yudao.module.icbc.service.sellerportal.SellerPortalService;
 import cn.iocoder.yudao.module.icbc.service.settlement.SettlementService;
+import cn.iocoder.yudao.module.icbc.service.station.StationService;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenService;
 import cn.iocoder.yudao.module.icbc.util.MaskUtils;
 import cn.iocoder.yudao.module.system.api.tenant.TenantApi;
@@ -110,20 +111,24 @@ public class SellerPortalServiceImpl implements SellerPortalService {
     @Resource
     private PayeeBankCardChangeService payeeBankCardChangeService;
     @Resource
+    private StationService stationService;
+    @Resource
     private PublicTokenService publicTokenService;
 
     // ==================== 首页 ====================
 
     @Override
-    public SellerHomeRespVO getHome(Long naturalPersonId) {
+    public SellerHomeRespVO getHome(Long naturalPersonId, Long stationId) {
         assertBound(naturalPersonId);
         List<PayeeInfoDO> payees = payeesOf(naturalPersonId);
         Map<Long, PayeeInfoDO> payeeById = payees.stream()
                 .collect(Collectors.toMap(PayeeInfoDO::getId, Function.identity(), (a, b) -> a));
 
         List<SellerPendingItemVO> items = new ArrayList<>();
-        // 1) 待确认结算单：待确认 / 需线下签字（有异议是等企业回复，不算他需要动作的事）
-        TenantUtils.executeIgnore(() -> settlementMapper.selectListByNaturalPersonId(naturalPersonId))
+        // 1) 待确认结算单：待确认 / 需线下签字（有异议是等企业回复，不算他需要动作的事）。
+        //    扫码进入时按「该场站 + 该自然人主体」匹配（#34 / ADR 0018）；不传场站则不按场站筛。
+        TenantUtils.executeIgnore(() -> settlementMapper
+                        .selectListByNaturalPersonIdAndStation(naturalPersonId, stationId))
                 .stream()
                 .filter(settlement -> PENDING_SETTLEMENT_STATUSES.contains(settlement.getConfirmStatus()))
                 .forEach(settlement -> items.add(toPendingSettlement(settlement)));
@@ -141,6 +146,10 @@ public class SellerPortalServiceImpl implements SellerPortalService {
         resp.setPendingAgreementCount((int) items.stream()
                 .filter(item -> "AGREEMENT".equals(item.getType())).count());
         resp.setAmountScopeNote("本平台累计，不含你在其他渠道的交易");
+        resp.setStationId(stationId);
+        if (stationId != null) {
+            resp.setStationName(TenantUtils.executeIgnore(() -> stationService.getStation(stationId).getName()));
+        }
         return resp;
     }
 

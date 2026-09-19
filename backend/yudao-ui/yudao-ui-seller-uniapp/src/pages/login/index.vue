@@ -41,6 +41,7 @@ const auth = useSellerAuthStore()
 const mobile = ref('')
 const code = ref('')
 const stationCode = ref('')
+const stationId = ref('')
 const error = ref('')
 const submitting = ref(false)
 const counting = ref(0)
@@ -48,9 +49,10 @@ let timer: ReturnType<typeof setInterval> | null = null
 
 onLoad((query) => {
   stationCode.value = (query?.station as string) || ''
+  stationId.value = (query?.stationId as string) || ''
   // 已登录直接进首页
   if (auth.token && auth.subject) {
-    uni.redirectTo({ url: '/pages/home/index' })
+    uni.redirectTo({ url: `/pages/home/index?stationId=${stationId.value}` })
   }
 })
 
@@ -102,7 +104,7 @@ async function onLogin() {
     if (subjects.length === 0) {
       // 没有匹配到任何身份：只留登录凭证，进首页给明确空态，不造假列表
       auth.signIn(resp.accessToken, null)
-      uni.redirectTo({ url: '/pages/home/index?empty=1' })
+      uni.redirectTo({ url: `/pages/home/index?empty=1&stationId=${stationId.value}` })
       return
     }
     const first = subjects[0]
@@ -113,7 +115,7 @@ async function onLogin() {
       idCardNo: first.idCardNo,
       realNameStatusName: first.realNameStatusName
     })
-    uni.redirectTo({ url: '/pages/home/index' })
+    uni.redirectTo({ url: `/pages/home/index?stationId=${stationId.value}` })
   } catch (e) {
     error.value = (e as Error).message
   } finally {

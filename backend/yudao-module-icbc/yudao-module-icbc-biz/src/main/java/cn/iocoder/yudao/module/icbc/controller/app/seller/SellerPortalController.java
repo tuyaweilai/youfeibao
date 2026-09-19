@@ -38,8 +38,10 @@ public class SellerPortalController {
     @GetMapping("/home")
     @Operation(summary = "首页摘要（待我确认）")
     @Parameter(name = "naturalPersonId", description = "自然人主体编号", required = true)
-    public CommonResult<SellerHomeRespVO> home(@RequestParam("naturalPersonId") Long naturalPersonId) {
-        return success(sellerPortalService.getHome(naturalPersonId));
+    @Parameter(name = "stationId", description = "场站编号（扫码进入时带上；待确认结算单按该场站匹配）")
+    public CommonResult<SellerHomeRespVO> home(@RequestParam("naturalPersonId") Long naturalPersonId,
+                                               @RequestParam(value = "stationId", required = false) Long stationId) {
+        return success(sellerPortalService.getHome(naturalPersonId, stationId));
     }
 
     @GetMapping("/records")

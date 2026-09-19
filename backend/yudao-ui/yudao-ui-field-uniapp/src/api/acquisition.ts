@@ -3,6 +3,8 @@ import { get, post } from '@/utils/request'
 export interface AcquisitionCreateReq {
   clientRequestId?: string
   payeeId: number
+  /** 场站编号：一次到场批次按「出售者 + 场站」聚合 */
+  stationId?: number
   goodsConfigId: number
   specification?: string
   quantity?: number

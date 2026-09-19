@@ -17,7 +17,7 @@ public interface SellerPortalService {
     /**
      * 首页摘要：待我确认（待签协议 + 待确认结算单）。
      */
-    SellerHomeRespVO getHome(Long naturalPersonId);
+    SellerHomeRespVO getHome(Long naturalPersonId, Long stationId);
 
     /**
      * 卖货记录，按回收企业分组。

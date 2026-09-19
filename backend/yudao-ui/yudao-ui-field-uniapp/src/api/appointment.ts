@@ -10,6 +10,7 @@ export interface AppointmentVO {
   id: number
   appointmentNo?: string
   sellerName?: string
+  stationId?: number
   stationName?: string
   goodsConfigId?: number
   categoryName?: string

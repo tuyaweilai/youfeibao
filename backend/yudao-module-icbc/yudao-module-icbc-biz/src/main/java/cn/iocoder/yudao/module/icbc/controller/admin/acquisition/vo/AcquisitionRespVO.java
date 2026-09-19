@@ -25,6 +25,9 @@ public class AcquisitionRespVO {
     @Schema(description = "出售者档案编号", example = "1024")
     private Long payeeId;
 
+    @Schema(description = "场站编号（一次到场批次按「出售者 + 场站」聚合）", example = "3072")
+    private Long stationId;
+
     @Schema(description = "出售者姓名", example = "张三")
     private String sellerName;
 

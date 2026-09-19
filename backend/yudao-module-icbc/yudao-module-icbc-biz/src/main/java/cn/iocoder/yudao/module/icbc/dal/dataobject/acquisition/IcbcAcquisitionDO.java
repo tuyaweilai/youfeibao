@@ -129,6 +129,9 @@ public class IcbcAcquisitionDO extends TenantBaseDO {
     /** 所属结算单编号；为空表示尚未归入结算单（可被「结束本次收货」归组） */
     private Long settlementId;
 
+    /** 场站编号（ADR 0018：一次到场批次按「出售者 + 场站」聚合；历史数据为空） */
+    private Long stationId;
+
     /** 离线批次键：现场端同一批用同一个值，补传后服务端按它归入同一结算单 */
     private String batchKey;
 

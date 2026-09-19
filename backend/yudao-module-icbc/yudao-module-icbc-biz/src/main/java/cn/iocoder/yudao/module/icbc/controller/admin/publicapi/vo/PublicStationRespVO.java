@@ -18,6 +18,9 @@ public class PublicStationRespVO {
     @Schema(description = "场站码（二维码内编码的值）", example = "STATION_A")
     private String stationCode;
 
+    @Schema(description = "场站编号（登录后按「该场站 + 该自然人主体」匹配待确认结算单时回传）", example = "3072")
+    private Long stationId;
+
     @Schema(description = "回收企业名称", example = "某某再生资源有限公司")
     private String enterpriseName;
 

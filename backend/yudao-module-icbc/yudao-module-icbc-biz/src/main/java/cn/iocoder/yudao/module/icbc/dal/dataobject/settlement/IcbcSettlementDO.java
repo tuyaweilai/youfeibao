@@ -47,6 +47,12 @@ public class IcbcSettlementDO extends TenantBaseDO {
     /** 出售者联系方式快照 */
     private String sellerMobile;
 
+    /** 场站编号（ADR 0018：一次到场批次 = 同出售者 + 同场站；历史数据为空） */
+    private Long stationId;
+
+    /** 场站名称快照（生成时固化，避免场站改名后历史结算单对不上） */
+    private String stationName;
+
     /** 离线批次键（现场端同一批用同一个值；在线为空） */
     private String batchKey;
 

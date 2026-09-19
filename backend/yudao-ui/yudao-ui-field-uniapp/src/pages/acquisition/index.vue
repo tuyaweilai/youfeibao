@@ -65,6 +65,15 @@
         </view>
       </view>
 
+      <!-- 场站：一次到场批次按「出售者 + 场站」聚合（ADR 0018） -->
+      <view class="card">
+        <view class="card__title">场站</view>
+        <picker :range="stationNames" :value="stationIndex < 0 ? 0 : stationIndex" @change="onStationChange">
+          <view class="picker">{{ selectedStation?.name || '请选择场站' }}</view>
+        </picker>
+        <view class="hint">同一位出售者在同一场站的收购单会并进同一张结算单。</view>
+      </view>
+
       <!-- 品类 -->
       <view class="card">
         <view class="card__title">品类</view>
@@ -206,6 +215,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getEnabledGoodsList, GoodsConfigVO } from '@/api/goodsConfig'
 import { findReturningCustomer, PayeeVO } from '@/api/payee'
+import { getStationPage, StationVO } from '@/api/station'
 import { createAcquisition, AcquisitionCreateReq, AcquisitionCreateResp } from '@/api/acquisition'
 import {
   AppointmentVO,
@@ -230,6 +240,8 @@ const photos: { key: PhotoKey; label: string }[] = [
 
 const goodsList = ref<GoodsConfigVO[]>([])
 const goodsIndex = ref(-1)
+const stations = ref<StationVO[]>([])
+const stationIndex = ref(-1)
 const seller = ref<PayeeVO | null>(null)
 const lookedUp = ref(false)
 const looking = ref(false)
@@ -262,6 +274,7 @@ const photoData = reactive<Record<PhotoKey, string>>({
 const lookup = reactive({ idCardNo: '', mobile: '' })
 const form = reactive({
   payeeId: undefined as number | undefined,
+  stationId: undefined as number | undefined,
   goodsConfigId: undefined as number | undefined,
   specification: '',
   quantity: '',
@@ -292,6 +305,13 @@ function onDeductionMethodChange(event: any) {
 }
 
 const goodsNames = computed(() => goodsList.value.map((item) => item.name || ''))
+const stationNames = computed(() => stations.value.map((item) => item.name || item.stationCode || ''))
+const selectedStation = computed(() => (stationIndex.value >= 0 ? stations.value[stationIndex.value] : undefined))
+
+function onStationChange(event: any) {
+  stationIndex.value = Number(event.detail.value)
+  form.stationId = selectedStation.value?.id
+}
 const selectedGoods = computed(() => (goodsIndex.value >= 0 ? goodsList.value[goodsIndex.value] : undefined))
 const taxRateText = computed(() =>
   selectedGoods.value?.taxRate != null ? `${Number(selectedGoods.value.taxRate) * 100}%` : '-'
@@ -315,7 +335,18 @@ const plateClass = computed(() => ({
 
 onLoad(() => {
   loadGoods()
+  loadStations()
 })
+
+async function loadStations() {
+  try {
+    const page = await getStationPage()
+    stations.value = page.list || []
+  } catch (e) {
+    // 场站拉不到不阻断登记；提交时只是缺场站维度
+    stations.value = []
+  }
+}
 
 async function loadGoods() {
   try {
@@ -467,6 +498,16 @@ async function loadAppointments(payeeId: number) {
 function applyAppointment(item: AppointmentVO) {
   selectedAppointmentId.value = item.id
   prefilledQuantityText.value = item.expectedQuantityText || ''
+  // 到场预约带出场站：这笔收购单因此能归入该场站的结算单（ADR 0018）
+  if (item.stationId != null) {
+    const stationIdx = stations.value.findIndex((station) => station.id === item.stationId)
+    if (stationIdx >= 0) {
+      stationIndex.value = stationIdx
+      form.stationId = item.stationId
+    } else {
+      form.stationId = item.stationId
+    }
+  }
   if (item.goodsConfigId) {
     const index = goodsList.value.findIndex((goods) => goods.id === item.goodsConfigId)
     if (index >= 0) {
@@ -532,6 +573,7 @@ function buildPayload(): AcquisitionCreateReq {
   return {
     clientRequestId: clientRequestId.value,
     payeeId: form.payeeId!,
+    stationId: form.stationId,
     goodsConfigId: form.goodsConfigId!,
     specification: form.specification || undefined,
     quantity: toNum(form.quantity) ?? undefined,

@@ -16,6 +16,10 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.authorization.IcbcSellerAuthorizat
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.settlement.IcbcSettlementDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.station.IcbcStationDO;
+import cn.iocoder.yudao.module.icbc.dal.mysql.settlement.IcbcSettlementMapper;
+import cn.iocoder.yudao.module.icbc.enums.SettlementConfirmStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
@@ -85,9 +89,14 @@ public class SellerPortalServiceTest extends BaseDbUnitTest {
 
     @Resource
     private PayeeBankCardChangeService bankCardChangeService;
+    @Resource
+    private IcbcSettlementMapper settlementMapper;
 
     @MockBean
     private PublicTokenService publicTokenService;
+
+    @MockBean
+    private cn.iocoder.yudao.module.icbc.service.station.StationService stationService;
 
 
     @MockBean
@@ -107,8 +116,28 @@ public class SellerPortalServiceTest extends BaseDbUnitTest {
     public void testNotBound_rejected() {
         IcbcNaturalPersonDO person = register("110101199001011234", "13800138000");
         setLoginUser(MEMBER_USER_ID);
-        assertServiceException(() -> sellerPortalService.getHome(person.getId()),
+        assertServiceException(() -> sellerPortalService.getHome(person.getId(), null),
                 NATURAL_PERSON_NOT_BOUND_TO_LOGIN);
+    }
+
+    @Test
+    public void testHome_pendingSettlementMatchedByStation() {
+        IcbcNaturalPersonDO person = register("110101199001011234", "13800138000");
+        bindLogin(person);
+        PayeeInfoDO payee = insertPayee(person.getId(), 1L, "PARTNER_A");
+        insertSettlement(payee, 101L, SettlementConfirmStatusEnum.PENDING.getStatus());
+        insertSettlement(payee, 102L, SettlementConfirmStatusEnum.PENDING.getStatus());
+        when(stationService.getStation(101L)).thenReturn(station(101L, "城东"));
+
+        // 扫城东的码：只看到城东那张待确认（按「该场站 + 该自然人主体」匹配）
+        SellerHomeRespVO east = sellerPortalService.getHome(person.getId(), 101L);
+        assertEquals(1, east.getPendingSettlementCount());
+        assertEquals(101L, east.getStationId());
+        assertEquals("城东", east.getStationName());
+
+        // 不传场站（令牌链接入口）：两张都能看到
+        SellerHomeRespVO all = sellerPortalService.getHome(person.getId(), null);
+        assertEquals(2, all.getPendingSettlementCount());
     }
 
     @Test
@@ -388,6 +417,29 @@ public class SellerPortalServiceTest extends BaseDbUnitTest {
                 .build();
         acquisitionMapper.insert(acquisition);
         return acquisition;
+    }
+
+    private void insertSettlement(PayeeInfoDO payee, Long stationId, Integer confirmStatus) {
+        IcbcSettlementDO settlement = IcbcSettlementDO.builder()
+                .settlementNo("ST_" + System.nanoTime())
+                .payeeId(payee.getId())
+                .naturalPersonId(payee.getNaturalPersonId())
+                .sellerName(payee.getName())
+                .sellerMobile(payee.getMobile())
+                .stationId(stationId)
+                .confirmStatus(confirmStatus)
+                .disputeCount(0)
+                .build();
+        settlementMapper.insert(settlement);
+    }
+
+    private IcbcStationDO station(Long id, String name) {
+        return IcbcStationDO.builder()
+                .id(id)
+                .stationCode("STATION_" + id)
+                .name(name)
+                .openStatus(1)
+                .build();
     }
 
     private PaymentOrderDO insertPayment(Long acquisitionId, PaymentStatusEnum status) {

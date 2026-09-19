@@ -14,6 +14,23 @@
       <view v-if="payee" class="found">
         <view class="found__name">{{ payee.name }} {{ payee.mobile || '' }}</view>
         <view class="field">
+          <text class="field__label">场站</text>
+          <picker :range="stationNames" :value="stationIndex" @change="onStationChange">
+            <view class="picker">{{ selectedStation?.name || '请选择场站' }}</view>
+          </picker>
+        </view>
+        <view v-if="suggestion" class="suggestion">
+          <view class="suggestion__title">本班次建议 {{ suggestion.count ?? 0 }} 笔</view>
+          <view
+            v-for="line in suggestion.acquisitions || []"
+            :key="line.acquisitionId"
+            class="suggestion__line"
+          >
+            {{ line.categoryName }} · 结算重量 {{ line.settlementWeight ?? 0 }} · {{ line.amount ?? 0 }} 元
+          </view>
+          <view class="suggestion__note">{{ suggestion.suggestionNote }}</view>
+        </view>
+        <view class="field">
           <text class="field__label">离线批次键（选填）</text>
           <input v-model="batchKey" class="input" placeholder="现场同一批用同一个值" />
         </view>
@@ -52,6 +69,7 @@
         异议：{{ item.disputeReasonName }}（{{ item.disputeCount }} 次）
         <text v-if="item.enterpriseNotReplied"> · 企业尚未回复</text>
       </view>
+      <view v-if="item.stationName" class="card__meta" @click="goDetail(item.id)">场站：{{ item.stationName }}</view>
 
       <view class="actions">
         <button v-if="!isConfirmed(item.confirmStatus)" class="mini-btn" @click="onForward(item)">
@@ -75,15 +93,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { findReturningCustomer, PayeeVO } from '@/api/payee'
 import {
   forwardSettlementLink,
   generateSettlement,
+  getBatchSuggestion,
   getSettlementPage,
+  SettlementBatchSuggestion,
   SettlementVO
 } from '@/api/settlement'
+import { getStationPage, StationVO } from '@/api/station'
 
 defineOptions({ name: 'FieldSettlement' })
 
@@ -105,9 +126,49 @@ const payee = ref<PayeeVO | null>(null)
 const batchKey = ref('')
 const generating = ref(false)
 
-onShow(() => {
-  load()
+// 场站（ADR 0018：一次到场批次按「出售者 + 场站」聚合）
+const stations = ref<StationVO[]>([])
+const stationIndex = ref(0)
+const suggestion = ref<SettlementBatchSuggestion | null>(null)
+const stationNames = computed(() =>
+  stations.value.map((station) => station.name || station.stationCode || '')
+)
+const selectedStation = computed(() =>
+  stations.value.length ? stations.value[stationIndex.value] : undefined
+)
+
+onShow(async () => {
+  await Promise.all([load(), loadStations()])
 })
+
+async function loadStations() {
+  try {
+    const page = await getStationPage()
+    stations.value = page.list || []
+  } catch (e) {
+    // 场站列表拉不到不阻断「结束本次收货」，但会缺场站维度
+    stations.value = []
+  }
+}
+
+function onStationChange(event: any) {
+  stationIndex.value = Number(event.detail.value)
+  loadSuggestion()
+}
+
+async function loadSuggestion() {
+  suggestion.value = null
+  if (!payee.value?.id) return
+  try {
+    suggestion.value = await getBatchSuggestion({
+      payeeId: payee.value.id,
+      stationId: selectedStation.value?.id
+    })
+  } catch (e) {
+    // 建议是锦上添花，拉不到不影响生成
+    suggestion.value = null
+  }
+}
 
 async function load() {
   loading.value = true
@@ -144,6 +205,7 @@ async function onFind() {
       isMobile ? { mobile: lookup.value } : { idCardNo: lookup.value }
     )
     lookedUp.value = true
+    await loadSuggestion()
   } catch (e) {
     showError(e)
   } finally {
@@ -157,6 +219,7 @@ async function onGenerate() {
   try {
     await generateSettlement({
       payeeId: payee.value.id,
+      stationId: selectedStation.value?.id,
       batchKey: batchKey.value || undefined
     })
     uni.showToast({ title: '结算单已生成', icon: 'success' })
@@ -164,6 +227,7 @@ async function onGenerate() {
     lookup.value = ''
     batchKey.value = ''
     lookedUp.value = false
+    suggestion.value = null
     await load()
   } catch (e) {
     showError(e)
@@ -337,6 +401,39 @@ function showError(e: unknown) {
     color: $field-primary;
     background-color: #ffffff;
     border: 1rpx solid $field-primary;
+  }
+}
+
+.picker {
+  height: 80rpx;
+  line-height: 80rpx;
+  padding: 0 20rpx;
+  margin-bottom: 20rpx;
+  background-color: #f5f6f8;
+  border-radius: 12rpx;
+}
+
+.suggestion {
+  margin-bottom: 20rpx;
+  padding: 20rpx;
+  background-color: #f0f5ff;
+  border-radius: 12rpx;
+
+  &__title {
+    font-weight: 600;
+  }
+
+  &__line {
+    margin-top: 8rpx;
+    color: $field-text-secondary;
+    font-size: 26rpx;
+  }
+
+  &__note {
+    margin-top: 8rpx;
+    color: $field-text-secondary;
+    font-size: 24rpx;
+    line-height: 1.6;
   }
 }
 

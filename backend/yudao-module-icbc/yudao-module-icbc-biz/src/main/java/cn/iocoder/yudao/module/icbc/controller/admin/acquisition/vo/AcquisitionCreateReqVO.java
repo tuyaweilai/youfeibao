@@ -24,6 +24,9 @@ public class AcquisitionCreateReqVO {
     @NotNull(message = "出售者不能为空")
     private Long payeeId;
 
+    @Schema(description = "场站编号（ADR 0018：一次到场批次按「出售者 + 场站」聚合；历史数据可空）", example = "3072")
+    private Long stationId;
+
     @Schema(description = "品类配置编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "2048")
     private Long goodsConfigId;
 

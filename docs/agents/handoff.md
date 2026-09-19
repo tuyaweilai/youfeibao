@@ -130,7 +130,7 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 9. **管理后台菜单**：`icbc-menu.sql` 新增 5177 / 5178；`RecyclingPermission` / `RecyclingRoleEnum` 登记 `STATION_QUERY|MANAGE`。迁移 `icbc-station.sql`、`icbc-seller-portal.sql`（幂等）；测试建表与 `clean.sql` 同步。
 10. **顺带修一个测试基础设施缺陷**：`UnitTestConfiguration` 的内嵌 H2 库名固定为 `testdb`（`DB_CLOSE_DELAY=-1`），多个测试上下文共享同一个库；Spring 淘汰某个上下文时 `SHUTDOWN` 会把还在用的库删掉，另一个上下文变成「空库」。已改为 `.generateUniqueName(true)`，每个上下文独立库名（#34 新增两个测试类后正好触发）。
 
-> **已知简化**：「按该场站 + 该自然人主体匹配待确认结算单」是靠「场站所属租户 + 自然人主体」落地的（结算单目前没有 `station_id`）。单场站租户没有问题；多场站租户要精确到站，需要后续把 `station_id` 挂到收购单 / 结算单上（现场端登记时选场站）。
+> **场站维度已补齐（#33/#34 收口）**：「按该场站 + 该自然人主体匹配待确认结算单」已落地——`icbc_acquisition` / `icbc_settlement` 都挂上了 `station_id`，`portal/home` 接受可选 `stationId` 并按该场站过滤待确认结算单（不传则仍跨企业）。见下节。
 
 > **对外口径**：金额一律「本平台累计，不含其他渠道」；额度另标「税务端可核验的口径由各回收企业的开票记录构成」；**不出现「已到账」**；付款 / 开票 / 税费三条状态线分别显示。
 
@@ -307,7 +307,24 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 5. **口径**：`expectedQuantityText` 一律以「约」标注；响应带 `scopeNote`（不是订单 / 不占额度 / 不产生开票 / 不进五流）；界面上也写清。**任何统计与额度口径都不得引用预约数据**（额度只认收购单与发票事实）。
 6. **测试**：`AppointmentServiceTest`（未绑定拒结、场站码无效拒结、快照与「约」文案、负数量 / 缺时间拒结、取消只限本人且只限待到站、到场幂等、终态拒绝、按出售者带出只取待到站并按时间升序、跨企业本人可见、分页筛选）与 `RecyclingRoleEnumTest#testAppointmentPermissions`。
 
-> 已知简化：预约匹配靠「场站所属租户 + 自然人主体」，与 #34 的结算单派单同源；多场站租户要精确到站，需要把 `station_id` 挂到收购单 / 结算单。
+> **场站维度已补齐**：见 #34 后的「场站维度收口」一节；`station_id` 已挂到收购单 / 结算单。
+
+## 场站维度收口：一次到场批次按「出售者 + 场站」（#33/#34 收口）
+
+补上 #33 / #34 唯一未满足的两条 AC：结算聚合原来只按「出售者 + batchKey」，没有场站与班次维度；
+自然人端待确认原来跨全部租户返回，没有按场站过滤。
+
+1. **数据**：`icbc_acquisition.station_id`、`icbc_settlement.station_id` + `station_name`（快照）；迁移
+   `icbc-acquisition.sql` / `icbc-settlement.sql` 幂等 ALTER，测试建表同步。历史数据为空仍可聚合（`eqIfPresent`）。
+2. **登记带场站**：`AcquisitionCreateReqVO.stationId` 落库；现场端收购页新增场站选择，预约带出时同时带出场站。
+3. **聚合按场站**：`SettlementService.generate` 按「出售者 + 场站」取未归组收购单（`selectUngroupedByPayeeId(payeeId, stationId, batchKey)`），结算单固化场站快照。
+4. **班次窗口只建议**（ADR 0018）：新增 `icbc.settlement.shift-hours`（默认 4）与
+   `GET /icbc/settlement/batch-suggestion?payeeId=&stationId=`，返回窗口内未归组候选；**不自动合并**，
+   是否合并由现场「结束本次收货」决定。现场端结算页展示「本班次建议 N 笔」。
+5. **自然人端按场站匹配**：`/icbc/seller/portal/home` 新增可选 `stationId`；公开场站解析回传 `stationId`，
+   场站码经登录带到首页；待确认结算单按「该场站 + 该自然人主体」过滤，匹配不到给明确空态（不传场站则回退跨企业）。
+6. **测试**：`SettlementServiceTest` 补同场站聚合、班次建议两例；`SellerPortalServiceTest` 补按场站匹配一例。
+   后端 435 测试全绿；现场端 / 自然人端 `pnpm ts:check` 与 `pnpm build:h5` 均通过。
 
 ## #36 出售者触达：短信三条 + 收货员一键转达（已完成）
 

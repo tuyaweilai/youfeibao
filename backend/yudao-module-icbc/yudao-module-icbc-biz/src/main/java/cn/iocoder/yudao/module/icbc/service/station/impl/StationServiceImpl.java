@@ -98,6 +98,7 @@ public class StationServiceImpl implements StationService {
         }
         PublicStationRespVO resp = new PublicStationRespVO();
         resp.setStationCode(station.getStationCode());
+        resp.setStationId(station.getId());
         resp.setTenantId(station.getTenantId());
         resp.setEnterpriseName(enterpriseName(station.getTenantId()));
         resp.setStationName(station.getName());

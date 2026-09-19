@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS `icbc_settlement` (
   `natural_person_id` bigint unsigned DEFAULT NULL COMMENT '自然人主体编号（平台级身份）',
   `seller_name` varchar(100) DEFAULT NULL COMMENT '出售者姓名快照',
   `seller_mobile` varchar(32) DEFAULT NULL COMMENT '出售者联系方式快照',
+  `station_id` bigint unsigned DEFAULT NULL COMMENT '场站编号（一次到场批次 = 同出售者 + 同场站）',
+  `station_name` varchar(100) DEFAULT NULL COMMENT '场站名称快照',
   `batch_key` varchar(64) DEFAULT NULL COMMENT '离线批次键（现场端同一批用同一个值）',
   `generate_time` datetime DEFAULT NULL COMMENT '生成时间（结束本次收货）',
   `generated_by` bigint DEFAULT NULL COMMENT '生成人（收货员用户编号）',
@@ -72,3 +74,22 @@ CREATE TABLE IF NOT EXISTS `icbc_settlement_version` (
   UNIQUE KEY `uk_settlement_version` (`tenant_id`, `settlement_id`, `version_no`),
   KEY `idx_settlement_version_settlement` (`settlement_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='结算单版本';
+
+-- ========================================
+-- 场站维度（#33 / #34，ADR 0018）：一次到场批次 = 同出售者 + 同场站；
+-- 自然人端「扫码进入」按该场站匹配待确认结算单。幂等：仅当列不存在时 ALTER。
+-- ========================================
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_settlement' AND COLUMN_NAME = 'station_id');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_settlement` ADD COLUMN `station_id` bigint unsigned DEFAULT NULL COMMENT ''场站编号（一次到场批次 = 同出售者 + 同场站）'' AFTER `seller_mobile`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_settlement' AND COLUMN_NAME = 'station_name');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_settlement` ADD COLUMN `station_name` varchar(100) DEFAULT NULL COMMENT ''场站名称快照'' AFTER `station_id`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @idx := (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_settlement' AND INDEX_NAME = 'idx_settlement_station');
+SET @ddl := IF(@idx = 0, 'ALTER TABLE `icbc_settlement` ADD INDEX `idx_settlement_station` (`tenant_id`, `station_id`)', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;

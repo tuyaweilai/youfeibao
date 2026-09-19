@@ -54,6 +54,16 @@ public class SettlementConfirmController {
         return success(settlementService.getListByPayeeId(payeeId));
     }
 
+    @GetMapping("/batch-suggestion")
+    @Operation(summary = "本班次建议批次",
+            description = "同出售者 + 同场站 + 班次窗口内、尚未归组的收购单；只建议，不自动合并")
+    @PreAuthorize("@icbc.hasPermission('icbc:settlement-confirm:query')")
+    public CommonResult<SettlementBatchSuggestionVO> batchSuggestion(
+            @RequestParam("payeeId") Long payeeId,
+            @RequestParam(value = "stationId", required = false) Long stationId) {
+        return success(settlementService.getBatchSuggestion(payeeId, stationId));
+    }
+
     @PostMapping("/generate")
     @Operation(summary = "结束本次收货，生成结算单",
             description = "聚合同一出售者尚未归组的收购单；生成后不得再往里加收购单，要加只能新建")

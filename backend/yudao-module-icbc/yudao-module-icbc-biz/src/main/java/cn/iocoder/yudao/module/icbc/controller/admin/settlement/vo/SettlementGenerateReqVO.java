@@ -17,6 +17,9 @@ public class SettlementGenerateReqVO {
     @NotNull(message = "出售者不能为空")
     private Long payeeId;
 
+    @Schema(description = "场站编号；一次到场批次按「出售者 + 场站」聚合，不传则不分场站（兼容旧客户端）", example = "3072")
+    private Long stationId;
+
     @Schema(description = "离线批次键；现场端同一批用同一个值，补传后据此归入同一结算单", example = "BATCH_20261201_01")
     private String batchKey;
 

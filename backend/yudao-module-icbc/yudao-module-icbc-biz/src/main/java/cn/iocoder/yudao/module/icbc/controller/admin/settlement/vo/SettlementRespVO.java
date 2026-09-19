@@ -32,6 +32,12 @@ public class SettlementRespVO {
     @Schema(description = "出售者联系方式", example = "13800138000")
     private String sellerMobile;
 
+    @Schema(description = "场站编号（一次到场批次按「出售者 + 场站」聚合）", example = "3072")
+    private Long stationId;
+
+    @Schema(description = "场站名称快照", example = "城东收货点")
+    private String stationName;
+
     @Schema(description = "生成时间")
     private LocalDateTime generateTime;
 

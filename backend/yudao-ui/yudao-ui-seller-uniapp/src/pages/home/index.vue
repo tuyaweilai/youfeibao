@@ -30,7 +30,19 @@
           <view v-if="home.pendingCount" class="pending-count">
             共 {{ home.pendingCount }} 项需要你处理
           </view>
-          <view v-if="!home.pendingItems?.length" class="muted">暂时没有需要你确认的事。</view>
+          <view v-if="!home.pendingItems?.length" class="muted">
+            <template v-if="stationId">
+              你在这家场站没有待确认的货。可能是收货员还没建单，或你用的手机号与建档手机号不一致。
+            </template>
+            <template v-else>暂时没有需要你确认的事。</template>
+          </view>
+          <button
+            v-if="stationId && !home.pendingItems?.length"
+            class="btn btn--ghost"
+            @click="contactService"
+          >
+            联系客服
+          </button>
           <view
             v-for="item in home.pendingItems"
             :key="`${item.type}-${item.settlementId || item.title}`"
@@ -244,6 +256,8 @@ defineOptions({ name: 'SellerHome' })
 
 const auth = useSellerAuthStore()
 const naturalPersonId = computed(() => auth.subject?.naturalPersonId || 0)
+/** 场站编号：从场站码扫码进入时带上，待确认结算单按「该场站 + 该自然人主体」匹配（#34） */
+const stationId = ref<number | undefined>(undefined)
 
 const tabs = [
   { key: 'pending', label: '待我确认' },
@@ -262,6 +276,7 @@ const authorizations = ref<SellerAuthorization[]>([])
 const profile = reactive<SellerProfile>({})
 
 onLoad((query) => {
+  stationId.value = query?.stationId ? Number(query.stationId) : undefined
   if (!auth.token) {
     uni.redirectTo({ url: '/pages/login/index' })
     return
@@ -287,7 +302,7 @@ async function loadActive() {
   if (!naturalPersonId.value) return
   try {
     if (activeTab.value === 'pending') {
-      Object.assign(home, await getHome(naturalPersonId.value))
+      Object.assign(home, await getHome(naturalPersonId.value, stationId.value))
     } else if (activeTab.value === 'records') {
       recordGroups.value = await getRecordGroups(naturalPersonId.value)
     } else if (activeTab.value === 'payments') {

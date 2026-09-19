@@ -132,6 +132,12 @@ SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA 
 SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `cancel_reason` varchar(500) DEFAULT NULL COMMENT ''作废原因（对自然人可见）'' AFTER `batch_key`', 'SELECT 1');
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- 场站编号（#33 / ADR 0018）：一次到场批次按「出售者 + 场站」聚合；历史数据为空。
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'station_id');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `station_id` bigint unsigned DEFAULT NULL COMMENT ''场站编号（一次到场批次按出售者 + 场站聚合）'' AFTER `settlement_id`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 SET @idx := (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE()
              AND TABLE_NAME = 'icbc_acquisition' AND INDEX_NAME = 'idx_acquisition_settlement');
 SET @ddl := IF(@idx = 0, 'ALTER TABLE `icbc_acquisition` ADD INDEX `idx_acquisition_settlement` (`settlement_id`)', 'SELECT 1');

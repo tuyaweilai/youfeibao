@@ -78,11 +78,14 @@ async function load() {
 }
 
 function goMine() {
+  const stationId = station.value?.stationId ?? ''
   if (getToken() && getSubject()) {
-    uni.navigateTo({ url: '/pages/home/index' })
+    uni.navigateTo({ url: `/pages/home/index?stationId=${stationId}` })
     return
   }
-  uni.navigateTo({ url: `/pages/login/index?station=${encodeURIComponent(stationCode.value)}` })
+  uni.navigateTo({
+    url: `/pages/login/index?station=${encodeURIComponent(stationCode.value)}&stationId=${stationId}`
+  })
 }
 
 function goAppointment() {

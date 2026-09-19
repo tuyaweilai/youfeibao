@@ -18,13 +18,23 @@ public interface SettlementService {
     // ==================== 企业侧 ====================
 
     /**
-     * 收货员显式「结束本次收货」生成结算单：聚合同一出售者尚未归组的收购单。
+     * 收货员显式「结束本次收货」生成结算单：聚合同一出售者、同一场站尚未归组的收购单。
      * 生成后不得再往里加收购单，要加只能新建。
      *
-     * @param reqVO 生成参数（出售者 + 可选的离线批次键）
+     * @param reqVO 生成参数（出售者 + 可选场站 + 可选的离线批次键）
      * @return 结算单编号
      */
     Long generate(@Valid SettlementGenerateReqVO reqVO);
+
+    /**
+     * 「结束本次收货」前的本班次建议批次：同出售者 + 同场站 + 班次窗口内、尚未归组的收购单。
+     * **只建议，不自动合并**（ADR 0018）。
+     *
+     * @param payeeId   出售者（收方）档案编号
+     * @param stationId 场站编号；为空则不按场站筛选
+     * @return 建议批次（含窗口小时数与候选明细）
+     */
+    SettlementBatchSuggestionVO getBatchSuggestion(Long payeeId, Long stationId);
 
     PageResult<SettlementRespVO> getPage(SettlementPageReqVO reqVO);
 

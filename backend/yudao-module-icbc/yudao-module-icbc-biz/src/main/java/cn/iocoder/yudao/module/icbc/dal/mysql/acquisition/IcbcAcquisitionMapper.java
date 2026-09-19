@@ -82,15 +82,33 @@ public interface IcbcAcquisitionMapper extends BaseMapperX<IcbcAcquisitionDO> {
     }
 
     /**
-     * 「结束本次收货」时待归组的收购单：同一出售者、尚未归入任何结算单、且未作废。
+     * 「结束本次收货」时待归组的收购单：同一出售者、同一场站、尚未归入任何结算单、且未作废。
      * 离线批次传了 {@code batchKey} 时只取该批次。
+     *
+     * <p>场站传空表示不分场站（兼容旧客户端与历史数据）；现场动作仍是唯一可信的批次边界。
      */
-    default List<IcbcAcquisitionDO> selectUngroupedByPayeeId(Long payeeId, String batchKey) {
+    default List<IcbcAcquisitionDO> selectUngroupedByPayeeId(Long payeeId, Long stationId, String batchKey) {
         return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
                 .eq(IcbcAcquisitionDO::getPayeeId, payeeId)
+                .eqIfPresent(IcbcAcquisitionDO::getStationId, stationId)
                 .eqIfPresent(IcbcAcquisitionDO::getBatchKey, batchKey)
                 .isNull(IcbcAcquisitionDO::getSettlementId)
                 .ne(IcbcAcquisitionDO::getStatus, cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum.CANCELLED.getStatus())
+                .orderByAsc(IcbcAcquisitionDO::getId));
+    }
+
+    /**
+     * 本班次建议批次（ADR 0018）：同出售者 + 同场站 + 登记时间在窗口内、尚未归组的收购单。
+     * <b>只作建议</b>：系统不自动合并，合并与否由现场动作（「结束本次收货」）决定。
+     */
+    default List<IcbcAcquisitionDO> selectUngroupedInWindow(Long payeeId, Long stationId,
+                                                            java.time.LocalDateTime createdAfter) {
+        return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .eq(IcbcAcquisitionDO::getPayeeId, payeeId)
+                .eqIfPresent(IcbcAcquisitionDO::getStationId, stationId)
+                .isNull(IcbcAcquisitionDO::getSettlementId)
+                .ne(IcbcAcquisitionDO::getStatus, cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum.CANCELLED.getStatus())
+                .ge(createdAfter != null, IcbcAcquisitionDO::getCreateTime, createdAfter)
                 .orderByAsc(IcbcAcquisitionDO::getId));
     }
 

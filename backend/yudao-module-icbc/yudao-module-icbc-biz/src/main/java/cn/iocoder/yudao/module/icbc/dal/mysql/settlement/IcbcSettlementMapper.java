@@ -39,6 +39,20 @@ public interface IcbcSettlementMapper extends BaseMapperX<IcbcSettlementDO> {
                 .orderByDesc(IcbcSettlementDO::getId));
     }
 
+    /**
+     * 自然人在某个场站的结算单：按「该场站 + 该自然人主体」匹配待确认（#34 / ADR 0018）。
+     * 场站为空则退回「该自然人主体的全部结算单」。
+     */
+    default List<IcbcSettlementDO> selectListByNaturalPersonIdAndStation(Long naturalPersonId, Long stationId) {
+        if (naturalPersonId == null) {
+            return Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<IcbcSettlementDO>()
+                .eq(IcbcSettlementDO::getNaturalPersonId, naturalPersonId)
+                .eqIfPresent(IcbcSettlementDO::getStationId, stationId)
+                .orderByDesc(IcbcSettlementDO::getId));
+    }
+
     default PageResult<IcbcSettlementDO> selectPage(SettlementPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<IcbcSettlementDO>()
                 .eqIfPresent(IcbcSettlementDO::getPayeeId, reqVO.getPayeeId())

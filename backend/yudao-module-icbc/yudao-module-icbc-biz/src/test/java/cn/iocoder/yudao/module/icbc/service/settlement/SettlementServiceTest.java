@@ -9,6 +9,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO
 import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.settlement.IcbcSettlementDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.station.IcbcStationDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.settlement.IcbcSettlementMapper;
@@ -20,6 +21,7 @@ import cn.iocoder.yudao.module.icbc.service.naturalperson.impl.NaturalPersonServ
 import cn.iocoder.yudao.module.icbc.service.settlement.impl.SettlementServiceImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.jdbc.Sql;
@@ -33,6 +35,7 @@ import java.util.List;
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
 
 /**
  * {@link SettlementServiceImpl} 的单元测试。
@@ -60,6 +63,9 @@ public class SettlementServiceTest extends BaseDbUnitTest {
     private IcbcSettlementVersionMapper versionMapper;
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
+
+    @MockBean
+    private cn.iocoder.yudao.module.icbc.service.station.StationService stationService;
 
     @AfterEach
     public void tearDown() {
@@ -112,6 +118,46 @@ public class SettlementServiceTest extends BaseDbUnitTest {
         assertEquals(1, settlementService.getDetail(first).getAcquisitionCount());
         assertEquals(1, settlementService.getDetail(second).getAcquisitionCount());
         assertNotEquals(first, acquisitionMapper.selectByAcquisitionNo("ACQ_B").getSettlementId());
+    }
+
+    @Test
+    public void testGenerate_aggregatesOnlySameStation() {
+        PayeeInfoDO payee = insertPayee();
+        when(stationService.getStation(101L)).thenReturn(station(101L, "城东"));
+        when(stationService.getStation(102L)).thenReturn(station(102L, "城西"));
+        insertAcquisition(payee.getId(), "ACQ_A", new BigDecimal("1000.00"), 101L);
+        insertAcquisition(payee.getId(), "ACQ_B", new BigDecimal("2000.00"), 102L);
+
+        SettlementGenerateReqVO reqVO = generateReq(payee.getId());
+        reqVO.setStationId(101L);
+        Long settlementId = settlementService.generate(reqVO);
+
+        // 一次到场批次 = 同出售者 + 同场站：城东那张归组，城西那张不动
+        SettlementRespVO detail = settlementService.getDetail(settlementId);
+        assertEquals(1, detail.getAcquisitionCount());
+        assertEquals(101L, detail.getStationId());
+        assertEquals("城东", detail.getStationName());
+        assertEquals(settlementId, acquisitionMapper.selectByAcquisitionNo("ACQ_A").getSettlementId());
+        assertNull(acquisitionMapper.selectByAcquisitionNo("ACQ_B").getSettlementId());
+    }
+
+    @Test
+    public void testBatchSuggestion_onlySameStationWithinShiftWindow() {
+        PayeeInfoDO payee = insertPayee();
+        when(stationService.getStation(101L)).thenReturn(station(101L, "城东"));
+        insertAcquisitionAt(payee.getId(), "ACQ_NEW", new BigDecimal("1000.00"), 101L,
+                LocalDateTime.now().minusHours(1));
+        insertAcquisitionAt(payee.getId(), "ACQ_OLD", new BigDecimal("2000.00"), 101L,
+                LocalDateTime.now().minusHours(5));
+        insertAcquisition(payee.getId(), "ACQ_OTHER_STATION", new BigDecimal("3000.00"), 102L);
+
+        // 默认 4 小时窗口、同场站；且只建议不自动合并（这里不落任何结算单）
+        SettlementBatchSuggestionVO suggestion = settlementService.getBatchSuggestion(payee.getId(), 101L);
+        assertEquals(4, suggestion.getShiftHours());
+        assertEquals(1, suggestion.getCount());
+        assertEquals("ACQ_NEW", suggestion.getAcquisitions().get(0).getAcquisitionNo());
+        assertNotNull(suggestion.getSuggestionNote());
+        assertNull(acquisitionMapper.selectByAcquisitionNo("ACQ_NEW").getSettlementId());
     }
 
     // ==================== 确认门禁 ====================
@@ -370,6 +416,10 @@ public class SettlementServiceTest extends BaseDbUnitTest {
     }
 
     private IcbcAcquisitionDO insertAcquisition(Long payeeId, String no, BigDecimal amount) {
+        return insertAcquisition(payeeId, no, amount, null);
+    }
+
+    private IcbcAcquisitionDO insertAcquisition(Long payeeId, String no, BigDecimal amount, Long stationId) {
         IcbcAcquisitionDO acquisition = IcbcAcquisitionDO.builder()
                 .acquisitionNo(no)
                 .payeeId(payeeId)
@@ -389,10 +439,28 @@ public class SettlementServiceTest extends BaseDbUnitTest {
                 .tareWeight(new BigDecimal("2"))
                 .deduction(BigDecimal.ZERO)
                 .weightTicketNo("WT_" + no)
+                .stationId(stationId)
                 .status(AcquisitionStatusEnum.REGISTERED.getStatus())
                 .build();
         acquisitionMapper.insert(acquisition);
         return acquisition;
+    }
+
+    private IcbcAcquisitionDO insertAcquisitionAt(Long payeeId, String no, BigDecimal amount, Long stationId,
+                                                 LocalDateTime createTime) {
+        IcbcAcquisitionDO acquisition = insertAcquisition(payeeId, no, amount, stationId);
+        acquisition.setCreateTime(createTime);
+        acquisitionMapper.updateById(acquisition);
+        return acquisition;
+    }
+
+    private IcbcStationDO station(Long id, String name) {
+        return IcbcStationDO.builder()
+                .id(id)
+                .stationCode("STATION_" + id)
+                .name(name)
+                .openStatus(1)
+                .build();
     }
 
 }

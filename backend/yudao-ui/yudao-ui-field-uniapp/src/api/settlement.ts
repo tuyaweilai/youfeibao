@@ -36,6 +36,8 @@ export interface SettlementVO {
   naturalPersonId?: number
   sellerName?: string
   sellerMobile?: string
+  stationId?: number
+  stationName?: string
   generateTime?: number
   currentVersionId?: number
   currentVersionNo?: number
@@ -78,9 +80,30 @@ export const getSettlementPage = (params: {
 
 export const getSettlement = (id: number) => get<SettlementVO>('/icbc/settlement/get', { id })
 
-/** 结束本次收货：聚合同一出售者尚未归组的收购单，生成一张结算单 */
-export const generateSettlement = (data: { payeeId: number; batchKey?: string; remark?: string }) =>
-  post<number>('/icbc/settlement/generate', data)
+/** 结束本次收货：聚合同一出售者、同一场站尚未归组的收购单，生成一张结算单 */
+export const generateSettlement = (data: {
+  payeeId: number
+  stationId?: number
+  batchKey?: string
+  remark?: string
+}) => post<number>('/icbc/settlement/generate', data)
+
+/**
+ * 本班次建议批次：同出售者 + 同场站 + 班次窗口内、尚未归组的收购单。
+ * 只建议，不自动合并——是否合并由「结束本次收货」决定。
+ */
+export const getBatchSuggestion = (params: { payeeId: number; stationId?: number }) =>
+  get<SettlementBatchSuggestion>('/icbc/settlement/batch-suggestion', params)
+
+export interface SettlementBatchSuggestion {
+  payeeId?: number
+  stationId?: number
+  stationName?: string
+  shiftHours?: number
+  count?: number
+  suggestionNote?: string
+  acquisitions?: SettlementLineVO[]
+}
 
 /** 收货员一键把确认链接转达给出售者（可顺带发短信） */
 export const forwardSettlementLink = (data: { settlementId: number; sendSms?: boolean }) =>

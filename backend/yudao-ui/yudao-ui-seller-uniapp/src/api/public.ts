@@ -78,6 +78,7 @@ export interface OnboardingStatusVO {
 
 export interface PublicStationVO {
   stationCode?: string
+  stationId?: number
   tenantId?: number
   enterpriseName?: string
   stationName?: string
