@@ -96,7 +96,24 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 5. 现场端（`yudao-ui-field-uniapp/pages/acquisition`）可录扣杂 / 调整项 / 司机，并实时展示结算重量与金额推算。
 6. 迁移 SQL 在 `sql/mysql/icbc-acquisition.sql`（幂等），测试建表同步。
 
-> **#33 现在已解锁**（原 `Blocked by: #32`）。#33 是本次升级的核心：结算单聚合、确认门禁 `SETTLEMENT_CONFIRMED`、异议与版本快照、超时转线下签字、确认记录进合同流。
+> **#33 现已完成**（原 `Blocked by: #32`）：结算单聚合、确认门禁 `SETTLEMENT_CONFIRMED`、异议与版本快照、超时转线下签字、确认记录进合同流。
+
+## #33 结算单 + 确认门禁 + 异议与版本留痕（已完成，提交 `3d07e4c`）
+
+在收购与开票之间补上出售者的认可（ADR 0018 / 0022 / 0024），是本次升级的核心。
+
+1. **结算单**：`icbc_settlement`（一次到场批次一张）+ `icbc_settlement_version`（整单快照，只追加，当前版本用指针指）。`icbc_acquisition` 挂 `settlement_id` / `batch_key` / `cancel_reason`。
+2. **生成**：收货员显式「结束本次收货」（`POST /icbc/settlement/generate`），聚合同一出售者尚未归组的收购单；**生成后不得再加单**，要加只能新建；离线按 `batch_key` 归入同一结算单。结算是否结清由其下收购单**推导**，不落库。
+3. **确认门禁**：开票 pre-check 新增 `SETTLEMENT_CONFIRMED`，未确认不下发工行预下单。自然人端 `POST /app-api/icbc/seller/settlement/confirm` 勾选即确认，留痕时间 / IP / 设备 / 该版快照 SHA-256 哈希。
+4. **异议与版本**：固定原因枚举（重量 / 扣杂 / 单价 / 品类 / 货物 / 其他）；企业两个动作——改（新版本 + 原因 → 回待确认）或 不改但附说明（→ 回待确认）；连续异议 ≥3 次提示转线下；已开票后不得改，只能红冲。不做聊天 / 工单。
+5. **线下签字逃生门**：`POST /icbc/settlement/offline-sign`，上传带签字的纸质确认书 + 办理人，等价于确认。
+6. **作废**：未开票的收购单可作废（留原因、对自然人可见、作废后不可再开票付款）。
+7. **超时**（`icbc.settlement.*` 可配）：确认 7 天 / 异议后企业处理 3 天 / 已确认未开票 30 天。到期**不自动确认**，升级为「需线下签字确认」；`SettlementTimeoutJob`（每日 08:30，@TenantJob）执行。异议超时自然人侧显示「企业尚未回复」。
+8. **证据**：确认记录（含快照哈希、线下签字件）作为合同流签署证据进一票一档，**不新增第六流**。
+9. **权限 / 菜单 / SQL**：`icbc:settlement-confirm:query|manage` 登记进 `RecyclingPermission` + `RecyclingRoleEnum`；菜单 5175 / 5176；迁移 `icbc-settlement.sql`（幂等）；测试建表与 `clean.sql` 同步。企业管理 PC 页 `views/icbc/settlement`。
+
+> **自然人端 UI 属 #34**：#33 只交付后端端点（`/app-api/icbc/seller/settlement/*`）。
+
 
 ## #5 剩余小口子（已处理）
 
