@@ -136,7 +136,9 @@ public class SellerAuthServiceImpl implements SellerAuthService {
         if (TenantContextHolder.getTenantId() == null) {
             throw exception(SELLER_STATION_TENANT_REQUIRED);
         }
-        MemberUserRespDTO credential = memberUserApi.getUser(memberUserId);
+        // 凭证在**平台租户**，而当前请求带的是扫码那家企业的租户；必须回到平台租户去读，
+        // 否则查不到凭证、登录手机号为空，下面的「手机号与身份登记不一致就拒绝」会被静默跳过。
+        MemberUserRespDTO credential = inPlatformTenant(() -> memberUserApi.getUser(memberUserId));
         String loginMobile = credential != null ? credential.getMobile() : null;
 
         PayeeInfoDO payee = payeeId == null ? null : payeeInfoService.getPayeeInfo(payeeId);

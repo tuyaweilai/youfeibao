@@ -164,6 +164,27 @@ public class SellerAuthServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testBindSubject_readsCredentialInPlatformTenant() {
+        // 凭证落在平台租户，绑定时必须回到平台租户去读。否则在企业租户下查不到凭证、
+        // 登录手机号为空，手机号一致性校验会被静默跳过。
+        MemberUserRespDTO user = new MemberUserRespDTO();
+        user.setId(MEMBER_USER_ID);
+        user.setMobile(MOBILE);
+        when(memberUserApi.getUser(MEMBER_USER_ID)).thenAnswer(invocation -> {
+            assertEquals(PLATFORM_TENANT_ID, TenantContextHolder.getTenantId());
+            return user;
+        });
+        PayeeInfoDO payee = insertPayeeInTenant(1L, "张三", "110101199001011234", MOBILE);
+
+        TenantUtils.execute(1L, () -> {
+            setLoginUser(MEMBER_USER_ID);
+            sellerAuthService.bindSubject(payee.getId());
+        });
+
+        verify(memberUserApi).getUser(MEMBER_USER_ID);
+    }
+
+    @Test
     public void testBindSubject_unknownPayee() {
         mockCredential(MOBILE, MEMBER_USER_ID);
 
