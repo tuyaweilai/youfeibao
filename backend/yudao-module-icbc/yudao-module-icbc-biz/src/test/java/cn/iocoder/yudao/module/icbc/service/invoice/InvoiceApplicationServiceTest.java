@@ -33,6 +33,7 @@ import cn.iocoder.yudao.module.icbc.service.invoice.impl.InvoiceApplicationServi
 import cn.iocoder.yudao.module.icbc.service.invoice.impl.InvoiceOrderServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
+import cn.iocoder.yudao.module.icbc.service.settlement.SettlementService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -92,12 +93,17 @@ public class InvoiceApplicationServiceTest extends BaseDbUnitTest {
     @MockBean
     private SellerOnboardingService sellerOnboardingService;
 
+    @MockBean
+    private SettlementService settlementService;
+
     private Long payeeId;
 
     @BeforeEach
     public void setUp() {
         fakeIcbcGateway.reset();
         when(qualificationService.isTenantReady()).thenReturn(true);
+        // 结算确认门禁（#33）的细节由 SettlementServiceTest 覆盖；这里只管开票申请本身
+        when(settlementService.isSettlementConfirmed(anyLong())).thenReturn(true);
 
         PayeeInfoDO payee = new PayeeInfoDO();
         payee.setName("张三");

@@ -29,3 +29,12 @@ FROM DUAL
 WHERE NOT EXISTS (
   SELECT 1 FROM `infra_job` WHERE `handler_name` = 'annualSettlementReminderJob' AND `deleted` = b'0'
 );
+
+-- 结算确认超时：每日 08:30 扫描，待确认超期升级为「需线下签字确认」，不自动确认
+INSERT INTO `infra_job`
+(`name`, `status`, `handler_name`, `handler_param`, `cron_expression`, `retry_count`, `retry_interval`, `monitor_timeout`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT '结算确认超时 Job', 1, 'settlementTimeoutJob', NULL, '0 30 8 * * ?', 0, 0, 0, 'admin', NOW(), 'admin', NOW(), b'0'
+FROM DUAL
+WHERE NOT EXISTS (
+  SELECT 1 FROM `infra_job` WHERE `handler_name` = 'settlementTimeoutJob' AND `deleted` = b'0'
+);

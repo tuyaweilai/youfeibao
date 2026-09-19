@@ -111,3 +111,28 @@ SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA 
              AND TABLE_NAME = 'icbc_order_item' AND COLUMN_NAME = 'quantity_note');
 SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_order_item` ADD COLUMN `quantity_note` varchar(200) DEFAULT NULL COMMENT ''数量口径说明（结算重量计价后发票数量与磅单净重的差异）'' AFTER `tax_amount`', 'SELECT 1');
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- ========================================
+-- 结算单归属与作废（#33，见 ADR 0018）：收购单挂到结算单上，作废留原因且对自然人可见。
+-- 幂等：仅当列不存在时 ALTER。
+-- ========================================
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'settlement_id');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `settlement_id` bigint unsigned DEFAULT NULL COMMENT ''所属结算单编号'' AFTER `quantity_note`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'batch_key');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `batch_key` varchar(64) DEFAULT NULL COMMENT ''离线批次键（同一批归入同一结算单）'' AFTER `settlement_id`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'cancel_reason');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `cancel_reason` varchar(500) DEFAULT NULL COMMENT ''作废原因（对自然人可见）'' AFTER `batch_key`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @idx := (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND INDEX_NAME = 'idx_acquisition_settlement');
+SET @ddl := IF(@idx = 0, 'ALTER TABLE `icbc_acquisition` ADD INDEX `idx_acquisition_settlement` (`settlement_id`)', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;

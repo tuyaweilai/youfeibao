@@ -167,4 +167,11 @@ public interface RecyclingPermission {
     /** 生成 / 标记汇算清缴提醒 */
     String SETTLEMENT_REMIND = "icbc:settlement:remind";
 
+    // ========== 结算单与确认门禁（#33：一次到场批次一次确认） ==========
+
+    /** 查看结算单、确认记录与版本快照 */
+    String SETTLEMENT_CONFIRM_QUERY = "icbc:settlement-confirm:query";
+    /** 生成结算单、处理异议（改 / 不改但附说明）、线下签字、作废收购单 */
+    String SETTLEMENT_CONFIRM_MANAGE = "icbc:settlement-confirm:manage";
+
 }

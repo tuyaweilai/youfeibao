@@ -55,7 +55,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.QUOTA_QUERY, RecyclingPermission.QUOTA_GUIDANCE_HANDLE,
             RecyclingPermission.TAX_DECLARATION_QUERY, RecyclingPermission.TAX_DECLARATION_MANAGE,
             RecyclingPermission.TAX_SUPPLEMENT_MANAGE,
-            RecyclingPermission.SETTLEMENT_QUERY, RecyclingPermission.SETTLEMENT_REMIND)),
+            RecyclingPermission.SETTLEMENT_QUERY, RecyclingPermission.SETTLEMENT_REMIND,
+            RecyclingPermission.SETTLEMENT_CONFIRM_QUERY, RecyclingPermission.SETTLEMENT_CONFIRM_MANAGE)),
 
     /**
      * 收货员：收购现场登记，维护出售者档案与收购单。
@@ -71,7 +72,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_ATTACH,
             RecyclingPermission.GOODS_CONFIG_QUERY,
             RecyclingPermission.QUOTA_QUERY, RecyclingPermission.QUOTA_GUIDANCE_HANDLE,
-            RecyclingPermission.PUBLIC_TOKEN_CREATE)),
+            RecyclingPermission.PUBLIC_TOKEN_CREATE,
+            RecyclingPermission.SETTLEMENT_CONFIRM_QUERY, RecyclingPermission.SETTLEMENT_CONFIRM_MANAGE)),
 
     /**
      * 开票员：发起反向开票与付款，下载发票原件。
@@ -93,7 +95,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SCRAP_CODE_QUERY,
             RecyclingPermission.QUOTA_QUERY,
             RecyclingPermission.TAX_DECLARATION_QUERY,
-            RecyclingPermission.SETTLEMENT_QUERY)),
+            RecyclingPermission.SETTLEMENT_QUERY,
+            RecyclingPermission.SETTLEMENT_CONFIRM_QUERY)),
 
     /**
      * 财务：代办税费、对账、归集发票。
@@ -110,6 +113,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.TAX_DECLARATION_QUERY, RecyclingPermission.TAX_DECLARATION_MANAGE,
             RecyclingPermission.TAX_SUPPLEMENT_MANAGE,
             RecyclingPermission.SETTLEMENT_QUERY, RecyclingPermission.SETTLEMENT_REMIND,
+            RecyclingPermission.SETTLEMENT_CONFIRM_QUERY,
             RecyclingPermission.PUBLIC_TOKEN_CREATE)),
 
     /**
@@ -130,6 +134,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.QUOTA_QUERY,
             RecyclingPermission.TAX_DECLARATION_QUERY,
             RecyclingPermission.SETTLEMENT_QUERY,
+            RecyclingPermission.SETTLEMENT_CONFIRM_QUERY,
             RecyclingPermission.PLATFORM_NATURAL_PERSON_QUERY,
             RecyclingPermission.PLATFORM_NATURAL_PERSON_MANAGE));
 

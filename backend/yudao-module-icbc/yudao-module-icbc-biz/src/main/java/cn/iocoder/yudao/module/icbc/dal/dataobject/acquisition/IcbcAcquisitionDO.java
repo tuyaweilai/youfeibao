@@ -124,6 +124,17 @@ public class IcbcAcquisitionDO extends TenantBaseDO {
     /** 数量口径说明：数量与磅单净重不再相等时的解释（如「结算重量计价，含扣杂」） */
     private String quantityNote;
 
+    // ==================== 结算单归属（#33，ADR 0018） ====================
+
+    /** 所属结算单编号；为空表示尚未归入结算单（可被「结束本次收货」归组） */
+    private Long settlementId;
+
+    /** 离线批次键：现场端同一批用同一个值，补传后服务端按它归入同一结算单 */
+    private String batchKey;
+
+    /** 作废原因；作废对自然人可见（货已收，作废是敏感动作） */
+    private String cancelReason;
+
     // ==================== 运输信息（司机不参与确认 / 收款，不占自然人主体） ====================
 
     /** 司机姓名 */

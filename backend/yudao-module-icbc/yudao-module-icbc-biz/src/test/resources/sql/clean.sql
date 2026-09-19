@@ -24,3 +24,5 @@ DELETE FROM icbc_payer_info;
 DELETE FROM icbc_payee_info;
 DELETE FROM icbc_natural_person_login;
 DELETE FROM icbc_natural_person;
+DELETE FROM icbc_settlement_version;
+DELETE FROM icbc_settlement;

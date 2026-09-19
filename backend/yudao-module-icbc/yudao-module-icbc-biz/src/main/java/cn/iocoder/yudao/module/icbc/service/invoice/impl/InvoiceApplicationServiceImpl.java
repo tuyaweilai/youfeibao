@@ -24,6 +24,7 @@ import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
 import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
+import cn.iocoder.yudao.module.icbc.service.settlement.SettlementService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
@@ -52,6 +53,7 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
     private static final String CHECK_PAYER_INFO = "PAYER_INFO";
     private static final String CHECK_SELLER_AVAILABLE = "SELLER_AVAILABLE";
     private static final String CHECK_SELLER_QUOTA = "SELLER_QUOTA";
+    private static final String CHECK_SETTLEMENT_CONFIRMED = "SETTLEMENT_CONFIRMED";
     private static final String CHECK_TAX_METHOD_INVOICE_TYPE = "TAX_METHOD_INVOICE_TYPE";
     private static final String CHECK_GOODS_CODE_CONFIGURED = "GOODS_CODE_CONFIGURED";
     private static final String CHECK_ACQUISITION_ELEMENTS = "ACQUISITION_ELEMENTS";
@@ -61,6 +63,7 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
     private static final String REMEDY_PAYER = "在「付方档案」补全企业名称、纳税人识别号与合作方付方编号";
     private static final String REMEDY_SELLER = "在「出售者建档」完成实人认证、收方入驻、框架收购协议与首次授权";
     private static final String REMEDY_QUOTA = "引导该出售者办理经营主体登记，由经营主体开票；若已开票金额有误，先走红冲把额度放出来";
+    private static final String REMEDY_SETTLEMENT = "在「结算单」页结束本次收货生成结算单，并请出售者在自然人端确认（或走线下签字确认）后再发起开票";
     private static final String REMEDY_TAX_METHOD = "把票种改为增值税普通发票（02），或在「编码配置」把该品类的计税方法改为一般计税";
     private static final String REMEDY_GOODS_CODE = "在「租户开票就绪 · 编码配置」为该品类配置商品和服务税收分类合并编码";
     private static final String REMEDY_ELEMENTS = "在「收购登记」补齐缺失要件后重新发起";
@@ -86,6 +89,8 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
     private PayerInfoMapper payerInfoMapper;
     @Resource
     private NaturalPersonQuotaService naturalPersonQuotaService;
+    @Resource
+    private SettlementService settlementService;
 
     // ==================== 发起前校验 ====================
 
@@ -107,6 +112,7 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
         items.add(checkPayerInfo());
         items.add(checkSellerAvailable(acquisition));
         items.add(checkSellerQuota(acquisition));
+        items.add(checkSettlementConfirmed(acquisition));
         items.add(checkTaxMethodInvoiceType(acquisition, invoiceType));
         items.add(checkGoodsCodeConfigured(acquisition));
         items.add(checkAcquisitionElements(acquisition));
@@ -169,6 +175,18 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
         boolean passed = Boolean.TRUE.equals(check.getPassed());
         return item(CHECK_SELLER_QUOTA, "出售者额度", passed, check.getMessage(),
                 StrUtil.blankToDefault(check.getRemedy(), REMEDY_QUOTA));
+    }
+
+    /**
+     * 结算确认是预下单的硬前置（ADR 0018）：确认表达的是出售者对计量与计价事实的认可，
+     * 必须发生在不可逆动作（付款 / 票上传税局）之前。与额度校验并列。
+     */
+    private InvoicePreCheckItemVO checkSettlementConfirmed(IcbcAcquisitionDO acquisition) {
+        boolean passed = settlementService.isSettlementConfirmed(acquisition.getId());
+        return item(CHECK_SETTLEMENT_CONFIRMED, "结算确认", passed,
+                passed ? "该笔收购所在结算单已经出售者确认"
+                        : "该笔收购所在结算单尚未经出售者确认（或未生成结算单）",
+                REMEDY_SETTLEMENT);
     }
 
     /**

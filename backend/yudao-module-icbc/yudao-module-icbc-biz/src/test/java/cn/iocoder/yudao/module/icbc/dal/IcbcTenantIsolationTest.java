@@ -28,6 +28,7 @@ import cn.iocoder.yudao.test.icbc.IcbcTenantTestConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.jdbc.Sql;
 
 import javax.annotation.Resource;
 import java.math.BigDecimal;
@@ -54,6 +55,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @Import({UnitTestConfiguration.class, IcbcTenantTestConfiguration.class,
         PlatformInvoiceQueryServiceImpl.class, PayeeInfoServiceImpl.class, NaturalPersonServiceImpl.class})
+@Sql(scripts = "/sql/create_tables.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/sql/clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
 public class IcbcTenantIsolationTest extends BaseDbUnitTest {
 
     @Resource

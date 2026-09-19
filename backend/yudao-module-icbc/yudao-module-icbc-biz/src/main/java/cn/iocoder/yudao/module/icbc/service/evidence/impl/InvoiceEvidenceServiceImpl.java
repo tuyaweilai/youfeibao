@@ -5,6 +5,8 @@ import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.evidence.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.settlement.IcbcSettlementDO;
+import cn.iocoder.yudao.module.icbc.enums.SettlementConfirmStatusEnum;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.evidence.IcbcEvidenceDO;
@@ -22,6 +24,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.RedInvoiceMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.settlement.IcbcSettlementMapper;
 import cn.iocoder.yudao.module.icbc.enums.EvidenceFlowEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcEvidenceTypeEnum;
 import cn.iocoder.yudao.module.icbc.service.evidence.InvoiceEvidenceService;
@@ -78,6 +81,8 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
     private IcbcEvidenceMapper evidenceMapper;
     @Resource
     private IcbcAcquisitionMapper acquisitionMapper;
+    @Resource
+    private IcbcSettlementMapper settlementMapper;
     @Resource
     private EvidencePackageWriter evidencePackageWriter;
 
@@ -271,6 +276,9 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
             source.setRef(acquisition.getAcquisitionNo());
             source.setOccurredTime(acquisition.getTradeTime());
             flowSources.get(EvidenceFlowEnum.CONTRACT).add(source);
+
+            // 合同流：出售者的结算确认记录（含快照哈希、线下签字件）也是签署证据（ADR 0018 / 0024，不新增第六流）
+            addSettlementConfirmationSource(flowSources.get(EvidenceFlowEnum.CONTRACT), acquisition);
         }
 
         // 货物流：磅单与车头车尾照片直接从收购登记单取
@@ -536,6 +544,29 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
         source.setTitle(title);
         source.setUrl(url);
         source.setOccurredTime(occurredTime);
+        sources.add(source);
+    }
+
+    /**
+     * 结算确认记录作为合同流的签署证据：已确认（含线下签字确认）的结算单，带快照哈希与签字件。
+     */
+    private void addSettlementConfirmationSource(List<EvidenceSourceRespVO> sources,
+                                                 IcbcAcquisitionDO acquisition) {
+        if (acquisition.getSettlementId() == null) {
+            return;
+        }
+        IcbcSettlementDO settlement = settlementMapper.selectById(acquisition.getSettlementId());
+        if (settlement == null || !SettlementConfirmStatusEnum.isConfirmed(settlement.getConfirmStatus())) {
+            return;
+        }
+        boolean offline = SettlementConfirmStatusEnum.OFFLINE_CONFIRMED.getStatus()
+                .equals(settlement.getConfirmStatus());
+        EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+        source.setSourceType("SETTLEMENT_CONFIRMATION");
+        source.setTitle(offline ? "结算线下签字确认书" : "结算确认记录");
+        source.setRef(settlement.getSettlementNo() + "#" + StrUtil.blankToDefault(settlement.getConfirmHash(), ""));
+        source.setUrl(settlement.getOfflineSignFileUrl());
+        source.setOccurredTime(settlement.getConfirmTime());
         sources.add(source);
     }
 

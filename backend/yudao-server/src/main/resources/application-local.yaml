@@ -282,6 +282,16 @@ icbc:
   seller:
     platform-tenant-id: ${ICBC_SELLER_PLATFORM_TENANT_ID:0}
 
+  # 结算单与确认门禁（#33）：一次到场批次一次确认，确认是开票硬前置。
+  # 三个超时都可配；到期**不自动确认**，而是升级为线下签字 / 提醒。
+  settlement:
+    # 生成后待确认时限（天）：超期升级为「需线下签字确认」
+    confirm-timeout-days: ${ICBC_SETTLEMENT_CONFIRM_TIMEOUT_DAYS:7}
+    # 异议后企业处理时限（天）：超期自然人侧显示「企业尚未回复」并给留联系方式的口子
+    reply-timeout-days: ${ICBC_SETTLEMENT_REPLY_TIMEOUT_DAYS:3}
+    # 已确认但长期未开票时限（天）：只提醒企业尽快开票付款，不自动作废
+    uninvoiced-timeout-days: ${ICBC_SETTLEMENT_UNINVOICED_TIMEOUT_DAYS:30}
+
   # 出售者建档：工行 UI 页面接口的回调 / 跳转地址，须为外网可达地址（不是工行地址）。
   # 工行不支持 scheme，jump / fail-jump 只能用 https 页面；自然人在小程序 web-view 里打开后
   # 再由前端路由回具体页面。本地 fake 模式留空即可；联调时用 ngrok 等暴露出去。

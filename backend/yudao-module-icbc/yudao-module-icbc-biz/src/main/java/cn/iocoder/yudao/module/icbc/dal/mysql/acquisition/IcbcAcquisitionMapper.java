@@ -55,4 +55,31 @@ public interface IcbcAcquisitionMapper extends BaseMapperX<IcbcAcquisitionDO> {
                 .orderByDesc(IcbcAcquisitionDO::getId));
     }
 
+    // ==================== 结算单（#33，ADR 0018） ====================
+
+    /**
+     * 某结算单下的全部收购单，按 id 升序（快照与展示顺序固定）。
+     */
+    default List<IcbcAcquisitionDO> selectListBySettlementId(Long settlementId) {
+        if (settlementId == null) {
+            return java.util.Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .eq(IcbcAcquisitionDO::getSettlementId, settlementId)
+                .orderByAsc(IcbcAcquisitionDO::getId));
+    }
+
+    /**
+     * 「结束本次收货」时待归组的收购单：同一出售者、尚未归入任何结算单、且未作废。
+     * 离线批次传了 {@code batchKey} 时只取该批次。
+     */
+    default List<IcbcAcquisitionDO> selectUngroupedByPayeeId(Long payeeId, String batchKey) {
+        return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .eq(IcbcAcquisitionDO::getPayeeId, payeeId)
+                .eqIfPresent(IcbcAcquisitionDO::getBatchKey, batchKey)
+                .isNull(IcbcAcquisitionDO::getSettlementId)
+                .ne(IcbcAcquisitionDO::getStatus, cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum.CANCELLED.getStatus())
+                .orderByAsc(IcbcAcquisitionDO::getId));
+    }
+
 }

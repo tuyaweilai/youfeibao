@@ -212,4 +212,17 @@ public interface ErrorCodeConstants {
     ErrorCode NATURAL_PERSON_OUT_USER_ID_DUPLICATED = new ErrorCode(1_030_021_005, "平台级外部用户编号已存在：{}");
     ErrorCode SELLER_STATION_TENANT_REQUIRED = new ErrorCode(1_030_021_006, "缺少场站所属回收企业的租户标识，无法定位收方档案");
     ErrorCode NATURAL_PERSON_ID_CARD_REQUIRED = new ErrorCode(1_030_021_007, "收方档案缺少身份证件号码，无法建立或复用自然人身份档案");
+
+    // ========== 结算单与确认门禁（#33） 1-030-022-000 ==========
+    ErrorCode SETTLEMENT_NOT_EXISTS = new ErrorCode(1_030_022_000, "结算单不存在");
+    ErrorCode SETTLEMENT_NO_ACQUISITION = new ErrorCode(1_030_022_001, "没有可生成结算单的收购单（可能都已归入结算单或已作废）");
+    ErrorCode SETTLEMENT_ACQUISITION_ALREADY_GROUPED = new ErrorCode(1_030_022_002, "该收购单已归入结算单，生成后不得再往里加收购单");
+    ErrorCode SETTLEMENT_NOT_CONFIRMED = new ErrorCode(1_030_022_003, "该笔收购所在结算单尚未经出售者确认，不能发起开票");
+    ErrorCode SETTLEMENT_DISPUTE_REASON_INVALID = new ErrorCode(1_030_022_004, "异议原因不合法：{}");
+    ErrorCode SETTLEMENT_DISPUTE_NOTE_REQUIRED = new ErrorCode(1_030_022_005, "选择「其他」异议原因时必须附说明");
+    ErrorCode SETTLEMENT_STATUS_NOT_ALLOW = new ErrorCode(1_030_022_006, "结算单当前状态不允许该操作：{}");
+    ErrorCode SETTLEMENT_INVOICED_NOT_EDITABLE = new ErrorCode(1_030_022_007, "结算单已开票，不能再改，只能红冲");
+    ErrorCode SETTLEMENT_VERSION_NOT_EXISTS = new ErrorCode(1_030_022_008, "结算单版本不存在：{}");
+    ErrorCode SETTLEMENT_CANCEL_REASON_REQUIRED = new ErrorCode(1_030_022_009, "作废收购单必须填写原因");
+    ErrorCode SETTLEMENT_OFFLINE_SIGN_REQUIRED = new ErrorCode(1_030_022_010, "该结算单需线下签字确认，请上传带签字的纸质确认书并标注办理人");
 }
