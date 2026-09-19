@@ -226,7 +226,9 @@ _Why this matters：小程序的 `web-view` 只能加载已备案、且加入小
 
 ### `jumpUrl` / `failJumpUrl` 能否定制？跳回地址能否用自定义 scheme / 小程序页面路径，而不只是 https 地址？
 
-> 待工行答复。
+> **工行答复**：可以定制跳回地址，但**不支持 scheme**。
+>
+> 我们的推论：回跳只能是 https 页面。所以 `jumpUrl` / `failJumpUrl` 指向我们自己的 https 落地页（如 `https://yiyoubao.baibaitan.com/seller/#/pages/index/index`），小程序容器在内打开后再由前端路由回具体页面；不能直接用 `weixin://` 或小程序页面路径深链。
 
 ### `trxChannel` 的取值与渠道、活体模式如何对应？
 
