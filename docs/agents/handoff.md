@@ -52,7 +52,7 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - **#25 照片与识别回填已完成**：拍磅单 / 车头 / 车尾上传（`/infra/file/upload`），车牌实时比对，详情页可修正识别结果（`/icbc/acquisition/correct`）后重新比对；一期无真实 OCR，手工录入为主。
 - **#26 新出售者手续已完成**：`pages/payee` 带档或新建后依次实名 / 入驻 / 协议 / 授权，工行自动提交表单用新窗口承载（`utils/icbcForm.ts`），后端 `sync` 收敛，失败可留联系方式。
 - **#27 弱网暂存与补传已完成**：照片选完即存 base64，提交失败 / 断网落本地草稿，恢复后 `/icbc/acquisition/sync-offline` 逐条幂等补传（`utils/draft.ts`、`pages/offline`，首页有计数入口）。
-- 现场端一期子票 #22–#27 已全部完成。
+- 现场端一期子票 #22–#27 已全部完成；#36 又补上 `pages/settlement`（结束本次收货 / 看确认进度 / 一键转达确认链接），首页菜单名为「结算与确认」。
 
 ## 自然人出售者端（uni-app，一期小程序优先 / H5 兜底）
 
@@ -318,10 +318,10 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 2. **链接为一次性令牌**：结算 / 付款用新增用途 `PublicTokenPurposeEnum.SELLER_NOTICE`（PAYEE 维度），发票用 `INVOICE_DOWNLOAD`。链接形如 `https://<seller-app>/#/?token=...&purpose=...`，打开即可查看，**不需要注册**；要确认时再用手机号验证（登录即注册）。
 3. **开关默认关闭**：平台级 `icbc.notify.sms-enabled`（环境变量 `ICBC_NOTIFY_SMS_ENABLED`）+ 租户级 `icbc_notify_setting.sms_enabled`，两者取或；费用与到达率是运营成本，谁开谁清楚。
 4. **入口地址**：`icbc.notify.seller-app-url`（`ICBC_SELLER_APP_URL`），未配置时退化用 `icbc.station.entry-url`；两条都为空就拼不出链接，记录会落「未配置入口」。
-5. **收货员一键转达**：`POST /icbc/notify/settlement/forward-link`，返回一次性链接 + 可直接复制的短信文案，可顺带发短信（**由人显式触发**，不受自动开关限制）。PC 端结算页行操作 / 明细弹窗都有「转达确认链接」，无手机号也照样能转达。
+5. **收货员一键转达（现场端为主）**：`POST /icbc/notify/settlement/forward-link`，返回一次性链接 + 可直接复制的短信文案，可顺带发短信（**由人显式触发**，不受自动开关限制）。现场端新增 `pages/settlement/index|detail`（首页菜单「结算与确认」）：可「结束本次收货」（按手机号 / 身份证带出出售者后生成结算单）、按确认状态筛选、一键复制确认链接 / 短信转达；收购单明细页也可直接「结束本次收货」。PC 结算页保留转达入口供后台使用。无手机号时照样能复制链接转达。
 6. **幂等**：`icbc_seller_notify` 唯一键 `(tenant_id, biz_type, biz_key)`，`biz_key` 对结算带版本号、对付款带异常状态码；同一事件只发一次。发不出去也留记录并写明原因（开关关闭 / 未留手机号 / 未配入口 / 通道失败）。
 7. **尽力而为**：短信通道异常只落一条失败记录，**不抛回业务**（结算生成 / 付款收敛 / 开票收敛都不会因短信失败回滚）。通道用 `ObjectProvider<SmsSendApi>` 拿，测试与未接通道的环境不因缺 Bean 启动失败。
-8. **落地**：`icbc-seller-notify.sql`（触达记录 + 租户级开关 + 三条短信模板，模板先用 DEBUG 渠道占位，报备后改真实渠道与 `api_template_id`）；菜单 5181 / 5182；新权限 `icbc:seller-notify:query|manage`（管理员 / 收货员可管理，财务只读）；PC 页 `views/icbc/sellerNotify`；自然人端 `pages/index` 新增「待办提醒」入口。
+8. **落地**：`icbc-seller-notify.sql`（触达记录 + 租户级开关 + 三条短信模板，模板先用 DEBUG 渠道占位，报备后改真实渠道与 `api_template_id`）；菜单 5181 / 5182；新权限 `icbc:seller-notify:query|manage`（管理员 / 收货员可管理，财务只读）；收货员现场端 `pages/settlement`（列表 / 明细 / 结束本次收货 / 转达）；PC 页 `views/icbc/sellerNotify` 与结算页转达按钮；自然人端 `pages/index` 新增「待办提醒」入口。
 
 > **前置确认（阻塞交付，不阻塞编码）**：短信通道供应商与签名报备——有审核周期与费用。在此之前开关保持关闭，收货员转达链路可独立工作。
 

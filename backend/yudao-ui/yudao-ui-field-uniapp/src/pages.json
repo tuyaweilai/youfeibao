@@ -37,6 +37,18 @@
       }
     },
     {
+      "path": "pages/settlement/index",
+      "style": {
+        "navigationBarTitleText": "结算与确认"
+      }
+    },
+    {
+      "path": "pages/settlement/detail",
+      "style": {
+        "navigationBarTitleText": "结算单明细"
+      }
+    },
+    {
       "path": "pages/offline/index",
       "style": {
         "navigationBarTitleText": "待补传"

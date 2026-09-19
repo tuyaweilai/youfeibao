@@ -107,6 +107,7 @@
     <view class="actions">
       <button class="btn btn--primary" :loading="exporting" @click="onExport">导出确认书（Excel）</button>
       <button class="btn btn--ghost" @click="onPrint">打印本页</button>
+      <button class="btn btn--ghost" :loading="generating" @click="onEndBatch">结束本次收货（生成结算单）</button>
     </view>
   </view>
 </template>
@@ -115,6 +116,7 @@
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getAcquisition, correctAcquisition, AcquisitionVO } from '@/api/acquisition'
+import { generateSettlement } from '@/api/settlement'
 import { downloadWithAuth } from '@/utils/download'
 import { comparePlate } from '@/utils/plate'
 
@@ -123,6 +125,7 @@ defineOptions({ name: 'FieldAcquisitionDetail' })
 const acquisition = ref<AcquisitionVO | null>(null)
 const exporting = ref(false)
 const saving = ref(false)
+const generating = ref(false)
 const showCorrect = ref(false)
 
 const correct = reactive({
@@ -267,6 +270,24 @@ function onPrint() {
   // #ifndef H5
   uni.showToast({ title: '请用系统分享导出后打印', icon: 'none' })
   // #endif
+}
+
+/** 结束本次收货：把这位出售者尚未归组的收购单聚合成一张结算单，然后转达确认链接 */
+async function onEndBatch() {
+  if (!acquisition.value?.payeeId) {
+    uni.showToast({ title: '该收购单缺少出售者档案', icon: 'none' })
+    return
+  }
+  generating.value = true
+  try {
+    await generateSettlement({ payeeId: acquisition.value.payeeId })
+    uni.showToast({ title: '结算单已生成', icon: 'success' })
+    uni.navigateTo({ url: '/pages/settlement/index' })
+  } catch (e) {
+    uni.showModal({ title: '未能生成', content: (e as Error).message, showCancel: false })
+  } finally {
+    generating.value = false
+  }
 }
 
 function toNum(value: string): number | null {
