@@ -387,3 +387,14 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 顺带修了一个登录 UX 缺陷：`SellerAuthServiceImpl.inPlatformTenant` 直接 `TenantUtils.execute`，而后者把异常包成裸 `RuntimeException`，导致 `ServiceException`（如「短信发送过于频繁」）被全局异常处理器当成 `500 系统异常`。现拆回原样。前端 `utils/request.ts` 也改成**只有带令牌的请求**收到 401 才清登录态跳登录；登录/取码这类公开请求的 401 原样报错，不再 `reLaunch` 掉页面（这正是「点获取验证码手机号消失、无提示」的直接原因）。
 
 > 提醒：`pages.json` / `manifest.json` 改动不会热更新，加/改页面后要重启对应 `pnpm dev:h5`；后端同理，改完 icbc 模块要先 `install` 再重启，否则 `spring-boot:run` 仍从 `.m2` 读旧 jar。
+
+### 让本地环境真正能登录（2026-09-19 补记）
+
+修完上面三处后，登录仍走不通，原因是**本地库和本地 jar 都落后于源码**（源码在，但没被加载/应用）：
+
+1. **本地库缺 #31–#37 的迁移表**（`icbc_natural_person`、`icbc_station`、`icbc_settlement`、`icbc_appointment`、`icbc_seller_notify`、`icbc_payee_bank_card_change` 等）。按 `backend/sql/mysql/README.md` 的顺序补跑这些 `icbc-*.sql` 即可。
+2. **`icbc-natural-person.sql` 在 MySQL 8 上有排序规则 bug**：建表没写 `COLLATE`，MySQL 8 默认 `utf8mb4_0900_ai_ci`，回填时与快照表的 `utf8mb4_unicode_ci` 关联报 `Illegal mix of collations`。已给两张表补 `COLLATE=utf8mb4_unicode_ci`，并加幂等 `CONVERT`（修老库）。
+3. **`.m2` 里除 icbc 以外的模块 jar 偏旧**：`MemberUserApi.createUserIfAbsent`（member-biz）、`TenantApi.getTenantName`（system-biz）等新方法在接口里、不在旧实现 jar 里 → 运行期 `AbstractMethodError`。只 `-am` 装 icbc 模块不够，要：`mvn -pl yudao-server -am -DskipTests install`（整棵依赖树）。
+4. **token 租户跟着登录请求头走**：`sms-login` 是 ignore-url，签发 token 时用当前租户上下文。若扫码进了场站（带 `tenant-id`），token 租户 = 场站租户，后续 `/app-api` 请求头一致就不会被越权校验拦。**curl 手测登录务必也带 `tenant-id`**，否则签出平台租户 token，再带场站租户访问即 403「您无权访问该租户的数据」。这也是框架 `TenantSecurityWebFilter` 的硬约束：越权校验在 ignore-url 判断**之前**且不可绕过。
+
+登录测试数据（本地）：场站码 `STATION_TEST`（租户 1）、出售者手机号 `13800139999`（演示出售者，已有一张待确认结算单）、验证码固定 `9999`（`application.yaml` 的 `sms-code.begin/end-code`）。入口：`http://localhost:5174/#/?station=STATION_TEST`。

@@ -32,7 +32,22 @@ CREATE TABLE IF NOT EXISTS `icbc_natural_person` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_natural_person_id_card_no` (`id_card_no`),
   UNIQUE KEY `uk_natural_person_out_user_id` (`out_user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='平台级自然人主体';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='平台级自然人主体';
+
+-- MySQL 8 建表默认 utf8mb4_0900_ai_ci，而本库快照（icbc_payee_info 等）是 utf8mb4_unicode_ci；
+-- 两者直接比较（回填与运行时的身份证号关联）会报 "Illegal mix of collations"。
+-- 老库若已按 0900_ai_ci 建过表，这里幂等地改成 unicode_ci。
+SET @col_exists := (
+  SELECT COUNT(1) FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'icbc_natural_person'
+    AND TABLE_COLLATION <> 'utf8mb4_unicode_ci'
+);
+SET @ddl := IF(@col_exists = 1,
+  'ALTER TABLE `icbc_natural_person` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
+  'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- 2. 自然人主体与登录凭证的绑定（多对多：一个手机号可被多个主体复用）
 CREATE TABLE IF NOT EXISTS `icbc_natural_person_login` (
@@ -49,7 +64,19 @@ CREATE TABLE IF NOT EXISTS `icbc_natural_person_login` (
   `deleted` tinyint NOT NULL DEFAULT '0' COMMENT '是否删除',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_natural_person_login` (`natural_person_id`, `member_user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='自然人主体与登录凭证的绑定';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='自然人主体与登录凭证的绑定';
+
+SET @col_exists := (
+  SELECT COUNT(1) FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'icbc_natural_person_login'
+    AND TABLE_COLLATION <> 'utf8mb4_unicode_ci'
+);
+SET @ddl := IF(@col_exists = 1,
+  'ALTER TABLE `icbc_natural_person_login` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
+  'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- 3. 收方档案挂到自然人主体
 SET @col_exists := (
