@@ -236,6 +236,7 @@ CREATE TABLE `icbc_order_item` (
   `amount` decimal(14,2) NOT NULL COMMENT '金额（元）',
   `tax_rate` decimal(4,2) NOT NULL COMMENT '税率',
   `tax_amount` decimal(14,2) DEFAULT NULL COMMENT '税额（元）',
+  `quantity_note` varchar(200) DEFAULT NULL COMMENT '数量口径说明（结算重量计价后发票数量与磅单净重的差异）',
   `category` varchar(50) DEFAULT NULL COMMENT '商品分类',
   `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

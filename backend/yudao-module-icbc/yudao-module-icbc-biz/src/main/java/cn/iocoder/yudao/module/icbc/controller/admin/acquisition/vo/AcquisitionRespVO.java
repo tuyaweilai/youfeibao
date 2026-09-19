@@ -70,6 +70,30 @@ public class AcquisitionRespVO {
     @Schema(description = "净重", example = "12500.00")
     private BigDecimal netWeight;
 
+    @Schema(description = "扣杂原始值", example = "200.00")
+    private BigDecimal deduction;
+
+    @Schema(description = "扣杂录法：WEIGHT-按重量，RATIO-按比例", example = "WEIGHT")
+    private String deductionMethod;
+
+    @Schema(description = "结算重量 = 毛重 − 皮重 − 扣杂（唯一计价基准）", example = "12300.00")
+    private BigDecimal settlementWeight;
+
+    @Schema(description = "调整项（元）", example = "-100.00")
+    private BigDecimal adjustmentAmount;
+
+    @Schema(description = "调整原因", example = "扣运费 100 元")
+    private String adjustmentReason;
+
+    @Schema(description = "数量口径说明")
+    private String quantityNote;
+
+    @Schema(description = "司机姓名（运输信息）", example = "李师傅")
+    private String driverName;
+
+    @Schema(description = "司机手机号（运输信息）", example = "13800138000")
+    private String driverMobile;
+
     @Schema(description = "磅单号", example = "WD20261201001")
     private String weightTicketNo;
 

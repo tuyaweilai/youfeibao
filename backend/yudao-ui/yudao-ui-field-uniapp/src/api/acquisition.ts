@@ -11,6 +11,20 @@ export interface AcquisitionCreateReq {
   grossWeight?: number
   tareWeight?: number
   netWeight?: number
+  /** 扣杂原始值：按重量时是重量，按比例时是比例（0~1） */
+  deduction?: number
+  /** 扣杂录法：WEIGHT-按重量，RATIO-按比例 */
+  deductionMethod?: string
+  /** 调整项（元，可正可负） */
+  adjustmentAmount?: number
+  /** 调整原因；调整项非零时必填 */
+  adjustmentReason?: string
+  /** 数量口径说明 */
+  quantityNote?: string
+  /** 司机姓名（运输信息） */
+  driverName?: string
+  /** 司机手机号（运输信息） */
+  driverMobile?: string
   weightTicketNo?: string
   weightTicketImageUrl?: string
   weightTicketPlateNo?: string
@@ -54,6 +68,15 @@ export interface AcquisitionVO {
   grossWeight?: number
   tareWeight?: number
   netWeight?: number
+  deduction?: number
+  deductionMethod?: string
+  /** 结算重量 = 毛重 − 皮重 − 扣杂（唯一计价基准） */
+  settlementWeight?: number
+  adjustmentAmount?: number
+  adjustmentReason?: string
+  quantityNote?: string
+  driverName?: string
+  driverMobile?: string
   weightTicketNo?: string
   weightTicketImageUrl?: string
   weightTicketPlateNo?: string
@@ -78,6 +101,14 @@ export interface AcquisitionCorrectionReq {
   grossWeight?: number
   tareWeight?: number
   netWeight?: number
+  deduction?: number
+  deductionMethod?: string
+  unitPrice?: number
+  adjustmentAmount?: number
+  adjustmentReason?: string
+  quantityNote?: string
+  driverName?: string
+  driverMobile?: string
   weightTicketNo?: string
   weightTicketPlateNo?: string
   vehiclePlateNo?: string

@@ -124,6 +124,137 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         assertServiceException(() -> acquisitionService.createAcquisition(reqVO), ACQUISITION_WEIGHT_INVALID);
     }
 
+    // ==================== 计价模型（#32 / ADR 0019） ====================
+
+    @Test
+    public void testCreateAcquisition_settlementWeightByWeightDeduction() {
+        PayeeInfoDO payee = insertPayee("甲一", "13800138100");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("5"));
+        reqVO.setGrossWeight(new BigDecimal("18000.00"));
+        reqVO.setTareWeight(new BigDecimal("5500.00"));
+        reqVO.setDeduction(new BigDecimal("500.00"));
+        reqVO.setDeductionMethod("WEIGHT");
+        reqVO.setUnitPrice(new BigDecimal("2.00"));
+
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
+
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
+        // 结算重量 = 毛重 − 皮重 − 扣杂
+        assertEquals(0, new BigDecimal("12000.00").compareTo(saved.getSettlementWeight()));
+        // 金额 = 结算重量 × 单价（数量不再参与）
+        assertEquals(0, new BigDecimal("24000.00").compareTo(saved.getAmount()));
+    }
+
+    @Test
+    public void testCreateAcquisition_settlementWeightByRatioDeduction() {
+        PayeeInfoDO payee = insertPayee("甲二", "13800138101");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("5"));
+        reqVO.setGrossWeight(new BigDecimal("18000.00"));
+        reqVO.setTareWeight(new BigDecimal("5500.00"));
+        reqVO.setDeduction(new BigDecimal("0.10"));
+        reqVO.setDeductionMethod("RATIO");
+        reqVO.setUnitPrice(new BigDecimal("2.00"));
+
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
+
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
+        // 净重 12500，按比例扣 10% = 1250，结算重量 11250
+        assertEquals(0, new BigDecimal("11250.0000").compareTo(saved.getSettlementWeight()));
+        assertEquals(0, new BigDecimal("22500.00").compareTo(saved.getAmount()));
+    }
+
+    @Test
+    public void testCreateAcquisition_adjustmentRequiresReasonAndIsAddedToAmount() {
+        PayeeInfoDO payee = insertPayee("甲三", "13800138102");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+
+        AcquisitionCreateReqVO missingReason = baseReq(payee.getId(), config.getId());
+        missingReason.setQuantity(new BigDecimal("5"));
+        missingReason.setGrossWeight(new BigDecimal("18000.00"));
+        missingReason.setTareWeight(new BigDecimal("5500.00"));
+        missingReason.setUnitPrice(new BigDecimal("2.00"));
+        missingReason.setAdjustmentAmount(new BigDecimal("-100.00"));
+        assertServiceException(() -> acquisitionService.createAcquisition(missingReason),
+                ACQUISITION_ADJUSTMENT_REASON_REQUIRED);
+
+        AcquisitionCreateReqVO withReason = baseReq(payee.getId(), config.getId());
+        withReason.setQuantity(new BigDecimal("5"));
+        withReason.setGrossWeight(new BigDecimal("18000.00"));
+        withReason.setTareWeight(new BigDecimal("5500.00"));
+        withReason.setUnitPrice(new BigDecimal("2.00"));
+        withReason.setAdjustmentAmount(new BigDecimal("-100.00"));
+        withReason.setAdjustmentReason("扣运费 100 元");
+        Long id = acquisitionService.createAcquisition(withReason).getId();
+
+        // 金额 = 结算重量 × 单价 + 调整项 = 12500 × 2 − 100
+        assertEquals(0, new BigDecimal("24900.00").compareTo(acquisitionMapper.selectById(id).getAmount()));
+    }
+
+    @Test
+    public void testCreateAcquisition_deductionExceedsNetWeightRejected() {
+        PayeeInfoDO payee = insertPayee("甲四", "13800138103");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("5"));
+        reqVO.setGrossWeight(new BigDecimal("18000.00"));
+        reqVO.setTareWeight(new BigDecimal("5500.00"));
+        reqVO.setDeduction(new BigDecimal("13000.00"));
+        reqVO.setDeductionMethod("WEIGHT");
+        reqVO.setUnitPrice(new BigDecimal("2.00"));
+
+        assertServiceException(() -> acquisitionService.createAcquisition(reqVO),
+                ACQUISITION_SETTLEMENT_WEIGHT_INVALID);
+    }
+
+    @Test
+    public void testCreateAcquisition_legacyWithoutWeightStillUsesQuantityFormula() {
+        PayeeInfoDO payee = insertPayee("甲五", "13800138104");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("3"));
+        reqVO.setUnitPrice(new BigDecimal("10.00"));
+
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
+
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
+        // 历史口径：没有重量时不强行造结算重量
+        assertNull(saved.getSettlementWeight());
+        assertEquals(0, new BigDecimal("30.00").compareTo(saved.getAmount()));
+    }
+
+    @Test
+    public void testCorrectRecognition_recomputesSettlementWeightAndAmount() {
+        PayeeInfoDO payee = insertPayee("甲六", "13800138105");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("5"));
+        reqVO.setGrossWeight(new BigDecimal("18000.00"));
+        reqVO.setTareWeight(new BigDecimal("5500.00"));
+        reqVO.setUnitPrice(new BigDecimal("2.00"));
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
+        assertEquals(0, new BigDecimal("25000.00").compareTo(acquisitionMapper.selectById(id).getAmount()));
+
+        // 现场更正扣杂：结算重量与金额都要跟着重算
+        AcquisitionCorrectionReqVO correction = new AcquisitionCorrectionReqVO();
+        correction.setId(id);
+        correction.setDeduction(new BigDecimal("500.00"));
+        correction.setDeductionMethod("WEIGHT");
+        acquisitionService.correctRecognition(correction);
+
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
+        assertEquals(0, new BigDecimal("12000.00").compareTo(saved.getSettlementWeight()));
+        assertEquals(0, new BigDecimal("24000.00").compareTo(saved.getAmount()));
+    }
+
     // ==================== 必须要件 ====================
 
     @Test

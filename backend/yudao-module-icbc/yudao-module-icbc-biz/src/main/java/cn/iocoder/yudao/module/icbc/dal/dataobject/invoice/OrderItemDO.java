@@ -85,6 +85,11 @@ public class OrderItemDO extends TenantBaseDO {
     private BigDecimal taxAmount;
     
     /**
+     * 数量口径说明：结算重量计价后，发票「数量」与磅单「净重」不再相等（差一个扣杂，ADR 0019）。
+     */
+    private String quantityNote;
+
+    /**
      * 商品分类
      */
     private String category;

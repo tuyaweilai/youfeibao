@@ -29,6 +29,30 @@ public class AcquisitionCorrectionReqVO {
     @Schema(description = "净重", example = "12500.00")
     private BigDecimal netWeight;
 
+    @Schema(description = "扣杂原始值：按重量时是重量，按比例时是比例（0~1）", example = "200.00")
+    private BigDecimal deduction;
+
+    @Schema(description = "含税单价（元）；修正后按结算重量重算金额", example = "2600.00")
+    private BigDecimal unitPrice;
+
+    @Schema(description = "扣杂录法：WEIGHT-按重量，RATIO-按比例", example = "WEIGHT")
+    private String deductionMethod;
+
+    @Schema(description = "调整项（元，可正可负）", example = "-100.00")
+    private BigDecimal adjustmentAmount;
+
+    @Schema(description = "调整原因；调整项非零时必填", example = "扣运费 100 元")
+    private String adjustmentReason;
+
+    @Schema(description = "数量口径说明（选填）", example = "结算重量计价，含扣杂")
+    private String quantityNote;
+
+    @Schema(description = "司机姓名（运输信息）", example = "李师傅")
+    private String driverName;
+
+    @Schema(description = "司机手机号（运输信息）", example = "13800138000")
+    private String driverMobile;
+
     @Schema(description = "磅单号", example = "WD20261201001")
     private String weightTicketNo;
 

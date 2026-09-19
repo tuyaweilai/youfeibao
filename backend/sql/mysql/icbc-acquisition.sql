@@ -24,6 +24,14 @@ CREATE TABLE IF NOT EXISTS `icbc_acquisition` (
   `gross_weight` decimal(14,4) DEFAULT NULL COMMENT '毛重',
   `tare_weight` decimal(14,4) DEFAULT NULL COMMENT '皮重',
   `net_weight` decimal(14,4) DEFAULT NULL COMMENT '净重',
+  `deduction` decimal(14,4) DEFAULT NULL COMMENT '扣杂原始值（按重量时为重量，按比例时为 0~1）',
+  `deduction_method` varchar(10) DEFAULT NULL COMMENT '扣杂录法：WEIGHT-按重量，RATIO-按比例',
+  `settlement_weight` decimal(14,4) DEFAULT NULL COMMENT '结算重量 = 毛重 − 皮重 − 扣杂（唯一计价基准）',
+  `adjustment_amount` decimal(14,2) DEFAULT NULL COMMENT '调整项（元，可正可负）',
+  `adjustment_reason` varchar(200) DEFAULT NULL COMMENT '调整原因（运费/补贴/折让）',
+  `quantity_note` varchar(200) DEFAULT NULL COMMENT '数量口径说明',
+  `driver_name` varchar(50) DEFAULT NULL COMMENT '司机姓名（运输信息）',
+  `driver_mobile` varchar(32) DEFAULT NULL COMMENT '司机手机号（运输信息）',
   `weight_ticket_no` varchar(64) DEFAULT NULL COMMENT '磅单号',
   `weight_ticket_image_url` varchar(500) DEFAULT NULL COMMENT '磅单照片地址',
   `weight_ticket_plate_no` varchar(32) DEFAULT NULL COMMENT '磅单识别车牌',
@@ -52,3 +60,54 @@ CREATE TABLE IF NOT EXISTS `icbc_acquisition` (
   KEY `idx_acquisition_trade_time` (`trade_time`),
   KEY `idx_tenant_id` (`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='收购登记单';
+
+-- ========================================
+-- 计价模型（#32，见 ADR 0019）：结算重量是唯一计价基准，扣杂独立成字段。
+-- 幂等：仅当列不存在时 ALTER；历史数据按扣杂 = 0 兼容（旧单金额不回算）。
+-- ========================================
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'deduction');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `deduction` decimal(14,4) DEFAULT NULL COMMENT ''扣杂原始值（按重量时为重量，按比例时为 0~1）'' AFTER `net_weight`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'deduction_method');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `deduction_method` varchar(10) DEFAULT NULL COMMENT ''扣杂录法：WEIGHT-按重量，RATIO-按比例'' AFTER `deduction`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'settlement_weight');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `settlement_weight` decimal(14,4) DEFAULT NULL COMMENT ''结算重量 = 毛重 − 皮重 − 扣杂（唯一计价基准）'' AFTER `deduction_method`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'adjustment_amount');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `adjustment_amount` decimal(14,2) DEFAULT NULL COMMENT ''调整项（元，可正可负）'' AFTER `settlement_weight`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'adjustment_reason');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `adjustment_reason` varchar(200) DEFAULT NULL COMMENT ''调整原因（运费/补贴/折让）'' AFTER `adjustment_amount`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'quantity_note');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `quantity_note` varchar(200) DEFAULT NULL COMMENT ''数量口径说明'' AFTER `adjustment_reason`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'driver_name');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `driver_name` varchar(50) DEFAULT NULL COMMENT ''司机姓名（运输信息）'' AFTER `quantity_note`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'driver_mobile');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `driver_mobile` varchar(32) DEFAULT NULL COMMENT ''司机手机号（运输信息）'' AFTER `driver_name`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 发票明细的数量口径说明（ADR 0019）：结算重量计价后发票「数量」与磅单「净重」不再相等
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_order_item' AND COLUMN_NAME = 'quantity_note');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_order_item` ADD COLUMN `quantity_note` varchar(200) DEFAULT NULL COMMENT ''数量口径说明（结算重量计价后发票数量与磅单净重的差异）'' AFTER `tax_amount`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;

@@ -101,6 +101,37 @@ public class IcbcAcquisitionDO extends TenantBaseDO {
     /** 净重 */
     private BigDecimal netWeight;
 
+    // ==================== 计价模型（ADR 0019：结算重量是唯一计价基准） ====================
+
+    /**
+     * 扣杂**原始值**：{@link #deductionMethod} 为 WEIGHT 时是重量，为 RATIO 时是比例（0~1）。
+     * 只存原始录法，换算结果体现在 {@link #settlementWeight}，不用自由文本覆盖结算重量。
+     */
+    private BigDecimal deduction;
+
+    /** 扣杂录法：WEIGHT-按重量，RATIO-按比例，枚举 {@link cn.iocoder.yudao.module.icbc.enums.DeductionMethodEnum} */
+    private String deductionMethod;
+
+    /** 结算重量 = 毛重 − 皮重 − 扣杂；本平台唯一计价基准 */
+    private BigDecimal settlementWeight;
+
+    /** 调整项（元，可正可负；运费 / 补贴 / 折让） */
+    private BigDecimal adjustmentAmount;
+
+    /** 调整原因；调整项非零时必填 */
+    private String adjustmentReason;
+
+    /** 数量口径说明：数量与磅单净重不再相等时的解释（如「结算重量计价，含扣杂」） */
+    private String quantityNote;
+
+    // ==================== 运输信息（司机不参与确认 / 收款，不占自然人主体） ====================
+
+    /** 司机姓名 */
+    private String driverName;
+
+    /** 司机手机号 */
+    private String driverMobile;
+
     /** 磅单号 */
     private String weightTicketNo;
 

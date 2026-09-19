@@ -700,6 +700,7 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
             item.setOrderNo(orderNo);
             item.setItemName(goodsInfo.getProjectName());
             item.setSpecification(goodsInfo.getWeight());
+            item.setQuantityNote(goodsInfo.getQuantityNote());
             item.setUnit(goodsInfo.getUnits());
             item.setQuantity(goodsInfo.getGoodsNum());
             item.setUnitPrice(goodsInfo.getPrice());

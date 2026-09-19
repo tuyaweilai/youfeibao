@@ -152,6 +152,9 @@ public interface ErrorCodeConstants {
     ErrorCode ACQUISITION_STATUS_NOT_ALLOW_UPDATE = new ErrorCode(1_030_014_006, "收购单状态不允许修改");
     ErrorCode ACQUISITION_CONFIRMATION_EXPORT_FAILED = new ErrorCode(1_030_014_007, "收购确认书导出失败");
     ErrorCode ACQUISITION_SELLER_NOT_EXISTS = new ErrorCode(1_030_014_008, "出售者档案不存在，请先建档再登记收购");
+    ErrorCode ACQUISITION_SETTLEMENT_WEIGHT_INVALID = new ErrorCode(1_030_014_009, "结算重量不合法：毛重 − 皮重 − 扣杂不能小于 0");
+    ErrorCode ACQUISITION_ADJUSTMENT_REASON_REQUIRED = new ErrorCode(1_030_014_010, "调整项必须填写原因（运费 / 补贴 / 折让）");
+    ErrorCode ACQUISITION_DEDUCTION_INVALID = new ErrorCode(1_030_014_011, "扣杂不合法：按重量不能为负，按比例须在 0~1 之间");
 
     // ========== 开票申请（#8） 1-030-015-000 ==========
     ErrorCode INVOICE_APPLICATION_PRECHECK_FAILED = new ErrorCode(1_030_015_000, "开票申请校验未通过");

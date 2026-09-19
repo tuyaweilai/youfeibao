@@ -322,6 +322,10 @@ public class InvoicePreOrderReqVO {
         @Size(max = 10, message = "订单商品规格长度不能超过10个字符")
         private String weight;
 
+        @Schema(description = "数量口径说明（结算重量计价时解释发票数量与磅单净重的差异）", example = "结算重量计价，含扣杂")
+        @Size(max = 200, message = "数量口径说明长度不能超过200个字符")
+        private String quantityNote;
+
         @Schema(description = "含税单价(元)", requiredMode = Schema.RequiredMode.REQUIRED, example = "8.89")
         @NotNull(message = "含税单价不能为空")
         @DecimalMin(value = "0.01", message = "含税单价必须大于0")

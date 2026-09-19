@@ -444,6 +444,8 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
         goods.setUnits(acquisition.getUnit());
         goods.setTaxRate(acquisition.getTaxRate());
         goods.setMergedCode(acquisition.getMergedCode());
+        // 结算重量计价后，发票「数量」与磅单「净重」不再相等，带上口径说明（ADR 0019）
+        goods.setQuantityNote(acquisition.getQuantityNote());
         return goods;
     }
 

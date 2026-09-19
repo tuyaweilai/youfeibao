@@ -51,20 +51,12 @@
         </view>
       </view>
 
-      <!-- 数量与金额 -->
+      <!-- 数量与计价 -->
       <view class="card">
-        <view class="card__title">数量与金额</view>
+        <view class="card__title">数量与计价</view>
         <view class="field">
-          <text class="field__label">数量{{ selectedGoods?.unit ? `（${selectedGoods.unit}）` : '' }}</text>
+          <text class="field__label">数量{{ selectedGoods?.unit ? `（${selectedGoods.unit}）` : '' }}（展示与发票明细，不参与金额）</text>
           <input v-model="form.quantity" class="input" type="digit" placeholder="0" />
-        </view>
-        <view class="field">
-          <text class="field__label">含税单价（元）</text>
-          <input v-model="form.unitPrice" class="input" type="digit" placeholder="0.00" />
-        </view>
-        <view class="field">
-          <text class="field__label">金额（元，自动）</text>
-          <input v-model="form.amount" class="input" type="digit" placeholder="0.00" />
         </view>
         <view class="field">
           <text class="field__label">毛重</text>
@@ -77,6 +69,36 @@
         <view class="field">
           <text class="field__label">净重（自动 = 毛重 − 皮重）</text>
           <input v-model="form.netWeight" class="input" type="digit" placeholder="0" />
+        </view>
+        <view class="field">
+          <text class="field__label">扣杂录法</text>
+          <picker :range="deductionMethodNames" :value="deductionMethodIndex" @change="onDeductionMethodChange">
+            <view class="picker">{{ deductionMethodNames[deductionMethodIndex] }}</view>
+          </picker>
+        </view>
+        <view class="field">
+          <text class="field__label">扣杂（{{ form.deductionMethod === 'RATIO' ? '比例，如 0.1' : '重量' }}）</text>
+          <input v-model="form.deduction" class="input" type="digit" placeholder="0" />
+        </view>
+        <view class="settlement">
+          <text class="settlement__label">结算重量（自动 = 毛重 − 皮重 − 扣杂）</text>
+          <text class="settlement__value">{{ settlementWeightText }}</text>
+        </view>
+        <view class="field">
+          <text class="field__label">含税单价（元）</text>
+          <input v-model="form.unitPrice" class="input" type="digit" placeholder="0.00" />
+        </view>
+        <view class="field">
+          <text class="field__label">调整项（元，可正可负）</text>
+          <input v-model="form.adjustmentAmount" class="input" type="digit" placeholder="0.00" />
+        </view>
+        <view class="field">
+          <text class="field__label">调整原因（运费 / 补贴 / 折让）</text>
+          <input v-model="form.adjustmentReason" class="input" placeholder="调整项非 0 时必填" />
+        </view>
+        <view class="field">
+          <text class="field__label">金额（元，自动 = 结算重量 × 单价 + 调整项）</text>
+          <input v-model="form.amount" class="input" type="digit" placeholder="0.00" />
         </view>
       </view>
 
@@ -126,6 +148,14 @@
         <view class="field">
           <text class="field__label">结算方式</text>
           <input v-model="form.settlementMethod" class="input" placeholder="如 银行转账，过磅后 3 日内结清" />
+        </view>
+        <view class="field">
+          <text class="field__label">司机姓名（运输信息，不参与确认与收款）</text>
+          <input v-model="form.driverName" class="input" placeholder="选填" />
+        </view>
+        <view class="field">
+          <text class="field__label">司机手机号（运输信息）</text>
+          <input v-model="form.driverMobile" class="input" placeholder="选填" />
         </view>
         <view class="field">
           <text class="field__label">备注</text>
@@ -199,13 +229,26 @@ const form = reactive({
   grossWeight: '',
   tareWeight: '',
   netWeight: '',
+  deduction: '',
+  deductionMethod: 'WEIGHT',
+  adjustmentAmount: '',
+  adjustmentReason: '',
   weightTicketNo: '',
   weightTicketPlateNo: '',
   vehiclePlateNo: '',
   tradeAddress: '',
   settlementMethod: '',
+  driverName: '',
+  driverMobile: '',
   remark: ''
 })
+
+const deductionMethodNames = ['按重量', '按比例']
+const deductionMethodIndex = computed(() => (form.deductionMethod === 'RATIO' ? 1 : 0))
+
+function onDeductionMethodChange(event: any) {
+  form.deductionMethod = Number(event.detail.value) === 1 ? 'RATIO' : 'WEIGHT'
+}
 
 const goodsNames = computed(() => goodsList.value.map((item) => item.name || ''))
 const selectedGoods = computed(() => (goodsIndex.value >= 0 ? goodsList.value[goodsIndex.value] : undefined))
@@ -246,14 +289,40 @@ function onGoodsChange(event: any) {
   form.goodsConfigId = selectedGoods.value?.id
 }
 
-// 金额与净重自动推算；现场也允许直接改金额
+// 结算重量 = 毛重 − 皮重 − 扣杂，是本平台唯一的计价基准（ADR 0019）
+const settlementWeight = computed(() => {
+  const net = toNum(form.netWeight)
+  if (net == null) return null
+  const deduction = toNum(form.deduction) ?? 0
+  const deductionWeight = form.deductionMethod === 'RATIO' ? net * deduction : deduction
+  const result = net - deductionWeight
+  return result >= 0 ? Number(result.toFixed(4)) : null
+})
+const settlementWeightText = computed(() =>
+  settlementWeight.value == null ? '待录入毛重 / 皮重' : `${settlementWeight.value}`
+)
+
+// 金额 = 结算重量 × 单价 + 调整项；没有重量时退回「数量 × 单价」的历史口径
 watch(
-  () => [form.quantity, form.unitPrice],
+  () => [
+    form.quantity,
+    form.unitPrice,
+    form.netWeight,
+    form.deduction,
+    form.deductionMethod,
+    form.adjustmentAmount
+  ],
   () => {
-    const quantity = toNum(form.quantity)
     const unitPrice = toNum(form.unitPrice)
+    const adjustment = toNum(form.adjustmentAmount) ?? 0
+    const settlement = settlementWeight.value
+    if (settlement != null && unitPrice != null) {
+      form.amount = (settlement * unitPrice + adjustment).toFixed(2)
+      return
+    }
+    const quantity = toNum(form.quantity)
     if (quantity != null && unitPrice != null) {
-      form.amount = (quantity * unitPrice).toFixed(2)
+      form.amount = (quantity * unitPrice + adjustment).toFixed(2)
     }
   }
 )
@@ -338,7 +407,11 @@ function validate(): string | null {
   if (!form.payeeId) return '请先带出售者档案'
   if (!form.goodsConfigId) return '请选择品类'
   if (!(toNum(form.quantity)! > 0)) return '请填写数量'
-  if (!(toNum(form.amount)! > 0)) return '金额需大于 0（数量 × 单价）'
+  if (!(toNum(form.amount)! > 0)) return '金额需大于 0（结算重量 × 单价 + 调整项）'
+  const adjustment = toNum(form.adjustmentAmount)
+  if (adjustment != null && adjustment !== 0 && !form.adjustmentReason.trim()) {
+    return '调整项非 0 时必须填写调整原因（运费 / 补贴 / 折让）'
+  }
   if (!form.weightTicketNo.trim() && !photoData.weightTicketImageUrl && !photoUrl.weightTicketImageUrl) {
     return '磅单号与磅单照片至少填一个'
   }
@@ -357,6 +430,12 @@ function buildPayload(): AcquisitionCreateReq {
     grossWeight: toNum(form.grossWeight) ?? undefined,
     tareWeight: toNum(form.tareWeight) ?? undefined,
     netWeight: toNum(form.netWeight) ?? undefined,
+    deduction: toNum(form.deduction) ?? undefined,
+    deductionMethod: form.deductionMethod,
+    adjustmentAmount: toNum(form.adjustmentAmount) ?? undefined,
+    adjustmentReason: form.adjustmentReason.trim() || undefined,
+    driverName: form.driverName.trim() || undefined,
+    driverMobile: form.driverMobile.trim() || undefined,
     weightTicketNo: form.weightTicketNo.trim() || undefined,
     weightTicketPlateNo: form.weightTicketPlateNo || undefined,
     vehiclePlateNo: form.vehiclePlateNo || undefined,
@@ -465,11 +544,17 @@ function resetAll() {
     grossWeight: '',
     tareWeight: '',
     netWeight: '',
+    deduction: '',
+    deductionMethod: 'WEIGHT',
+    adjustmentAmount: '',
+    adjustmentReason: '',
     weightTicketNo: '',
     weightTicketPlateNo: '',
     vehiclePlateNo: '',
     tradeAddress: '',
     settlementMethod: '',
+    driverName: '',
+    driverMobile: '',
     remark: ''
   })
   lookup.idCardNo = ''
@@ -590,6 +675,26 @@ function showError(e: unknown) {
   &__add {
     color: $field-text-secondary;
     font-size: 26rpx;
+  }
+}
+
+.settlement {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4rpx 0 20rpx;
+  padding: 16rpx 20rpx;
+  background-color: #eef4ff;
+  border-radius: 12rpx;
+
+  &__label {
+    color: $field-text-secondary;
+    font-size: 26rpx;
+  }
+
+  &__value {
+    font-weight: 600;
+    color: $field-primary;
   }
 }
 

@@ -36,7 +36,7 @@ public class AcquisitionCreateReqVO {
     @Schema(description = "含税单价（元）", example = "2600.00")
     private BigDecimal unitPrice;
 
-    @Schema(description = "金额（元）；不传时按「数量 × 单价」计算", example = "32500.00")
+    @Schema(description = "金额（元）；默认按「结算重量 × 单价 + 调整项」计算", example = "32500.00")
     private BigDecimal amount;
 
     @Schema(description = "毛重", example = "18000.00")
@@ -47,6 +47,27 @@ public class AcquisitionCreateReqVO {
 
     @Schema(description = "净重；不传时按「毛重 − 皮重」计算", example = "12500.00")
     private BigDecimal netWeight;
+
+    @Schema(description = "扣杂原始值：按重量时是重量，按比例时是比例（0~1）", example = "200.00")
+    private BigDecimal deduction;
+
+    @Schema(description = "扣杂录法：WEIGHT-按重量（默认），RATIO-按比例", example = "WEIGHT")
+    private String deductionMethod;
+
+    @Schema(description = "调整项（元，可正可负；运费 / 补贴 / 折让）", example = "-100.00")
+    private BigDecimal adjustmentAmount;
+
+    @Schema(description = "调整原因；调整项非零时必填", example = "扣运费 100 元")
+    private String adjustmentReason;
+
+    @Schema(description = "数量口径说明（选填；结算重量计价时解释发票数量与磅单净重的差异）", example = "结算重量计价，含扣杂")
+    private String quantityNote;
+
+    @Schema(description = "司机姓名（运输信息，不参与确认与收款）", example = "李师傅")
+    private String driverName;
+
+    @Schema(description = "司机手机号（运输信息）", example = "13800138000")
+    private String driverMobile;
 
     @Schema(description = "磅单号", example = "WD20261201001")
     private String weightTicketNo;

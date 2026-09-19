@@ -16,6 +16,12 @@
       <view class="kv"><text class="kv__k">单价</text><text>{{ acquisition.unitPrice }} 元</text></view>
       <view class="kv"><text class="kv__k">金额</text><text>{{ acquisition.amount }} 元</text></view>
       <view class="kv"><text class="kv__k">毛重 / 皮重 / 净重</text><text>{{ acquisition.grossWeight ?? '-' }} / {{ acquisition.tareWeight ?? '-' }} / {{ acquisition.netWeight ?? '-' }}</text></view>
+      <view class="kv"><text class="kv__k">扣杂</text><text>{{ deductionText }}</text></view>
+      <view class="kv"><text class="kv__k">结算重量（计价基准）</text><text>{{ acquisition.settlementWeight ?? '-' }}</text></view>
+      <view v-if="acquisition.adjustmentAmount" class="kv">
+        <text class="kv__k">调整项</text><text>{{ acquisition.adjustmentAmount }} 元{{ acquisition.adjustmentReason ? `（${acquisition.adjustmentReason}）` : '' }}</text>
+      </view>
+      <view v-if="acquisition.driverName" class="kv"><text class="kv__k">司机</text><text>{{ acquisition.driverName }} {{ acquisition.driverMobile }}</text></view>
       <view class="kv"><text class="kv__k">磅单号</text><text>{{ acquisition.weightTicketNo || '-' }}</text></view>
       <view class="kv"><text class="kv__k">交易地点</text><text>{{ acquisition.tradeAddress || '-' }}</text></view>
       <view class="kv"><text class="kv__k">结算方式</text><text>{{ acquisition.settlementMethod || '-' }}</text></view>
@@ -54,6 +60,28 @@
         <view class="field">
           <text class="field__label">净重</text>
           <input v-model="correct.netWeight" class="input" type="digit" placeholder="0" />
+        </view>
+        <view class="field">
+          <text class="field__label">扣杂录法</text>
+          <picker :range="deductionMethodNames" :value="correctDeductionMethodIndex" @change="onDeductionMethodChange">
+            <view class="picker">{{ deductionMethodNames[correctDeductionMethodIndex] }}</view>
+          </picker>
+        </view>
+        <view class="field">
+          <text class="field__label">扣杂（{{ correct.deductionMethod === 'RATIO' ? '比例，如 0.1' : '重量' }}）</text>
+          <input v-model="correct.deduction" class="input" type="digit" placeholder="0" />
+        </view>
+        <view class="field">
+          <text class="field__label">含税单价</text>
+          <input v-model="correct.unitPrice" class="input" type="digit" placeholder="0.00" />
+        </view>
+        <view class="field">
+          <text class="field__label">调整项（元，可正可负）</text>
+          <input v-model="correct.adjustmentAmount" class="input" type="digit" placeholder="0.00" />
+        </view>
+        <view class="field">
+          <text class="field__label">调整原因</text>
+          <input v-model="correct.adjustmentReason" class="input" placeholder="调整项非 0 时必填" />
         </view>
         <view class="field">
           <text class="field__label">磅单号</text>
@@ -101,10 +129,28 @@ const correct = reactive({
   grossWeight: '',
   tareWeight: '',
   netWeight: '',
+  deduction: '',
+  deductionMethod: 'WEIGHT',
+  unitPrice: '',
+  adjustmentAmount: '',
+  adjustmentReason: '',
   weightTicketNo: '',
   weightTicketPlateNo: '',
   vehiclePlateNo: '',
   remark: ''
+})
+
+const deductionMethodNames = ['按重量', '按比例']
+const correctDeductionMethodIndex = computed(() => (correct.deductionMethod === 'RATIO' ? 1 : 0))
+
+function onDeductionMethodChange(event: any) {
+  correct.deductionMethod = Number(event.detail.value) === 1 ? 'RATIO' : 'WEIGHT'
+}
+
+const deductionText = computed(() => {
+  const value = acquisition.value?.deduction
+  if (value == null) return '-'
+  return acquisition.value?.deductionMethod === 'RATIO' ? `${value}（比例）` : `${value}`
 })
 
 const photoViews = computed(() => [
@@ -180,6 +226,11 @@ async function onCorrect() {
       grossWeight: toNum(correct.grossWeight) ?? undefined,
       tareWeight: toNum(correct.tareWeight) ?? undefined,
       netWeight: toNum(correct.netWeight) ?? undefined,
+      deduction: toNum(correct.deduction) ?? undefined,
+      deductionMethod: correct.deductionMethod,
+      unitPrice: toNum(correct.unitPrice) ?? undefined,
+      adjustmentAmount: toNum(correct.adjustmentAmount) ?? undefined,
+      adjustmentReason: correct.adjustmentReason || undefined,
       weightTicketNo: correct.weightTicketNo || undefined,
       weightTicketPlateNo: correct.weightTicketPlateNo || undefined,
       vehiclePlateNo: correct.vehiclePlateNo || undefined,

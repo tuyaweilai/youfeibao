@@ -15,6 +15,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.goodscfg.IcbcGoodsConfigMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.DeductionMethodEnum;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.acquisition.recognition.AcquisitionRecognitionPort;
 import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
@@ -85,11 +86,18 @@ public class AcquisitionServiceImpl implements AcquisitionService {
             }
         }
 
-        // 2. 必须要件校验：缺哪样说哪样，不做一个笼统的「参数错误」
-        BigDecimal amount = resolveAmount(reqVO);
-        assertRequiredElementsPresent(reqVO, amount);
+        // 2. 现场识别回填（人工已填的值优先，识别只在空缺处补）
+        fillByRecognition(reqVO);
 
-        // 3. 出售者与品类必须存在
+        // 3. 计价模型（ADR 0019）：结算重量 = 毛重 − 皮重 − 扣杂；金额 = 结算重量 × 单价 + 调整项
+        IcbcAcquisitionDO acquisition = BeanUtils.toBean(reqVO, IcbcAcquisitionDO.class);
+        acquisition.setId(null);
+        applyPricing(acquisition);
+
+        // 4. 必须要件校验：缺哪样说哪样，不做一个笼统的「参数错误」
+        assertRequiredElementsPresent(acquisition);
+
+        // 5. 出售者与品类必须存在
         PayeeInfoDO payee = payeeInfoMapper.selectById(reqVO.getPayeeId());
         if (payee == null) {
             throw exception(ACQUISITION_SELLER_NOT_EXISTS);
@@ -99,11 +107,8 @@ public class AcquisitionServiceImpl implements AcquisitionService {
             throw exception(ACQUISITION_GOODS_CONFIG_NOT_EXISTS);
         }
 
-        // 4. 现场识别回填（人工已填的值优先，识别只在空缺处补）
-        fillByRecognition(reqVO);
-
-        // 5. 组装并落库
-        IcbcAcquisitionDO acquisition = buildAcquisition(reqVO, payee, config, amount);
+        // 6. 组装快照并落库
+        applySnapshots(acquisition, payee, config);
         try {
             acquisitionMapper.insert(acquisition);
         } catch (DuplicateKeyException e) {
@@ -142,34 +147,91 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         return resp;
     }
 
-    private BigDecimal resolveAmount(AcquisitionCreateReqVO reqVO) {
-        if (reqVO.getAmount() != null) {
-            return reqVO.getAmount();
+    /**
+     * 计价模型（ADR 0019）：
+     * <ul>
+     *   <li><b>结算重量 = 毛重 − 皮重 − 扣杂</b>，它是本平台唯一的计价基准；</li>
+     *   <li><b>金额 = 结算重量 × 单价 + 调整项</b>；调整项非零时必须带原因。</li>
+     * </ul>
+     * 数量不再参与金额计算，只作展示与发票明细字段（发票数量与磅单净重因此不再相等）。
+     * 没有重量或单价时回退到调用方直接给的金额（兼容历史数据，扣杂按 0）。
+     */
+    private void applyPricing(IcbcAcquisitionDO acquisition) {
+        BigDecimal netWeight = resolveNetWeight(acquisition);
+        acquisition.setNetWeight(netWeight);
+        BigDecimal deductionWeight = resolveDeductionWeight(netWeight, acquisition);
+        BigDecimal settlementWeight = null;
+        if (netWeight != null) {
+            settlementWeight = netWeight.subtract(deductionWeight);
+            if (settlementWeight.signum() < 0) {
+                throw exception(ACQUISITION_SETTLEMENT_WEIGHT_INVALID);
+            }
         }
-        if (reqVO.getUnitPrice() != null && reqVO.getQuantity() != null) {
-            return reqVO.getUnitPrice().multiply(reqVO.getQuantity()).setScale(2, RoundingMode.HALF_UP);
+        acquisition.setSettlementWeight(settlementWeight);
+        BigDecimal adjustment = acquisition.getAdjustmentAmount() == null
+                ? BigDecimal.ZERO : acquisition.getAdjustmentAmount();
+        if (adjustment.signum() != 0 && StrUtil.isBlank(acquisition.getAdjustmentReason())) {
+            throw exception(ACQUISITION_ADJUSTMENT_REASON_REQUIRED);
         }
-        return null;
+        if (settlementWeight != null && acquisition.getUnitPrice() != null) {
+            acquisition.setAmount(settlementWeight.multiply(acquisition.getUnitPrice())
+                    .add(adjustment).setScale(2, RoundingMode.HALF_UP));
+        } else if (acquisition.getAmount() == null) {
+            acquisition.setAmount(resolveLegacyAmount(acquisition));
+        }
+    }
+
+    /**
+     * 扣杂换算：按重量时原值就是重量；按比例时原值是比例（0~1），扣杂重量 = 净重 × 比例。
+     */
+    private BigDecimal resolveDeductionWeight(BigDecimal netWeight, IcbcAcquisitionDO acquisition) {
+        BigDecimal deduction = acquisition.getDeduction();
+        if (deduction == null || deduction.signum() == 0) {
+            return BigDecimal.ZERO;
+        }
+        if (deduction.signum() < 0) {
+            throw exception(ACQUISITION_DEDUCTION_INVALID);
+        }
+        if (DeductionMethodEnum.ofMethod(acquisition.getDeductionMethod()) == DeductionMethodEnum.RATIO) {
+            if (deduction.compareTo(BigDecimal.ONE) > 0) {
+                throw exception(ACQUISITION_DEDUCTION_INVALID);
+            }
+            return netWeight == null ? BigDecimal.ZERO
+                    : netWeight.multiply(deduction).setScale(4, RoundingMode.HALF_UP);
+        }
+        return deduction;
+    }
+
+    /**
+     * 兼容历史口径：没有重量/单价时允许调用方直接给金额；给了单价与数量则按「数量 × 单价」兜底。
+     */
+    private BigDecimal resolveLegacyAmount(IcbcAcquisitionDO acquisition) {
+        if (acquisition.getUnitPrice() != null && acquisition.getQuantity() != null) {
+            return acquisition.getUnitPrice().multiply(acquisition.getQuantity()).setScale(2, RoundingMode.HALF_UP);
+        }
+        return acquisition.getAmount();
     }
 
     /**
      * 缺关键要件时列出缺了什么。要件清单来自 issue #7：磅单、品类、数量、金额、出售者。
+     * 数量降级为展示与发票明细字段：有结算重量时不再强制，两者都缺才拦。
      */
-    private void assertRequiredElementsPresent(AcquisitionCreateReqVO reqVO, BigDecimal amount) {
+    private void assertRequiredElementsPresent(IcbcAcquisitionDO acquisition) {
         List<String> missing = new ArrayList<>();
-        if (reqVO.getPayeeId() == null) {
+        if (acquisition.getPayeeId() == null) {
             missing.add("出售者");
         }
-        if (reqVO.getGoodsConfigId() == null) {
+        if (acquisition.getGoodsConfigId() == null) {
             missing.add("品类");
         }
-        if (reqVO.getQuantity() == null || reqVO.getQuantity().signum() <= 0) {
+        if (acquisition.getQuantity() == null || acquisition.getQuantity().signum() <= 0) {
             missing.add("数量");
         }
-        if (amount == null || amount.signum() <= 0) {
+        if (acquisition.getAmount() == null || acquisition.getAmount().signum() <= 0) {
             missing.add("金额");
         }
-        if (StrUtil.isBlank(reqVO.getWeightTicketNo()) && StrUtil.isBlank(reqVO.getWeightTicketImageUrl())) {
+        if (StrUtil.isBlank(acquisition.getWeightTicketNo())
+                && StrUtil.isBlank(acquisition.getWeightTicketImageUrl())) {
             missing.add("磅单");
         }
         if (!missing.isEmpty()) {
@@ -213,12 +275,9 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         }
     }
 
-    private IcbcAcquisitionDO buildAcquisition(AcquisitionCreateReqVO reqVO, PayeeInfoDO payee,
-                                               IcbcGoodsConfigDO config, BigDecimal amount) {
-        IcbcAcquisitionDO acquisition = BeanUtils.toBean(reqVO, IcbcAcquisitionDO.class);
-        acquisition.setId(null);
+    private void applySnapshots(IcbcAcquisitionDO acquisition, PayeeInfoDO payee,
+                               IcbcGoodsConfigDO config) {
         acquisition.setAcquisitionNo(generateAcquisitionNo());
-        acquisition.setAmount(amount);
         acquisition.setPartnerPayeeId(payee.getPartnerPayeeId());
         acquisition.setSellerName(payee.getName());
         acquisition.setSellerMobile(payee.getMobile());
@@ -227,14 +286,12 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         acquisition.setTaxRate(config.getTaxRate());
         acquisition.setTaxMethod(config.getTaxMethod());
         acquisition.setMergedCode(config.getMergedCode());
-        acquisition.setNetWeight(resolveNetWeight(acquisition));
         acquisition.setStatus(AcquisitionStatusEnum.REGISTERED.getStatus());
         acquisition.setPlateMatched(comparePlate(acquisition.getWeightTicketPlateNo(), acquisition.getVehiclePlateNo()));
-        acquisition.setSource(StrUtil.blankToDefault(reqVO.getSource(), SOURCE_ONLINE));
+        acquisition.setSource(StrUtil.blankToDefault(acquisition.getSource(), SOURCE_ONLINE));
         if (acquisition.getTradeTime() == null) {
             acquisition.setTradeTime(LocalDateTime.now());
         }
-        return acquisition;
     }
 
     private BigDecimal resolveNetWeight(IcbcAcquisitionDO acquisition) {
@@ -320,7 +377,33 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         } else if (reqVO.getGrossWeight() != null || reqVO.getTareWeight() != null) {
             // 毛重或皮重被改了：净重若没显式给，按新值重算
             acquisition.setNetWeight(null);
-            acquisition.setNetWeight(resolveNetWeight(acquisition));
+        }
+        // 计价字段（扣杂 / 调整项 / 单价）任一变动都重算结算重量与金额（ADR 0019）
+        boolean pricingChanged = reqVO.getGrossWeight() != null || reqVO.getTareWeight() != null
+                || reqVO.getNetWeight() != null || reqVO.getDeduction() != null
+                || StrUtil.isNotBlank(reqVO.getDeductionMethod()) || reqVO.getAdjustmentAmount() != null
+                || reqVO.getUnitPrice() != null;
+        if (reqVO.getDeduction() != null) {
+            acquisition.setDeduction(reqVO.getDeduction());
+        }
+        if (StrUtil.isNotBlank(reqVO.getDeductionMethod())) {
+            acquisition.setDeductionMethod(reqVO.getDeductionMethod());
+        }
+        if (reqVO.getAdjustmentAmount() != null) {
+            acquisition.setAdjustmentAmount(reqVO.getAdjustmentAmount());
+        }
+        if (reqVO.getAdjustmentReason() != null) {
+            acquisition.setAdjustmentReason(reqVO.getAdjustmentReason());
+        }
+        if (reqVO.getUnitPrice() != null) {
+            acquisition.setUnitPrice(reqVO.getUnitPrice());
+        }
+        if (reqVO.getQuantityNote() != null) {
+            acquisition.setQuantityNote(reqVO.getQuantityNote());
+        }
+        if (pricingChanged) {
+            // applyPricing 会在能算出结果时覆盖结算重量与金额；没单价时保留原金额，不丢数据
+            applyPricing(acquisition);
         }
         if (StrUtil.isNotBlank(reqVO.getWeightTicketNo())) {
             acquisition.setWeightTicketNo(reqVO.getWeightTicketNo());

@@ -58,6 +58,18 @@ public class AcquisitionConfirmationRespVO {
     @ExcelProperty("净重")
     private BigDecimal netWeight;
 
+    @Schema(description = "扣杂", example = "200.00")
+    @ExcelProperty("扣杂")
+    private BigDecimal deduction;
+
+    @Schema(description = "结算重量 = 毛重 − 皮重 − 扣杂（计价基准）", example = "12300.00")
+    @ExcelProperty("结算重量")
+    private BigDecimal settlementWeight;
+
+    @Schema(description = "调整项（元）", example = "-100.00")
+    @ExcelProperty("调整项(元)")
+    private BigDecimal adjustmentAmount;
+
     @Schema(description = "磅单号", example = "WD20261201001")
     @ExcelProperty("磅单号")
     private String weightTicketNo;
