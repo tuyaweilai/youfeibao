@@ -16,6 +16,8 @@ mvn -pl yudao-module-icbc/yudao-module-icbc-biz test                      # 运�
 
 收货员现场端（uni-app，一期 H5）在 `backend/yudao-ui/yudao-ui-field-uniapp/`（见 `docs/adr/0016-现场端基座与工行页面承载.md`），命令为 `pnpm dev:h5` / `pnpm build:h5`。
 
+自然人出售者端（uni-app，一期微信小程序优先 / H5 兜底）在 `backend/yudao-ui/yudao-ui-seller-uniapp/`（见 `docs/adr/0011`），命令为 `pnpm dev:h5` / `pnpm build:h5` / `pnpm build:mp-weixin`。
+
 ```bash
 cd backend/yudao-ui/yudao-ui-admin-vue3
 pnpm install        # 首次
