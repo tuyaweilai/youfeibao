@@ -19,6 +19,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.RedInvoiceMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.quota.SellerQuotaGuidanceMapper;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.IcbcTaxConstants;
 import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.RedOffsetStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.SellerQuotaGuidanceStatusEnum;
@@ -64,8 +65,8 @@ public class NaturalPersonQuotaServiceImpl implements NaturalPersonQuotaService 
 
     /** 连续 12 个月滚动窗口上限（元）：500 万 */
     public static final BigDecimal CAP_AMOUNT = new BigDecimal("5000000.00");
-    /** 月销售额免征线（元）：10 万。超过则回收企业须按当月开票金额代办申报缴款，不是拒绝理由 */
-    public static final BigDecimal MONTHLY_EXEMPT_AMOUNT = new BigDecimal("100000.00");
+    /** 月销售额免征线（元）：10 万。口径与代办税费申报一致，见 {@link IcbcTaxConstants} */
+    public static final BigDecimal MONTHLY_EXEMPT_AMOUNT = IcbcTaxConstants.MONTHLY_EXEMPT_AMOUNT;
 
     private static final BigDecimal ONE_PERCENT_RATE = new BigDecimal("0.01");
     private static final BigDecimal THREE_PERCENT_RATE = new BigDecimal("0.03");
@@ -94,6 +95,12 @@ public class NaturalPersonQuotaServiceImpl implements NaturalPersonQuotaService 
     public SellerQuotaCheckRespVO checkQuota(Long payeeId, BigDecimal applyAmount) {
         PayeeInfoDO payee = requirePayee(payeeId);
         return check(loadLedger(payee), applyAmount);
+    }
+
+    @Override
+    public BigDecimal getCrossTenantMonthlyNetAmount(Long payeeId, String month) {
+        PayeeInfoDO payee = requirePayee(payeeId);
+        return loadLedger(payee).netAmountOfMonth(month);
     }
 
     private SellerQuotaCheckRespVO check(QuotaLedger ledger, BigDecimal applyAmount) {
@@ -481,6 +488,11 @@ public class NaturalPersonQuotaServiceImpl implements NaturalPersonQuotaService 
 
         BigDecimal currentMonthNetAmount() {
             MonthAmount bucket = months.get(LocalDate.now().format(MONTH_FORMATTER));
+            return bucket == null ? BigDecimal.ZERO : bucket.netAmount();
+        }
+
+        BigDecimal netAmountOfMonth(String month) {
+            MonthAmount bucket = months.get(month);
             return bucket == null ? BigDecimal.ZERO : bucket.netAmount();
         }
 

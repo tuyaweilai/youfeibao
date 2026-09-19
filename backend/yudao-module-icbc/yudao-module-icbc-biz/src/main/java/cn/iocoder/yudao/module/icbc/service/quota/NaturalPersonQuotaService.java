@@ -48,6 +48,18 @@ public interface NaturalPersonQuotaService {
     SellerQuotaCheckRespVO checkQuota(Long payeeId, BigDecimal applyAmount);
 
     /**
+     * 取某个自然人在某个月的<b>跨租户</b>净销售额。
+     *
+     * <p>税总 5 号公告第十三条的 10 万元免征线是「自然人 × 月」的，与租户无关：同一个人
+     * 在多个回收企业卖货，免征额度只有一份。代办税费申报用它判定本月的销售额是否超线。
+     *
+     * @param payeeId 出售者档案编号
+     * @param month   yyyy-MM
+     * @return 该月跨租户净销售额（已开票 + 在途 − 红冲）；无销售返回 0
+     */
+    BigDecimal getCrossTenantMonthlyNetAmount(Long payeeId, String month);
+
+    /**
      * 记录一条「引导出售者办理经营主体登记」的记录。
      *
      * <p>同一出售者同时只有一条未办结记录：再次触发只更新已用额度与最近触发时间，不新增。

@@ -4,6 +4,7 @@ import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicContactLeadReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenCreateReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
@@ -17,6 +18,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.service.download.impl.InvoiceDownloadServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.publicapi.impl.PublicAccessServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.quota.impl.NaturalPersonQuotaServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.tax.impl.AnnualSettlementServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenCodec;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenService;
 import cn.iocoder.yudao.module.icbc.service.token.impl.PublicTokenServiceImpl;
@@ -34,6 +36,7 @@ import java.io.File;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -45,7 +48,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@link PublicAccessServiceImpl} 的单元测试：三类公开端点，从令牌解析租户后执行。
  */
 @Import({PublicAccessServiceImpl.class, PublicTokenServiceImpl.class, PublicTokenCodec.class,
-        InvoiceDownloadServiceImpl.class, NaturalPersonQuotaServiceImpl.class})
+        InvoiceDownloadServiceImpl.class, NaturalPersonQuotaServiceImpl.class,
+        AnnualSettlementServiceImpl.class})
 @TestPropertySource(properties = {
         "icbc.public-token.secret=test-public-token-secret-0123456789abcdef",
         "yudao.file.base-path=/tmp/test"})
@@ -142,6 +146,24 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
         assertEquals(Boolean.FALSE, quota.getQuotaExceeded());
         assertNotNull(quota.getMonths());
         assertEquals("110101********2345", quota.getIdCardMasked());
+    }
+
+    @Test
+    public void testQuerySettlement_returnsStatementUnderResolvedTenant() {
+        int taxYear = LocalDate.now().getMonthValue() <= 3
+                ? LocalDate.now().getYear() - 1 : LocalDate.now().getYear();
+        PayeeInfoDO payee = insertPayee("王五", "110101199003033456");
+        insertIssuedOrder("ORDER_S1", payee, new BigDecimal("120000.00"),
+                LocalDate.of(taxYear, 6, 5).atTime(10, 0), new BigDecimal("0.01"));
+        String token = mint("SETTLEMENT_STATEMENT", null, payee.getId());
+
+        PublicSettlementStatementRespVO statement = publicAccessService.querySettlement(token);
+
+        assertEquals("王五", statement.getSellerName());
+        assertEquals(taxYear, statement.getTaxYear());
+        assertEquals(1, statement.getInvoiceCount());
+        assertEquals(0, new BigDecimal("120000.00").compareTo(statement.getInvoicedAmount()));
+        assertTrue(statement.getMessage().contains("汇算清缴"), "实际：" + statement.getMessage());
     }
 
     // ==================== 造数 ====================

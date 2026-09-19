@@ -2,6 +2,8 @@ package cn.iocoder.yudao.module.icbc.service.publicapi;
 
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicContactLeadReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.tax.vo.SellerSettlementStatementRespVO;
 
 import javax.servlet.http.HttpServletResponse;
 
@@ -25,5 +27,10 @@ public interface PublicAccessService {
      * 用令牌查询该自然人的滚动额度余量。
      */
     PublicQuotaRespVO queryQuota(String token);
+
+    /**
+     * 用令牌取该自然人的汇算清缴对账单（当年开票与已缴税款）。
+     */
+    PublicSettlementStatementRespVO querySettlement(String token);
 
 }

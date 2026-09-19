@@ -16,7 +16,9 @@ public enum PublicTokenPurposeEnum {
     /** 收方入驻失败后留联系方式：绑定一个收方，单次有效 */
     CONTACT_LEAD("CONTACT_LEAD", "失败留联系方式", BusinessKeyType.PAYEE, 1),
     /** 额度查询：绑定一个自然人收方，有效期内限次使用（页面可刷新） */
-    QUOTA_QUERY("QUOTA_QUERY", "额度查询", BusinessKeyType.PAYEE, 20);
+    QUOTA_QUERY("QUOTA_QUERY", "额度查询", BusinessKeyType.PAYEE, 20),
+    /** 汇算清缴对账：绑定一个自然人收方，出售者查自己的开票与已缴税款（可刷新） */
+    SETTLEMENT_STATEMENT("SETTLEMENT_STATEMENT", "汇算清缴对账", BusinessKeyType.PAYEE, 20);
 
     /**
      * 令牌绑定的业务键类型。

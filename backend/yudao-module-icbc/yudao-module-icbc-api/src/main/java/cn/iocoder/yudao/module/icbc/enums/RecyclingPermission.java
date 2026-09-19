@@ -135,4 +135,17 @@ public interface RecyclingPermission {
     String QUOTA_QUERY = "icbc:quota:query";
     String QUOTA_GUIDANCE_HANDLE = "icbc:quota:guidance:handle";
 
+    // ========== 代办税费申报（#13：按月申报、补缴、汇算清缴） ==========
+
+    /** 查看申报清单、缺项预警、补缴记录与汇算清缴对账 */
+    String TAX_DECLARATION_QUERY = "icbc:tax-declaration:query";
+    /** 生成申报清单、报送报告表、缴款归档、登记补缴 */
+    String TAX_DECLARATION_MANAGE = "icbc:tax-declaration:manage";
+    /** 缴清补缴 */
+    String TAX_SUPPLEMENT_MANAGE = "icbc:tax-supplement:manage";
+    /** 查看汇算清缴提醒与出售者对账单 */
+    String SETTLEMENT_QUERY = "icbc:settlement:query";
+    /** 生成 / 标记汇算清缴提醒 */
+    String SETTLEMENT_REMIND = "icbc:settlement:remind";
+
 }

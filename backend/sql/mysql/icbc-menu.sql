@@ -78,4 +78,13 @@ VALUES
 (5161, '查询红冲', 'icbc:red-invoice:query', 3, 5, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- 额度台账与经营主体登记引导（#12）
 (5162, '额度台账', 'icbc:quota:query', 2, 9, 5100, 'quota', '', 'icbc/quota/index', 'IcbcQuota', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5163, '处理引导', 'icbc:quota:guidance:handle', 3, 1, 5162, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5163, '处理引导', 'icbc:quota:guidance:handle', 3, 1, 5162, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 代办税费申报（#13）
+(5164, '代办税费申报', 'icbc:tax-declaration:query', 2, 10, 5100, 'tax', '', 'icbc/tax/index', 'IcbcTax', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5165, '生成申报清单', 'icbc:tax-declaration:manage', 3, 1, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5166, '报送报告表', 'icbc:tax-declaration:manage', 3, 2, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5167, '缴款归档', 'icbc:tax-declaration:manage', 3, 3, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5168, '登记补缴', 'icbc:tax-declaration:manage', 3, 4, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5169, '缴清补缴', 'icbc:tax-supplement:manage', 3, 5, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5170, '查看汇算清缴', 'icbc:settlement:query', 3, 6, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5171, '生成汇算提醒', 'icbc:settlement:remind', 3, 7, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');

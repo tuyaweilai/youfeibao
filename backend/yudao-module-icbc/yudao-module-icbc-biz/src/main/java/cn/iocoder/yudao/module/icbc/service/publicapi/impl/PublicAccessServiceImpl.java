@@ -6,13 +6,16 @@ import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownload
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceFileRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicContactLeadReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.tax.vo.SellerSettlementStatementRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.lead.IcbcContactLeadDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
 import cn.iocoder.yudao.module.icbc.enums.PublicTokenPurposeEnum;
 import cn.iocoder.yudao.module.icbc.service.download.InvoiceDownloadService;
 import cn.iocoder.yudao.module.icbc.service.publicapi.PublicAccessService;
 import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
+import cn.iocoder.yudao.module.icbc.service.tax.AnnualSettlementService;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenPayload;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenService;
 import org.springframework.stereotype.Service;
@@ -45,6 +48,8 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     private IcbcContactLeadMapper contactLeadMapper;
     @Resource
     private NaturalPersonQuotaService naturalPersonQuotaService;
+    @Resource
+    private AnnualSettlementService annualSettlementService;
 
     @Override
     public void downloadInvoicePdf(String token, HttpServletResponse response) {
@@ -81,6 +86,26 @@ public class PublicAccessServiceImpl implements PublicAccessService {
             SellerQuotaRespVO quota = naturalPersonQuotaService.getQuota(Long.valueOf(payload.getBusinessKey()));
             return BeanUtils.toBean(quota, PublicQuotaRespVO.class);
         });
+    }
+
+    @Override
+    public PublicSettlementStatementRespVO querySettlement(String token) {
+        PublicTokenPayload payload = publicTokenService.redeem(token, PublicTokenPurposeEnum.SETTLEMENT_STATEMENT);
+        return inTenant(payload.getTenantId(), () -> {
+            SellerSettlementStatementRespVO statement = annualSettlementService.getStatement(
+                    Long.valueOf(payload.getBusinessKey()), null);
+            return toPublicStatement(statement);
+        });
+    }
+
+    private PublicSettlementStatementRespVO toPublicStatement(SellerSettlementStatementRespVO statement) {
+        PublicSettlementStatementRespVO resp = BeanUtils.toBean(statement, PublicSettlementStatementRespVO.class);
+        if (statement.getMonths() != null) {
+            resp.setMonths(statement.getMonths().stream()
+                    .map(month -> BeanUtils.toBean(month, PublicSettlementStatementRespVO.MonthStatement.class))
+                    .toList());
+        }
+        return resp;
     }
 
     private void inTenant(Long tenantId, Runnable runnable) {

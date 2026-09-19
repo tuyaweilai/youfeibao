@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.controller.admin.publicapi;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicContactLeadReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
 import cn.iocoder.yudao.module.icbc.service.publicapi.PublicAccessService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -52,6 +53,13 @@ public class PublicAccessController {
     @Parameter(name = "token", description = "公开令牌", required = true)
     public CommonResult<PublicQuotaRespVO> queryQuota(@RequestParam("token") String token) {
         return success(publicAccessService.queryQuota(token));
+    }
+
+    @GetMapping("/settlement")
+    @Operation(summary = "查询自然人汇算清缴对账单（开票与已缴税款）")
+    @Parameter(name = "token", description = "公开令牌", required = true)
+    public CommonResult<PublicSettlementStatementRespVO> querySettlement(@RequestParam("token") String token) {
+        return success(publicAccessService.querySettlement(token));
     }
 
 }

@@ -183,4 +183,14 @@ public interface ErrorCodeConstants {
     ErrorCode SELLER_QUOTA_EXCEEDED_BY_THIS_ONE = new ErrorCode(1_030_018_001, "本次 {} 元将超过 500 万元上限：已用 {} 元，余量 {} 元");
     ErrorCode SELLER_QUOTA_GUIDANCE_NOT_EXISTS = new ErrorCode(1_030_018_002, "额度引导记录不存在");
     ErrorCode SELLER_QUOTA_GUIDANCE_STATUS_INVALID = new ErrorCode(1_030_018_003, "额度引导状态不合法：{}");
+
+    // ========== 代办税费申报（#13：按月申报、补缴与汇算清缴） 1-030-019-000 ==========
+    ErrorCode TAX_DECLARATION_NOT_EXISTS = new ErrorCode(1_030_019_000, "{} 的代办税费申报单不存在，请先生成申报清单");
+    ErrorCode TAX_DECLARATION_STATUS_INVALID = new ErrorCode(1_030_019_001, "{} 的申报单当前状态不允许{}：{}（{}）");
+    ErrorCode TAX_DECLARATION_NOT_READY = new ErrorCode(1_030_019_002, "{} 的申报数据不齐，不能申报或缴款：{}");
+    ErrorCode TAX_DECLARATION_PAID_IMMUTABLE = new ErrorCode(1_030_019_003, "{} 的申报单已缴款，不能重新生成；差额请走补缴");
+    ErrorCode TAX_SUPPLEMENT_NOT_EXISTS = new ErrorCode(1_030_019_004, "补缴记录不存在");
+    ErrorCode TAX_SUPPLEMENT_STATUS_INVALID = new ErrorCode(1_030_019_005, "补缴记录当前状态不允许{}：{}（{}）");
+    ErrorCode SETTLEMENT_REMINDER_NOT_EXISTS = new ErrorCode(1_030_019_006, "汇算清缴提醒不存在");
+    ErrorCode TAX_PERIOD_MONTH_INVALID = new ErrorCode(1_030_019_007, "申报月格式不正确，应为 yyyy-MM：{}");
 }

@@ -607,3 +607,149 @@ CREATE TABLE IF NOT EXISTS icbc_seller_quota_guidance (
 );
 
 CREATE INDEX IF NOT EXISTS idx_quota_guidance_payee_id ON icbc_seller_quota_guidance(payee_id);
+
+-- icbc_tax_declaration table (代办税费申报单, #13)
+CREATE TABLE IF NOT EXISTS icbc_tax_declaration (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    declaration_no VARCHAR(64),
+    period_month VARCHAR(7) NOT NULL,
+    declaration_deadline DATE,
+    status TINYINT NOT NULL DEFAULT 0,
+    seller_count INTEGER,
+    over_exempt_seller_count INTEGER,
+    total_sales_amount DECIMAL(14,2),
+    amount_at_one_percent DECIMAL(14,2),
+    amount_at_three_percent DECIMAL(14,2),
+    other_amount DECIMAL(14,2),
+    vat_amount DECIMAL(14,2),
+    surcharge_amount DECIMAL(14,2),
+    iit_amount DECIMAL(14,2),
+    total_tax_amount DECIMAL(14,2),
+    paid_amount DECIMAL(14,2),
+    declared_at DATETIME,
+    declared_by VARCHAR(64),
+    declared_remark VARCHAR(500),
+    paid_at DATETIME,
+    payment_method VARCHAR(64),
+    voucher_no VARCHAR(64),
+    voucher_file_url VARCHAR(500),
+    data_ready BOOLEAN DEFAULT TRUE,
+    missing_data_count INTEGER,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_tax_declaration_period UNIQUE (tenant_id, period_month)
+);
+
+-- icbc_tax_declaration_item table (代办税费申报明细, #13)
+CREATE TABLE IF NOT EXISTS icbc_tax_declaration_item (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    declaration_id BIGINT,
+    period_month VARCHAR(7),
+    payee_id BIGINT,
+    seller_name VARCHAR(100),
+    id_card_no VARCHAR(32),
+    invoice_count INTEGER,
+    sales_amount DECIMAL(14,2),
+    amount_at_one_percent DECIMAL(14,2),
+    amount_at_three_percent DECIMAL(14,2),
+    other_amount DECIMAL(14,2),
+    cross_tenant_month_amount DECIMAL(14,2),
+    vat_exempt BOOLEAN,
+    over_exempt BOOLEAN,
+    vat_amount DECIMAL(14,2),
+    surcharge_amount DECIMAL(14,2),
+    iit_amount DECIMAL(14,2),
+    total_tax_amount DECIMAL(14,2),
+    paid_amount DECIMAL(14,2),
+    status TINYINT NOT NULL DEFAULT 0,
+    paid_at DATETIME,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tax_item_declaration ON icbc_tax_declaration_item(declaration_id);
+
+-- icbc_tax_declaration_invoice table (申报单与发票关联, #13)
+CREATE TABLE IF NOT EXISTS icbc_tax_declaration_invoice (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    declaration_id BIGINT,
+    period_month VARCHAR(7),
+    invoice_order_id BIGINT,
+    partner_order_id VARCHAR(64),
+    invoice_no VARCHAR(64),
+    payee_id BIGINT,
+    direction VARCHAR(8),
+    amount DECIMAL(14,2),
+    tax_rate DECIMAL(5,4),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- icbc_tax_supplement table (需补缴税费, #13)
+CREATE TABLE IF NOT EXISTS icbc_tax_supplement (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    supplement_no VARCHAR(64),
+    declaration_id BIGINT,
+    period_month VARCHAR(7),
+    payee_id BIGINT,
+    seller_name VARCHAR(100),
+    reason VARCHAR(500),
+    amount_at_one_percent DECIMAL(14,2),
+    amount_at_three_percent DECIMAL(14,2),
+    amount DECIMAL(14,2),
+    status TINYINT NOT NULL DEFAULT 0,
+    paid_amount DECIMAL(14,2),
+    paid_at DATETIME,
+    voucher_no VARCHAR(64),
+    voucher_file_url VARCHAR(500),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- icbc_settlement_reminder table (汇算清缴提醒, #13)
+CREATE TABLE IF NOT EXISTS icbc_settlement_reminder (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    payee_id BIGINT,
+    seller_name VARCHAR(100),
+    id_card_no VARCHAR(32),
+    tax_year INTEGER,
+    deadline DATE,
+    invoice_count INTEGER,
+    invoiced_amount DECIMAL(14,2),
+    paid_tax_amount DECIMAL(14,2),
+    iit_amount DECIMAL(14,2),
+    status TINYINT NOT NULL DEFAULT 0,
+    reminded_at DATETIME,
+    handle_remark VARCHAR(500),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
