@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.controller.admin.naturalperson;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonClaimReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonConflictRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
@@ -57,6 +58,15 @@ public class NaturalPersonAdminController {
     @PreAuthorize("@icbc.hasPermission('icbc:platform:natural-person:query')")
     public CommonResult<NaturalPersonRespVO> get(@RequestParam("id") Long id) {
         return success(toResp(naturalPersonService.getNaturalPerson(id)));
+    }
+
+    @GetMapping("/conflicts")
+    @Operation(summary = "身份冲突清单（跨租户，只读）",
+            description = "同一身份证在不同租户姓名/手机号不一致者。命中 ADR 0017「不自动合并」规则，出人工清单；"
+                    + "本接口不改任何数据，裁决由平台运营核实后完成")
+    @PreAuthorize("@icbc.hasPermission('icbc:platform:natural-person:query')")
+    public CommonResult<List<NaturalPersonConflictRespVO>> getConflicts() {
+        return success(naturalPersonService.getIdentityConflictList());
     }
 
     @PostMapping("/claim")

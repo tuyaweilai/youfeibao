@@ -101,8 +101,9 @@ SET p.`natural_person_id` = n.`id`
 WHERE p.`natural_person_id` IS NULL;
 
 -- 5. 人工核对清单：同一身份证在不同租户的姓名 / 手机号不一致。
---    这类身份**不自动合并、不覆盖**（ADR 0017），由平台运营在「自然人主体」页人工核实后处理。
---    迁移本身不做任何合并动作，下列查询只用于出清单。
+--    这类身份**不自动合并、不覆盖**（ADR 0017）。迁移本身不做任何合并动作；
+--    平台运营在「自然人主体」页点「身份冲突清单」查看（GET /icbc/platform/natural-person/conflicts），
+--    核实后在该页人工认领 / 解绑 / 停用。下面的查询与该接口同口径，仅作为 DBA 兜底核对。
 --
 -- SELECT p.`id_card_no`,
 --        COUNT(DISTINCT p.`name`)   AS name_kinds,

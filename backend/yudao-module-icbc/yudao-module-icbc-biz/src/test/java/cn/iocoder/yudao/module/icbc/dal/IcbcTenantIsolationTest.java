@@ -4,6 +4,7 @@ import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
+import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonConflictRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
@@ -30,8 +31,13 @@ import org.springframework.context.annotation.Import;
 
 import javax.annotation.Resource;
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -252,6 +258,74 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
             assertNull(acquisitionMapper.selectById(acquisitionId));
             assertTrue(acquisitionMapper.selectList().isEmpty());
         });
+    }
+
+    @Test
+    public void testIdentityConflictListSpansTenantsAndMasksPersonalData() {
+        // 同一身份证在两家企业：姓名一致、手机号不一致 → 命中 ADR 0017「不自动合并」的人工清单
+        TenantUtils.execute(1L, () -> payeeInfoMapper.insert(
+                newPayee("张三", "110101199001011234", "13800000011")));
+        TenantUtils.execute(2L, () -> payeeInfoMapper.insert(
+                newPayee("张三", "110101199001011234", "13800000012")));
+        // 同一身份证、姓名与手机号完全一致：跨企业卖货的正常情形，不算冲突
+        TenantUtils.execute(1L, () -> payeeInfoMapper.insert(
+                newPayee("李四", "110101199001011235", "13800000021")));
+        TenantUtils.execute(2L, () -> payeeInfoMapper.insert(
+                newPayee("李四", "110101199001011235", "13800000021")));
+
+        List<NaturalPersonConflictRespVO> conflicts = naturalPersonService.getIdentityConflictList();
+
+        assertEquals(1, conflicts.size());
+        NaturalPersonConflictRespVO conflict = conflicts.get(0);
+        assertEquals(2, conflict.getRecordCount());
+        // 脱敏展示：平台运营看到的是「是谁」，不是可复制走的原始证件号
+        assertNotEquals("110101199001011234", conflict.getIdCardNo());
+        assertTrue(conflict.getIdCardNo().startsWith("110101"));
+        // 跨租户可见：两条档案分属租户 1 与 2
+        Set<Long> tenantIds = conflict.getRecords().stream()
+                .map(NaturalPersonConflictRespVO.Record::getTenantId).collect(Collectors.toSet());
+        assertEquals(Set.of(1L, 2L), tenantIds);
+        assertTrue(conflict.getRecords().stream().allMatch(r -> r.getMobile().contains("*")));
+        // 尚未建档时不给主体编号
+        assertNull(conflict.getNaturalPersonId());
+    }
+
+    @Test
+    public void testIdentityConflictListFillsNaturalPersonWhenRegistered() {
+        // 按身份证已建档的主体：清单要能直接给出编号，便于运营跳过去处置
+        Long personId = TenantUtils.executeIgnore(() -> naturalPersonService.register(
+                registerReq("王六", "110101199001011237", "13800000031")).getId());
+        TenantUtils.execute(1L, () -> payeeInfoMapper.insert(
+                newPayee("王六", "110101199001011237", "13800000031")));
+        TenantUtils.execute(2L, () -> payeeInfoMapper.insert(
+                newPayee("王六", "110101199001011237", "13800000032")));
+
+        List<NaturalPersonConflictRespVO> conflicts = naturalPersonService.getIdentityConflictList();
+
+        assertEquals(1, conflicts.size());
+        assertEquals(personId, conflicts.get(0).getNaturalPersonId());
+        assertNotNull(conflicts.get(0).getOutUserId());
+    }
+
+    @Test
+    public void testIdentityConflictListEmptyWhenNoConflict() {
+        // 同一身份证跨企业但信息一致：不该出现在人工清单里
+        TenantUtils.execute(1L, () -> payeeInfoMapper.insert(
+                newPayee("赵七", "110101199001011238", "13800000041")));
+        TenantUtils.execute(2L, () -> payeeInfoMapper.insert(
+                newPayee("赵七", "110101199001011238", "13800000041")));
+
+        assertTrue(naturalPersonService.getIdentityConflictList().isEmpty());
+    }
+
+    private cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO registerReq(
+            String name, String idCardNo, String mobile) {
+        cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO reqVO =
+                new cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO();
+        reqVO.setName(name);
+        reqVO.setIdCardNo(idCardNo);
+        reqVO.setMobile(mobile);
+        return reqVO;
     }
 
     private static PayeeInfoDO newPayee(String name, String idCardNo, String mobile) {

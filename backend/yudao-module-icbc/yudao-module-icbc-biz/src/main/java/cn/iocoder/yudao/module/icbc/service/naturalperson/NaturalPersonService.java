@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.icbc.service.naturalperson;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonConflictRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
@@ -100,5 +101,15 @@ public interface NaturalPersonService {
      * 平台运营停用 / 恢复身份。停用是人为处置（如冒用），不删除任何数据。
      */
     void updateStatus(Long id, Integer status, String remark);
+
+    /**
+     * 身份冲突清单（跨租户，只读）：同一身份证在不同租户姓名 / 手机号不一致者。
+     *
+     * <p>命中 ADR 0017「不自动合并」规则时必须出人工清单，而不是静默挑一个值。本方法只负责列出，
+     * 不做任何合并；裁决由平台运营核实后在 {@link #bindLogin}/{@link #updateStatus} 等人工入口完成。
+     *
+     * @return 冲突清单；没有冲突时返回空列表
+     */
+    List<NaturalPersonConflictRespVO> getIdentityConflictList();
 
 }

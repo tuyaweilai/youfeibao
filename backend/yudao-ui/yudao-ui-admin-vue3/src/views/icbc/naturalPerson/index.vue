@@ -25,6 +25,9 @@
       <el-form-item>
         <el-button @click="handleQuery"><Icon icon="ep:search" class="mr-5px" /> 搜索</el-button>
         <el-button @click="resetQuery"><Icon icon="ep:refresh" class="mr-5px" /> 重置</el-button>
+        <el-button type="warning" plain @click="openConflicts">
+          <Icon icon="ep:warning" class="mr-5px" /> 身份冲突清单
+        </el-button>
       </el-form-item>
     </el-form>
   </ContentWrap>
@@ -65,6 +68,47 @@
     <Pagination :total="total" v-model:page="queryParams.pageNo" v-model:limit="queryParams.pageSize" @pagination="getList" />
   </ContentWrap>
 
+  <el-dialog v-model="conflictDialogVisible" title="身份冲突清单" width="860px">
+    <el-alert
+      type="warning"
+      :closable="false"
+      class="mb-10px"
+      title="同一身份证在不同回收企业的姓名或手机号不一致。按 ADR 0017 不自动合并、不覆盖：请人工核实后，在主体列表里认领 / 解绑 / 停用。本清单只读，不代表任何合并动作。"
+    />
+    <el-table v-loading="conflictLoading" :data="conflicts" :stripe="true" row-key="idCardNo">
+      <el-table-column type="expand">
+        <template #default="{ row }">
+          <el-table :data="row.records" size="small" class="mx-20px">
+            <el-table-column label="租户" prop="tenantId" width="90" />
+            <el-table-column label="姓名" prop="name" min-width="110" />
+            <el-table-column label="手机号" prop="mobile" width="140" />
+            <el-table-column label="收方编号" prop="payeeNo" min-width="150" />
+            <el-table-column label="合作方收方编号" prop="partnerPayeeId" min-width="180" />
+            <el-table-column label="建档时间" prop="createTime" width="170" :formatter="dateFormatter" />
+          </el-table>
+        </template>
+      </el-table-column>
+      <el-table-column label="身份证件号码" prop="idCardNo" min-width="190" />
+      <el-table-column label="冲突档案数" prop="recordCount" width="110" align="center" />
+      <el-table-column label="自然人主体" width="120" align="center">
+        <template #default="{ row }">
+          <span v-if="row.naturalPersonId">{{ row.naturalPersonId }}</span>
+          <span v-else class="text-gray-400">未建档</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="状态" width="90" align="center">
+        <template #default="{ row }">
+          <el-tag v-if="row.status === 0" type="success">正常</el-tag>
+          <el-tag v-else-if="row.status === 1" type="danger">已停用</el-tag>
+          <span v-else class="text-gray-400">-</span>
+        </template>
+      </el-table-column>
+    </el-table>
+    <template #footer>
+      <el-button @click="conflictDialogVisible = false">关闭</el-button>
+    </template>
+  </el-dialog>
+
   <el-dialog v-model="dialogVisible" :title="dialogTitle" width="480px">
     <el-alert
       type="warning"
@@ -96,7 +140,8 @@
 </template>
 
 <script setup lang="ts">
-import { NaturalPersonApi, NaturalPersonVO } from '@/api/icbc/naturalPerson'
+import { NaturalPersonApi, NaturalPersonVO, NaturalPersonConflictVO } from '@/api/icbc/naturalPerson'
+import { dateFormatter } from '@/utils/formatTime'
 
 defineOptions({ name: 'IcbcNaturalPerson' })
 
@@ -187,4 +232,19 @@ const toggleStatus = async (row: NaturalPersonVO) => {
 }
 
 onMounted(getList)
+
+// ==================== 身份冲突清单（跨租户，只读） ====================
+const conflictDialogVisible = ref(false)
+const conflictLoading = ref(false)
+const conflicts = ref<NaturalPersonConflictVO[]>([])
+
+const openConflicts = async () => {
+  conflictDialogVisible.value = true
+  conflictLoading.value = true
+  try {
+    conflicts.value = await NaturalPersonApi.getIdentityConflicts()
+  } finally {
+    conflictLoading.value = false
+  }
+}
 </script>

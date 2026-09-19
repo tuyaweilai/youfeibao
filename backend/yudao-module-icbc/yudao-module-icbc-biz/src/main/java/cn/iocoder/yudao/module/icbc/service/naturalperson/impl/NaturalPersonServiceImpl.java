@@ -3,15 +3,21 @@ package cn.iocoder.yudao.module.icbc.service.naturalperson.impl;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
+import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
+import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonConflictRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonLoginDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.naturalperson.IcbcNaturalPersonLoginMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.naturalperson.IcbcNaturalPersonMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.NaturalPersonStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeRealNameStatusEnum;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
+import cn.iocoder.yudao.module.icbc.util.MaskUtils;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -23,8 +29,12 @@ import javax.validation.Valid;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
@@ -49,6 +59,8 @@ public class NaturalPersonServiceImpl implements NaturalPersonService {
     private IcbcNaturalPersonMapper naturalPersonMapper;
     @Resource
     private IcbcNaturalPersonLoginMapper naturalPersonLoginMapper;
+    @Resource
+    private PayeeInfoMapper payeeInfoMapper;
 
     @Override
     public IcbcNaturalPersonDO register(@Valid NaturalPersonRegisterReqVO reqVO) {
@@ -216,6 +228,68 @@ public class NaturalPersonServiceImpl implements NaturalPersonService {
         update.setStatus(status);
         update.setRemark(remark);
         naturalPersonMapper.updateById(update);
+    }
+
+    // ==================== 身份冲突人工清单 ====================
+
+    @Override
+    public List<NaturalPersonConflictRespVO> getIdentityConflictList() {
+        // 收方档案是租户级的，而冲突恰恰发生在不同租户之间：这里只读一次、跨租户扫一遍。
+        // 本方法不做任何写操作，也不挑「谁是对的」——那正是 ADR 0017 要交给人处理的部分。
+        List<PayeeInfoDO> payees = TenantUtils.executeIgnore(() -> payeeInfoMapper.selectList(
+                new LambdaQueryWrapperX<PayeeInfoDO>()
+                        .select(PayeeInfoDO::getId, PayeeInfoDO::getTenantId, PayeeInfoDO::getIdCardNo,
+                                PayeeInfoDO::getName, PayeeInfoDO::getMobile, PayeeInfoDO::getPayeeNo,
+                                PayeeInfoDO::getPartnerPayeeId, PayeeInfoDO::getCreateTime)
+                        .isNotNull(PayeeInfoDO::getIdCardNo)
+                        .ne(PayeeInfoDO::getIdCardNo, "")
+                        .orderByAsc(PayeeInfoDO::getIdCardNo)
+                        .orderByAsc(PayeeInfoDO::getId)));
+        Map<String, List<PayeeInfoDO>> byIdCardNo = payees.stream()
+                .collect(Collectors.groupingBy(PayeeInfoDO::getIdCardNo, LinkedHashMap::new, Collectors.toList()));
+        return byIdCardNo.entrySet().stream()
+                .filter(entry -> hasIdentityConflict(entry.getValue()))
+                .map(entry -> toConflict(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    /**
+     * 姓名或手机号在多个租户之间不一致即命中「不自动合并」规则。同一身份证完全一致的多条档案是正常的
+     * （同一个人在多家企业卖货），不算冲突。
+     */
+    private boolean hasIdentityConflict(List<PayeeInfoDO> records) {
+        Set<String> names = records.stream().map(PayeeInfoDO::getName)
+                .filter(StrUtil::isNotBlank).collect(Collectors.toSet());
+        Set<String> mobiles = records.stream().map(PayeeInfoDO::getMobile)
+                .filter(StrUtil::isNotBlank).collect(Collectors.toSet());
+        return names.size() > 1 || mobiles.size() > 1;
+    }
+
+    private NaturalPersonConflictRespVO toConflict(String idCardNo, List<PayeeInfoDO> records) {
+        NaturalPersonConflictRespVO vo = new NaturalPersonConflictRespVO();
+        // 与自然人主体页同一口径：平台运营看到的是「是谁」，不是可复制走的原始证件号
+        vo.setIdCardNo(MaskUtils.maskIdCard(idCardNo));
+        IcbcNaturalPersonDO person = getByIdCardNo(idCardNo);
+        if (person != null) {
+            vo.setNaturalPersonId(person.getId());
+            vo.setOutUserId(person.getOutUserId());
+            vo.setStatus(person.getStatus());
+        }
+        vo.setRecordCount(records.size());
+        vo.setRecords(records.stream().map(this::toConflictRecord).toList());
+        return vo;
+    }
+
+    private NaturalPersonConflictRespVO.Record toConflictRecord(PayeeInfoDO payee) {
+        NaturalPersonConflictRespVO.Record record = new NaturalPersonConflictRespVO.Record();
+        record.setPayeeId(payee.getId());
+        record.setTenantId(payee.getTenantId());
+        record.setName(payee.getName());
+        record.setMobile(MaskUtils.maskMobile(payee.getMobile()));
+        record.setPayeeNo(payee.getPayeeNo());
+        record.setPartnerPayeeId(payee.getPartnerPayeeId());
+        record.setCreateTime(payee.getCreateTime());
+        return record;
     }
 
     /**
