@@ -80,13 +80,45 @@
         </view>
       </view>
 
+      <!-- 现场照片（货物流证据） -->
+      <view class="card">
+        <view class="card__title">现场照片</view>
+        <view class="photos">
+          <view v-for="photo in photos" :key="photo.key" class="photo">
+            <view class="photo__label">{{ photo.label }}</view>
+            <view class="photo__box" @click="pickPhoto(photo.key)">
+              <image
+                v-if="form[photo.key]"
+                :src="form[photo.key]"
+                mode="aspectFill"
+                class="photo__img"
+              />
+              <text v-else class="photo__add">{{ uploading[photo.key] ? '上传中…' : '+ 拍照' }}</text>
+            </view>
+            <button v-if="form[photo.key]" class="link" @click="removePhoto(photo.key)">删除</button>
+          </view>
+        </view>
+        <view class="hint">
+          一期无真实 OCR：磅单重量与车牌默认手工录入，照片只作为货物流证据留存（ADR 0013）。
+        </view>
+      </view>
+
       <!-- 磅单与结算 -->
       <view class="card">
         <view class="card__title">磅单与结算</view>
         <view class="field">
-          <text class="field__label">磅单号（必填）</text>
+          <text class="field__label">磅单号</text>
           <input v-model="form.weightTicketNo" class="input" placeholder="如 WD20261201001" />
         </view>
+        <view class="field">
+          <text class="field__label">磅单识别车牌</text>
+          <input v-model="form.weightTicketPlateNo" class="input" placeholder="如 京A12345" />
+        </view>
+        <view class="field">
+          <text class="field__label">车头车尾识别车牌</text>
+          <input v-model="form.vehiclePlateNo" class="input" placeholder="如 京A12345" />
+        </view>
+        <view class="plate" :class="plateClass">{{ plateText }}</view>
         <view class="field">
           <text class="field__label">交易地点</text>
           <input v-model="form.tradeAddress" class="input" placeholder="现场地点" />
@@ -102,7 +134,7 @@
       </view>
 
       <button class="btn btn--primary submit" :loading="submitting" @click="onSubmit">提交登记</button>
-      <view class="tip">照片（磅单 / 车牌 / 车头车尾）见 #25；本页漏填品类或磅单号会拦住提交。</view>
+      <view class="tip">漏填品类，或磅单号与磅单照片都没有，会拦住提交。</view>
     </template>
   </view>
 </template>
@@ -113,8 +145,18 @@ import { onLoad } from '@dcloudio/uni-app'
 import { getEnabledGoodsList, GoodsConfigVO } from '@/api/goodsConfig'
 import { findReturningCustomer, PayeeVO } from '@/api/payee'
 import { createAcquisition, AcquisitionCreateResp } from '@/api/acquisition'
+import { captureAndUpload } from '@/utils/upload'
+import { comparePlate } from '@/utils/plate'
 
 defineOptions({ name: 'FieldAcquisition' })
+
+type PhotoKey = 'weightTicketImageUrl' | 'vehicleFrontImageUrl' | 'vehicleRearImageUrl'
+
+const photos: { key: PhotoKey; label: string }[] = [
+  { key: 'weightTicketImageUrl', label: '磅单照片' },
+  { key: 'vehicleFrontImageUrl', label: '车头照片' },
+  { key: 'vehicleRearImageUrl', label: '车尾照片' }
+]
 
 const goodsList = ref<GoodsConfigVO[]>([])
 const goodsIndex = ref(-1)
@@ -123,6 +165,11 @@ const lookedUp = ref(false)
 const looking = ref(false)
 const submitting = ref(false)
 const result = ref<AcquisitionCreateResp | null>(null)
+const uploading = reactive<Record<PhotoKey, boolean>>({
+  weightTicketImageUrl: false,
+  vehicleFrontImageUrl: false,
+  vehicleRearImageUrl: false
+})
 
 const lookup = reactive({ idCardNo: '', mobile: '' })
 const form = reactive({
@@ -136,6 +183,11 @@ const form = reactive({
   tareWeight: '',
   netWeight: '',
   weightTicketNo: '',
+  weightTicketPlateNo: '',
+  vehiclePlateNo: '',
+  weightTicketImageUrl: '',
+  vehicleFrontImageUrl: '',
+  vehicleRearImageUrl: '',
   tradeAddress: '',
   settlementMethod: '',
   remark: ''
@@ -152,6 +204,16 @@ const taxMethodText = computed(() => {
   if (method === 'GENERAL') return '一般计税'
   return '-'
 })
+
+const plateResult = computed(() => comparePlate(form.weightTicketPlateNo, form.vehiclePlateNo))
+const plateText = computed(() => {
+  if (plateResult.value === null) return '车牌比对：无法比对（缺车牌）'
+  return plateResult.value ? '车牌比对：一致' : '车牌比对：不一致'
+})
+const plateClass = computed(() => ({
+  'plate--ok': plateResult.value === true,
+  'plate--bad': plateResult.value === false
+}))
 
 onLoad(() => {
   loadGoods()
@@ -192,6 +254,25 @@ watch(
   }
 )
 
+async function pickPhoto(key: PhotoKey) {
+  if (uploading[key]) return
+  uploading[key] = true
+  try {
+    form[key] = await captureAndUpload()
+  } catch (e) {
+    // 用户取消选图不弹错
+    if (!(e as Error).message?.includes('未选择')) {
+      showError(e)
+    }
+  } finally {
+    uploading[key] = false
+  }
+}
+
+function removePhoto(key: PhotoKey) {
+  form[key] = ''
+}
+
 async function onLookup() {
   if (!lookup.idCardNo && !lookup.mobile) {
     uni.showToast({ title: '请填身份证号或手机号', icon: 'none' })
@@ -227,7 +308,7 @@ function validate(): string | null {
   if (!form.goodsConfigId) return '请选择品类'
   if (!(toNum(form.quantity)! > 0)) return '请填写数量'
   if (!(toNum(form.amount)! > 0)) return '金额需大于 0（数量 × 单价）'
-  if (!form.weightTicketNo.trim()) return '漏填磅单号，不能提交'
+  if (!form.weightTicketNo.trim() && !form.weightTicketImageUrl) return '磅单号与磅单照片至少填一个'
   return null
 }
 
@@ -251,6 +332,11 @@ async function onSubmit() {
       tareWeight: toNum(form.tareWeight) ?? undefined,
       netWeight: toNum(form.netWeight) ?? undefined,
       weightTicketNo: form.weightTicketNo.trim() || undefined,
+      weightTicketImageUrl: form.weightTicketImageUrl || undefined,
+      weightTicketPlateNo: form.weightTicketPlateNo || undefined,
+      vehiclePlateNo: form.vehiclePlateNo || undefined,
+      vehicleFrontImageUrl: form.vehicleFrontImageUrl || undefined,
+      vehicleRearImageUrl: form.vehicleRearImageUrl || undefined,
       tradeAddress: form.tradeAddress || undefined,
       settlementMethod: form.settlementMethod || undefined,
       source: 'ONLINE',
@@ -289,6 +375,11 @@ function resetAll() {
     tareWeight: '',
     netWeight: '',
     weightTicketNo: '',
+    weightTicketPlateNo: '',
+    vehiclePlateNo: '',
+    weightTicketImageUrl: '',
+    vehicleFrontImageUrl: '',
+    vehicleRearImageUrl: '',
     tradeAddress: '',
     settlementMethod: '',
     remark: ''
@@ -379,6 +470,59 @@ function showError(e: unknown) {
   }
 }
 
+.photos {
+  display: flex;
+  gap: 20rpx;
+}
+
+.photo {
+  flex: 1;
+
+  &__label {
+    margin-bottom: 8rpx;
+    color: $field-text-secondary;
+    font-size: 24rpx;
+  }
+
+  &__box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 180rpx;
+    background-color: #f5f6f8;
+    border-radius: 12rpx;
+    overflow: hidden;
+  }
+
+  &__img {
+    width: 100%;
+    height: 100%;
+  }
+
+  &__add {
+    color: $field-text-secondary;
+    font-size: 26rpx;
+  }
+}
+
+.plate {
+  margin: 4rpx 0 20rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  background-color: #f5f6f8;
+  color: $field-text-secondary;
+
+  &--ok {
+    background-color: #e8f7ee;
+    color: #1a7f43;
+  }
+
+  &--bad {
+    background-color: #fff1f0;
+    color: #cf1322;
+  }
+}
+
 .seller {
   margin-top: 24rpx;
   padding: 24rpx;
@@ -399,6 +543,7 @@ function showError(e: unknown) {
 .hint {
   margin-top: 20rpx;
   line-height: 1.6;
+  color: $field-text-secondary;
 
   &--warn {
     color: #b26a00;

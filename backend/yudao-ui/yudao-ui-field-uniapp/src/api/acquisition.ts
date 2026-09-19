@@ -13,6 +13,10 @@ export interface AcquisitionCreateReq {
   netWeight?: number
   weightTicketNo?: string
   weightTicketImageUrl?: string
+  weightTicketPlateNo?: string
+  vehiclePlateNo?: string
+  vehicleFrontImageUrl?: string
+  vehicleRearImageUrl?: string
   tradeAddress?: string
   tradeTime?: number
   settlementMethod?: string
@@ -52,6 +56,12 @@ export interface AcquisitionVO {
   netWeight?: number
   weightTicketNo?: string
   weightTicketImageUrl?: string
+  weightTicketPlateNo?: string
+  vehiclePlateNo?: string
+  /** 车牌比对结果：true-一致，false-不一致，null-无法比对 */
+  plateMatched?: boolean | null
+  vehicleFrontImageUrl?: string
+  vehicleRearImageUrl?: string
   tradeAddress?: string
   tradeTime?: number
   settlementMethod?: string
@@ -63,8 +73,23 @@ export interface AcquisitionVO {
   createTime?: number
 }
 
+export interface AcquisitionCorrectionReq {
+  id: number
+  grossWeight?: number
+  tareWeight?: number
+  netWeight?: number
+  weightTicketNo?: string
+  weightTicketPlateNo?: string
+  vehiclePlateNo?: string
+  remark?: string
+}
+
 export const createAcquisition = (data: AcquisitionCreateReq) =>
   post<AcquisitionCreateResp>('/icbc/acquisition/create', data)
+
+/** 人工修正磅单 / 车牌识别结果，修正后后端重新做车牌比对 */
+export const correctAcquisition = (data: AcquisitionCorrectionReq) =>
+  post<boolean>('/icbc/acquisition/correct', data)
 
 export const getAcquisition = (id: number) => get<AcquisitionVO>('/icbc/acquisition/get', { id })
 
