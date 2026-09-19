@@ -225,4 +225,6 @@ public interface ErrorCodeConstants {
     ErrorCode SETTLEMENT_VERSION_NOT_EXISTS = new ErrorCode(1_030_022_008, "结算单版本不存在：{}");
     ErrorCode SETTLEMENT_CANCEL_REASON_REQUIRED = new ErrorCode(1_030_022_009, "作废收购单必须填写原因");
     ErrorCode SETTLEMENT_OFFLINE_SIGN_REQUIRED = new ErrorCode(1_030_022_010, "该结算单需线下签字确认，请上传带签字的纸质确认书并标注办理人");
+    ErrorCode SETTLEMENT_ACQUISITION_NOT_IN_SETTLEMENT = new ErrorCode(1_030_022_011, "收购单 {} 不属于该结算单，不能在这里改动");
+    ErrorCode SETTLEMENT_ACQUISITION_NOT_GROUPED = new ErrorCode(1_030_022_012, "收购单尚未归入结算单，不能在此作废");
 }

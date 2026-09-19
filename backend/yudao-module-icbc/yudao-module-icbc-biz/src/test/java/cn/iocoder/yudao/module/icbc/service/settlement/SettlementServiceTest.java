@@ -266,6 +266,49 @@ public class SettlementServiceTest extends BaseDbUnitTest {
                 .anyMatch(line -> "磅单重复录入，已合并到另一笔".equals(line.getCancelReason())));
     }
 
+    @Test
+    public void testChangeByEnterprise_rejectsAcquisitionOfAnotherSettlement() {
+        PayeeInfoDO payeeA = insertPayee("110101199001011234", "13800138000");
+        PayeeInfoDO payeeB = insertPayee("110101199001011235", "13800138001");
+        IcbcAcquisitionDO acqA = insertAcquisition(payeeA.getId(), "ACQ_A", new BigDecimal("1000.00"));
+        IcbcAcquisitionDO acqB = insertAcquisition(payeeB.getId(), "ACQ_B", new BigDecimal("2000.00"));
+        Long settlementA = settlementService.generate(generateReq(payeeA.getId()));
+        settlementService.generate(generateReq(payeeB.getId()));
+
+        // 改 A 的结算单，却传了 B 的收购单：必须拦住，否则会改到账外而版本快照无法解释
+        SettlementChangeReqVO change = new SettlementChangeReqVO();
+        change.setSettlementId(settlementA);
+        change.setChangeReason("试图改别的结算单的收购单");
+        SettlementChangeReqVO.Line line = new SettlementChangeReqVO.Line();
+        line.setAcquisitionId(acqB.getId());
+        line.setUnitPrice(new BigDecimal("999"));
+        change.setLines(List.of(line));
+
+        assertServiceException(() -> settlementService.changeByEnterprise(change),
+                SETTLEMENT_ACQUISITION_NOT_IN_SETTLEMENT, acqB.getId());
+        // B 的收购单没被改
+        assertEquals(0, new BigDecimal("2000.00").compareTo(
+                acquisitionMapper.selectById(acqB.getId()).getAmount()));
+        // A 的收购单也没被误改
+        assertEquals(0, new BigDecimal("1000.00").compareTo(
+                acquisitionMapper.selectById(acqA.getId()).getAmount()));
+    }
+
+    @Test
+    public void testCancelAcquisition_unGroupedRejected() {
+        PayeeInfoDO payee = insertPayee();
+        IcbcAcquisitionDO acquisition = insertAcquisition(payee.getId(), "ACQ_A", new BigDecimal("1000.00"));
+
+        SettlementAcquisitionCancelReqVO cancel = new SettlementAcquisitionCancelReqVO();
+        cancel.setAcquisitionId(acquisition.getId());
+        cancel.setReason("尚未归入结算单");
+        assertServiceException(() -> settlementService.cancelAcquisition(cancel),
+                SETTLEMENT_ACQUISITION_NOT_GROUPED);
+        // 未被作废
+        assertEquals(AcquisitionStatusEnum.REGISTERED.getStatus(),
+                acquisitionMapper.selectById(acquisition.getId()).getStatus());
+    }
+
     // ==================== 造数 ====================
 
     private SettlementGenerateReqVO generateReq(Long payeeId) {
@@ -299,14 +342,18 @@ public class SettlementServiceTest extends BaseDbUnitTest {
     }
 
     private PayeeInfoDO insertPayee() {
+        return insertPayee("110101199001011234", "13800138000");
+    }
+
+    private PayeeInfoDO insertPayee(String idCardNo, String mobile) {
         IcbcNaturalPersonDO person = naturalPersonService.register(
-                registerReq("张三", "110101199001011234", "13800138000"));
+                registerReq("张三", idCardNo, mobile));
         PayeeInfoDO payee = PayeeInfoDO.builder()
-                .partnerPayeeId("PARTNER_1")
+                .partnerPayeeId("PARTNER_" + mobile)
                 .naturalPersonId(person.getId())
                 .name("张三")
-                .mobile("13800138000")
-                .idCardNo("110101199001011234")
+                .mobile(mobile)
+                .idCardNo(idCardNo)
                 .build();
         payeeInfoMapper.insert(payee);
         return payee;

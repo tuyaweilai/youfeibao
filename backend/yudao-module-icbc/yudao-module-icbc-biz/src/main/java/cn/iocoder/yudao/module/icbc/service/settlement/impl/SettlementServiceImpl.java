@@ -42,6 +42,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
@@ -183,6 +185,16 @@ public class SettlementServiceImpl implements SettlementService {
     public void changeByEnterprise(@Valid SettlementChangeReqVO reqVO) {
         IcbcSettlementDO settlement = getSettlement(reqVO.getSettlementId());
         assertNotInvoiced(settlement.getId());
+        // 只允许改本结算单自己的收购单：否则会改到别的结算单的档案上，而版本快照又无法解释这次改动。
+        Set<Long> settlementAcquisitionIds = acquisitionMapper.selectListBySettlementId(settlement.getId()).stream()
+                .map(IcbcAcquisitionDO::getId)
+                .collect(Collectors.toSet());
+        for (SettlementChangeReqVO.Line line : reqVO.getLines()) {
+            if (!settlementAcquisitionIds.contains(line.getAcquisitionId())) {
+                throw exception(SETTLEMENT_ACQUISITION_NOT_IN_SETTLEMENT,
+                        String.valueOf(line.getAcquisitionId()));
+            }
+        }
         // 改：逐条修正计价（走与现场更正同一入口，保证结算重量 / 金额口径一致）
         for (SettlementChangeReqVO.Line line : reqVO.getLines()) {
             AcquisitionCorrectionReqVO correction = new AcquisitionCorrectionReqVO();
@@ -244,6 +256,10 @@ public class SettlementServiceImpl implements SettlementService {
         IcbcAcquisitionDO acquisition = acquisitionService.getAcquisition(reqVO.getAcquisitionId());
         if (StrUtil.isBlank(reqVO.getReason())) {
             throw exception(SETTLEMENT_CANCEL_REASON_REQUIRED);
+        }
+        // 作废是结算单里的动作：尚未归入结算单的收购单不在此处处置
+        if (acquisition.getSettlementId() == null) {
+            throw exception(SETTLEMENT_ACQUISITION_NOT_GROUPED);
         }
         if (isInvoiceStarted(acquisition)) {
             throw exception(SETTLEMENT_STATUS_NOT_ALLOW, "该收购单已发起开票付款，作废请改走红冲");
