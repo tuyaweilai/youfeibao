@@ -1,3 +1,8 @@
+-- 连接字符集：文件里有中文种子数据。客户端默认不是 utf8mb4 时（例如没有 LANG 的
+-- `docker exec -i <mysql容器> mysql`，其默认是 latin1），中文会被双重编码存进库，
+-- 界面上就是乱码。这里显式声明，导入时不必再依赖客户端参数。
+SET NAMES utf8mb4;
+
 -- 企业模块数据库创建脚本
 -- 基于 enterprise_database_design.md 设计文档
 -- 创建日期：2024-12-02

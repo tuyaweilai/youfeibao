@@ -33,7 +33,7 @@
 
 ```bash
 cd backend/sql/mysql
-MYSQL="mysql -h 127.0.0.1 -P 13308 -uroot -p"
+MYSQL="mysql -h 127.0.0.1 -P 13308 -uroot -p --default-character-set=utf8mb4"
 $MYSQL -e "CREATE DATABASE IF NOT EXISTS \`ruoyi-vue-pro\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 for f in ruoyi-vue-pro quartz 02-initial-data yudao-module-enterprise-auth-flow member-2024-01-18 \
          icbc_payee_info icbc_payer_info icbc_invoice_tables icbc_payment_order \
@@ -43,6 +43,26 @@ done
 ```
 
 端口 `13308` 对应 `backend/docker-compose.yml` 里 MySQL 的宿主映射。
+
+> **别用没有 LANG 的 `docker exec` 导**：`docker exec -i <mysql容器> mysql` 的连接字符集是 **latin1**，
+> 中文会被双重编码存进库，界面上就是乱码。要用就必须带 `--default-character-set=utf8mb4`。
+> 现在这些文件自己以 `SET NAMES utf8mb4;` 开头，已经能顶住这种客户端；老库已脏的见下一节。
+
+## 排查：菜单 / 种子数据中文乱码
+
+症状是库里存着 `åå‘å¼€ç¥¨` 而不是 `反向开票`（`select hex(name)` 是 `C3A5C28F…` 而不是 `E58F8DE59091…`）。
+用 [repair-mojibake.sql](repair-mojibake.sql) 修，它扫全库、只改**能证明**是双重编码的值（英文 / 正常中文 / `é`、`·` 这类 Latin-1 字符都不动），幂等：
+
+```bash
+MYSQL="mysql -h 127.0.0.1 -P 13308 -uroot -p --default-character-set=utf8mb4"
+$MYSQL ruoyi-vue-pro < repair-mojibake.sql   # 只打印「表 / 列 / 修复行数」，没脏数据就什么都不打印
+```
+
+**修完还看到乱码？那是缓存，不是没修好：**
+
+- **后台菜单**：前端把菜单树缓在 localStorage 的 `roleRouters`（登录时写，`src/hooks/web/useCache.ts`）。**退出重新登录**即可。
+- **短信模板**：`SmsTemplateServiceImpl` 把 `system_sms_template` 缓在 Redis（`sms_template:<code>`）。
+  `docker exec -i youfeibao-redis redis-cli -n 0 --scan --pattern 'sms_template:*'` 看一下，删掉即可。
 
 ## 默认登录
 

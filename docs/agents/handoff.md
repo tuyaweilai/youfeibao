@@ -400,3 +400,16 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 4. **token 租户跟着登录请求头走**：`sms-login` 是 ignore-url，签发 token 时用当前租户上下文。若扫码进了场站（带 `tenant-id`），token 租户 = 场站租户，后续 `/app-api` 请求头一致就不会被越权校验拦。**curl 手测登录务必也带 `tenant-id`**，否则签出平台租户 token，再带场站租户访问即 403「您无权访问该租户的数据」。这也是框架 `TenantSecurityWebFilter` 的硬约束：越权校验在 ignore-url 判断**之前**且不可绕过。
 
 登录测试数据（本地）：场站码 `STATION_TEST`（租户 1）、出售者手机号 `13800139999`（演示出售者，已有一张待确认结算单）、验证码固定 `9999`（`application.yaml` 的 `sms-code.begin/end-code`）。入口：`http://localhost:5174/#/?station=STATION_TEST`。
+
+### 菜单 / 种子数据中文乱码：用 latin1 客户端导过 SQL（2026-09-20 修）
+
+管理后台里「反向开票」「租户开票就绪」「平台运营」整片菜单显示成 `åå‘å¼€ç¥¨` 这种。库里存的确实是双重编码（`hex(name)` = `C3A5C28F…`，而不是 `E58F8DE59091…`）：
+
+1. **原因**：导入时客户端连接字符集不是 utf8mb4。典型是 `docker exec -i youfeibao-mysql mysql`——容器里没有 `LANG`，mysql 客户端的默认字符集是 **latin1**，文件里的 UTF-8 字节被当作 latin1 收下再转成 utf8mb4 落库。快照 `ruoyi-vue-pro.sql` / `quartz.sql` / `member-2024-01-18.sql` 因为自带 `SET NAMES utf8mb4;` 一直没事，手写的 icbc / enterprise 文件没这行，才中招。
+2. **已脏的范围（本地库）**：`system_menu.name` 88 行（5008–5012 工行反向开票、5100–5182 全部 icbc 菜单）、`infra_job.name` 3 行、`system_sms_template` 3 条的 name/content/remark、`system_sms_log.template_content` 2 行。**已修**，别的地方（含 `system_menu.permission` 等 ASCII 列）没有脏。
+3. **修法**：`backend/sql/mysql/repair-mojibake.sql`——扫全库只改能证明是双重编码的值（英文、正常中文、`é`/`·` 这类 Latin-1 字符都不动），幂等，输出「表 / 列 / 修复行数」。用法见 `backend/sql/mysql/README.md` 的「排查：菜单 / 种子数据中文乱码」。
+4. **防复发**：`backend/sql/mysql/` 下 30 个手写 SQL 文件已统一在开头加 `SET NAMES utf8mb4;`，导入不再依赖客户端参数；README 的导入命令也带上 `--default-character-set=utf8mb4` 并写明 `docker exec` 的坑。
+
+> 教训：这类损坏是**静默**的，只表现为界面乱码，跑 SQL 时一句报错都没有。新增带中文种子数据的 `*.sql` 时，记得同样把 `SET NAMES utf8mb4;` 写在第一行。
+
+> 改完种子数据别急着说「没生效」：**菜单**缓在前端 localStorage 的 `roleRouters`（重登才刷新），**字典 / 短信模板**缓在 Redis（`sms_template:<code>` 等，`redis-cli --scan` 删对应键）。本次修完后短信正文仍是乱码就是这个原因，删 `sms_template:icbc_seller_notify_*` 后正常。
