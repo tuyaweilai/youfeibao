@@ -177,4 +177,10 @@ public interface ErrorCodeConstants {
     ErrorCode INVOICE_CANCEL_RESULT_UNKNOWN = new ErrorCode(1_030_017_010, "工行取消结果未知，请勿重复提交，稍后查询发票状态");
     ErrorCode INVOICE_CANCEL_FAILED = new ErrorCode(1_030_017_012, "发票取消未成功：{}");
     ErrorCode RED_INVOICE_RESULT_UNKNOWN = new ErrorCode(1_030_017_011, "工行红冲结果未知，请勿重复提交，稍后查询红冲状态");
+
+    // ========== 额度风控（#12：500 万滚动额度与经营主体登记引导） 1-030-018-000 ==========
+    ErrorCode SELLER_QUOTA_EXCEEDED = new ErrorCode(1_030_018_000, "该出售者连续 12 个月反向开票累计销售额已达 {} 元，超过 500 万元上限，不能再发起开票申请");
+    ErrorCode SELLER_QUOTA_EXCEEDED_BY_THIS_ONE = new ErrorCode(1_030_018_001, "本次 {} 元将超过 500 万元上限：已用 {} 元，余量 {} 元");
+    ErrorCode SELLER_QUOTA_GUIDANCE_NOT_EXISTS = new ErrorCode(1_030_018_002, "额度引导记录不存在");
+    ErrorCode SELLER_QUOTA_GUIDANCE_STATUS_INVALID = new ErrorCode(1_030_018_003, "额度引导状态不合法：{}");
 }

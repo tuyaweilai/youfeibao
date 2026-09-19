@@ -1,107 +1,72 @@
 package cn.iocoder.yudao.module.icbc.service.quota;
 
-import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.util.StrUtil;
-import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
-import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
-import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
-import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
-import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
-import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import org.springframework.stereotype.Service;
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaCheckRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaGuidanceHandleReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaGuidancePageReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaRespVO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.quota.SellerQuotaGuidanceDO;
 
-import javax.annotation.Resource;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
- * 自然人额度查询：连续 12 个月滚动窗口内的反向开票累计销售额与 500 万上限的余量。
+ * 自然人出售者额度台账与风控（issue #12）。
  *
- * <p>同一个自然人在本平台多个租户下的开票额合并计算——这是「自然人」的额度，不是某个
- * 租户的额度，所以查询在 {@link TenantUtils#executeIgnore} 下跨租户汇总。
+ * <p>额度是<b>自然人</b>的，不是租户的：同一个自然人在本平台多个租户下的反向开票额合并
+ * 计算，连续 12 个月滚动窗口上限 500 万元。工行没有事前校验接口、也没有额度视图，跨平台
+ * 累计更看不到——这个台账是平台自己的责任，也是唯一能「在票开出来之前拦住」的地方。
  *
- * <p>本服务只做<b>读</b>的汇总，不做开票前拦截；硬校验属于 #12。
+ * <p>三个使用场景：
+ * <ul>
+ *   <li>收购登记时给收货员<b>余量提示</b>（{@link #checkQuota}）；</li>
+ *   <li>开票申请前做<b>硬校验</b>（{@link #checkQuota} 的结论进前置校验项）；</li>
+ *   <li>出售者自己查余量，<b>不依赖任何客户端</b>（公开令牌端点取 {@link #getQuota}）。</li>
+ * </ul>
+ *
+ * <p>超限被拒后还要留下可跟进的 {@link SellerQuotaGuidanceDO}：拒绝本身不是流程的终点，
+ * 引导出售者办理经营主体登记才是。
  */
-@Service
-public class NaturalPersonQuotaService {
+public interface NaturalPersonQuotaService {
 
-    /** 连续 12 个月滚动窗口上限（元） */
-    private static final BigDecimal CAP_AMOUNT = new BigDecimal("5000000.00");
+    /**
+     * 取某个出售者的额度台账：滚动窗口内的已用 / 余量、按月销售额、1% 与 3% 分列。
+     *
+     * @param payeeId 出售者档案编号（任意租户均可，汇总时跨租户合并）
+     * @return 额度台账
+     */
+    SellerQuotaRespVO getQuota(Long payeeId);
 
-    @Resource
-    private PayeeInfoMapper payeeInfoMapper;
-    @Resource
-    private InvoiceOrderMapper invoiceOrderMapper;
+    /**
+     * 判定「再开这笔金额会不会超 500 万」。
+     *
+     * <p>不抛异常：收购登记要的是提示，开票申请要的是逐条列出的失败原因与补齐方式。
+     *
+     * @param payeeId     出售者档案编号
+     * @param applyAmount 本次金额（可为空，视为 0）
+     * @return 结论；{@code passed=false} 时 {@code message} 说明哪里不满足、{@code remedy} 说明怎么补
+     */
+    SellerQuotaCheckRespVO checkQuota(Long payeeId, BigDecimal applyAmount);
 
-    public PublicQuotaRespVO getQuota(PayeeInfoDO payee) {
-        LocalDateTime windowEnd = LocalDateTime.now();
-        LocalDateTime windowStart = windowEnd.minusMonths(12);
+    /**
+     * 记录一条「引导出售者办理经营主体登记」的记录。
+     *
+     * <p>同一出售者同时只有一条未办结记录：再次触发只更新已用额度与最近触发时间，不新增。
+     * 只有因 500 万上限被拒时才调用。
+     *
+     * @param payeeId 出售者档案编号
+     * @param scene   触发场景，见 {@link cn.iocoder.yudao.module.icbc.enums.SellerQuotaTriggerSceneEnum}
+     * @param bizNo   触发业务单号（收购单号 / 合作方订单号）
+     */
+    void recordGuidance(Long payeeId, String scene, String bizNo);
 
-        BigDecimal usedAmount = TenantUtils.executeIgnore(() -> sumUsedAmount(payee, windowStart));
+    /**
+     * 分页查询额度超限引导记录
+     */
+    PageResult<SellerQuotaGuidanceDO> getGuidancePage(SellerQuotaGuidancePageReqVO reqVO);
 
-        PublicQuotaRespVO respVO = new PublicQuotaRespVO();
-        respVO.setName(payee.getName());
-        respVO.setIdCardMasked(maskIdCard(payee.getIdCardNo()));
-        respVO.setCapAmount(CAP_AMOUNT);
-        respVO.setUsedAmount(usedAmount);
-        respVO.setRemainingAmount(CAP_AMOUNT.subtract(usedAmount).max(BigDecimal.ZERO));
-        respVO.setWindowStart(windowStart);
-        respVO.setWindowEnd(windowEnd);
-        return respVO;
-    }
-
-    private BigDecimal sumUsedAmount(PayeeInfoDO payee, LocalDateTime windowStart) {
-        // 同一自然人可能在本平台多个租户各有一份收方档案，按身份证号把它们找齐
-        List<PayeeInfoDO> payees = StrUtil.isNotBlank(payee.getIdCardNo())
-                ? payeeInfoMapper.selectList(PayeeInfoDO::getIdCardNo, payee.getIdCardNo())
-                : List.of(payee);
-        Set<Long> payeeIds = payees.stream().map(PayeeInfoDO::getId)
-                .filter(Objects::nonNull).collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<String> payeeNos = new LinkedHashSet<>();
-        for (PayeeInfoDO item : payees) {
-            if (StrUtil.isNotBlank(item.getPayeeNo())) {
-                payeeNos.add(item.getPayeeNo());
-            }
-            if (StrUtil.isNotBlank(item.getPartnerPayeeId())) {
-                payeeNos.add(item.getPartnerPayeeId());
-            }
-        }
-        if (payeeIds.isEmpty() && payeeNos.isEmpty()) {
-            return BigDecimal.ZERO;
-        }
-
-        LambdaQueryWrapper<InvoiceOrderDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.ge(InvoiceOrderDO::getCreateTime, windowStart);
-        wrapper.and(query -> {
-            if (CollUtil.isNotEmpty(payeeIds)) {
-                query.in(InvoiceOrderDO::getPayeeId, payeeIds);
-            }
-            if (CollUtil.isNotEmpty(payeeNos)) {
-                if (CollUtil.isNotEmpty(payeeIds)) {
-                    query.or();
-                }
-                query.in(InvoiceOrderDO::getPayeeNo, payeeNos);
-            }
-        });
-        return invoiceOrderMapper.selectList(wrapper).stream()
-                .map(InvoiceOrderDO::getTotalAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private String maskIdCard(String idCardNo) {
-        if (StrUtil.isBlank(idCardNo) || idCardNo.length() < 8) {
-            return idCardNo;
-        }
-        return idCardNo.substring(0, 6)
-                + StrUtil.repeat('*', idCardNo.length() - 10)
-                + idCardNo.substring(idCardNo.length() - 4);
-    }
+    /**
+     * 处理一条引导记录：已引导 / 已办结
+     */
+    void handleGuidance(SellerQuotaGuidanceHandleReqVO reqVO);
 
 }

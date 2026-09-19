@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.*;
+import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaCheckRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
@@ -14,11 +15,13 @@ import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcTaxMethodEnum;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceConfirmStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.SellerQuotaTriggerSceneEnum;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceApplicationService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
+import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
@@ -46,6 +49,7 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
     private static final String CHECK_TENANT_QUALIFICATION = "TENANT_QUALIFICATION";
     private static final String CHECK_PAYER_INFO = "PAYER_INFO";
     private static final String CHECK_SELLER_AVAILABLE = "SELLER_AVAILABLE";
+    private static final String CHECK_SELLER_QUOTA = "SELLER_QUOTA";
     private static final String CHECK_TAX_METHOD_INVOICE_TYPE = "TAX_METHOD_INVOICE_TYPE";
     private static final String CHECK_GOODS_CODE_CONFIGURED = "GOODS_CODE_CONFIGURED";
     private static final String CHECK_ACQUISITION_ELEMENTS = "ACQUISITION_ELEMENTS";
@@ -54,10 +58,15 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
     private static final String REMEDY_QUALIFICATION = "在「租户开票就绪 · 三层资质」录入税务侧反向开票资格、行业侧资质与公安侧备案，并由平台运营核实";
     private static final String REMEDY_PAYER = "在「付方档案」补全企业名称、纳税人识别号与合作方付方编号";
     private static final String REMEDY_SELLER = "在「出售者建档」完成实人认证、收方入驻、框架收购协议与首次授权";
+    private static final String REMEDY_QUOTA = "引导该出售者办理经营主体登记，由经营主体开票；若已开票金额有误，先走红冲把额度放出来";
     private static final String REMEDY_TAX_METHOD = "把票种改为增值税普通发票（02），或在「编码配置」把该品类的计税方法改为一般计税";
     private static final String REMEDY_GOODS_CODE = "在「租户开票就绪 · 编码配置」为该品类配置商品和服务税收分类合并编码";
     private static final String REMEDY_ELEMENTS = "在「收购登记」补齐缺失要件后重新发起";
     private static final String REMEDY_STATUS = "仅「已登记」的收购单可以发起开票申请";
+
+    /** 征收率传 3% 时必输的减按征税类型代码：55 = 放弃享受减按 1% */
+    private static final String UNUSE_REDUCE_TAX_CODE_WAIVED = "55";
+    private static final BigDecimal THREE_PERCENT_RATE = new BigDecimal("0.03");
 
     @Resource
     private AcquisitionService acquisitionService;
@@ -71,6 +80,8 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
     private PayeeInfoMapper payeeInfoMapper;
     @Resource
     private PayerInfoMapper payerInfoMapper;
+    @Resource
+    private NaturalPersonQuotaService naturalPersonQuotaService;
 
     // ==================== 发起前校验 ====================
 
@@ -91,6 +102,7 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
         items.add(checkTenantQualification());
         items.add(checkPayerInfo());
         items.add(checkSellerAvailable(acquisition));
+        items.add(checkSellerQuota(acquisition));
         items.add(checkTaxMethodInvoiceType(acquisition, invoiceType));
         items.add(checkGoodsCodeConfigured(acquisition));
         items.add(checkAcquisitionElements(acquisition));
@@ -135,6 +147,24 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
             message = "出售者状态校验失败：" + e.getMessage();
         }
         return item(CHECK_SELLER_AVAILABLE, "出售者状态", ready, message, REMEDY_SELLER);
+    }
+
+    /**
+     * 500 万上限硬校验：工行没有事前校验接口，只能平台自己拦。
+     *
+     * <p>额度是自然人的，跨租户合并（{@link NaturalPersonQuotaService}），所以同一个出售者在
+     * 别家回收企业开的票也算在这里。10 万元免征线只在结论里提醒（须代办申报缴款），不作为拒绝理由。
+     */
+    private InvoicePreCheckItemVO checkSellerQuota(IcbcAcquisitionDO acquisition) {
+        SellerQuotaCheckRespVO check;
+        try {
+            check = naturalPersonQuotaService.checkQuota(acquisition.getPayeeId(), acquisition.getAmount());
+        } catch (ServiceException e) {
+            return item(CHECK_SELLER_QUOTA, "出售者额度", false, e.getMessage(), REMEDY_QUOTA);
+        }
+        boolean passed = Boolean.TRUE.equals(check.getPassed());
+        return item(CHECK_SELLER_QUOTA, "出售者额度", passed, check.getMessage(),
+                StrUtil.blankToDefault(check.getRemedy(), REMEDY_QUOTA));
     }
 
     /**
@@ -285,6 +315,8 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
             result.setSuccess(false);
             result.setFailures(failures);
             result.setMessage("开票申请校验未通过");
+            // 因额度被拒是「拒绝」之外的另一件事：留下一张可跟进的引导单
+            recordQuotaGuidanceIfNeeded(acquisition, failures);
             return result;
         }
 
@@ -312,6 +344,24 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
             result.setMessage(e.getMessage());
         }
         return result;
+    }
+
+    /**
+     * 因额度超限被拒时，落一条「引导出售者办理经营主体登记」的记录。
+     *
+     * <p>引导记录落不下去不改变「拒绝开票」的结论，所以这里只记日志、不向外抛。
+     */
+    private void recordQuotaGuidanceIfNeeded(IcbcAcquisitionDO acquisition, List<InvoicePreCheckItemVO> failures) {
+        boolean quotaFailed = failures.stream().anyMatch(item -> CHECK_SELLER_QUOTA.equals(item.getCode()));
+        if (!quotaFailed) {
+            return;
+        }
+        try {
+            naturalPersonQuotaService.recordGuidance(acquisition.getPayeeId(),
+                    SellerQuotaTriggerSceneEnum.INVOICE_APPLICATION.getCode(), acquisition.getAcquisitionNo());
+        } catch (RuntimeException e) {
+            log.error("开票申请因额度被拒，但引导记录落库失败 - acquisitionNo: {}", acquisition.getAcquisitionNo(), e);
+        }
     }
 
     private void fillOrderFields(InvoiceApplicationResultVO result, InvoiceOrderDO order) {
@@ -357,6 +407,8 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
         req.setAreaCode(base.getAreaCode());
         req.setMac(StrUtil.blankToDefault(base.getMac(), "00:00:00:00:00:00"));
         req.setTaxRate(acquisition.getTaxRate());
+        // 征收率 3% 时工行必输「减按征税类型代码」：本场景即出售者放弃享受减按 1%
+        req.setUnuseReduceTaxCode(resolveUnuseReduceTaxCode(acquisition.getTaxRate()));
         req.setPayChannel("05");
         req.setIitProject("1");
         req.setCurrency("001");
@@ -379,6 +431,15 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
         goods.setTaxRate(acquisition.getTaxRate());
         goods.setMergedCode(acquisition.getMergedCode());
         return goods;
+    }
+
+    /**
+     * 减按征税类型代码：征收率传 3% 时必输。本场景只有一种可能——出售者放弃享受减按 1%。
+     * 征收率 1%（3% 减按 1%）时不需要该字段。
+     */
+    private String resolveUnuseReduceTaxCode(BigDecimal taxRate) {
+        return taxRate != null && taxRate.compareTo(THREE_PERCENT_RATE) == 0
+                ? UNUSE_REDUCE_TAX_CODE_WAIVED : null;
     }
 
     private BigDecimal resolveUnitPrice(IcbcAcquisitionDO acquisition) {

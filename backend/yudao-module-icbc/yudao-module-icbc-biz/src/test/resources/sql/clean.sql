@@ -1,4 +1,5 @@
 -- Clean test tables
+DELETE FROM icbc_seller_quota_guidance;
 DELETE FROM icbc_acquisition;
 DELETE FROM icbc_red_invoice;
 DELETE FROM icbc_contact_lead;

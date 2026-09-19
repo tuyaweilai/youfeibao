@@ -41,7 +41,7 @@ public class IcbcAcquisitionController {
     @PostMapping("/create")
     @Operation(summary = "登记一笔收购")
     @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.ACQUISITION_CREATE + "')")
-    public CommonResult<Long> createAcquisition(@Valid @RequestBody AcquisitionCreateReqVO reqVO) {
+    public CommonResult<AcquisitionCreateRespVO> createAcquisition(@Valid @RequestBody AcquisitionCreateReqVO reqVO) {
         return success(acquisitionService.createAcquisition(reqVO));
     }
 

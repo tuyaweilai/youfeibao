@@ -182,6 +182,11 @@ public class InvoiceOrderDO extends TenantBaseDO {
     private String invoiceFileUrl;
     
     /**
+     * 适用征收率（小数）：0.01 = 3% 征收率减按 1%，0.03 = 放弃减按。额度台账按它把销售额分列。
+     */
+    private BigDecimal taxRate;
+
+    /**
      * 备注
      */
     private String remark;

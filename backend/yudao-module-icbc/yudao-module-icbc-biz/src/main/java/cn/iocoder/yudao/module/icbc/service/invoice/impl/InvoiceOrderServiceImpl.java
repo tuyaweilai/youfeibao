@@ -663,6 +663,7 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
         order.setPayeeNo(request.getOutUserId());
         order.setPayerNo(request.getOutVendorId());
         order.setTotalAmount(request.getOrderAmount());
+        order.setTaxRate(request.getTaxRate());
         order.setInvoiceType("01".equals(request.getInvoiceType()) ? 2 : 1); // 01-专票，02-普票
         order.setBusinessType("16".equals(request.getSpecificElements()) ? "AGRICULTURAL" : "SCRAP");
         order.setOrderStatus(0); // 待确认

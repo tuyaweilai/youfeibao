@@ -51,7 +51,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.ENTERPRISE_AUTH_QUERY,
             RecyclingPermission.SCRAP_CODE_QUERY,
             RecyclingPermission.EXPIRY_WARNING_QUERY,
-            RecyclingPermission.EXPIRY_WARNING_ACK)),
+            RecyclingPermission.EXPIRY_WARNING_ACK,
+            RecyclingPermission.QUOTA_QUERY, RecyclingPermission.QUOTA_GUIDANCE_HANDLE)),
 
     /**
      * 收货员：收购现场登记，维护出售者档案与收购单。
@@ -65,6 +66,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.ACQUISITION_CREATE, RecyclingPermission.ACQUISITION_UPDATE,
             RecyclingPermission.ACQUISITION_QUERY, RecyclingPermission.ACQUISITION_EXPORT,
             RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_ATTACH,
+            RecyclingPermission.QUOTA_QUERY, RecyclingPermission.QUOTA_GUIDANCE_HANDLE,
             RecyclingPermission.PUBLIC_TOKEN_CREATE)),
 
     /**
@@ -84,7 +86,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_ATTACH,
             RecyclingPermission.PUBLIC_TOKEN_CREATE,
             RecyclingPermission.GOODS_CONFIG_QUERY,
-            RecyclingPermission.SCRAP_CODE_QUERY)),
+            RecyclingPermission.SCRAP_CODE_QUERY,
+            RecyclingPermission.QUOTA_QUERY)),
 
     /**
      * 财务：代办税费、对账、归集发票。
@@ -97,6 +100,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PAYMENT_QUERY,
             RecyclingPermission.DOWNLOAD_QUERY, RecyclingPermission.DOWNLOAD_FILE,
             RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_EXPORT,
+            RecyclingPermission.QUOTA_QUERY,
             RecyclingPermission.PUBLIC_TOKEN_CREATE)),
 
     /**
@@ -111,7 +115,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.GOODS_CONFIG_CREATE, RecyclingPermission.GOODS_CONFIG_UPDATE,
             RecyclingPermission.GOODS_CONFIG_DELETE, RecyclingPermission.GOODS_CONFIG_QUERY,
             RecyclingPermission.SCRAP_CODE_CREATE, RecyclingPermission.SCRAP_CODE_UPDATE,
-            RecyclingPermission.SCRAP_CODE_DELETE, RecyclingPermission.SCRAP_CODE_QUERY));
+            RecyclingPermission.SCRAP_CODE_DELETE, RecyclingPermission.SCRAP_CODE_QUERY,
+            RecyclingPermission.QUOTA_QUERY));
 
     /**
      * yudao 超级管理员：平台自有系统租户的最高权限，绕过角色映射。

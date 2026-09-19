@@ -94,10 +94,36 @@
       <el-button @click="dialogVisible = false">取 消</el-button>
     </template>
   </Dialog>
+
+  <!-- 登记后的额度余量提示：额度是自然人跨租户累计的，现场不看就没人看得到 -->
+  <Dialog v-model="quotaVisible" title="该出售者的额度余量" width="520px">
+    <el-alert
+      v-if="quotaResp"
+      :type="quotaResp.quotaPassed === false ? 'error' : 'success'"
+      :closable="false"
+      :title="quotaResp.quotaMessage"
+      class="mb-10px"
+    />
+    <el-descriptions v-if="quotaResp" :column="2" border size="small">
+      <el-descriptions-item label="收购单号">{{ quotaResp.acquisitionNo }}</el-descriptions-item>
+      <el-descriptions-item label="12 个月上限(元)">{{ quotaResp.quotaCapAmount }}</el-descriptions-item>
+      <el-descriptions-item label="已用额度(元)">{{ quotaResp.quotaUsedAmount }}</el-descriptions-item>
+      <el-descriptions-item label="剩余额度(元)">{{ quotaResp.quotaRemainingAmount }}</el-descriptions-item>
+    </el-descriptions>
+    <p v-if="quotaResp && quotaResp.quotaPassed === false" class="quota-warn">
+      这一笔登记已落库，但额度已超：开票申请会被拒，请引导出售者办理经营主体登记。
+    </p>
+    <p v-else-if="quotaResp && quotaResp.monthlyOverExempt" class="quota-tip">
+      本月销售额已超过 10 万元免征线，需按时代办申报缴款。
+    </p>
+    <template #footer>
+      <el-button type="primary" @click="quotaVisible = false">知道了</el-button>
+    </template>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
-import { AcquisitionApi, AcquisitionVO } from '@/api/icbc/acquisition'
+import { AcquisitionApi, AcquisitionCreateRespVO, AcquisitionVO } from '@/api/icbc/acquisition'
 import { PayeeApi, PayeeVO } from '@/api/icbc/payee'
 import { GoodsConfigApi, GoodsConfigVO } from '@/api/icbc/goodsConfig'
 
@@ -114,6 +140,8 @@ const formData = ref<AcquisitionVO>(buildEmpty())
 const formRef = ref()
 const payees = ref<PayeeVO[]>([])
 const goodsConfigs = ref<GoodsConfigVO[]>([])
+const quotaVisible = ref(false)
+const quotaResp = ref<AcquisitionCreateRespVO>()
 
 function buildEmpty(): AcquisitionVO {
   return {
@@ -186,8 +214,11 @@ const submitForm = async () => {
   formLoading.value = true
   try {
     if (formType.value === 'create') {
-      await AcquisitionApi.createAcquisition(formData.value)
+      // 登记前后都要让收货员看到余量，不能等开票被拒才发现超了 500 万
+      const resp = await AcquisitionApi.createAcquisition(formData.value)
       message.success(t('common.createSuccess'))
+      quotaResp.value = resp
+      quotaVisible.value = true
     } else {
       await AcquisitionApi.correctRecognition(formData.value)
       message.success(t('common.updateSuccess'))
@@ -204,3 +235,16 @@ const resetForm = () => {
   formRef.value?.resetFields()
 }
 </script>
+
+<style scoped>
+.quota-warn {
+  margin-top: 10px;
+  color: var(--el-color-danger);
+  font-size: 13px;
+}
+.quota-tip {
+  margin-top: 10px;
+  color: var(--el-color-warning);
+  font-size: 13px;
+}
+</style>

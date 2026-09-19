@@ -16,7 +16,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.service.download.impl.InvoiceDownloadServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.publicapi.impl.PublicAccessServiceImpl;
-import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
+import cn.iocoder.yudao.module.icbc.service.quota.impl.NaturalPersonQuotaServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenCodec;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenService;
 import cn.iocoder.yudao.module.icbc.service.token.impl.PublicTokenServiceImpl;
@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@link PublicAccessServiceImpl} 的单元测试：三类公开端点，从令牌解析租户后执行。
  */
 @Import({PublicAccessServiceImpl.class, PublicTokenServiceImpl.class, PublicTokenCodec.class,
-        InvoiceDownloadServiceImpl.class, NaturalPersonQuotaService.class})
+        InvoiceDownloadServiceImpl.class, NaturalPersonQuotaServiceImpl.class})
 @TestPropertySource(properties = {
         "icbc.public-token.secret=test-public-token-secret-0123456789abcdef",
         "yudao.file.base-path=/tmp/test"})
@@ -118,20 +118,29 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testQueryQuota_onlyCountsRollingTwelveMonths() {
+    public void testQueryQuota_onlyCountsIssuedInvoicesInRollingTwelveMonths() {
         PayeeInfoDO payee = insertPayee("李四", "110101199002022345");
-        // 窗口内：1 个月前 10 万
-        insertOrder("ORDER_Q_IN", payee.getId(), new BigDecimal("100000.00"), LocalDateTime.now().minusMonths(1));
-        // 窗口外：13 个月前 50 万，不应计入
-        insertOrder("ORDER_Q_OUT", payee.getId(), new BigDecimal("500000.00"), LocalDateTime.now().minusMonths(13));
+        // 窗口内、已开票：1 个月前 10 万（按 3% 减按 1%）
+        insertIssuedOrder("ORDER_Q_IN", payee, new BigDecimal("100000.00"),
+                LocalDateTime.now().minusMonths(1), new BigDecimal("0.01"));
+        // 窗口外、已开票：13 个月前 50 万，不应计入
+        insertIssuedOrder("ORDER_Q_OUT", payee, new BigDecimal("500000.00"),
+                LocalDateTime.now().minusMonths(13), new BigDecimal("0.01"));
+        // 窗口内、但只是预下单没开出来：不算销售额，不占额度
+        insertOrder("ORDER_Q_UNISSUED", payee.getId(), new BigDecimal("700000.00"), LocalDateTime.now().minusDays(5));
         String token = mint("QUOTA_QUERY", null, payee.getId());
 
         PublicQuotaRespVO quota = publicAccessService.queryQuota(token);
 
         assertEquals("李四", quota.getName());
         assertEquals(0, new BigDecimal("5000000.00").compareTo(quota.getCapAmount()));
+        assertEquals(0, new BigDecimal("100000.00").compareTo(quota.getIssuedAmount()));
         assertEquals(0, new BigDecimal("100000.00").compareTo(quota.getUsedAmount()));
         assertEquals(0, new BigDecimal("4900000.00").compareTo(quota.getRemainingAmount()));
+        assertEquals(0, new BigDecimal("100000.00").compareTo(quota.getAmountAtOnePercent()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(quota.getAmountAtThreePercent()));
+        assertEquals(Boolean.FALSE, quota.getQuotaExceeded());
+        assertNotNull(quota.getMonths());
         assertEquals("110101********2345", quota.getIdCardMasked());
     }
 
@@ -165,6 +174,23 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
                 .downloadId(download.getId()).invoiceNumber("NUM_" + partnerOrderId)
                 .fileType("PDF").filePath(file.getAbsolutePath()).fileName("invoice.pdf")
                 .fileSize(size).fileMd5("d41d8cd98f00b204e9800998ecf8427e").accessCount(0).build());
+    }
+
+    /**
+     * 造一张已开出的蓝票：额度台账按开票日期落在窗口内才算
+     */
+    private void insertIssuedOrder(String partnerOrderId, PayeeInfoDO payee, BigDecimal amount,
+                                   LocalDateTime invoiceDate, BigDecimal taxRate) {
+        InvoiceOrderDO order = InvoiceOrderDO.builder()
+                .orderNo("INV_" + partnerOrderId).partnerOrderId(partnerOrderId)
+                .payeeId(payee.getId()).payeeNo(payee.getPartnerPayeeId()).payerNo("PAYER_1")
+                .totalAmount(amount).invoiceAmount(amount).taxRate(taxRate)
+                .invoiceType(1).businessType("SCRAP")
+                .orderStatus(3).invoiceStatus(2).paymentStatus(2).taxStatus(0)
+                .confirmStatus(1).preInvoiceStatus(2)
+                .invoiceDate(invoiceDate).build();
+        order.setCreateTime(invoiceDate);
+        invoiceOrderMapper.insert(order);
     }
 
     private InvoiceOrderDO insertOrder(String partnerOrderId, Long payeeId, BigDecimal amount,

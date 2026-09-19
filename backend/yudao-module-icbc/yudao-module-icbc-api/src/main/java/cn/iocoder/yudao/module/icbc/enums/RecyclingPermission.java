@@ -130,4 +130,9 @@ public interface RecyclingPermission {
     String EXPIRY_WARNING_QUERY = "icbc:expiry-warning:query";
     String EXPIRY_WARNING_ACK = "icbc:expiry-warning:ack";
 
+    // ========== 额度风控（#12：滚动额度台账与经营主体登记引导） ==========
+
+    String QUOTA_QUERY = "icbc:quota:query";
+    String QUOTA_GUIDANCE_HANDLE = "icbc:quota:guidance:handle";
+
 }

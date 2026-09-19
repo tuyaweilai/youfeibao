@@ -14,10 +14,16 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payer.PayerInfoDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.quota.SellerQuotaGuidanceDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payer.PayerInfoMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.quota.SellerQuotaGuidanceMapper;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.SellerQuotaGuidanceStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.SellerQuotaTriggerSceneEnum;
 import cn.iocoder.yudao.module.icbc.gateway.fake.FakeIcbcGateway;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceInfo;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderReq;
@@ -35,6 +41,7 @@ import org.springframework.test.context.TestPropertySource;
 
 import javax.annotation.Resource;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -67,6 +74,8 @@ public class InvoiceApplicationServiceTest extends BaseDbUnitTest {
 
     @Resource
     private PayerInfoMapper payerInfoMapper;
+    @Resource
+    private SellerQuotaGuidanceMapper sellerQuotaGuidanceMapper;
 
     @Resource
     private FakeIcbcGateway fakeIcbcGateway;
@@ -104,6 +113,75 @@ public class InvoiceApplicationServiceTest extends BaseDbUnitTest {
         payer.setTaxNo("91110000123456789X");
         payer.setPartnerPayerId("VENDOR_2001");
         payerInfoMapper.insert(payer);
+    }
+
+    // ==================== 额度风控（#12） ====================
+
+    @Test
+    public void testPreCheck_reportsSellerQuota() {
+        IcbcAcquisitionDO acquisition = stubAcquisition(105L, "ACQ105", "GENERAL", "1090101010000000000");
+        when(acquisitionService.getAcquisition(105L)).thenReturn(acquisition);
+
+        InvoicePreCheckRespVO resp = invoiceApplicationService.preCheck(105L, "02");
+
+        assertTrue(resp.getAllPassed());
+        InvoicePreCheckItemVO quotaItem = resp.getItems().stream()
+                .filter(item -> "SELLER_QUOTA".equals(item.getCode())).findFirst().orElseThrow();
+        assertTrue(quotaItem.getPassed());
+        assertTrue(quotaItem.getMessage().contains("余量"), "实际：" + quotaItem.getMessage());
+    }
+
+    @Test
+    public void testApply_overQuotaCapIsRejectedAndLeavesGuidance() {
+        // 该出售者已在其它租户/别处开出了 510 万，超过连续 12 个月的 500 万上限
+        insertIssuedInvoiceOrder("ORDER_OVER_CAP", new BigDecimal("5100000.00"));
+        IcbcAcquisitionDO acquisition = stubAcquisition(106L, "ACQ106", "GENERAL", "1090101010000000000");
+        when(acquisitionService.getAcquisition(106L)).thenReturn(acquisition);
+
+        InvoiceApplicationResultVO result = invoiceApplicationService.apply(buildApply(106L, "02"));
+
+        assertFalse(result.getSuccess());
+        InvoicePreCheckItemVO quotaFailure = result.getFailures().stream()
+                .filter(item -> "SELLER_QUOTA".equals(item.getCode())).findFirst().orElseThrow();
+        assertTrue(quotaFailure.getMessage().contains("超过 500 万元上限"), "实际：" + quotaFailure.getMessage());
+        assertNotNull(quotaFailure.getRemedy());
+        // 没有下发工行、也没挂回收购单
+        assertEquals(0L, fakeIcbcGateway.countOperation(FakeIcbcGateway.OP_SUBMIT_PRE_ORDER));
+        verify(acquisitionService, never()).linkInvoice(anyLong(), anyString());
+        // 拒绝之外还留下一条可跟进的「办理经营主体登记」引导
+        List<SellerQuotaGuidanceDO> guidances = sellerQuotaGuidanceMapper.selectList();
+        assertEquals(1, guidances.size());
+        assertEquals(SellerQuotaGuidanceStatusEnum.PENDING.getStatus(), guidances.get(0).getStatus());
+        assertEquals(SellerQuotaTriggerSceneEnum.INVOICE_APPLICATION.getCode(), guidances.get(0).getTriggerScene());
+        assertEquals("ACQ106", guidances.get(0).getTriggerBizNo());
+    }
+
+    @Test
+    public void testApply_waivedReductionSendsUnuseReduceTaxCode() {
+        IcbcAcquisitionDO acquisition = stubAcquisition(107L, "ACQ107", "SIMPLE", "1090101010000000000");
+        // 放弃享受减按 1%：征收率 3%，工行报文必输减按征税类型代码 55
+        acquisition.setTaxRate(new BigDecimal("0.03"));
+        when(acquisitionService.getAcquisition(107L)).thenReturn(acquisition);
+
+        InvoiceApplicationResultVO result = invoiceApplicationService.apply(buildApply(107L, "02"));
+
+        assertTrue(result.getSuccess());
+        PreOrderReq submitted = fakeIcbcGateway.lastPayload(FakeIcbcGateway.OP_SUBMIT_PRE_ORDER);
+        assertEquals("55", submitted.getUnuseReduceTaxCode());
+        // 开票订单落库时也记下征收率，额度台账靠它把销售额按 1% / 3% 分列
+        assertEquals(0, new BigDecimal("0.03").compareTo(
+                invoiceOrderMapper.selectByPartnerOrderId("ACQ107").getTaxRate()));
+    }
+
+    @Test
+    public void testApply_reducedRateDoesNotSendUnuseReduceTaxCode() {
+        IcbcAcquisitionDO acquisition = stubAcquisition(108L, "ACQ108", "SIMPLE", "1090101010000000000");
+        when(acquisitionService.getAcquisition(108L)).thenReturn(acquisition);
+
+        invoiceApplicationService.apply(buildApply(108L, "02"));
+
+        PreOrderReq submitted = fakeIcbcGateway.lastPayload(FakeIcbcGateway.OP_SUBMIT_PRE_ORDER);
+        assertNull(submitted.getUnuseReduceTaxCode());
     }
 
     // ==================== 发起前校验 ====================
@@ -352,6 +430,28 @@ public class InvoiceApplicationServiceTest extends BaseDbUnitTest {
         reqVO.setDrawerCardNumber("110101199001011234");
         reqVO.setJumpUrlBase("https://platform.example.com");
         return reqVO;
+    }
+
+    private void insertIssuedInvoiceOrder(String partnerOrderId, BigDecimal amount) {
+        invoiceOrderMapper.insert(InvoiceOrderDO.builder()
+                .orderNo("INV_" + partnerOrderId)
+                .partnerOrderId(partnerOrderId)
+                .payeeId(payeeId)
+                .payeeNo("USER_1001")
+                .payerNo("VENDOR_2001")
+                .totalAmount(amount)
+                .invoiceAmount(amount)
+                .taxRate(new BigDecimal("0.01"))
+                .invoiceType(1)
+                .businessType("SCRAP")
+                .orderStatus(3)
+                .invoiceStatus(InvoiceIssueStatusEnum.ISSUED.getStatus())
+                .paymentStatus(2)
+                .taxStatus(0)
+                .confirmStatus(1)
+                .preInvoiceStatus(PreInvoiceStatusEnum.SUCCESS.getStatus())
+                .invoiceDate(LocalDateTime.now().minusMonths(1))
+                .build());
     }
 
     private IcbcAcquisitionDO stubAcquisition(Long id, String no, String taxMethod, String mergedCode) {

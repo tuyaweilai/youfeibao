@@ -7,6 +7,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.*;
+import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaCheckRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
@@ -16,6 +17,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.acquisition.recognition.AcquisitionRecognitionPort;
+import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -60,17 +62,26 @@ public class AcquisitionServiceImpl implements AcquisitionService {
     private IcbcGoodsConfigMapper goodsConfigMapper;
     @Resource
     private AcquisitionRecognitionPort recognitionPort;
+    @Resource
+    private NaturalPersonQuotaService naturalPersonQuotaService;
 
     // ==================== 登记 ====================
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long createAcquisition(@Valid AcquisitionCreateReqVO reqVO) {
+    public AcquisitionCreateRespVO createAcquisition(@Valid AcquisitionCreateReqVO reqVO) {
+        return buildCreateResp(register(reqVO));
+    }
+
+    /**
+     * 落一笔收购单。幂等、要件校验、识别回填都在这里，额度提示留给调用方（离线补传不做提示）。
+     */
+    private IcbcAcquisitionDO register(AcquisitionCreateReqVO reqVO) {
         // 1. 幂等：同一 clientRequestId 重复登记只落一条（离线补传的核心保证）
         if (StrUtil.isNotBlank(reqVO.getClientRequestId())) {
             IcbcAcquisitionDO existing = acquisitionMapper.selectByClientRequestId(reqVO.getClientRequestId());
             if (existing != null) {
-                return existing.getId();
+                return existing;
             }
         }
 
@@ -101,13 +112,34 @@ public class AcquisitionServiceImpl implements AcquisitionService {
             IcbcAcquisitionDO existing = StrUtil.isNotBlank(reqVO.getClientRequestId())
                     ? acquisitionMapper.selectByClientRequestId(reqVO.getClientRequestId()) : null;
             if (existing != null) {
-                return existing.getId();
+                return existing;
             }
             throw e;
         }
         log.info("收购登记成功 - acquisitionNo: {}, payeeId: {}, plate: {}",
                 acquisition.getAcquisitionNo(), payee.getId(), acquisition.getVehiclePlateNo());
-        return acquisition.getId();
+        return acquisition;
+    }
+
+    /**
+     * 登记响应：单据本身 + 这个出售者的额度余量提示。
+     *
+     * <p>额度是自然人跨租户累计的（同一个出售者在别家回收企业开的票也算），登记现场不看，
+     * 事后就只能靠开票申请被拒来发现。
+     */
+    private AcquisitionCreateRespVO buildCreateResp(IcbcAcquisitionDO acquisition) {
+        AcquisitionCreateRespVO resp = new AcquisitionCreateRespVO();
+        resp.setId(acquisition.getId());
+        resp.setAcquisitionNo(acquisition.getAcquisitionNo());
+        SellerQuotaCheckRespVO quota = naturalPersonQuotaService.checkQuota(
+                acquisition.getPayeeId(), acquisition.getAmount());
+        resp.setQuotaCapAmount(quota.getCapAmount());
+        resp.setQuotaUsedAmount(quota.getUsedAmount());
+        resp.setQuotaRemainingAmount(quota.getRemainingAmount());
+        resp.setQuotaPassed(quota.getPassed());
+        resp.setQuotaMessage(quota.getMessage());
+        resp.setMonthlyOverExempt(quota.getMonthlyOverExempt());
+        return resp;
     }
 
     private BigDecimal resolveAmount(AcquisitionCreateReqVO reqVO) {
@@ -255,10 +287,10 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         try {
             boolean duplicated = StrUtil.isNotBlank(item.getClientRequestId())
                     && acquisitionMapper.selectByClientRequestId(item.getClientRequestId()) != null;
-            Long id = createAcquisition(item);
-            IcbcAcquisitionDO acquisition = acquisitionMapper.selectById(id);
-            result.setId(id);
-            result.setAcquisitionNo(acquisition != null ? acquisition.getAcquisitionNo() : null);
+            // 走公共入口，逐条各自一个事务，单条失败不影响其他条
+            AcquisitionCreateRespVO created = createAcquisition(item);
+            result.setId(created.getId());
+            result.setAcquisitionNo(created.getAcquisitionNo());
             result.setDuplicated(duplicated);
             result.setSuccess(true);
         } catch (ServiceException e) {
@@ -376,6 +408,11 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         confirmation.setProductName(acquisition.getCategoryName());
         confirmation.setTradeTime(acquisition.getTradeTime() != null
                 ? acquisition.getTradeTime().format(TIME_FORMATTER) : null);
+        // 确认书是现场交给出售者的那张纸：上面带上额度余量，他就知道还能卖多少
+        SellerQuotaCheckRespVO quota = naturalPersonQuotaService.checkQuota(
+                acquisition.getPayeeId(), acquisition.getAmount());
+        confirmation.setQuotaRemainingAmount(quota.getRemainingAmount());
+        confirmation.setQuotaMessage(quota.getMessage());
         try {
             ExcelUtils.write(response, "收购确认书_" + acquisition.getAcquisitionNo() + ".xls",
                     "收购确认书", AcquisitionConfirmationRespVO.class,

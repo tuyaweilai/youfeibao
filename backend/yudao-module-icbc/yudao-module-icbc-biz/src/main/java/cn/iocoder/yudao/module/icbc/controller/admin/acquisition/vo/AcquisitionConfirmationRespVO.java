@@ -78,4 +78,12 @@ public class AcquisitionConfirmationRespVO {
     @ExcelProperty("结算方式")
     private String settlementMethod;
 
+    @Schema(description = "额度余量（元）：连续 12 个月反向开票累计销售额的余量", example = "4876543.22")
+    @ExcelProperty("额度余量(元)")
+    private BigDecimal quotaRemainingAmount;
+
+    @Schema(description = "额度结论（500 万上限 / 10 万元免征线）")
+    @ExcelProperty("额度提示")
+    private String quotaMessage;
+
 }

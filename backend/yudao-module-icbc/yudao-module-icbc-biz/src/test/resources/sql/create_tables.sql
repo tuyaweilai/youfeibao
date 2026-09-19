@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS icbc_invoice_order (
     payer_id BIGINT,
     payer_no VARCHAR(64),
     total_amount DECIMAL(10,2) NOT NULL,
+    tax_rate DECIMAL(5,4),
     invoice_type INTEGER,
     business_type VARCHAR(50),
     order_status INTEGER NOT NULL DEFAULT 0,
@@ -579,3 +580,30 @@ CREATE TABLE IF NOT EXISTS icbc_red_invoice (
 );
 
 CREATE INDEX IF NOT EXISTS idx_red_partner_order_id ON icbc_red_invoice(partner_order_id);
+
+-- icbc_seller_quota_guidance table (出售者额度超限的经营主体登记引导, #12)
+CREATE TABLE IF NOT EXISTS icbc_seller_quota_guidance (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    payee_id BIGINT NOT NULL,
+    seller_name VARCHAR(100),
+    id_card_no VARCHAR(32),
+    trigger_scene VARCHAR(32),
+    trigger_biz_no VARCHAR(64),
+    used_amount DECIMAL(14,2),
+    cap_amount DECIMAL(14,2),
+    status TINYINT NOT NULL DEFAULT 0,
+    triggered_at DATETIME,
+    last_triggered_at DATETIME,
+    handled_at DATETIME,
+    handle_remark VARCHAR(500),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_quota_guidance_payee_id ON icbc_seller_quota_guidance(payee_id);

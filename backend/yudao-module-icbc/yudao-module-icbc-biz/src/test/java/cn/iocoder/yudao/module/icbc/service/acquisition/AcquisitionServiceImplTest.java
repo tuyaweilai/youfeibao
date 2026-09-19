@@ -5,11 +5,15 @@ import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.goodscfg.IcbcGoodsConfigMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
 import cn.iocoder.yudao.module.icbc.service.acquisition.impl.AcquisitionServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.acquisition.recognition.AcquisitionRecognitionPort;
@@ -50,6 +54,8 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
     private PayeeInfoMapper payeeInfoMapper;
     @Resource
     private IcbcGoodsConfigMapper goodsConfigMapper;
+    @Resource
+    private InvoiceOrderMapper invoiceOrderMapper;
 
     @MockBean
     private AcquisitionRecognitionPort recognitionPort;
@@ -67,7 +73,7 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         reqVO.setQuantity(new BigDecimal("10"));
         reqVO.setUnitPrice(new BigDecimal("100.00"));
 
-        Long id = acquisitionService.createAcquisition(reqVO);
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
 
         IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
         assertNotNull(saved);
@@ -99,7 +105,7 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         reqVO.setGrossWeight(new BigDecimal("18000.00"));
         reqVO.setTareWeight(new BigDecimal("5500.00"));
 
-        Long id = acquisitionService.createAcquisition(reqVO);
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
 
         assertEquals(0, new BigDecimal("12500.00").compareTo(acquisitionMapper.selectById(id).getNetWeight()));
     }
@@ -176,8 +182,8 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         reqVO.setQuantity(new BigDecimal("5"));
         reqVO.setAmount(new BigDecimal("500.00"));
 
-        Long first = acquisitionService.createAcquisition(reqVO);
-        Long second = acquisitionService.createAcquisition(reqVO);
+        Long first = acquisitionService.createAcquisition(reqVO).getId();
+        Long second = acquisitionService.createAcquisition(reqVO).getId();
 
         assertEquals(first, second);
         assertEquals(1, acquisitionMapper.selectList().size());
@@ -193,7 +199,7 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         online.setClientRequestId("OFFLINE_DUP");
         online.setQuantity(new BigDecimal("5"));
         online.setAmount(new BigDecimal("500.00"));
-        Long onlineId = acquisitionService.createAcquisition(online);
+        Long onlineId = acquisitionService.createAcquisition(online).getId();
 
         // 补传三条：一条与在线重复、一条新、一条缺品类
         AcquisitionCreateReqVO duplicate = baseReq(payee.getId(), config.getId());
@@ -248,7 +254,7 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         matched.setWeightTicketPlateNo("京A12345");
         matched.setVehiclePlateNo("京a12345 ");
         assertEquals(Boolean.TRUE,
-                acquisitionMapper.selectById(acquisitionService.createAcquisition(matched)).getPlateMatched());
+                acquisitionMapper.selectById(acquisitionService.createAcquisition(matched).getId()).getPlateMatched());
 
         // 不一致
         AcquisitionCreateReqVO mismatched = baseReq(payee.getId(), config.getId());
@@ -257,14 +263,14 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         mismatched.setWeightTicketPlateNo("京A12345");
         mismatched.setVehiclePlateNo("京A99999");
         assertEquals(Boolean.FALSE,
-                acquisitionMapper.selectById(acquisitionService.createAcquisition(mismatched)).getPlateMatched());
+                acquisitionMapper.selectById(acquisitionService.createAcquisition(mismatched).getId()).getPlateMatched());
 
         // 只有一侧：无法比对
         AcquisitionCreateReqVO single = baseReq(payee.getId(), config.getId());
         single.setQuantity(new BigDecimal("1"));
         single.setAmount(new BigDecimal("1.00"));
         single.setWeightTicketPlateNo("京A12345");
-        assertNull(acquisitionMapper.selectById(acquisitionService.createAcquisition(single)).getPlateMatched());
+        assertNull(acquisitionMapper.selectById(acquisitionService.createAcquisition(single).getId()).getPlateMatched());
     }
 
     @Test
@@ -291,7 +297,7 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         // 人工已经填了毛重，识别不得覆盖
         reqVO.setGrossWeight(new BigDecimal("19000"));
 
-        Long id = acquisitionService.createAcquisition(reqVO);
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
 
         IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
         // 识别回填
@@ -317,7 +323,7 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         reqVO.setVehiclePlateNo("京A22222");
         reqVO.setGrossWeight(new BigDecimal("18000"));
         reqVO.setTareWeight(new BigDecimal("5500"));
-        Long id = acquisitionService.createAcquisition(reqVO);
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
         assertEquals(Boolean.FALSE, acquisitionMapper.selectById(id).getPlateMatched());
 
         AcquisitionCorrectionReqVO correction = new AcquisitionCorrectionReqVO();
@@ -343,7 +349,7 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
         reqVO.setQuantity(new BigDecimal("5"));
         reqVO.setAmount(new BigDecimal("500.00"));
-        Long id = acquisitionService.createAcquisition(reqVO);
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
 
         acquisitionService.linkInvoice(id, "ORDER_LINK_1");
         IcbcAcquisitionDO linked = acquisitionMapper.selectById(id);
@@ -364,6 +370,49 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         assertServiceException(() -> acquisitionService.getAcquisition(12345L), ACQUISITION_NOT_EXISTS);
     }
 
+    // ==================== 额度余量提示（#12） ====================
+
+    @Test
+    public void testCreateAcquisition_withinQuotaTellsRemaining() {
+        PayeeInfoDO payee = insertPayee("卫十五", "13800138012");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        // 该出售者此前已开出 10 万元（跨租户累计的口径，这里同一个租户）
+        insertIssuedOrder(payee, new BigDecimal("100000.00"));
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("1"));
+        reqVO.setAmount(new BigDecimal("5000.00"));
+
+        AcquisitionCreateRespVO resp = acquisitionService.createAcquisition(reqVO);
+
+        assertNotNull(resp.getId());
+        assertEquals(0, new BigDecimal("100000.00").compareTo(resp.getQuotaUsedAmount()));
+        assertEquals(0, new BigDecimal("4900000.00").compareTo(resp.getQuotaRemainingAmount()));
+        assertEquals(Boolean.TRUE, resp.getQuotaPassed());
+        assertTrue(resp.getQuotaMessage().contains("余量"));
+    }
+
+    @Test
+    public void testCreateAcquisition_overCapIsHintedButNotBlocked() {
+        PayeeInfoDO payee = insertPayee("蒋十六", "13800138013");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        // 已用 4,999,000 元，只剩 1000 元额度
+        insertIssuedOrder(payee, new BigDecimal("4999000.00"));
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("1"));
+        reqVO.setAmount(new BigDecimal("5000.00"));
+
+        AcquisitionCreateRespVO resp = acquisitionService.createAcquisition(reqVO);
+
+        // 登记不拦（硬校验在开票申请），但必须当场告诉收货员：这一笔开不出票
+        assertNotNull(resp.getId());
+        assertNotNull(acquisitionMapper.selectById(resp.getId()));
+        assertEquals(Boolean.FALSE, resp.getQuotaPassed());
+        assertEquals(0, new BigDecimal("1000.00").compareTo(resp.getQuotaRemainingAmount()));
+        assertTrue(resp.getQuotaMessage().contains("500 万"), "实际：" + resp.getQuotaMessage());
+    }
+
     // ==================== 确认书导出 ====================
 
     @Test
@@ -377,7 +426,7 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         reqVO.setVehiclePlateNo("京C00001");
         reqVO.setTradeAddress("北京市朝阳区回收站");
         reqVO.setSettlementMethod("银行转账，过磅后 3 日内结清");
-        Long id = acquisitionService.createAcquisition(reqVO);
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
 
         MockHttpServletResponse response = new MockHttpServletResponse();
         acquisitionService.exportConfirmation(id, response);
@@ -397,6 +446,30 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
                 .build();
         payeeInfoMapper.insert(payee);
         return payee;
+    }
+
+    /**
+     * 造一张已开出的蓝票：额度台账只认「真开出来了」的销售额（与在途），
+     * 未开票 / 开票失败 / 预开票未成功都不占额度。
+     */
+    private void insertIssuedOrder(PayeeInfoDO payee, BigDecimal amount) {
+        invoiceOrderMapper.insert(InvoiceOrderDO.builder()
+                .orderNo("INV_QUOTA_" + payee.getId())
+                .partnerOrderId("ORDER_QUOTA_" + payee.getId())
+                .payeeId(payee.getId())
+                .payeeNo(payee.getPartnerPayeeId())
+                .totalAmount(amount)
+                .invoiceAmount(amount)
+                .taxRate(new BigDecimal("0.01"))
+                .invoiceType(1)
+                .businessType("SCRAP")
+                .orderStatus(3)
+                .invoiceStatus(InvoiceIssueStatusEnum.ISSUED.getStatus())
+                .paymentStatus(2)
+                .taxStatus(0)
+                .preInvoiceStatus(PreInvoiceStatusEnum.SUCCESS.getStatus())
+                .invoiceDate(LocalDateTime.now().minusDays(10))
+                .build());
     }
 
     private IcbcGoodsConfigDO insertGoodsConfig(String name, String unit, String taxRate, String taxMethod) {

@@ -1,14 +1,14 @@
 package cn.iocoder.yudao.module.icbc.service.publicapi.impl;
 
+import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceFileRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicContactLeadReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.lead.IcbcContactLeadDO;
-import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
-import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.PublicTokenPurposeEnum;
 import cn.iocoder.yudao.module.icbc.service.download.InvoiceDownloadService;
 import cn.iocoder.yudao.module.icbc.service.publicapi.PublicAccessService;
@@ -44,8 +44,6 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     @Resource
     private IcbcContactLeadMapper contactLeadMapper;
     @Resource
-    private PayeeInfoMapper payeeInfoMapper;
-    @Resource
     private NaturalPersonQuotaService naturalPersonQuotaService;
 
     @Override
@@ -79,11 +77,9 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     public PublicQuotaRespVO queryQuota(String token) {
         PublicTokenPayload payload = publicTokenService.redeem(token, PublicTokenPurposeEnum.QUOTA_QUERY);
         return inTenant(payload.getTenantId(), () -> {
-            PayeeInfoDO payee = payeeInfoMapper.selectById(Long.valueOf(payload.getBusinessKey()));
-            if (payee == null) {
-                throw exception(PAYEE_NOT_EXISTS);
-            }
-            return naturalPersonQuotaService.getQuota(payee);
+            // 额度是自然人的：这里跨租户合并了他在本平台其它租户的开票额
+            SellerQuotaRespVO quota = naturalPersonQuotaService.getQuota(Long.valueOf(payload.getBusinessKey()));
+            return BeanUtils.toBean(quota, PublicQuotaRespVO.class);
         });
     }
 

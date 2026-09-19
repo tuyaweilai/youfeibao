@@ -9,6 +9,7 @@ CREATE TABLE `icbc_invoice_order` (
   `payer_id` bigint DEFAULT NULL COMMENT '付方ID',
   `payer_no` varchar(20) NOT NULL COMMENT '付方编号',
   `total_amount` decimal(14,2) NOT NULL COMMENT '订单总金额（元）',
+  `tax_rate` decimal(5,4) DEFAULT NULL COMMENT '适用征收率（0.01=3%减按1%，0.03=放弃减按）',
   `invoice_type` tinyint NOT NULL DEFAULT '1' COMMENT '发票类型：1-增值税普通发票，2-增值税专用发票',
   `business_type` varchar(20) NOT NULL COMMENT '业务类型：AGRICULTURAL-农产品收购，SCRAP-报废产品收购',
   `order_status` tinyint NOT NULL DEFAULT '0' COMMENT '订单状态：0-待确认，1-已确认，2-已支付，3-已开票，4-已完成，9-已取消',
@@ -45,6 +46,33 @@ CREATE TABLE `icbc_invoice_order` (
   KEY `idx_invoice_no` (`invoice_no`),
   KEY `idx_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工行反向开票订单表';
+
+-- 出售者额度超限的经营主体登记引导表（#12）
+CREATE TABLE `icbc_seller_quota_guidance` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `payee_id` bigint NOT NULL COMMENT '出售者档案编号',
+  `seller_name` varchar(100) DEFAULT NULL COMMENT '出售者姓名',
+  `id_card_no` varchar(32) DEFAULT NULL COMMENT '身份证号码',
+  `trigger_scene` varchar(32) DEFAULT NULL COMMENT '触发场景：INVOICE_APPLICATION-开票申请被拒，ACQUISITION-收购登记时已超',
+  `trigger_biz_no` varchar(64) DEFAULT NULL COMMENT '触发业务单号（收购单号 / 合作方订单号）',
+  `used_amount` decimal(14,2) DEFAULT NULL COMMENT '触发时连续 12 个月累计已用额度（元）',
+  `cap_amount` decimal(14,2) DEFAULT NULL COMMENT '触发时窗口上限（元），500 万',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '引导状态：0-待引导，1-已引导，2-已办结',
+  `triggered_at` datetime DEFAULT NULL COMMENT '首次触发时间',
+  `last_triggered_at` datetime DEFAULT NULL COMMENT '最近一次触发时间',
+  `handled_at` datetime DEFAULT NULL COMMENT '处理时间',
+  `handle_remark` varchar(500) DEFAULT NULL COMMENT '处理说明',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
+  PRIMARY KEY (`id`),
+  KEY `idx_quota_guidance_payee_id` (`payee_id`),
+  KEY `idx_quota_guidance_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='出售者额度超限的经营主体登记引导表';
 
 -- 工行订单商品明细表
 CREATE TABLE `icbc_order_item` (

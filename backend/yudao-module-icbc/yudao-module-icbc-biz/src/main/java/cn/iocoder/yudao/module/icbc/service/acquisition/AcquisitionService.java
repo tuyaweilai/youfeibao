@@ -22,9 +22,12 @@ public interface AcquisitionService {
      * <p>按 {@code clientRequestId} 幂等：同一笔重复登记只落一条，返回既有收购单编号。
      * 必须要件（出售者、品类、数量、金额、磅单）缺一即拒，并说明缺什么。
      *
-     * @return 收购单编号
+     * <p>响应里带回该出售者的额度余量提示（issue #12）：额度是自然人跨租户累计的，
+     * 现场不看就没人看得到。这里只提示不断拦，硬校验在开票申请。
+     *
+     * @return 收购单编号与该出售者的额度余量提示
      */
-    Long createAcquisition(@Valid AcquisitionCreateReqVO reqVO);
+    AcquisitionCreateRespVO createAcquisition(@Valid AcquisitionCreateReqVO reqVO);
 
     /**
      * 离线补传：逐条登记，重复补传不产生重复单据，单条失败不影响其他条。

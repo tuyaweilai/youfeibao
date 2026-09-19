@@ -75,4 +75,7 @@ VALUES
 (5158, '发起红冲', 'icbc:red-invoice:apply', 3, 2, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5159, '撤销红字确认单', 'icbc:red-invoice:revoke', 3, 3, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5160, '取消预开票', 'icbc:invoice-order:cancel', 3, 4, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5161, '查询红冲', 'icbc:red-invoice:query', 3, 5, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5161, '查询红冲', 'icbc:red-invoice:query', 3, 5, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 额度台账与经营主体登记引导（#12）
+(5162, '额度台账', 'icbc:quota:query', 2, 9, 5100, 'quota', '', 'icbc/quota/index', 'IcbcQuota', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5163, '处理引导', 'icbc:quota:guidance:handle', 3, 1, 5162, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');

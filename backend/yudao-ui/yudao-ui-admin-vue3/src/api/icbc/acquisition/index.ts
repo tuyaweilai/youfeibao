@@ -49,6 +49,18 @@ export interface AcquisitionSyncResultVO {
   errorMsg?: string
 }
 
+/** 收购登记响应：单据本身 + 该出售者的额度余量提示（#12） */
+export interface AcquisitionCreateRespVO {
+  id?: number
+  acquisitionNo?: string
+  quotaCapAmount?: number
+  quotaUsedAmount?: number
+  quotaRemainingAmount?: number
+  quotaPassed?: boolean
+  quotaMessage?: string
+  monthlyOverExempt?: boolean
+}
+
 // 收购登记 API
 export const AcquisitionApi = {
   getAcquisitionPage: async (params: any) =>
@@ -58,7 +70,7 @@ export const AcquisitionApi = {
   getAcquisitionsByPayee: async (payeeId: number) =>
     await request.get({ url: `/icbc/acquisition/list-by-payee`, params: { payeeId } }),
   createAcquisition: async (data: AcquisitionVO) =>
-    await request.post({ url: `/icbc/acquisition/create`, data }),
+    await request.post<AcquisitionCreateRespVO>({ url: `/icbc/acquisition/create`, data }),
   syncOffline: async (items: AcquisitionVO[]) =>
     await request.post({ url: `/icbc/acquisition/sync-offline`, data: { items } }),
   correctRecognition: async (data: AcquisitionVO) =>
