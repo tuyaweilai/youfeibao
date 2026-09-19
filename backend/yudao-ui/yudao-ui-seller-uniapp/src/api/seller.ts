@@ -1,0 +1,237 @@
+import { appGet, appPost } from '@/utils/request'
+
+// ==================== 登录与身份绑定 ====================
+
+export interface SellerLoginResp {
+  accessToken: string
+  refreshToken: string
+  expiresTime: number
+  subjects: SellerSubject[]
+}
+
+export interface SellerSubject {
+  naturalPersonId: number
+  name?: string
+  mobile?: string
+  idCardNo?: string
+  realNameStatusName?: string
+}
+
+export const sendSmsCode = (mobile: string) =>
+  appPost<boolean>('/icbc/seller/auth/sms-send', { mobile }, false)
+
+export const smsLogin = (mobile: string, code: string) =>
+  appPost<SellerLoginResp>('/icbc/seller/auth/sms-login', { mobile, code }, false)
+
+export const bindByLoginMobile = () =>
+  appPost<SellerSubject[]>('/icbc/seller/auth/subjects/bind-by-mobile')
+
+export const logout = () => appPost<boolean>('/icbc/seller/auth/logout')
+
+// ==================== 首页与记录 ====================
+
+export interface PendingItem {
+  type: 'SETTLEMENT' | 'AGREEMENT' | string
+  typeName?: string
+  tenantId?: number
+  enterpriseName?: string
+  settlementId?: number
+  payeeId?: number
+  title?: string
+  statusName?: string
+  deadlineTime?: string
+  urgent?: boolean
+}
+
+export interface SellerHome {
+  pendingCount?: number
+  pendingSettlementCount?: number
+  pendingAgreementCount?: number
+  pendingItems?: PendingItem[]
+  amountScopeNote?: string
+}
+
+export interface SellerRecord {
+  acquisitionId: number
+  acquisitionNo?: string
+  categoryName?: string
+  unit?: string
+  settlementWeight?: number
+  deduction?: number
+  deductionMethod?: string
+  unitPrice?: number
+  amount?: number
+  acquirerName?: string
+  status?: number
+  statusName?: string
+  cancelReason?: string
+  tradeTime?: string
+  tradeAddress?: string
+  printable?: boolean
+}
+
+export interface SellerRecordGroup {
+  tenantId?: number
+  enterpriseName?: string
+  count?: number
+  totalAmount?: number
+  totalSettlementWeight?: number
+  records?: SellerRecord[]
+}
+
+export interface SellerPayment {
+  paymentOrderId: number
+  orderNo?: string
+  acquisitionNo?: string
+  categoryName?: string
+  acquirerName?: string
+  paymentAmount?: number
+  actuallyReceivedAmount?: number
+  status?: number
+  statusName?: string
+  receiptNo?: string
+  receiptTime?: string
+  paymentTime?: string
+  nextStep?: string
+  sellerReceivedConfirmed?: boolean
+  sellerReceivedConfirmedAt?: string
+  canConfirmReceive?: boolean
+}
+
+export interface SellerInvoice {
+  invoiceOrderId: number
+  orderNo?: string
+  acquisitionNo?: string
+  acquirerName?: string
+  invoiceNo?: string
+  invoiceDate?: string
+  invoiceAmount?: number
+  taxAmount?: number
+  invoiceStatus?: number
+  invoiceStatusName?: string
+  taxStatus?: number
+  taxStatusName?: string
+  uploadStatus?: number
+  uploadStatusName?: string
+  pdfAvailable?: boolean
+}
+
+export interface SellerInvoiceSummary {
+  year?: number
+  invoiceCount?: number
+  totalInvoiceAmount?: number
+  totalTaxAmount?: number
+  taxScopeNote?: string
+  invoices?: SellerInvoice[]
+}
+
+export interface SellerAuthorization {
+  tenantId: number
+  enterpriseName?: string
+  payeeId?: number
+  reverseInvoiceAuthorized?: boolean
+  taxAgencyAuthorized?: boolean
+  revoked?: boolean
+  authorizedAt?: string
+  revokedAt?: string
+  revokeReason?: string
+}
+
+export interface SellerBankCard {
+  tenantId?: number
+  enterpriseName?: string
+  bankName?: string
+  cardTail?: string
+}
+
+export interface SellerProfile {
+  name?: string
+  mobileMasked?: string
+  idCardMasked?: string
+  realNameStatusName?: string
+  serviceMobile?: string
+  logoutNote?: string
+  bankCards?: SellerBankCard[]
+}
+
+export const getHome = (naturalPersonId: number) =>
+  appGet<SellerHome>('/icbc/seller/portal/home', { naturalPersonId })
+
+export const getRecordGroups = (naturalPersonId: number) =>
+  appGet<SellerRecordGroup[]>('/icbc/seller/portal/records', { naturalPersonId })
+
+export const getPayments = (naturalPersonId: number) =>
+  appGet<SellerPayment[]>('/icbc/seller/portal/payments', { naturalPersonId })
+
+export const getInvoices = (naturalPersonId: number, year?: number) =>
+  appGet<SellerInvoiceSummary>('/icbc/seller/portal/invoices', { naturalPersonId, year })
+
+export const getAuthorizations = (naturalPersonId: number) =>
+  appGet<SellerAuthorization[]>('/icbc/seller/portal/authorizations', { naturalPersonId })
+
+export const revokeAuthorization = (naturalPersonId: number, tenantId: number, reason?: string) =>
+  appPost<boolean>('/icbc/seller/portal/authorizations/revoke', { naturalPersonId, tenantId, reason })
+
+export const getProfile = (naturalPersonId: number) =>
+  appGet<SellerProfile>('/icbc/seller/portal/profile', { naturalPersonId })
+
+export const confirmReceived = (naturalPersonId: number, paymentOrderId: number) =>
+  appPost<boolean>('/icbc/seller/portal/payments/received', { naturalPersonId, paymentOrderId })
+
+// ==================== 结算确认（#33 端点） ====================
+
+export interface SettlementLine {
+  acquisitionId: number
+  acquisitionNo?: string
+  categoryName?: string
+  unit?: string
+  settlementWeight?: number
+  deduction?: number
+  deductionMethod?: string
+  unitPrice?: number
+  adjustmentAmount?: number
+  adjustmentReason?: string
+  amount?: number
+  status?: number
+  statusName?: string
+  cancelReason?: string
+}
+
+export interface Settlement {
+  id: number
+  settlementNo?: string
+  payeeId?: number
+  naturalPersonId?: number
+  sellerName?: string
+  generateTime?: string
+  currentVersionId?: number
+  currentVersionNo?: number
+  confirmStatus?: number
+  confirmStatusName?: string
+  disputeReasonName?: string
+  disputeNote?: string
+  disputeCount?: number
+  enterpriseReplyNote?: string
+  enterpriseNotReplied?: boolean
+  deadlineTime?: string
+  acquisitionCount?: number
+  totalSettlementWeight?: number
+  totalAmount?: number
+  lines?: SettlementLine[]
+}
+
+export const listSettlements = (naturalPersonId: number) =>
+  appGet<Settlement[]>('/icbc/seller/settlement/list', { naturalPersonId })
+
+export const getSettlement = (naturalPersonId: number, id: number) =>
+  appGet<Settlement>('/icbc/seller/settlement/get', { naturalPersonId, id })
+
+export const confirmSettlement = (naturalPersonId: number, settlementId: number, versionId: number) =>
+  appPost<boolean>('/icbc/seller/settlement/confirm', { naturalPersonId, settlementId, versionId })
+
+export const disputeSettlement = (
+  naturalPersonId: number,
+  settlementId: number,
+  reason: string,
+  note?: string
+) => appPost<boolean>('/icbc/seller/settlement/dispute', { naturalPersonId, settlementId, reason, note })

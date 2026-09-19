@@ -39,6 +39,30 @@ export function getToken(): string {
   return uni.getStorageSync(TOKEN_KEY) || ''
 }
 
+/**
+ * 从启动参数 / URL 里取场站码（场站二维码只编码它，码内不带任何令牌）。
+ * 二维码指向 `https://<seller-app>/#/?station=STATION_A`。
+ */
+export function resolveStationCode(): string {
+  let station = ''
+  try {
+    const launch = uni.getLaunchOptionsSync()
+    station = (launch?.query?.station as string) || ''
+  } catch {
+    // 忽略：非启动场景
+  }
+  // #ifdef H5
+  if (!station) {
+    const url = new URL(window.location.href)
+    station = url.searchParams.get('station') || ''
+    if (!station && url.hash.includes('?')) {
+      station = new URLSearchParams(url.hash.split('?')[1]).get('station') || ''
+    }
+  }
+  // #endif
+  return station
+}
+
 export function setToken(token: string) {
   uni.setStorageSync(TOKEN_KEY, token)
 }

@@ -5,11 +5,35 @@
       "style": {
         "navigationBarTitleText": "我的发票与额度"
       }
+    },
+    {
+      "path": "pages/station/index",
+      "style": {
+        "navigationBarTitleText": "场站"
+      }
+    },
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "手机号验证"
+      }
+    },
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
+    },
+    {
+      "path": "pages/settlement/detail",
+      "style": {
+        "navigationBarTitleText": "结算确认"
+      }
     }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "我的发票与额度",
+    "navigationBarTitleText": "我的",
     "navigationBarBackgroundColor": "#ffffff",
     "backgroundColor": "#f5f6f8"
   }

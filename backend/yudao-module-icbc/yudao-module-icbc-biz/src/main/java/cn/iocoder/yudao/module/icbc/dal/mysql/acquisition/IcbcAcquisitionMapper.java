@@ -34,6 +34,18 @@ public interface IcbcAcquisitionMapper extends BaseMapperX<IcbcAcquisitionDO> {
     }
 
     /**
+     * 按收方档案编号批量查询（自然人端「卖货记录」跨企业聚合用）。
+     */
+    default List<IcbcAcquisitionDO> selectListByPayeeIds(Collection<Long> payeeIds) {
+        if (payeeIds == null || payeeIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .in(IcbcAcquisitionDO::getPayeeId, payeeIds)
+                .orderByDesc(IcbcAcquisitionDO::getId));
+    }
+
+    /**
      * 按开票的合作方订单号反查收购单（一票一档的合同流 / 货物流 / 信息流来自这里）。
      */
     default List<IcbcAcquisitionDO> selectListByInvoicePartnerOrderIds(Collection<String> partnerOrderIds) {

@@ -227,4 +227,14 @@ public interface ErrorCodeConstants {
     ErrorCode SETTLEMENT_OFFLINE_SIGN_REQUIRED = new ErrorCode(1_030_022_010, "该结算单需线下签字确认，请上传带签字的纸质确认书并标注办理人");
     ErrorCode SETTLEMENT_ACQUISITION_NOT_IN_SETTLEMENT = new ErrorCode(1_030_022_011, "收购单 {} 不属于该结算单，不能在这里改动");
     ErrorCode SETTLEMENT_ACQUISITION_NOT_GROUPED = new ErrorCode(1_030_022_012, "收购单尚未归入结算单，不能在此作废");
+
+    // ========== 场站与场站二维码（#34） 1-030-023-000 ==========
+    ErrorCode STATION_NOT_EXISTS = new ErrorCode(1_030_023_000, "场站不存在");
+    ErrorCode STATION_CODE_EXISTS = new ErrorCode(1_030_023_001, "场站码已存在，请换一个（二维码只编码场站码，租户内唯一）");
+    ErrorCode STATION_CODE_REQUIRED = new ErrorCode(1_030_023_002, "场站码不能为空");
+    ErrorCode STATION_PUBLIC_NOT_FOUND = new ErrorCode(1_030_023_003, "场站码无效或已停用，请让收货员确认二维码");
+
+    // ========== 自然人端首页与记录（#34） 1-030-024-000 ==========
+    ErrorCode SELLER_AUTHORIZATION_ALREADY_REVOKED = new ErrorCode(1_030_024_001, "该企业的授权已撤销");
+    ErrorCode SELLER_RECORD_NOT_FOUND = new ErrorCode(1_030_024_002, "记录不存在或不属于当前身份");
 }

@@ -87,6 +87,8 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
 
     @MockBean
     private SellerOnboardingService sellerOnboardingService;
+    @MockBean
+    private cn.iocoder.yudao.module.icbc.service.station.StationService stationService;
 
     @BeforeEach
     public void setUp() {

@@ -4,6 +4,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicContactL
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingPageRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingStatusRespVO;import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicStationRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.tax.vo.SellerSettlementStatementRespVO;
 
 import javax.servlet.http.HttpServletResponse;
@@ -53,5 +54,16 @@ public interface PublicAccessService {
      * 小程序 `web-view` 与 H5 新窗口都指向这个 URL，内容由后端生成，前端不拼工行 URL。
      */
     void writeOnboardingForm(String token, String trxChannel, HttpServletResponse response);
+
+    /**
+     * 解析场站二维码：只编码场站码，服务端解析出企业与场站的公开信息。
+     *
+     * <p>二维码不带令牌（公开且长期贴），所以本方法不需要令牌；按 IP 限流，且**不返回个人数据**。
+     *
+     * @param stationCode 场站码
+     * @param clientIp    调用方 IP（限流键）
+     * @return 场站公开信息（含所属租户编号，供前端后续请求带 tenant-id）
+     */
+    PublicStationRespVO resolveStation(String stationCode, String clientIp);
 
 }

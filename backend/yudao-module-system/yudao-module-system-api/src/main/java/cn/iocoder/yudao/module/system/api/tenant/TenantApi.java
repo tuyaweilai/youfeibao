@@ -23,4 +23,14 @@ public interface TenantApi {
      */
     void validateTenant(Long id);
 
+    /**
+     * 获得租户名称（回收企业的对外名称）。查不到返回 {@code null}。
+     *
+     * <p>自然人端免登录首屏只展示公开信息，需要把租户编号翻译成企业名称。
+     *
+     * @param id 租户编号
+     * @return 租户名称
+     */
+    String getTenantName(Long id);
+
 }

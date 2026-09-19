@@ -129,6 +129,31 @@ public class SellerAuthServiceImpl implements SellerAuthService {
     }
 
     @Override
+    public List<SellerSubjectRespVO> bindByLoginMobile() {
+        Long memberUserId = loginMemberUserId();
+        // 租户来自请求头（他扫码的那个场站所属回收企业）。缺了直接拒绝，不能不带租户条件找档案。
+        if (TenantContextHolder.getTenantId() == null) {
+            throw exception(SELLER_STATION_TENANT_REQUIRED);
+        }
+        MemberUserRespDTO credential = inPlatformTenant(() -> memberUserApi.getUser(memberUserId));
+        String loginMobile = credential != null ? credential.getMobile() : null;
+        if (StrUtil.isBlank(loginMobile)) {
+            return listSubjects();
+        }
+        // 本租户内手机号一致的全部收方档案：同一手机号可能对应多份档案，逐一绑定
+        for (PayeeInfoDO payee : payeeInfoMapper.selectListByMobile(loginMobile)) {
+            IcbcNaturalPersonDO person = payeeInfoService.ensureNaturalPerson(payee);
+            if (StrUtil.isNotBlank(person.getMobile()) && !person.getMobile().equals(loginMobile)) {
+                // 同一身份已登记别的手机号：拒绝、不合并（ADR 0017）
+                throw exception(NATURAL_PERSON_IDENTITY_TAKEN);
+            }
+            naturalPersonService.bindLogin(person.getId(), memberUserId,
+                    NaturalPersonServiceImpl.SOURCE_REGISTER, null);
+        }
+        return toSubjectList(naturalPersonService.getNaturalPersonListByMemberUserId(memberUserId));
+    }
+
+    @Override
     public SellerSubjectRespVO bindSubject(Long payeeId) {
         Long memberUserId = loginMemberUserId();
         // 收方档案是租户级的，租户来自请求头（他扫码的那个场站所属回收企业）。

@@ -174,4 +174,11 @@ public interface RecyclingPermission {
     /** 生成结算单、处理异议（改 / 不改但附说明）、线下签字、作废收购单 */
     String SETTLEMENT_CONFIRM_MANAGE = "icbc:settlement-confirm:manage";
 
+    // ========== 场站与场站二维码（#34） ==========
+
+    /** 查看场站与场站码 */
+    String STATION_QUERY = "icbc:station:query";
+    /** 维护场站与场站码 */
+    String STATION_MANAGE = "icbc:station:manage";
+
 }

@@ -282,6 +282,13 @@ icbc:
   seller:
     platform-tenant-id: ${ICBC_SELLER_PLATFORM_TENANT_ID:0}
 
+  # 场站与场站二维码（#34）：一码一场站，码内不带任何令牌，只编码场站码。
+  # entry-url 是自然人端入口地址（二维码指向它）；未配置时只返回 `?station=<code>` 相对链接。
+  station:
+    entry-url: ${ICBC_STATION_ENTRY_URL:}
+    # 免登录场站公开信息读取限流：每 IP 每分钟允许的次数
+    resolve-per-minute: ${ICBC_STATION_RESOLVE_PER_MINUTE:60}
+
   # 结算单与确认门禁（#33）：一次到场批次一次确认，确认是开票硬前置。
   # 三个超时都可配；到期**不自动确认**，而是升级为线下签字 / 提醒。
   settlement:

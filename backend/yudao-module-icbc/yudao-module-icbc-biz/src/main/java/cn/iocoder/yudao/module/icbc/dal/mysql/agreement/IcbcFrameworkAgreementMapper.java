@@ -5,6 +5,8 @@ import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -24,6 +26,19 @@ public interface IcbcFrameworkAgreementMapper extends BaseMapperX<IcbcFrameworkA
     default List<IcbcFrameworkAgreementDO> selectListByPayeeId(Long payeeId) {
         return selectList(new LambdaQueryWrapperX<IcbcFrameworkAgreementDO>()
                 .eq(IcbcFrameworkAgreementDO::getPayeeId, payeeId)
+                .orderByDesc(IcbcFrameworkAgreementDO::getId));
+    }
+
+    /**
+     * 批量查询待签署（status=0）的协议：自然人端首页「待我确认」用。
+     */
+    default List<IcbcFrameworkAgreementDO> selectPendingByPayeeIds(Collection<Long> payeeIds) {
+        if (payeeIds == null || payeeIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<IcbcFrameworkAgreementDO>()
+                .in(IcbcFrameworkAgreementDO::getPayeeId, payeeIds)
+                .eq(IcbcFrameworkAgreementDO::getStatus, 0)
                 .orderByDesc(IcbcFrameworkAgreementDO::getId));
     }
 

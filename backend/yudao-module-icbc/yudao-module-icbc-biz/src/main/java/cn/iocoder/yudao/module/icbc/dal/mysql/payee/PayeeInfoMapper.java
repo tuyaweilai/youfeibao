@@ -75,4 +75,18 @@ public interface PayeeInfoMapper extends BaseMapperX<PayeeInfoDO> {
         return selectOne(PayeeInfoDO::getMobile, mobile);
     }
 
+    /**
+     * 按手机号取本租户内的全部收方档案。
+     *
+     * <p>自然人端扫码后按「该场站 + 手机号」匹配身份：同一手机号在本租户可能对应多份档案。
+     */
+    default java.util.List<PayeeInfoDO> selectListByMobile(String mobile) {
+        if (mobile == null) {
+            return java.util.Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<PayeeInfoDO>()
+                .eq(PayeeInfoDO::getMobile, mobile)
+                .orderByDesc(PayeeInfoDO::getId));
+    }
+
 } 

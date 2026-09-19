@@ -56,7 +56,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.TAX_DECLARATION_QUERY, RecyclingPermission.TAX_DECLARATION_MANAGE,
             RecyclingPermission.TAX_SUPPLEMENT_MANAGE,
             RecyclingPermission.SETTLEMENT_QUERY, RecyclingPermission.SETTLEMENT_REMIND,
-            RecyclingPermission.SETTLEMENT_CONFIRM_QUERY, RecyclingPermission.SETTLEMENT_CONFIRM_MANAGE)),
+            RecyclingPermission.SETTLEMENT_CONFIRM_QUERY, RecyclingPermission.SETTLEMENT_CONFIRM_MANAGE,
+            RecyclingPermission.STATION_QUERY, RecyclingPermission.STATION_MANAGE)),
 
     /**
      * 收货员：收购现场登记，维护出售者档案与收购单。
@@ -73,6 +74,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.GOODS_CONFIG_QUERY,
             RecyclingPermission.QUOTA_QUERY, RecyclingPermission.QUOTA_GUIDANCE_HANDLE,
             RecyclingPermission.PUBLIC_TOKEN_CREATE,
+            RecyclingPermission.STATION_QUERY,
             RecyclingPermission.SETTLEMENT_CONFIRM_QUERY, RecyclingPermission.SETTLEMENT_CONFIRM_MANAGE)),
 
     /**

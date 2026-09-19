@@ -100,4 +100,7 @@ VALUES
 (5174, '身份认领与解绑', 'icbc:platform:natural-person:manage', 3, 1, 5173, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- 结算单（#33：一次到场批次一次确认，确认是开票硬前置）
 (5175, '结算单', 'icbc:settlement-confirm:query', 2, 7, 5100, 'settlement', '', 'icbc/settlement/index', 'IcbcSettlement', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5176, '生成与处理异议', 'icbc:settlement-confirm:manage', 3, 1, 5175, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5176, '生成与处理异议', 'icbc:settlement-confirm:manage', 3, 1, 5175, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 场站与场站二维码（#34：一码一场站，码内不带令牌）
+(5177, '场站', 'icbc:station:query', 2, 11, 5100, 'station', '', 'icbc/station/index', 'IcbcStation', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5178, '维护场站', 'icbc:station:manage', 3, 1, 5177, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');

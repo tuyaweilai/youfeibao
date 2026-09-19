@@ -39,6 +39,15 @@ public interface SellerAuthService {
     List<SellerSubjectRespVO> listSubjects();
 
     /**
+     * 按「当前租户 + 当前登录手机号」自动匹配并绑定自然人主体（#34 扫码进场的入口）。
+     *
+     * <p>他扫场站二维码后只知道「哪家企业的哪个场站」，没有 payeeId；本方法用登录手机号在本租户内
+     * 找到收方档案，再走与 {@link #bindSubject(Long)} 完全相同的手机号一致性校验。
+     * 匹配不到时返回空列表（由前端给明确空态），不猜、不建假身份。
+     */
+    List<SellerSubjectRespVO> bindByLoginMobile();
+
+    /**
      * 把某个收方档案对应的自然人主体绑到当前登录凭证上（「确认结算时才注册」的落地）。
      *
      * <p>同一身份证已有主体且登记手机号与当前登录手机号不一致时**拒绝，不合并**：提示用原手机号登录

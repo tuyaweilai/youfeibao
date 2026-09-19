@@ -1,8 +1,13 @@
 package cn.iocoder.yudao.module.icbc.dal.mysql.payment;
 
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
+import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import org.apache.ibatis.annotations.Mapper;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * 工行付方支付订单 Mapper
@@ -40,6 +45,18 @@ public interface PaymentOrderMapper extends BaseMapperX<PaymentOrderDO> {
      */
     default PaymentOrderDO selectByIcbcOrderNo(String icbcOrderNo) {
         return selectOne("icbc_order_no", icbcOrderNo);
+    }
+
+    /**
+     * 按收购单编号批量查询支付订单（自然人端「收款记录」按他名下的收购单聚合）。
+     */
+    default List<PaymentOrderDO> selectListByAcquisitionIds(Collection<Long> acquisitionIds) {
+        if (acquisitionIds == null || acquisitionIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<PaymentOrderDO>()
+                .in(PaymentOrderDO::getAcquisitionId, acquisitionIds)
+                .orderByDesc(PaymentOrderDO::getId));
     }
 
 } 

@@ -115,6 +115,26 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 > **自然人端 UI 属 #34**：#33 只交付后端端点（`/app-api/icbc/seller/settlement/*`）。
 
 
+## #34 自然人端首页与记录（已完成）
+
+把自然人端从「一次性令牌的只读薄前端」变成他能真正翻账的地方：场站二维码扫码进场 → 待我确认 → 确认 / 有异议 → 看历史、收款、发票与授权。对外文案遵守 ADR 0021。
+
+1. **场站与场站二维码**：新表 `icbc_station`（租户表），一码一场站，码内**不带任何令牌**，只编码 `stationCode`（全局唯一，与 `uk_station_code` 对齐）。管理后台「场站」页（权限 `icbc:station:query|manage`，菜单 5177/5178）可增删改、复制入口链接、渲染二维码（`components/Qrcode`）。入口链接来自 `icbc.station.entry-url`（`ICBC_STATION_ENTRY_URL`），未配置时退化为 `?station=<code>`。
+2. **免登录首屏**：`GET /admin-api/icbc/public/station?code=` 只返回公开信息（回收企业名称、场站、地址、是否在收货、场站电话）+ 所属 `tenantId`，**不含任何个人数据**；按 IP 固定窗口限流（`icbc.station.resolve-per-minute`，默认 60，进程内计数，不引 Redis / protection starter）。免登录端点在既有白名单与 `tenant.ignore-urls` 内。
+3. **手机号验证与身份匹配**：复用 #31 的 `/app-api/icbc/seller/auth/*`。新增 `POST /subjects/bind-by-mobile`：他扫码进来没有 `payeeId`，用登录手机号在**当前租户**内找收方档案并走与 `bindSubject` 相同的手机号一致性校验；匹配不到返回空列表（前端给「你在这家场站没有待确认的货」空态，不造假列表）。
+4. **首页五项**（`pages/home`）：待我确认 / 我的记录（按回收企业分组，跨企业仅本人可见）/ 收款记录 / 发票与税费 / 我的资料。后端在 `SellerPortalServiceImpl`，端点 `/app-api/icbc/seller/portal/*`，全部要求显式 `naturalPersonId` 并 `assertBound`；跨租户读取集中在本类，用 `TenantUtils.executeIgnore` 显式表达。
+5. **收款口径**：`icbc_payment_order` 新增 `seller_received_confirmed_at` / `seller_received_confirm_ip`。收款状态只讲「待付款 / 处理中 / 银行已受理（回单号）/ 失败（给下一步）」；「我收到了」由 `POST /payments/received` 记录，**不改银行状态**。
+6. **企业授权自助撤销**：`icbc_seller_authorization` 新增 `revoked_at` / `revoke_reason`；`POST /authorizations/revoke` 按租户撤销（两个授权位归零 + 留痕），只拦未来，不追溯已开票。
+7. **确认书打印**：后端输出可打印 HTML（`/portal/acquisition/confirmation`、`/portal/settlement/confirmation`），H5 用浏览器「打印 / 保存为 PDF」；一期**不引 PDF 库**，也不做批量 Excel 导出。
+8. **发票 PDF**：`GET /portal/invoice/download` 校验发票属于本人后复用 `InvoiceDownloadService` 输出工行 PDF。
+9. **管理后台菜单**：`icbc-menu.sql` 新增 5177 / 5178；`RecyclingPermission` / `RecyclingRoleEnum` 登记 `STATION_QUERY|MANAGE`。迁移 `icbc-station.sql`、`icbc-seller-portal.sql`（幂等）；测试建表与 `clean.sql` 同步。
+10. **顺带修一个测试基础设施缺陷**：`UnitTestConfiguration` 的内嵌 H2 库名固定为 `testdb`（`DB_CLOSE_DELAY=-1`），多个测试上下文共享同一个库；Spring 淘汰某个上下文时 `SHUTDOWN` 会把还在用的库删掉，另一个上下文变成「空库」。已改为 `.generateUniqueName(true)`，每个上下文独立库名（#34 新增两个测试类后正好触发）。
+
+> **已知简化**：「按该场站 + 该自然人主体匹配待确认结算单」是靠「场站所属租户 + 自然人主体」落地的（结算单目前没有 `station_id`）。单场站租户没有问题；多场站租户要精确到站，需要后续把 `station_id` 挂到收购单 / 结算单上（现场端登记时选场站）。
+
+> **对外口径**：金额一律「本平台累计，不含其他渠道」；额度另标「税务端可核验的口径由各回收企业的开票记录构成」；**不出现「已到账」**；付款 / 开票 / 税费三条状态线分别显示。
+
+
 ## #5 剩余小口子（已处理）
 
 1. 计税方法：已在 `icbc_goods_config` 增加 `tax_method`（SIMPLE/GENERAL），预下单时简易计税品类禁止开专票（票种 01）。

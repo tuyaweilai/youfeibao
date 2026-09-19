@@ -6,6 +6,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardi
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingStatusRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicStationRespVO;
 import cn.iocoder.yudao.module.icbc.service.publicapi.PublicAccessService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -20,6 +21,7 @@ import javax.validation.Valid;
 import java.io.IOException;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
+import static cn.iocoder.yudao.framework.common.util.servlet.ServletUtils.getClientIP;
 
 /**
  * 公开端点 - 自然人免登录。
@@ -36,6 +38,13 @@ public class PublicAccessController {
 
     @Resource
     private PublicAccessService publicAccessService;
+
+    @GetMapping("/station")
+    @Operation(summary = "解析场站二维码（只编码场站码，返回公开信息，不含个人数据）")
+    @Parameter(name = "code", description = "场站码", required = true)
+    public CommonResult<PublicStationRespVO> resolveStation(@RequestParam("code") String code) {
+        return success(publicAccessService.resolveStation(code, getClientIP()));
+    }
 
     @GetMapping("/invoice/download")
     @Operation(summary = "用令牌下载发票 PDF")

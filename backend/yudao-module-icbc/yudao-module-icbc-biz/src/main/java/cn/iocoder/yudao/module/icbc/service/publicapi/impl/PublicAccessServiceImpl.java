@@ -13,6 +13,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardi
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingStatusRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicStationRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.tax.vo.SellerSettlementStatementRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.lead.IcbcContactLeadDO;
@@ -69,6 +70,8 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     private AnnualSettlementService annualSettlementService;
     @Resource
     private SellerOnboardingService sellerOnboardingService;
+    @Resource
+    private cn.iocoder.yudao.module.icbc.service.station.StationService stationService;
 
     @Override
     public void downloadInvoicePdf(String token, HttpServletResponse response) {
@@ -219,6 +222,11 @@ public class PublicAccessServiceImpl implements PublicAccessService {
         resp.setMessage(Boolean.TRUE.equals(overview.getInvoiceEligible())
                 ? "建档已完成。" : overview.getInvoiceBlockReason());
         return resp;
+    }
+
+    @Override
+    public PublicStationRespVO resolveStation(String stationCode, String clientIp) {
+        return stationService.resolvePublic(stationCode, clientIp);
     }
 
     private String currentStep(SellerOnboardingRespVO overview) {

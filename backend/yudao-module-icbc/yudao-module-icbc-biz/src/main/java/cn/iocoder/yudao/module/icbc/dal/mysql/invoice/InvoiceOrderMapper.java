@@ -7,6 +7,8 @@ import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -60,6 +62,18 @@ public interface InvoiceOrderMapper extends BaseMapperX<InvoiceOrderDO> {
                 .ge(InvoiceOrderDO::getInvoiceDate, start)
                 .lt(InvoiceOrderDO::getInvoiceDate, end)
                 .orderByAsc(InvoiceOrderDO::getId));
+    }
+
+    /**
+     * 按收方档案编号批量查询开票订单（自然人端「发票与税费」按他名下的收方档案聚合）。
+     */
+    default List<InvoiceOrderDO> selectListByPayeeIds(Collection<Long> payeeIds) {
+        if (payeeIds == null || payeeIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<InvoiceOrderDO>()
+                .in(InvoiceOrderDO::getPayeeId, payeeIds)
+                .orderByDesc(InvoiceOrderDO::getId));
     }
 
 } 

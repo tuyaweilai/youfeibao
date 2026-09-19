@@ -26,3 +26,4 @@ DELETE FROM icbc_natural_person_login;
 DELETE FROM icbc_natural_person;
 DELETE FROM icbc_settlement_version;
 DELETE FROM icbc_settlement;
+DELETE FROM icbc_station;

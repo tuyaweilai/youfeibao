@@ -74,6 +74,22 @@ export interface OnboardingStatusVO {
   message?: string
 }
 
+export interface PublicStationVO {
+  stationCode?: string
+  tenantId?: number
+  enterpriseName?: string
+  stationName?: string
+  address?: string
+  open?: boolean
+  openStatusName?: string
+  contactMobile?: string
+  guide?: string[]
+}
+
+/** 解析场站二维码：只编码场站码，返回公开信息（不含个人数据） */
+export const resolveStation = (code: string) =>
+  get<PublicStationVO>('/icbc/public/station', { code })
+
 /** 刷新建档状态（后端按当前步骤向工行主动查询一次） */
 export const syncOnboarding = (token: string) =>
   post<OnboardingStatusVO>(`/icbc/public/onboarding/sync?token=${encodeURIComponent(token)}`)

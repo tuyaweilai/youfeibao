@@ -108,6 +108,16 @@ public class PaymentOrderDO extends TenantBaseDO {
     private LocalDateTime receiptTime;
 
     /**
+     * 自然人自行确认收到的时间（「我收到了」；**不改银行状态**，ADR 0021）
+     */
+    private LocalDateTime sellerReceivedConfirmedAt;
+
+    /**
+     * 自然人自行确认收到时的 IP
+     */
+    private String sellerReceivedConfirmIp;
+
+    /**
      * 转账回单文件地址（工行回单 PDF / 截图，可空）
      */
     private String receiptFileUrl;

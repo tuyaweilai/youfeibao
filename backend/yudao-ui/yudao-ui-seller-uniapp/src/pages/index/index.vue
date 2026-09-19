@@ -120,7 +120,8 @@
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { queryQuota, querySettlement, submitContactLead, syncOnboarding, onboardingFormUrl, QuotaVO, SettlementVO, OnboardingStatusVO } from '@/api/public'
-import { resolveEntryParams, setPurpose, setToken } from '@/utils/token'
+import { resolveEntryParams, resolveStationCode, setPurpose, setToken } from '@/utils/token'
+import { getSubject, getToken } from '@/utils/auth'
 import { downloadInvoicePdf } from '@/utils/download'
 
 defineOptions({ name: 'SellerIndex' })
@@ -161,15 +162,28 @@ const visibleTabs = computed(() => {
 })
 
 onLoad(() => {
+  // 场站二维码：码内不带任何令牌，只编码场站码；先看公开信息再登录
+  const station = resolveStationCode()
+  if (station) {
+    uni.redirectTo({ url: `/pages/station/index?station=${encodeURIComponent(station)}` })
+    return
+  }
   const params = resolveEntryParams()
   token.value = params.token
   purpose.value = params.purpose
   if (params.token) {
     setToken(params.token)
     setPurpose(params.purpose)
+    activeTab.value = PURPOSE_SECTION[params.purpose] || 'quota'
+    loadActive()
+    return
   }
-  activeTab.value = PURPOSE_SECTION[params.purpose] || 'quota'
-  loadActive()
+  // 没有一次性令牌：这是自然人端正式入口，按登录态路由
+  if (getToken() && getSubject()) {
+    uni.redirectTo({ url: '/pages/home/index' })
+  } else {
+    uni.redirectTo({ url: '/pages/login/index' })
+  }
 })
 
 function switchTab(key: string) {

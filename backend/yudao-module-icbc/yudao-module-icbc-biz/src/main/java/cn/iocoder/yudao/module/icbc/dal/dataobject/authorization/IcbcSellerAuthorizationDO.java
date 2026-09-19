@@ -49,6 +49,16 @@ public class IcbcSellerAuthorizationDO extends TenantBaseDO {
     private LocalDateTime authorizedAt;
 
     /**
+     * 自助撤销时间（撤销只拦未来，不追溯已开票）
+     */
+    private LocalDateTime revokedAt;
+
+    /**
+     * 撤销原因
+     */
+    private String revokeReason;
+
+    /**
      * 授权渠道：ONSITE-收购现场，ICBC_H5-工行页面
      */
     private String channel;

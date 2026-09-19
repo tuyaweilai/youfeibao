@@ -71,6 +71,13 @@ public class SellerAuthController {
         return success(sellerAuthService.listSubjects());
     }
 
+    @PostMapping("/subjects/bind-by-mobile")
+    @Operation(summary = "按当前租户 + 登录手机号自动匹配并绑定自然人主体",
+            description = "他扫场站二维码进来时没有 payeeId；用登录手机号在本租户找收方档案。匹配不到返回空列表（前端给空态）")
+    public CommonResult<List<SellerSubjectRespVO>> bindByLoginMobile() {
+        return success(sellerAuthService.bindByLoginMobile());
+    }
+
     @PostMapping("/subjects/bind")
     @Operation(summary = "绑定本次交易涉及的收方档案对应的自然人主体",
             description = "租户来自请求头 tenant-id（他扫码的场站所属回收企业）；手机号与身份登记不一致时拒绝，不合并")

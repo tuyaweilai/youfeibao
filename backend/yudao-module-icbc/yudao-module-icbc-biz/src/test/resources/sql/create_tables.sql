@@ -169,6 +169,8 @@ CREATE TABLE IF NOT EXISTS icbc_payment_order (
     actually_received_amount DECIMAL(14,2),
     receipt_no VARCHAR(64),
     receipt_time DATETIME,
+    seller_received_confirmed_at DATETIME,
+    seller_received_confirm_ip VARCHAR(64),
     receipt_file_url VARCHAR(500),
     retry_count INTEGER DEFAULT 0,
     verified_code VARCHAR(30),
@@ -491,6 +493,8 @@ CREATE TABLE IF NOT EXISTS icbc_seller_authorization (
     reverse_invoice_authorized BOOLEAN NOT NULL DEFAULT FALSE,
     tax_agency_authorized BOOLEAN NOT NULL DEFAULT FALSE,
     authorized_at DATETIME,
+    revoked_at DATETIME,
+    revoke_reason VARCHAR(500),
     channel VARCHAR(20),
     operator VARCHAR(64),
     evidence_url VARCHAR(500),
@@ -889,4 +893,23 @@ CREATE TABLE IF NOT EXISTS icbc_settlement_version (
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
     CONSTRAINT uk_settlement_version UNIQUE (tenant_id, settlement_id, version_no)
+);
+
+-- icbc_station table（场站与场站二维码，#34；租户表）
+CREATE TABLE IF NOT EXISTS icbc_station (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    station_code VARCHAR(64) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    address VARCHAR(255),
+    contact_mobile VARCHAR(32),
+    open_status INT NOT NULL DEFAULT 1,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_station_code UNIQUE (station_code)
 );
