@@ -28,7 +28,7 @@ import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
  */
 @Tag(name = "管理后台 - 出售者汇算清缴")
 @RestController
-@RequestMapping("/icbc/settlement")
+@RequestMapping("/icbc/settlement-reminder")
 @Validated
 public class SettlementController {
 

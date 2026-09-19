@@ -235,21 +235,21 @@ export const TaxSupplementApi = {
   }
 }
 
-/** 出售者汇算清缴（#13） */
+/** 出售者汇算清缴（#13）。路径与 #33 的结算单（/icbc/settlement）分开，避免路由冲突。 */
 export const SettlementApi = {
   getPage: async (params: any) => {
-    return await request.get({ url: `/icbc/settlement/page`, params })
+    return await request.get({ url: `/icbc/settlement-reminder/page`, params })
   },
   getStatement: async (payeeId: number, taxYear?: number) => {
     return await request.get<SellerSettlementStatementVO>({
-      url: `/icbc/settlement/statement`,
+      url: `/icbc/settlement-reminder/statement`,
       params: { payeeId, taxYear }
     })
   },
   remind: async (taxYear?: number) => {
-    return await request.post({ url: `/icbc/settlement/remind`, params: { taxYear } })
+    return await request.post({ url: `/icbc/settlement-reminder/remind`, params: { taxYear } })
   },
   handle: async (data: { id: number; status: number; handleRemark?: string }) => {
-    return await request.post({ url: `/icbc/settlement/handle`, data })
+    return await request.post({ url: `/icbc/settlement-reminder/handle`, data })
   }
 }

@@ -48,8 +48,12 @@ import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
  *
  * <p>跨企业读取集中在 {@link #getListForSeller}，用显式的 {@code TenantUtils.executeIgnore} 表达；
  * 写入一律落在场站所属租户（他扫码那家企业），不跟着请求头猜。
+ *
+ * <p><b>显式 bean 名</b>：{@code yudao-module-waste} 也有一个 {@code AppointmentServiceImpl}，
+ * 它同样是 {@code yudao-server} 的依赖，两个默认 bean 名（{@code appointmentServiceImpl}）会撞车、
+ * 导致整个应用起不来（{@code ConflictingBeanDefinitionException}）。
  */
-@Service
+@Service("icbcAppointmentServiceImpl")
 @Validated
 @Slf4j
 public class AppointmentServiceImpl implements AppointmentService {
@@ -60,7 +64,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private static final String SCOPE_NOTE = "预约不是订单：不占额度、不产生开票、不进五流；到场后仍由回收企业按实际过磅建收购单";
 
     @Resource
-    private IcbcAppointmentMapper appointmentMapper;
+    private IcbcAppointmentMapper icbcAppointmentMapper;
     @Resource
     private IcbcStationMapper stationMapper;
     @Resource
@@ -124,7 +128,7 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .status(AppointmentStatusEnum.PENDING.getStatus())
                 .remark(reqVO.getRemark())
                 .build();
-        appointmentMapper.insert(appointment);
+        icbcAppointmentMapper.insert(appointment);
         return appointment.getId();
     }
 
@@ -141,14 +145,14 @@ public class AppointmentServiceImpl implements AppointmentService {
         update.setStatus(AppointmentStatusEnum.CANCELLED.getStatus());
         update.setCancelledAt(LocalDateTime.now());
         update.setCancelReason(StrUtil.blankToDefault(reqVO.getReason(), "出售者本人取消"));
-        TenantUtils.executeIgnore(() -> appointmentMapper.updateById(update));
+        TenantUtils.executeIgnore(() -> icbcAppointmentMapper.updateById(update));
     }
 
     @Override
     public List<AppointmentRespVO> getListForSeller(Long naturalPersonId) {
         assertBound(naturalPersonId);
         // 他可能在多家回收企业都约过：跨企业读取只对本人开放（CONTEXT「交易可见性边界」）
-        return TenantUtils.executeIgnore(() -> appointmentMapper.selectListByNaturalPersonId(naturalPersonId))
+        return TenantUtils.executeIgnore(() -> icbcAppointmentMapper.selectListByNaturalPersonId(naturalPersonId))
                 .stream()
                 .map(appointment -> toResp(appointment, enterpriseName(appointment.getTenantId())))
                 .toList();
@@ -178,7 +182,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
         Long naturalPersonId = payeeInfoService.ensureNaturalPerson(payee).getId();
         String enterprise = enterpriseName(TenantContextHolder.getTenantId());
-        return appointmentMapper.selectPendingByNaturalPersonId(naturalPersonId).stream()
+        return icbcAppointmentMapper.selectPendingByNaturalPersonId(naturalPersonId).stream()
                 .map(appointment -> toResp(appointment, enterprise))
                 .toList();
     }
@@ -190,7 +194,7 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     public PageResult<AppointmentRespVO> getPage(AppointmentPageReqVO reqVO) {
-        PageResult<IcbcAppointmentDO> page = appointmentMapper.selectPage(reqVO);
+        PageResult<IcbcAppointmentDO> page = icbcAppointmentMapper.selectPage(reqVO);
         String enterprise = enterpriseName(TenantContextHolder.getTenantId());
         return new PageResult<>(page.getList().stream()
                 .map(appointment -> toResp(appointment, enterprise)).toList(), page.getTotal());
@@ -207,7 +211,7 @@ public class AppointmentServiceImpl implements AppointmentService {
                 IcbcAppointmentDO update = new IcbcAppointmentDO();
                 update.setId(appointment.getId());
                 update.setAcquisitionId(reqVO.getAcquisitionId());
-                appointmentMapper.updateById(update);
+                icbcAppointmentMapper.updateById(update);
             }
             return;
         }
@@ -217,7 +221,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         update.setStatus(AppointmentStatusEnum.ARRIVED.getStatus());
         update.setArrivedAt(LocalDateTime.now());
         update.setAcquisitionId(reqVO.getAcquisitionId());
-        appointmentMapper.updateById(update);
+        icbcAppointmentMapper.updateById(update);
     }
 
     @Override
@@ -232,12 +236,12 @@ public class AppointmentServiceImpl implements AppointmentService {
         update.setId(appointment.getId());
         update.setStatus(AppointmentStatusEnum.NO_SHOW.getStatus());
         update.setNoShowReason(reqVO.getReason());
-        appointmentMapper.updateById(update);
+        icbcAppointmentMapper.updateById(update);
     }
 
     @Override
     public IcbcAppointmentDO getAppointmentDO(Long id) {
-        IcbcAppointmentDO appointment = id == null ? null : appointmentMapper.selectById(id);
+        IcbcAppointmentDO appointment = id == null ? null : icbcAppointmentMapper.selectById(id);
         if (appointment == null) {
             throw exception(APPOINTMENT_NOT_EXISTS);
         }
@@ -257,7 +261,7 @@ public class AppointmentServiceImpl implements AppointmentService {
      */
     private IcbcAppointmentDO loadOwnedBySeller(Long id, Long naturalPersonId) {
         IcbcAppointmentDO appointment = TenantUtils.executeIgnore(
-                () -> id == null ? null : appointmentMapper.selectById(id));
+                () -> id == null ? null : icbcAppointmentMapper.selectById(id));
         if (appointment == null || !Objects.equals(appointment.getNaturalPersonId(), naturalPersonId)) {
             throw exception(APPOINTMENT_NOT_EXISTS);
         }

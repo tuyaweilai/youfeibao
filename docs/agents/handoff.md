@@ -375,3 +375,15 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - **前端**：`pnpm build:local` 验证编译；`pnpm ts:check` 有 1247 个既有 TS 错误，判断自己的改动看 `src/(views|api)/icbc` 有无新报错即可（跑 ts:check 需加 `NODE_OPTIONS=--max-old-space-size=6144`）。
 - **时间字段**：yudao 全局 Jackson 把 `LocalDateTime` 按**毫秒时间戳**序列化/反序列化（`TimestampLocalDateTimeSerializer/Deserializer`）。因此 `@RequestBody` 里的 `LocalDateTime` 字段，前端日期选择器必须用 `value-format="x"`，接口类型声明为 `number`；字段上的 `@DateTimeFormat` 对 JSON body **无效**（只作用于 query/form）。不要用 `YYYY-MM-DD HH:mm:ss`，否则反序列化会得到 0 或报错。
 - **工具**：不要在同一条消息里同时发 `edit` 和依赖它的 `bash`（会并发，文件可能未落盘）。
+
+## 重启后端时修掉的启动阻塞（2026-09-19）
+
+本地后端自 12:00 起一直没重启，而 #31–#37 都是傍晚之后落的库，`.m2` 里 `yudao-module-icbc-biz` 的 jar 还是 11:58 的旧版本。重启（先 `mvn -pl yudao-module-icbc/yudao-module-icbc-biz -am -DskipTests install`，再 `mvn -pl yudao-server spring-boot:run`）后暴露出三个**只有整机启动才会触发、单测发现不了**的冲突，已修：
+
+1. **`@Service` bean 名冲突**：icbc 的 `AppointmentServiceImpl` 与 `yudao-module-waste` 的同名类都默认叫 `appointmentServiceImpl`，`ConflictingBeanDefinitionException`。给 icbc 的显式起名 `icbcAppointmentServiceImpl`。
+2. **Mapper 注入名冲突**：`AppointmentServiceImpl` 里 `@Resource private IcbcAppointmentMapper appointmentMapper` 按字段名先命中 waste 的 `appointmentMapper` bean，类型不符。字段改名 `icbcAppointmentMapper`。
+3. **控制器路由冲突**：`tax.SettlementController`（#13 汇算清缴）与 `settlement.SettlementConfirmController`（#33 结算单）都占 `/icbc/settlement/page`，`Ambiguous mapping`。把汇算清缴挪到 `/icbc/settlement-reminder`（对应 `icbc_settlement_reminder`），前端 `api/icbc/tax/index.ts` 同步。
+
+顺带修了一个登录 UX 缺陷：`SellerAuthServiceImpl.inPlatformTenant` 直接 `TenantUtils.execute`，而后者把异常包成裸 `RuntimeException`，导致 `ServiceException`（如「短信发送过于频繁」）被全局异常处理器当成 `500 系统异常`。现拆回原样。前端 `utils/request.ts` 也改成**只有带令牌的请求**收到 401 才清登录态跳登录；登录/取码这类公开请求的 401 原样报错，不再 `reLaunch` 掉页面（这正是「点获取验证码手机号消失、无提示」的直接原因）。
+
+> 提醒：`pages.json` / `manifest.json` 改动不会热更新，加/改页面后要重启对应 `pnpm dev:h5`；后端同理，改完 icbc 模块要先 `install` 再重启，否则 `spring-boot:run` 仍从 `.m2` 读旧 jar。

@@ -37,6 +37,7 @@ import javax.annotation.Resource;
 import javax.validation.Valid;
 import java.util.List;
 import java.util.concurrent.Callable;
+import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.framework.common.util.servlet.ServletUtils.getClientIP;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
@@ -225,7 +226,16 @@ public class SellerAuthServiceImpl implements SellerAuthService {
      * 在平台租户下执行：登录凭证与验证码都属于平台级，不能跟着请求头里的回收企业租户走。
      */
     private <T> T inPlatformTenant(Callable<T> callable) {
-        return TenantUtils.execute(platformTenantId, callable);
+        try {
+            return TenantUtils.execute(platformTenantId, callable);
+        } catch (RuntimeException e) {
+            // TenantUtils.execute 会把异常包成裸 RuntimeException，导致业务错误（ServiceException）
+            // 被全局异常处理器当成「系统异常」（code=500）。这里拆回原样，让错误码与文案到前端。
+            if (e.getCause() instanceof ServiceException) {
+                throw (ServiceException) e.getCause();
+            }
+            throw e;
+        }
     }
 
 }

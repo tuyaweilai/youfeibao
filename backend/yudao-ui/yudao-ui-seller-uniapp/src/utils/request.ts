@@ -36,7 +36,10 @@ function doRequest<T>(options: RequestOptions): Promise<T> {
       header,
       success: (res) => {
         const body = res.data as CommonResult<T>
-        if (res.statusCode === 401 || body?.code === 401) {
+        // 只有「带登录令牌的请求」收到 401 才当登录过期处理；
+        // 登录 / 取码这类公开请求本身不带令牌，401 是业务错误，必须原样报错，
+        // 否则会 reLaunch 掉当前页、把输入与错误提示一起清掉。
+        if ((res.statusCode === 401 || body?.code === 401) && options.auth !== false) {
           clearAuth()
           uni.reLaunch({ url: '/pages/login/index' })
           reject(new Error('登录已过期，请重新登录'))
