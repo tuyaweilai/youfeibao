@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.icbc.gateway.sdk;
 
 import cn.hutool.core.util.IdUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGatewayResult;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcOutcome;
@@ -132,7 +133,8 @@ public class IcbcSdkGateway implements IcbcGateway {
         JftUiUserEdpopenacctSubmitRequestV1.JftUiUserEdpopenacctSubmitRequestV1Biz biz =
                 new JftUiUserEdpopenacctSubmitRequestV1.JftUiUserEdpopenacctSubmitRequestV1Biz();
         biz.setAppId(clientFactory.appId());
-        biz.setAppIdSub(clientFactory.outVendorId());
+        // 子商户 = 回收企业：优先用业务层给的（本租户付方档案），没给才回退全局配置（本地 / 联调）
+        biz.setAppIdSub(StrUtil.isNotBlank(req.getOutVendorId()) ? req.getOutVendorId() : clientFactory.outVendorId());
         biz.setBusinessType(BUSINESS_TYPE_RECYCLE);
         biz.setOutUserId(req.getOutUserId());
         biz.setCorpSerno(req.getCorpSerno());
@@ -150,13 +152,13 @@ public class IcbcSdkGateway implements IcbcGateway {
     }
 
     @Override
-    public IcbcGatewayResult<PayeeOnboardingStatus> queryPayeeOnboarding(String outUserId) {
+    public IcbcGatewayResult<PayeeOnboardingStatus> queryPayeeOnboarding(String outUserId, String outVendorId) {
         JftApiUserEdpopenacctQueryRequestV1 request = new JftApiUserEdpopenacctQueryRequestV1();
         request.setServiceUrl(clientFactory.url(IcbcApiPaths.PAYEE_ONBOARDING_QUERY));
         JftApiUserEdpopenacctQueryRequestV1.JftApiUserEdpopenacctQueryRequestV1Biz biz =
                 new JftApiUserEdpopenacctQueryRequestV1.JftApiUserEdpopenacctQueryRequestV1Biz();
         biz.setAppId(clientFactory.appId());
-        biz.setAppIdSub(clientFactory.outVendorId());
+        biz.setAppIdSub(StrUtil.isNotBlank(outVendorId) ? outVendorId : clientFactory.outVendorId());
         biz.setBusinessType(BUSINESS_TYPE_RECYCLE);
         biz.setOutUserId(outUserId);
         request.setBizContent(biz);

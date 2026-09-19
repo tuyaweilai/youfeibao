@@ -128,6 +128,11 @@ public interface RecyclingPermission {
     // ========== 计费计量（#16：按成功开具的收购发票张数计费） ==========
 
     /** 查看各租户按期间的成功开票张数与应计费用（跨租户） */
+    // ========== 自然人主体（#31：平台级身份层，跨租户） ==========
+
+    String PLATFORM_NATURAL_PERSON_QUERY = "icbc:platform:natural-person:query";
+    String PLATFORM_NATURAL_PERSON_MANAGE = "icbc:platform:natural-person:manage";
+
     String PLATFORM_BILLING_QUERY = "icbc:platform:billing:query";
     /** 重新计量并落台账（跨租户） */
     String PLATFORM_BILLING_MANAGE = "icbc:platform:billing:manage";

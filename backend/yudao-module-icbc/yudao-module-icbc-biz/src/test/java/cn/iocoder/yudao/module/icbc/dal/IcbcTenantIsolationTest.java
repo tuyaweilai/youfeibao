@@ -8,6 +8,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
@@ -16,6 +17,10 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
+import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
+import cn.iocoder.yudao.module.icbc.service.naturalperson.impl.NaturalPersonServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.platform.PlatformInvoiceQueryService;
 import cn.iocoder.yudao.module.icbc.service.platform.impl.PlatformInvoiceQueryServiceImpl;
 import cn.iocoder.yudao.test.icbc.IcbcTenantTestConfiguration;
@@ -42,8 +47,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </ul>
  */
 @Import({UnitTestConfiguration.class, IcbcTenantTestConfiguration.class,
-        PlatformInvoiceQueryServiceImpl.class})
+        PlatformInvoiceQueryServiceImpl.class, PayeeInfoServiceImpl.class, NaturalPersonServiceImpl.class})
 public class IcbcTenantIsolationTest extends BaseDbUnitTest {
+
+    @Resource
+    private PayeeInfoService payeeInfoService;
+    @Resource
+    private NaturalPersonService naturalPersonService;
 
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
@@ -108,6 +118,41 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
             assertNotNull(payeeInfoMapper.selectById(payeeId2));
             assertNull(payeeInfoMapper.selectById(payeeId1));
         });
+    }
+
+    @Test
+    public void testSameNaturalPersonAcrossTenantsSharesOneIdentity() {
+        // ADR 0017：同一个人在两家回收企业各有一条收方档案，但只有一个自然人主体、一个 outUserId
+        String idCardNo = "110101199001011236";
+        String mobile = "13800000003";
+        Long payeeId1 = TenantUtils.execute(1L, () -> payeeInfoService.createPayeeInfo(
+                payeeSaveReq("赵五", idCardNo, mobile)));
+        Long payeeId2 = TenantUtils.execute(2L, () -> payeeInfoService.createPayeeInfo(
+                payeeSaveReq("赵五", idCardNo, mobile)));
+
+        Long personId1 = TenantUtils.execute(1L, () -> payeeInfoMapper.selectById(payeeId1).getNaturalPersonId());
+        Long personId2 = TenantUtils.execute(2L, () -> payeeInfoMapper.selectById(payeeId2).getNaturalPersonId());
+        assertEquals(personId1, personId2);
+
+        // 实人认证记在主体上：一次通过，两家企业的建档总览都看得到
+        TenantUtils.executeIgnore(() -> {
+            naturalPersonService.applyRealNameResult(personId1, true, null);
+            return null;
+        });
+        PayeeInfoDO payee1 = TenantUtils.execute(1L, () -> payeeInfoMapper.selectById(payeeId1));
+        assertEquals(personId1, payee1.getNaturalPersonId());
+        // 收方档案是租户级的：别家企业的档案在本租户看不到
+        TenantUtils.execute(2L, () -> assertNull(payeeInfoMapper.selectById(payeeId1)));
+    }
+
+    private cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeInfoSaveReqVO payeeSaveReq(
+            String name, String idCardNo, String mobile) {
+        cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeInfoSaveReqVO reqVO =
+                new cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeInfoSaveReqVO();
+        reqVO.setName(name);
+        reqVO.setIdCardNo(idCardNo);
+        reqVO.setMobile(mobile);
+        return reqVO;
     }
 
     @Test

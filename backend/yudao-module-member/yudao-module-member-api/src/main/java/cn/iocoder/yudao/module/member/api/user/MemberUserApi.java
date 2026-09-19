@@ -59,6 +59,19 @@ public interface MemberUserApi {
     MemberUserRespDTO getUserByMobile(String mobile);
 
     /**
+     * 按手机号取或建会员用户（不存在则注册）。
+     *
+     * <p>自然人的登录凭证复用会员用户：调用方需要在**平台租户**下执行，否则同一个手机号会在
+     * 各个回收企业租户下各建一个（见 ADR 0017）。
+     *
+     * @param mobile     手机号
+     * @param registerIp 注册 IP
+     * @param terminal   注册终端，见 {@link cn.iocoder.yudao.framework.common.enums.TerminalEnum}
+     * @return 会员用户信息
+     */
+    MemberUserRespDTO createUserIfAbsent(String mobile, String registerIp, Integer terminal);
+
+    /**
      * 校验用户是否存在
      *
      * @param id 用户编号

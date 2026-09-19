@@ -2,15 +2,20 @@ package cn.iocoder.yudao.module.icbc.service.onboarding.impl;
 
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
+import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.authorization.IcbcSellerAuthorizationDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.lead.IcbcContactLeadDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.payer.PayerInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.agreement.IcbcFrameworkAgreementMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.authorization.IcbcSellerAuthorizationMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.payer.PayerInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOutcomeEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeRealNameStatusEnum;
@@ -21,8 +26,9 @@ import cn.iocoder.yudao.module.icbc.gateway.model.FaceVerifyStatus;
 import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingPageReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingStatus;
+import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -38,6 +44,12 @@ import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 
 /**
  * 出售者建档 Service 实现
+ *
+ * <p>建档的归属刻意分成两层（见 ADR 0017）：
+ * <ul>
+ *   <li><b>实人认证</b>记在**自然人主体**上：同一个人在两家回收企业只需认证一次；</li>
+ *   <li><b>收方入驻</b>记在**收方档案**上：入驻是与子商户（回收企业）绑定的动作，一家企业一次。</li>
+ * </ul>
  */
 @Slf4j
 @Service
@@ -52,11 +64,17 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
     @Resource
+    private PayeeInfoService payeeInfoService;
+    @Resource
+    private PayerInfoMapper payerInfoMapper;
+    @Resource
     private IcbcFrameworkAgreementMapper frameworkAgreementMapper;
     @Resource
     private IcbcSellerAuthorizationMapper sellerAuthorizationMapper;
     @Resource
     private IcbcContactLeadMapper contactLeadMapper;
+    @Resource
+    private NaturalPersonService naturalPersonService;
     @Resource
     private IcbcGateway icbcGateway;
 
@@ -93,8 +111,10 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     @Override
     public SellerStepRespVO startRealName(SellerRealNameReqVO reqVO) {
         PayeeInfoDO payee = validatePayeeExists(reqVO.getPayeeId());
+        IcbcNaturalPersonDO person = payeeInfoService.ensureNaturalPerson(payee);
         IcbcGatewayResult<IcbcPage> result = icbcGateway.submitFaceVerification(FaceVerifyPageReq.builder()
-                .outUserId(payee.getPartnerPayeeId())
+                // 平台级外部用户编号：实名一次，跨企业复用
+                .outUserId(person.getOutUserId())
                 .custName(payee.getName())
                 .certNo(payee.getIdCardNo())
                 .mobile(payee.getMobile())
@@ -104,50 +124,22 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
         if (!result.isSuccess()) {
             throw exception(ICBC_API_CALL_FAILED);
         }
-        // 认证中；已通过的不回退
-        if (!PayeeRealNameStatusEnum.PASSED.getStatus().equals(payee.getRealNameStatus())) {
-            PayeeInfoDO update = new PayeeInfoDO();
-            update.setId(payee.getId());
-            update.setRealNameStatus(PayeeRealNameStatusEnum.PENDING.getStatus());
-            payeeInfoMapper.updateById(update);
-        }
+        naturalPersonService.markRealNamePending(person.getId());
         return step(payee.getId(), "REAL_NAME", formHtml(result));
     }
 
     @Override
     public PayeeInfoDO syncRealName(Long payeeId) {
         PayeeInfoDO payee = validatePayeeExists(payeeId);
+        IcbcNaturalPersonDO person = payeeInfoService.ensureNaturalPerson(payee);
         IcbcGatewayResult<FaceVerifyStatus> result =
-                icbcGateway.queryFaceVerification(payee.getPartnerPayeeId());
+                icbcGateway.queryFaceVerification(person.getOutUserId());
         if (!result.isSuccess() || result.getData() == null) {
             throw exception(SELLER_REAL_NAME_RESULT_UNKNOWN);
         }
-        applyRealNameResult(payee, result.getData().isPassed(), result.getData().getFailReason());
+        naturalPersonService.applyRealNameResult(person.getId(), result.getData().isPassed(),
+                result.getData().getFailReason());
         return payeeInfoMapper.selectById(payeeId);
-    }
-
-    /**
-     * 回写实人认证结果；认证中 / 未返回时保持原状。通过时显式把失败原因置空。
-     */
-    private void applyRealNameResult(PayeeInfoDO payee, boolean passed, String failReason) {
-        if (!passed && StrUtil.isBlank(failReason)) {
-            return; // 认证中，不动状态
-        }
-        LambdaUpdateWrapper<PayeeInfoDO> update = new LambdaUpdateWrapper<PayeeInfoDO>()
-                .eq(PayeeInfoDO::getId, payee.getId());
-        if (passed) {
-            update.set(PayeeInfoDO::getRealNameStatus, PayeeRealNameStatusEnum.PASSED.getStatus())
-                    .set(PayeeInfoDO::getRealNameMsg, null)
-                    .set(PayeeInfoDO::getRealNameTime, LocalDateTime.now());
-        } else {
-            update.set(PayeeInfoDO::getRealNameStatus, PayeeRealNameStatusEnum.FAILED.getStatus())
-                    .set(PayeeInfoDO::getRealNameMsg, failReason);
-        }
-        payeeInfoMapper.update(null, update);
-        PayeeInfoDO refreshed = payeeInfoMapper.selectById(payee.getId());
-        payee.setRealNameStatus(refreshed.getRealNameStatus());
-        payee.setRealNameMsg(refreshed.getRealNameMsg());
-        payee.setRealNameTime(refreshed.getRealNameTime());
     }
 
     // ==================== 收方入驻 ====================
@@ -155,8 +147,9 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     @Override
     public SellerStepRespVO submitOnboarding(SellerOnboardingSubmitReqVO reqVO) {
         PayeeInfoDO payee = validatePayeeExists(reqVO.getPayeeId());
-        // 实人认证是前置环节
-        if (!PayeeRealNameStatusEnum.PASSED.getStatus().equals(payee.getRealNameStatus())) {
+        IcbcNaturalPersonDO person = payeeInfoService.ensureNaturalPerson(payee);
+        // 实人认证是前置环节：认证记在自然人主体上，所以同一人在别的企业认证过也算数
+        if (!PayeeRealNameStatusEnum.PASSED.getStatus().equals(person.getRealNameStatus())) {
             throw exception(SELLER_REAL_NAME_NOT_PASSED);
         }
         if (StrUtil.isBlank(payee.getBankCardNo())) {
@@ -177,7 +170,9 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
         payee.setBankBranch(StrUtil.blankToDefault(reqVO.getBankBranch(), payee.getBankBranch()));
 
         IcbcGatewayResult<IcbcPage> result = icbcGateway.submitPayeeOnboarding(PayeeOnboardingPageReq.builder()
-                .outUserId(payee.getPartnerPayeeId())
+                .outUserId(person.getOutUserId())
+                // 子商户 = 回收企业 = 本租户的付方档案；与预下单 / 付款用的是同一个值（此前这里错用了全局配置）
+                .outVendorId(currentOutVendorId())
                 .receiverName(payee.getName())
                 .receiverAccount(payee.getBankCardNo())
                 .mobile(payee.getMobile())
@@ -201,8 +196,9 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     @Override
     public PayeeInfoDO syncOnboarding(Long payeeId) {
         PayeeInfoDO payee = validatePayeeExists(payeeId);
+        IcbcNaturalPersonDO person = payeeInfoService.ensureNaturalPerson(payee);
         IcbcGatewayResult<PayeeOnboardingStatus> result =
-                icbcGateway.queryPayeeOnboarding(payee.getPartnerPayeeId());
+                icbcGateway.queryPayeeOnboarding(person.getOutUserId(), currentOutVendorId());
         if (!result.isSuccess() || result.getData() == null) {
             throw exception(ICBC_API_CALL_FAILED);
         }
@@ -259,6 +255,7 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     @Override
     public SellerOnboardingRespVO getOnboarding(Long payeeId) {
         PayeeInfoDO payee = validatePayeeExists(payeeId);
+        IcbcNaturalPersonDO person = payeeInfoService.ensureNaturalPerson(payee);
         IcbcFrameworkAgreementDO agreement = frameworkAgreementMapper.selectActiveByPayeeId(payeeId);
         IcbcSellerAuthorizationDO authorization = sellerAuthorizationMapper.selectLatestByPayeeId(payeeId);
 
@@ -267,10 +264,12 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
         resp.setName(payee.getName());
         resp.setIdCardNo(payee.getIdCardNo());
         resp.setMobile(payee.getMobile());
-        resp.setRealNameStatus(payee.getRealNameStatus());
-        PayeeRealNameStatusEnum realName = PayeeRealNameStatusEnum.of(payee.getRealNameStatus());
+        resp.setNaturalPersonId(person.getId());
+        resp.setOutUserId(person.getOutUserId());
+        resp.setRealNameStatus(person.getRealNameStatus());
+        PayeeRealNameStatusEnum realName = PayeeRealNameStatusEnum.of(person.getRealNameStatus());
         resp.setRealNameStatusName(realName != null ? realName.getName() : null);
-        resp.setRealNameMsg(payee.getRealNameMsg());
+        resp.setRealNameMsg(person.getRealNameMsg());
         resp.setOnboardingState(payee.getOnboardingState());
         PayeeOnboardingOutcomeEnum outcome = PayeeOnboardingOutcomeEnum.ofCode(payee.getOnboardingState());
         resp.setOnboardingStateName(outcome != null ? outcome.getName() : null);
@@ -287,7 +286,7 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
         resp.setAgreementHistory(frameworkAgreementMapper.selectListByPayeeId(payeeId).stream()
                 .map(this::toAgreementResp).collect(Collectors.toList()));
 
-        String blockReason = blockReason(payee, agreement, authorization);
+        String blockReason = blockReason(payee, person, agreement, authorization);
         resp.setInvoiceEligible(blockReason == null);
         resp.setInvoiceBlockReason(blockReason);
         return resp;
@@ -296,7 +295,7 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     @Override
     public void assertReadyForInvoice(Long payeeId) {
         PayeeInfoDO payee = validatePayeeExists(payeeId);
-        String reason = blockReason(payee,
+        String reason = blockReason(payee, payeeInfoService.ensureNaturalPerson(payee),
                 frameworkAgreementMapper.selectActiveByPayeeId(payeeId),
                 sellerAuthorizationMapper.selectLatestByPayeeId(payeeId));
         if (reason != null) {
@@ -309,18 +308,24 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
         if (StrUtil.isBlank(outUserId)) {
             return;
         }
-        PayeeInfoDO payee = payeeInfoMapper.selectByPartnerPayeeId(outUserId);
+        // outUserId 是平台级编号：先在平台级身份层找人，再取**本租户**的收方档案
+        // （别的回收企业的档案看不到，也不该看到，见 CONTEXT「交易可见性边界」）
+        IcbcNaturalPersonDO person = naturalPersonService.getByOutUserId(outUserId);
+        if (person == null) {
+            return;
+        }
+        PayeeInfoDO payee = payeeInfoMapper.selectByNaturalPersonId(person.getId());
         if (payee != null) {
             assertReadyForInvoice(payee.getId());
         }
     }
 
     /**
-     * 可开票的前提：实名通过 + 入驻 READY + 生效协议 + 两项授权齐备。返回第一条不满足的原因。
+     * 可开票的前提：实人认证通过 + 入驻 READY + 生效协议 + 两项授权齐备。返回第一条不满足的原因。
      */
-    private String blockReason(PayeeInfoDO payee, IcbcFrameworkAgreementDO agreement,
+    private String blockReason(PayeeInfoDO payee, IcbcNaturalPersonDO person, IcbcFrameworkAgreementDO agreement,
                                IcbcSellerAuthorizationDO authorization) {
-        if (!PayeeRealNameStatusEnum.PASSED.getStatus().equals(payee.getRealNameStatus())) {
+        if (!PayeeRealNameStatusEnum.PASSED.getStatus().equals(person.getRealNameStatus())) {
             return "实人认证未通过";
         }
         PayeeOnboardingOutcomeEnum outcome = PayeeOnboardingOutcomeEnum.ofCode(payee.getOnboardingState());
@@ -410,26 +415,69 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
 
     @Override
     public void handleFaceVerifyNotify(String outUserId, boolean passed, String failReason) {
-        PayeeInfoDO payee = payeeInfoMapper.selectByPartnerPayeeId(outUserId);
-        if (payee == null) {
-            log.warn("[handleFaceVerifyNotify][未找到出售者档案] outUserId={}", outUserId);
+        IcbcNaturalPersonDO person = naturalPersonService.getByOutUserId(outUserId);
+        if (person == null) {
+            log.warn("[handleFaceVerifyNotify][未找到自然人主体] outUserId={}", outUserId);
             return;
         }
-        applyRealNameResult(payee, passed, failReason);
+        naturalPersonService.applyRealNameResult(person.getId(), passed, failReason);
     }
 
     @Override
-    public void handleOnboardingNotify(String outUserId, String result, String openacctStatus,
-                                       String mediumId, String rejectReason) {
-        PayeeInfoDO payee = payeeInfoMapper.selectByPartnerPayeeId(outUserId);
-        if (payee == null) {
-            log.warn("[handleOnboardingNotify][未找到出售者档案] outUserId={}", outUserId);
+    public void handleOnboardingNotify(String outUserId, String outVendorId, String result,
+                                       String openacctStatus, String mediumId, String rejectReason) {
+        IcbcNaturalPersonDO person = naturalPersonService.getByOutUserId(outUserId);
+        if (person == null) {
+            log.warn("[handleOnboardingNotify][未找到自然人主体] outUserId={}", outUserId);
             return;
         }
-        reconcileOnboardingStatus(payee.getId(), openacctStatus, result, mediumId, rejectReason);
+        // 入驻是「自然人 × 子商户」的事，而回执只带平台级 outUserId，所以必须靠 appIdSub 定位是
+        // 哪家回收企业（租户）。定位不了就抛出去让通知落失败、在通知监控里人工处理——不猜、不跨企业乱写。
+        Long tenantId = resolveTenantIdByOutVendorId(outVendorId);
+        if (tenantId == null) {
+            throw exception(SELLER_ONBOARDING_VENDOR_UNRESOLVED, StrUtil.blankToDefault(outVendorId, "（空）"));
+        }
+        TenantUtils.execute(tenantId, () -> {
+            PayeeInfoDO payee = payeeInfoMapper.selectByNaturalPersonId(person.getId());
+            if (payee == null) {
+                log.warn("[handleOnboardingNotify][该租户下未找到收方档案] tenantId={} outUserId={}",
+                        tenantId, outUserId);
+                return;
+            }
+            reconcileOnboardingStatus(payee.getId(), openacctStatus, result, mediumId, rejectReason);
+        });
     }
 
     // ==================== 内部方法 ====================
+
+    /**
+     * 本租户的子商户编号 = 付方档案的合作方付方编号（工行 {@code outVendorId} / {@code appIdSub}）。
+     * 与预下单、付款用的是同一个值。
+     */
+    private String currentOutVendorId() {
+        PayerInfoDO payer = firstPayer();
+        if (payer == null || StrUtil.isBlank(payer.getPartnerPayerId())) {
+            throw exception(SELLER_ONBOARDING_PAYER_NOT_CONFIGURED);
+        }
+        return payer.getPartnerPayerId();
+    }
+
+    private PayerInfoDO firstPayer() {
+        List<PayerInfoDO> payers = payerInfoMapper.selectList(
+                new LambdaQueryWrapperX<PayerInfoDO>().orderByAsc(PayerInfoDO::getId));
+        return payers == null || payers.isEmpty() ? null : payers.get(0);
+    }
+
+    /**
+     * 由子商户编号反查租户：付方档案是租户级、子商户编号写在里面，所以要跨租户找一次。
+     */
+    private Long resolveTenantIdByOutVendorId(String outVendorId) {
+        if (StrUtil.isBlank(outVendorId)) {
+            return null;
+        }
+        PayerInfoDO payer = TenantUtils.executeIgnore(() -> payerInfoMapper.selectByPartnerPayerId(outVendorId));
+        return payer != null ? payer.getTenantId() : null;
+    }
 
     private PayeeInfoDO validatePayeeExists(Long id) {
         PayeeInfoDO payee = id == null ? null : payeeInfoMapper.selectById(id);

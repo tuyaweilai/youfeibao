@@ -86,7 +86,7 @@ public interface SellerOnboardingService {
      * 开票门禁（按外部用户编号）：查不到档案时放行，保持对既有数据的兼容；
      * 查得到则要求已完成建档。
      *
-     * @param outUserId 外部用户编号（合作方收方编号）
+     * @param outUserId 平台级外部用户编号（自然人主体的工行 outUserId）
      */
     void assertReadyForInvoiceByOutUserId(String outUserId);
 
@@ -131,9 +131,20 @@ public interface SellerOnboardingService {
     void handleFaceVerifyNotify(String outUserId, boolean passed, String failReason);
 
     /**
-     * 处理收方入驻结果通知
+     * 处理收方入驻结果通知。
+     *
+     * <p>{@code outUserId} 是平台级外部用户编号（自然人主体），而入驻是「自然人 × 子商户」的动作，
+     * 所以还要靠 {@code outVendorId}（报文里的 {@code appIdSub}）定位是哪家回收企业。
+     * 定位不了时抛业务异常，让通知落失败、在平台运营的通知监控里人工处理——不猜、不跨企业乱写。
+     *
+     * @param outUserId      平台级外部用户编号
+     * @param outVendorId    子商户编号（回收企业），即报文里的 appIdSub
+     * @param result         审核结果（pass / reject）
+     * @param openacctStatus 工行侧开户状态
+     * @param mediumId       工行返回的账户标识
+     * @param rejectReason   拒绝原因
      */
-    void handleOnboardingNotify(String outUserId, String result, String openacctStatus,
+    void handleOnboardingNotify(String outUserId, String outVendorId, String result, String openacctStatus,
                                 String mediumId, String rejectReason);
 
 }

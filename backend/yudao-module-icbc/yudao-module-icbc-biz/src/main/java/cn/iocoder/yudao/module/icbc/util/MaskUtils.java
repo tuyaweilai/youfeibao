@@ -24,4 +24,18 @@ public final class MaskUtils {
                 + idCardNo.substring(idCardNo.length() - 4);
     }
 
+    /**
+     * 手机号脱敏：保留前 3 位与后 4 位。
+     *
+     * @param mobile 手机号；为空或长度不足 8 位时原样返回
+     */
+    public static String maskMobile(String mobile) {
+        if (StrUtil.isBlank(mobile) || mobile.length() < 8) {
+            return mobile;
+        }
+        return mobile.substring(0, 3)
+                + StrUtil.repeat('*', mobile.length() - 7)
+                + mobile.substring(mobile.length() - 4);
+    }
+
 }

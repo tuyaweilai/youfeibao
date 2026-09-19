@@ -18,9 +18,13 @@ public class PayeeInfoRespVO {
     @ExcelProperty("收方编号")
     private String payeeNo;
 
-    @Schema(description = "合作方收方编号（我方生成）", requiredMode = Schema.RequiredMode.REQUIRED, example = "PARTNER001")
+    @Schema(description = "合作方收方编号（我方生成的收方档案编号）", requiredMode = Schema.RequiredMode.REQUIRED, example = "PARTNER001")
     @ExcelProperty("合作方收方编号")
     private String partnerPayeeId;
+
+    @Schema(description = "自然人主体编号（平台级身份，跨企业复用）", example = "1024")
+    @ExcelProperty("自然人主体编号")
+    private Long naturalPersonId;
 
     @Schema(description = "收方姓名", requiredMode = Schema.RequiredMode.REQUIRED, example = "张三")
     @ExcelProperty("收方姓名")

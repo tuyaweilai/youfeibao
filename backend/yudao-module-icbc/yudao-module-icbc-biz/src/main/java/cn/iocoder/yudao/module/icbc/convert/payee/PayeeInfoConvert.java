@@ -35,7 +35,6 @@ public interface PayeeInfoConvert {
         }
         
         PayeeInfoDO payeeInfo = new PayeeInfoDO();
-        payeeInfo.setPartnerPayeeId(reqVO.getOutUserId());
         payeeInfo.setName(reqVO.getReceiverName());
         payeeInfo.setIdCardNo(reqVO.getIdNo());
         payeeInfo.setMobile(reqVO.getMobile());

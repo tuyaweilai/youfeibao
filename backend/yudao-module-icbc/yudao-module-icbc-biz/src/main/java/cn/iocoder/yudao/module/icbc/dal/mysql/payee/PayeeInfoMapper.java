@@ -47,6 +47,26 @@ public interface PayeeInfoMapper extends BaseMapperX<PayeeInfoDO> {
         return selectOne(PayeeInfoDO::getPartnerPayeeId, partnerPayeeId);
     }
 
+    /**
+     * 按自然人主体取本租户的收方档案。
+     *
+     * <p>身份是平台级的、收方档案是租户级的，所以本方法**天然带租户条件**：同一个自然人在别的
+     * 回收企业有档案，本租户查不到（与企业间不可见一致，见 CONTEXT「交易可见性边界」）。
+     */
+    default PayeeInfoDO selectByNaturalPersonId(Long naturalPersonId) {
+        if (naturalPersonId == null) {
+            return null;
+        }
+        return selectOne(PayeeInfoDO::getNaturalPersonId, naturalPersonId);
+    }
+
+    default java.util.List<PayeeInfoDO> selectListByNaturalPersonId(Long naturalPersonId) {
+        if (naturalPersonId == null) {
+            return java.util.Collections.emptyList();
+        }
+        return selectList(PayeeInfoDO::getNaturalPersonId, naturalPersonId);
+    }
+
     default PayeeInfoDO selectByIdCardNo(String idCardNo) {
         return selectOne(PayeeInfoDO::getIdCardNo, idCardNo);
     }

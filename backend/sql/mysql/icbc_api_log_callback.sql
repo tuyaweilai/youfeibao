@@ -36,7 +36,7 @@ CREATE TABLE `icbc_api_log` (
 -- 2. 工行回调通知表
 CREATE TABLE `icbc_callback_notify` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `notify_id` varchar(64) NOT NULL COMMENT '通知ID',
+  `notify_id` varchar(128) NOT NULL COMMENT '通知ID',
   `notify_type` varchar(50) NOT NULL COMMENT '通知类型：PAYEE_AUDIT-收方审核，INVOICE_STATUS-发票状态',
   `business_id` varchar(64) NOT NULL COMMENT '业务ID',
   `notify_data` text NOT NULL COMMENT '通知数据',

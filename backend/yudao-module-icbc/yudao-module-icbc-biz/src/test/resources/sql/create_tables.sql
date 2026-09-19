@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS icbc_payee_info (
     id BIGINT NOT NULL AUTO_INCREMENT,
     payee_no VARCHAR(64),
     partner_payee_id VARCHAR(64),
+    natural_person_id BIGINT,
     name VARCHAR(100) NOT NULL,
     id_card_no VARCHAR(32),
     mobile VARCHAR(32),
@@ -74,6 +75,7 @@ CREATE TABLE IF NOT EXISTS icbc_payee_info (
 
 CREATE INDEX IF NOT EXISTS idx_payee_no ON icbc_payee_info(payee_no);
 CREATE INDEX IF NOT EXISTS idx_partner_payee_id ON icbc_payee_info(partner_payee_id);
+CREATE INDEX IF NOT EXISTS idx_payee_natural_person ON icbc_payee_info(natural_person_id);
 
 -- icbc_invoice_order table (Invoice Order Information)
 CREATE TABLE IF NOT EXISTS icbc_invoice_order (
@@ -274,7 +276,7 @@ CREATE INDEX IF NOT EXISTS idx_icbc_api_log_create_time ON icbc_api_log(create_t
 -- icbc_callback_notify table (Callback Notification)
 CREATE TABLE IF NOT EXISTS icbc_callback_notify (
     id BIGINT NOT NULL AUTO_INCREMENT,
-    notify_id VARCHAR(64) NOT NULL,
+    notify_id VARCHAR(128) NOT NULL,
     notify_type VARCHAR(50) NOT NULL,
     business_id VARCHAR(64) NOT NULL,
     notify_data TEXT NOT NULL,
@@ -774,3 +776,42 @@ CREATE TABLE IF NOT EXISTS icbc_billing_ledger (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_billing_tenant_period ON icbc_billing_ledger(tenant_id, period_month);
+
+-- icbc_natural_person table（平台级自然人主体，#31；全局表，无租户维度）
+CREATE TABLE IF NOT EXISTS icbc_natural_person (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    out_user_id VARCHAR(64) NOT NULL,
+    name VARCHAR(100),
+    id_card_no VARCHAR(32) NOT NULL,
+    mobile VARCHAR(32),
+    real_name_status TINYINT DEFAULT 0,
+    real_name_msg VARCHAR(500),
+    real_name_time DATETIME,
+    status TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(500),
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_natural_person_id_card_no UNIQUE (id_card_no),
+    CONSTRAINT uk_natural_person_out_user_id UNIQUE (out_user_id)
+);
+
+-- icbc_natural_person_login table（自然人主体 ↔ 登录凭证绑定，#31；全局表，无租户维度）
+CREATE TABLE IF NOT EXISTS icbc_natural_person_login (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    natural_person_id BIGINT NOT NULL,
+    member_user_id BIGINT NOT NULL,
+    bound_at DATETIME,
+    bind_source VARCHAR(20),
+    remark VARCHAR(500),
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_natural_person_login UNIQUE (natural_person_id, member_user_id)
+);

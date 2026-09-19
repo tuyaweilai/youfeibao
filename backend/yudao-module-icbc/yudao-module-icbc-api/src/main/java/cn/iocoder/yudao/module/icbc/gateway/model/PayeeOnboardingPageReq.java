@@ -16,7 +16,12 @@ import lombok.Data;
 public class PayeeOnboardingPageReq {
 
     /**
-     * 外部用户编号（自然人出售者）
+     * 子商户编号（回收企业）。与预下单 / 付款用同一个值：本租户付方档案的合作方付方编号。
+     * 为空时适配层回退到全局配置，仅用于本地 / 联调环境。
+     */
+    private String outVendorId;
+    /**
+     * 外部用户编号（自然人主体）
      */
     private String outUserId;
     /**

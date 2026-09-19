@@ -139,6 +139,8 @@ public interface ErrorCodeConstants {
     ErrorCode SELLER_AUTHORIZATION_INCOMPLETE = new ErrorCode(1_030_013_005, "出售者尚未完成反向开票与代办税费授权");
     ErrorCode SELLER_REAL_NAME_RESULT_UNKNOWN = new ErrorCode(1_030_013_006, "实人认证结果尚未返回");
     ErrorCode SELLER_BANK_CARD_REQUIRED = new ErrorCode(1_030_013_007, "出售者未绑定银行卡，不能发起收方入驻");
+    ErrorCode SELLER_ONBOARDING_PAYER_NOT_CONFIGURED = new ErrorCode(1_030_013_008, "本租户尚未配置付方档案（开票主体），不能发起收方入驻");
+    ErrorCode SELLER_ONBOARDING_VENDOR_UNRESOLVED = new ErrorCode(1_030_013_009, "收方入驻通知无法确定所属回收企业（子商户 {}），请人工核对");
 
     // ========== 收购登记 1-030-014-000 ==========
     ErrorCode ACQUISITION_NOT_EXISTS = new ErrorCode(1_030_014_000, "收购单不存在");
@@ -197,4 +199,14 @@ public interface ErrorCodeConstants {
     // ========== 平台计费计量（#16：按成功开具的收购发票张数计费） 1-030-020-000 ==========
     ErrorCode BILLING_PERIOD_MONTH_INVALID = new ErrorCode(1_030_020_000, "计费期间格式不正确，应为 yyyy-MM：{}");
     ErrorCode BILLING_TENANT_REQUIRED = new ErrorCode(1_030_020_001, "计费计量必须指定租户");
+
+    // ========== 自然人主体（#31：平台级身份层与登录凭证） 1-030-021-000 ==========
+    ErrorCode NATURAL_PERSON_NOT_EXISTS = new ErrorCode(1_030_021_000, "自然人主体不存在");
+    ErrorCode NATURAL_PERSON_IDENTITY_TAKEN = new ErrorCode(1_030_021_001, "该身份已建档，请用原手机号登录或联系客服");
+    ErrorCode NATURAL_PERSON_DISABLED = new ErrorCode(1_030_021_002, "该身份已停用，请联系客服");
+    ErrorCode NATURAL_PERSON_NOT_BOUND_TO_LOGIN = new ErrorCode(1_030_021_003, "所选身份不在当前登录名下，不能代为操作");
+    ErrorCode NATURAL_PERSON_ID_CARD_CHANGED = new ErrorCode(1_030_021_004, "收方档案的身份证件号码与已建档身份不一致，请先联系客服处理");
+    ErrorCode NATURAL_PERSON_OUT_USER_ID_DUPLICATED = new ErrorCode(1_030_021_005, "平台级外部用户编号已存在：{}");
+    ErrorCode SELLER_STATION_TENANT_REQUIRED = new ErrorCode(1_030_021_006, "缺少场站所属回收企业的租户标识，无法定位收方档案");
+    ErrorCode NATURAL_PERSON_ID_CARD_REQUIRED = new ErrorCode(1_030_021_007, "收方档案缺少身份证件号码，无法建立或复用自然人身份档案");
 }

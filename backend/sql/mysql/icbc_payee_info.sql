@@ -6,7 +6,8 @@
 CREATE TABLE `icbc_payee_info` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   `payee_no` varchar(64) DEFAULT NULL COMMENT '收方编号（工行返回，建档时为空）',
-  `partner_payee_id` varchar(64) NOT NULL COMMENT '合作方收方编号（我方生成）',
+  `partner_payee_id` varchar(64) NOT NULL COMMENT '合作方收方编号（我方生成的收方档案编号）',
+  `natural_person_id` bigint DEFAULT NULL COMMENT '自然人主体编号（平台级身份，ADR 0017）',
   `name` varchar(100) NOT NULL COMMENT '收方姓名',
   `id_card_no` varchar(18) NOT NULL COMMENT '身份证号码',
   `mobile` varchar(11) NOT NULL COMMENT '手机号码',
@@ -39,6 +40,7 @@ CREATE TABLE `icbc_payee_info` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_payee_no` (`payee_no`),
   UNIQUE KEY `uk_partner_payee_id` (`partner_payee_id`),
+  KEY `idx_payee_natural_person` (`natural_person_id`),
   UNIQUE KEY `uk_id_card_no` (`id_card_no`, `deleted`),
   UNIQUE KEY `uk_mobile` (`mobile`, `deleted`),
   KEY `idx_status` (`status`),

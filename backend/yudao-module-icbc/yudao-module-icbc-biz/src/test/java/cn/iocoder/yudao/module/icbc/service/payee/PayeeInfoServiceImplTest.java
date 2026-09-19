@@ -3,8 +3,11 @@ package cn.iocoder.yudao.module.icbc.service.payee;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.*;
+import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
+import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
@@ -35,6 +38,8 @@ public class PayeeInfoServiceImplTest extends BaseDbUnitTest {
 
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
+    @Resource
+    private NaturalPersonService naturalPersonService;
 
     @Test
     public void testCreatePayeeInfo_success() {
@@ -224,7 +229,13 @@ public class PayeeInfoServiceImplTest extends BaseDbUnitTest {
         assertEquals("110101199001011246", payeeInfo.getIdCardNo());
         assertEquals("13800138012", payeeInfo.getMobile());
         assertEquals("6222021234567890124", payeeInfo.getBankCardNo());
-        assertEquals("USER002", payeeInfo.getPartnerPayeeId());
+        // partnerPayeeId 已是「收方档案编号」，不再是工行 outUserId（outUserId 归自然人主体）
+        assertNotEquals("USER002", payeeInfo.getPartnerPayeeId());
+        assertNotNull(payeeInfo.getPartnerPayeeId());
+        // 请求里的 outUserId 指向平台级自然人主体；查不到这个人时按身份登记建一个再挂上去
+        assertNotNull(payeeInfo.getNaturalPersonId());
+        assertEquals("110101199001011246",
+                naturalPersonService.getNaturalPerson(payeeInfo.getNaturalPersonId()).getIdCardNo());
         assertEquals("RECYCLE", payeeInfo.getBusinessType());
         assertEquals(Integer.valueOf(0), payeeInfo.getStatus());
         assertNotNull(payeeInfo.getPayeeNo());
@@ -233,16 +244,33 @@ public class PayeeInfoServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testHandlePayeeAuditCallback_approved() {
-        // mock 数据
-        PayeeInfoDO dbPayeeInfo = randomPojo(PayeeInfoDO.class, o -> {
-            o.setPartnerPayeeId("USER001");
-            o.setStatus(IcbcStatusEnum.AuditStatus.PENDING.getStatus());
-        });
-        payeeInfoMapper.insert(dbPayeeInfo);
+    public void testAddPayeeToIcbc_reusesExistingNaturalPersonByOutUserId() {
+        // 这个人已经在别的回收企业建过档：请求带上他的平台级外部用户编号
+        NaturalPersonRegisterReqVO registerReqVO = new NaturalPersonRegisterReqVO();
+        registerReqVO.setName("李四");
+        registerReqVO.setIdCardNo("110101199001011299");
+        registerReqVO.setMobile("13800138099");
+        IcbcNaturalPersonDO person = naturalPersonService.register(registerReqVO);
 
-        // 调用
-        payeeInfoService.handlePayeeAuditCallback("USER001", "1", "审核通过", "ICBC123456");
+        PayeeAddReqVO reqVO = randomPojo(PayeeAddReqVO.class, o -> {
+            o.setOutUserId(person.getOutUserId());
+            o.setReceiverName("李四");
+            o.setIdNo("110101199001011299");
+            o.setMobile("13800138099");
+        });
+        Long payeeInfoId = payeeInfoService.addPayeeToIcbc(reqVO);
+
+        // 复用的是同一个自然人主体，而不是又建一个身份
+        assertEquals(person.getId(), payeeInfoMapper.selectById(payeeInfoId).getNaturalPersonId());
+    }
+
+    @Test
+    public void testHandlePayeeAuditCallback_approved() {
+        PayeeWithPerson fx = insertPayeeWithPerson("USER001", "110101199001011301", "13800138301");
+
+        // 调用：outUserId 是平台级外部用户编号，先定位自然人主体再取本租户的收方档案
+        payeeInfoService.handlePayeeAuditCallback(fx.person().getOutUserId(), "1", "审核通过", "ICBC123456");
+        PayeeInfoDO dbPayeeInfo = fx.payee();
 
         // 断言
         PayeeInfoDO updatedPayeeInfo = payeeInfoMapper.selectById(dbPayeeInfo.getId());
@@ -255,15 +283,11 @@ public class PayeeInfoServiceImplTest extends BaseDbUnitTest {
 
     @Test
     public void testHandlePayeeAuditCallback_rejected() {
-        // mock 数据
-        PayeeInfoDO dbPayeeInfo = randomPojo(PayeeInfoDO.class, o -> {
-            o.setPartnerPayeeId("USER001");
-            o.setStatus(IcbcStatusEnum.AuditStatus.PENDING.getStatus());
-        });
-        payeeInfoMapper.insert(dbPayeeInfo);
+        PayeeWithPerson fx = insertPayeeWithPerson("USER001", "110101199001011302", "13800138302");
 
         // 调用
-        payeeInfoService.handlePayeeAuditCallback("USER001", "2", "审核拒绝", null);
+        payeeInfoService.handlePayeeAuditCallback(fx.person().getOutUserId(), "2", "审核拒绝", null);
+        PayeeInfoDO dbPayeeInfo = fx.payee();
 
         // 断言
         PayeeInfoDO updatedPayeeInfo = payeeInfoMapper.selectById(dbPayeeInfo.getId());
@@ -273,4 +297,44 @@ public class PayeeInfoServiceImplTest extends BaseDbUnitTest {
         assertEquals("03", updatedPayeeInfo.getIcbcOpenacctStatus());
     }
 
-} 
+    /** 收方档案 + 它挂着的自然人主体。 */
+    private static class PayeeWithPerson {
+
+        private final PayeeInfoDO payee;
+        private final IcbcNaturalPersonDO person;
+
+        PayeeWithPerson(PayeeInfoDO payee, IcbcNaturalPersonDO person) {
+            this.payee = payee;
+            this.person = person;
+        }
+
+        PayeeInfoDO payee() {
+            return payee;
+        }
+
+        IcbcNaturalPersonDO person() {
+            return person;
+        }
+
+    }
+
+    /**
+     * 建一条收方档案并挂到平台级自然人主体上（与 {@code PayeeInfoServiceImpl.createPayeeInfo} 同一口径）。
+     */
+    private PayeeWithPerson insertPayeeWithPerson(String partnerPayeeId, String idCardNo, String mobile) {
+        NaturalPersonRegisterReqVO registerReqVO = new NaturalPersonRegisterReqVO();
+        registerReqVO.setName("张三");
+        registerReqVO.setIdCardNo(idCardNo);
+        registerReqVO.setMobile(mobile);
+        IcbcNaturalPersonDO person = naturalPersonService.register(registerReqVO);
+
+        PayeeInfoDO payee = randomPojo(PayeeInfoDO.class, o -> {
+            o.setPartnerPayeeId(partnerPayeeId);
+            o.setNaturalPersonId(person.getId());
+            o.setStatus(IcbcStatusEnum.AuditStatus.PENDING.getStatus());
+        });
+        payeeInfoMapper.insert(payee);
+        return new PayeeWithPerson(payee, person);
+    }
+
+}

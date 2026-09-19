@@ -21,6 +21,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.service.download.impl.InvoiceDownloadServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.publicapi.impl.PublicAccessServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.naturalperson.impl.NaturalPersonServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.quota.impl.NaturalPersonQuotaServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
 import cn.iocoder.yudao.module.icbc.service.tax.impl.AnnualSettlementServiceImpl;
@@ -59,7 +60,7 @@ import static org.mockito.Mockito.when;
  */
 @Import({PublicAccessServiceImpl.class, PublicTokenServiceImpl.class, PublicTokenCodec.class,
         InvoiceDownloadServiceImpl.class, NaturalPersonQuotaServiceImpl.class,
-        AnnualSettlementServiceImpl.class})
+        AnnualSettlementServiceImpl.class, NaturalPersonServiceImpl.class})
 @TestPropertySource(properties = {
         "icbc.public-token.secret=test-public-token-secret-0123456789abcdef",
         "yudao.file.base-path=/tmp/test"})

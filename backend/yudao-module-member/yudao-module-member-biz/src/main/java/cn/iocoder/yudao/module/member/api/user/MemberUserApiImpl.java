@@ -48,6 +48,11 @@ public class MemberUserApiImpl implements MemberUserApi {
     }
 
     @Override
+    public MemberUserRespDTO createUserIfAbsent(String mobile, String registerIp, Integer terminal) {
+        return MemberUserConvert.INSTANCE.convert2(userService.createUserIfAbsent(mobile, registerIp, terminal));
+    }
+
+    @Override
     public void validateUser(Long id) {
         MemberUserDO user = userService.getUser(id);
         if (user == null) {

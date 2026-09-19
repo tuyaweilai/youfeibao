@@ -94,4 +94,7 @@ VALUES
 (5168, '登记补缴', 'icbc:tax-declaration:manage', 3, 4, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5169, '缴清补缴', 'icbc:tax-supplement:manage', 3, 5, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5170, '查看汇算清缴', 'icbc:settlement:query', 3, 6, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5171, '生成汇算提醒', 'icbc:settlement:remind', 3, 7, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5171, '生成汇算提醒', 'icbc:settlement:remind', 3, 7, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 自然人主体（#31：平台级身份层，跨租户）
+(5173, '自然人主体', 'icbc:platform:natural-person:query', 2, 6, 5140, 'natural-person', '', 'icbc/naturalPerson/index', 'IcbcNaturalPerson', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5174, '身份认领与解绑', 'icbc:platform:natural-person:manage', 3, 1, 5173, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');

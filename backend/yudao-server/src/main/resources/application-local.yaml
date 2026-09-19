@@ -276,6 +276,12 @@ icbc:
   public-token:
     secret: ${ICBC_PUBLIC_TOKEN_SECRET:}
 
+  # 自然人登录凭证（会员用户）所属的平台租户。
+  # 0 = 平台级，与 icbc_natural_person 这些全局表同一口径：一个手机号只对应一个登录凭证，
+  # 不会跟着他扫码的那家回收企业的租户走（ADR 0017）。
+  seller:
+    platform-tenant-id: ${ICBC_SELLER_PLATFORM_TENANT_ID:0}
+
   # 出售者建档：工行 UI 页面接口的回调 / 跳转地址，须为外网可达地址（不是工行地址）。
   # 工行不支持 scheme，jump / fail-jump 只能用 https 页面；自然人在小程序 web-view 里打开后
   # 再由前端路由回具体页面。本地 fake 模式留空即可；联调时用 ngrok 等暴露出去。

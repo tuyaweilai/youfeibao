@@ -1,18 +1,23 @@
 package cn.iocoder.yudao.module.icbc.service.payee;
 
+import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
+import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.*;
 import cn.iocoder.yudao.module.icbc.convert.payee.PayeeInfoConvert;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
+import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
 import javax.annotation.Resource;
 import javax.validation.Valid;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,6 +36,8 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
 
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
+    @Resource
+    private NaturalPersonService naturalPersonService;
 
     @Override
     public Long createPayeeInfo(@Valid PayeeInfoSaveReqVO createReqVO) {
@@ -45,6 +52,9 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
         if (payeeInfo.getPartnerPayeeId() == null) {
             payeeInfo.setPartnerPayeeId(generatePartnerPayeeId());
         }
+        // 挂到平台级自然人主体：同一个身份证在别的租户已建档时复用同一个主体（ADR 0017）
+        payeeInfo.setNaturalPersonId(registerNaturalPerson(createReqVO.getName(), createReqVO.getIdCardNo(),
+                createReqVO.getMobile()).getId());
         payeeInfoMapper.insert(payeeInfo);
         // 返回
         return payeeInfo.getId();
@@ -53,7 +63,7 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
     @Override
     public void updatePayeeInfo(@Valid PayeeInfoSaveReqVO updateReqVO) {
         // 校验存在
-        validatePayeeInfoExists(updateReqVO.getId());
+        PayeeInfoDO existing = validatePayeeInfoExists(updateReqVO.getId());
         // 校验身份证号码唯一性
         validateIdCardNoUnique(updateReqVO.getId(), updateReqVO.getIdCardNo());
         // 校验手机号码唯一性
@@ -61,6 +71,14 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
 
         // 更新
         PayeeInfoDO updateObj = BeanUtils.toBean(updateReqVO, PayeeInfoDO.class);
+        // 身份证件号码没变就保留原有身份：改手机号是纠正联系方式，不是换一个人，更不能把别人的身份抢过来
+        if (existing.getNaturalPersonId() != null && existing.getIdCardNo() != null
+                && existing.getIdCardNo().equals(updateReqVO.getIdCardNo())) {
+            updateObj.setNaturalPersonId(existing.getNaturalPersonId());
+        } else {
+            updateObj.setNaturalPersonId(registerNaturalPerson(updateReqVO.getName(), updateReqVO.getIdCardNo(),
+                    updateReqVO.getMobile()).getId());
+        }
         payeeInfoMapper.updateById(updateObj);
     }
 
@@ -72,10 +90,26 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
         payeeInfoMapper.deleteById(id);
     }
 
-    private void validatePayeeInfoExists(Long id) {
-        if (payeeInfoMapper.selectById(id) == null) {
+    private PayeeInfoDO validatePayeeInfoExists(Long id) {
+        PayeeInfoDO payee = payeeInfoMapper.selectById(id);
+        if (payee == null) {
             throw exception(PAYEE_NOT_EXISTS);
         }
+        return payee;
+    }
+
+    /**
+     * 身份登记：按身份证件号码取或建平台级自然人主体。
+     *
+     * <p>同一身份证已在别的回收企业建档、且手机号/姓名不一致时，这里会直接拒绝（不覆盖、不自动合并），
+     * 由平台运营人工核实后认领（ADR 0017）。
+     */
+    private IcbcNaturalPersonDO registerNaturalPerson(String name, String idCardNo, String mobile) {
+        NaturalPersonRegisterReqVO reqVO = new NaturalPersonRegisterReqVO();
+        reqVO.setName(name);
+        reqVO.setIdCardNo(idCardNo);
+        reqVO.setMobile(mobile);
+        return naturalPersonService.register(reqVO);
     }
 
     private void validateIdCardNoUnique(Long id, String idCardNo) {
@@ -137,8 +171,19 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
         // 这里应该调用工行API，暂时模拟处理
         log.info("调用工行收方新增接口，请求参数：{}", reqVO);
         
+        // 请求里的 outUserId 是**平台级**外部用户编号，先对应到自然人主体（找不到就按身份登记建一个）
+        IcbcNaturalPersonDO person = naturalPersonService.getByOutUserId(reqVO.getOutUserId());
+        if (person == null) {
+            person = registerNaturalPerson(reqVO.getReceiverName(), reqVO.getIdNo(), reqVO.getMobile());
+        }
+        payeeInfo.setNaturalPersonId(person.getId());
+
         // 模拟工行返回的收方编号
         payeeInfo.setPayeeNo("ICBC" + System.currentTimeMillis());
+        // 收方档案编号（原 partnerPayeeId）：不再是工行 outUserId，outUserId 属于自然人主体
+        if (payeeInfo.getPartnerPayeeId() == null) {
+            payeeInfo.setPartnerPayeeId(generatePartnerPayeeId());
+        }
         payeeInfo.setIcbcReceiverStatus("0"); // 初始状态为不可用
         payeeInfo.setIcbcOpenacctStatus("01"); // 工行开户状态（openacctStatus）：开户中
         
@@ -162,8 +207,9 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
 
     @Override
     public void handlePayeeAuditCallback(String outUserId, String auditStatus, String auditMsg, String icbcMediumId) {
-        // 根据外部用户编号查找收方信息
-        PayeeInfoDO payeeInfo = payeeInfoMapper.selectByPartnerPayeeId(outUserId);
+        // outUserId 是平台级外部用户编号：先找到自然人主体，再取本租户的收方档案
+        IcbcNaturalPersonDO person = naturalPersonService.getByOutUserId(outUserId);
+        PayeeInfoDO payeeInfo = person == null ? null : payeeInfoMapper.selectByNaturalPersonId(person.getId());
         if (payeeInfo == null) {
             log.warn("收方审核回调：未找到收方信息，outUserId={}", outUserId);
             return;
@@ -200,6 +246,38 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
     @Override
     public PayeeInfoDO getPayeeInfoByIdCardNo(String idCardNo) {
         return payeeInfoMapper.selectByIdCardNo(idCardNo);
+    }
+
+    @Override
+    public PayeeInfoDO getPayeeInfoByNaturalPersonId(Long naturalPersonId) {
+        return payeeInfoMapper.selectByNaturalPersonId(naturalPersonId);
+    }
+
+    @Override
+    public IcbcNaturalPersonDO ensureNaturalPerson(PayeeInfoDO payee) {
+        if (StrUtil.isBlank(payee.getIdCardNo())) {
+            // 没有身份证件号码就没有身份锚点：不能凭空建一个档案，也不能挂到别人身上
+            throw exception(NATURAL_PERSON_ID_CARD_REQUIRED);
+        }
+        if (payee.getNaturalPersonId() != null) {
+            List<IcbcNaturalPersonDO> found = naturalPersonService.getNaturalPersonList(
+                    Collections.singletonList(payee.getNaturalPersonId()));
+            if (!found.isEmpty()) {
+                return found.get(0);
+            }
+        }
+        IcbcNaturalPersonDO person = naturalPersonService.getByIdCardNo(payee.getIdCardNo());
+        if (person == null) {
+            person = registerNaturalPerson(payee.getName(), payee.getIdCardNo(), payee.getMobile());
+        }
+        if (!person.getId().equals(payee.getNaturalPersonId())) {
+            PayeeInfoDO link = new PayeeInfoDO();
+            link.setId(payee.getId());
+            link.setNaturalPersonId(person.getId());
+            payeeInfoMapper.updateById(link);
+            payee.setNaturalPersonId(person.getId());
+        }
+        return person;
     }
 
     /**

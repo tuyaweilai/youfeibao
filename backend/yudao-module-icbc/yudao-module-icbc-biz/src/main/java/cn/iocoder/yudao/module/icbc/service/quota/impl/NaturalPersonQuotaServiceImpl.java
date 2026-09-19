@@ -12,6 +12,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaMonthRe
 import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.RedInvoiceDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.quota.SellerQuotaGuidanceDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
@@ -23,6 +24,7 @@ import cn.iocoder.yudao.module.icbc.enums.IcbcTaxConstants;
 import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.RedOffsetStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.SellerQuotaGuidanceStatusEnum;
+import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
 import cn.iocoder.yudao.module.icbc.util.MaskUtils;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -82,6 +84,8 @@ public class NaturalPersonQuotaServiceImpl implements NaturalPersonQuotaService 
     private RedInvoiceMapper redInvoiceMapper;
     @Resource
     private SellerQuotaGuidanceMapper guidanceMapper;
+    @Resource
+    private NaturalPersonService naturalPersonService;
 
     // ==================== 额度台账 ====================
 
@@ -316,12 +320,23 @@ public class NaturalPersonQuotaServiceImpl implements NaturalPersonQuotaService 
         Set<Long> payeeIds = samePerson.stream().map(PayeeInfoDO::getId)
                 .filter(Objects::nonNull).collect(Collectors.toCollection(LinkedHashSet::new));
         Set<String> payeeNos = new LinkedHashSet<>();
+        Set<Long> naturalPersonIds = new LinkedHashSet<>();
         for (PayeeInfoDO item : samePerson) {
             if (StrUtil.isNotBlank(item.getPayeeNo())) {
                 payeeNos.add(item.getPayeeNo());
             }
             if (StrUtil.isNotBlank(item.getPartnerPayeeId())) {
                 payeeNos.add(item.getPartnerPayeeId());
+            }
+            if (item.getNaturalPersonId() != null) {
+                naturalPersonIds.add(item.getNaturalPersonId());
+            }
+        }
+        // 票据上的 payee_no 存的是工行 outUserId：迁移前的历史票是收方档案编号，
+        // 迁移后的新票是**平台级**外部用户编号，两个都要收进来，额度才算得全（ADR 0017）
+        for (IcbcNaturalPersonDO person : naturalPersonService.getNaturalPersonList(naturalPersonIds)) {
+            if (StrUtil.isNotBlank(person.getOutUserId())) {
+                payeeNos.add(person.getOutUserId());
             }
         }
         if (payeeIds.isEmpty() && payeeNos.isEmpty()) {

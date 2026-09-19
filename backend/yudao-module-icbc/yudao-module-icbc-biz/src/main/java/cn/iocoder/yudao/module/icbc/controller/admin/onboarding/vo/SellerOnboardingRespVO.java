@@ -16,6 +16,12 @@ public class SellerOnboardingRespVO {
     @Schema(description = "出售者（收方）编号")
     private Long payeeId;
 
+    @Schema(description = "自然人主体编号（平台级身份，跨企业复用）")
+    private Long naturalPersonId;
+
+    @Schema(description = "平台级外部用户编号（工行 outUserId）")
+    private String outUserId;
+
     @Schema(description = "姓名")
     private String name;
 

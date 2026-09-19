@@ -7,6 +7,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.*;
 import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaCheckRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payer.PayerInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
@@ -19,6 +20,7 @@ import cn.iocoder.yudao.module.icbc.enums.SellerQuotaTriggerSceneEnum;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceApplicationService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
+import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
 import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
@@ -78,6 +80,8 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
     private SellerOnboardingService sellerOnboardingService;
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
+    @Resource
+    private NaturalPersonService naturalPersonService;
     @Resource
     private PayerInfoMapper payerInfoMapper;
     @Resource
@@ -382,6 +386,16 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
     }
 
     /**
+     * 预下单报文里的 {@code outUserId} 是**平台级**外部用户编号（自然人主体的），不是收方档案编号：
+     * 工行侧实名认证、收方入驻、预下单、付款都用同一个值（见 ADR 0017）。
+     */
+    private String outUserIdOf(PayeeInfoDO payee) {
+        IcbcNaturalPersonDO person = payee.getNaturalPersonId() == null ? null
+                : naturalPersonService.getNaturalPerson(payee.getNaturalPersonId());
+        return person != null ? person.getOutUserId() : payee.getPartnerPayeeId();
+    }
+
+    /**
      * 从收购单、出售者档案、付方档案推导完整的工行预下单报文。
      */
     private InvoicePreOrderReqVO buildPreOrderReq(IcbcAcquisitionDO acquisition, PayeeInfoDO payee,
@@ -389,7 +403,7 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
         InvoicePreOrderReqVO req = new InvoicePreOrderReqVO();
         req.setOutOrderId(acquisition.getAcquisitionNo());
         req.setOutVendorId(payer.getPartnerPayerId());
-        req.setOutUserId(payee.getPartnerPayeeId());
+        req.setOutUserId(outUserIdOf(payee));
         req.setInvoiceType(base.getInvoiceType());
         req.setOrderAmount(acquisition.getAmount());
         req.setSpecificElements("24");

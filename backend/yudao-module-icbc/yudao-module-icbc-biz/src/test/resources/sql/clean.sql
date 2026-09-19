@@ -21,4 +21,6 @@ DELETE FROM icbc_order_item;
 DELETE FROM icbc_invoice_order;
 DELETE FROM icbc_payment_order;
 DELETE FROM icbc_payer_info;
-DELETE FROM icbc_payee_info; 
+DELETE FROM icbc_payee_info;
+DELETE FROM icbc_natural_person_login;
+DELETE FROM icbc_natural_person;

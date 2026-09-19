@@ -53,9 +53,12 @@ public interface IcbcGateway {
     IcbcGatewayResult<IcbcPage> submitPayeeOnboarding(PayeeOnboardingPageReq req);
 
     /**
-     * 收方入驻结果查询：查开户与智慧清分入驻结果
+     * 收方入驻结果查询：查开户与智慧清分入驻结果。
+     *
+     * @param outUserId   平台级外部用户编号（自然人主体）
+     * @param outVendorId 子商户编号（回收企业）；收方是「自然人 × 子商户」的，所以查询也要带它
      */
-    IcbcGatewayResult<PayeeOnboardingStatus> queryPayeeOnboarding(String outUserId);
+    IcbcGatewayResult<PayeeOnboardingStatus> queryPayeeOnboarding(String outUserId, String outVendorId);
 
     /**
      * 企业授权：返回税务可信二维码页面，供法代 / 财务负责人扫码实人认证

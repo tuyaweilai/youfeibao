@@ -111,7 +111,7 @@ public class FakeIcbcGateway implements IcbcGateway {
     }
 
     @Override
-    public IcbcGatewayResult<PayeeOnboardingStatus> queryPayeeOnboarding(String outUserId) {
+    public IcbcGatewayResult<PayeeOnboardingStatus> queryPayeeOnboarding(String outUserId, String outVendorId) {
         record(OP_QUERY_PAYEE_ONBOARDING, outUserId);
         return payeeOnboardingStatusResult;
     }

@@ -34,9 +34,10 @@ public class IcbcTenantTestConfiguration {
                 if (bean instanceof MybatisPlusInterceptor) {
                     TenantProperties properties = new TenantProperties();
                     // 与生产 application.yaml 的 yudao.tenant.ignore-tables 保持一致：
-                    // 这几张是无租户隔离语义的全局表（报废产品编码、公开令牌、平台计费台账）
+                    // 这几张是无租户隔离语义的全局表（报废产品编码、公开令牌、平台计费台账、自然人主体）
                     properties.setIgnoreTables(Set.of(
-                            "icbc_scrap_code", "icbc_public_token", "icbc_billing_ledger"));
+                            "icbc_scrap_code", "icbc_public_token", "icbc_billing_ledger",
+                            "icbc_natural_person", "icbc_natural_person_login"));
                     MyBatisUtils.addInterceptor((MybatisPlusInterceptor) bean,
                             new TenantLineInnerInterceptor(new TenantDatabaseInterceptor(properties)), 0);
                 }

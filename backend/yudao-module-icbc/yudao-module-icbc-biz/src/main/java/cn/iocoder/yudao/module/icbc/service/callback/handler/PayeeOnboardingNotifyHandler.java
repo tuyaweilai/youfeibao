@@ -33,12 +33,14 @@ public class PayeeOnboardingNotifyHandler implements IcbcNotifyHandler {
     public void handle(IcbcNotifyContext context) {
         JSONObject payload = context.payload();
         String outUserId = payload.getString("outUserId");
+        String outVendorId = payload.getString("appIdSub");
         String result = payload.getString("result");
         String openacctStatus = payload.getString("openacctStatus");
         String mediumId = payload.getString("mediumId");
         String rejectReason = StrUtil.blankToDefault(payload.getString("rejectReason"),
                 payload.getString("custStatusDetail"));
-        sellerOnboardingService.handleOnboardingNotify(outUserId, result, openacctStatus, mediumId, rejectReason);
+        sellerOnboardingService.handleOnboardingNotify(outUserId, outVendorId, result, openacctStatus,
+                mediumId, rejectReason);
     }
 
 }

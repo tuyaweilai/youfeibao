@@ -63,6 +63,24 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - 命令：`pnpm dev:h5` / `pnpm build:h5` / `pnpm ts:check`；开发期 `/admin-api` 代理到 48080，登录租户 1 + `admin/admin123`。
 - H5 运行时能力（相机 / 离线存储 / 承接工行自动提交表单）需真机冒烟，清单在 `yudao-ui-field-uniapp/README.md`。
 
+## #31 自然人身份层与注册（已完成）
+
+按 [ADR 0017](docs/adr/0017-自然人身份层为平台级并引入注册.md) 把自然人身份从「每租户一份」升为平台级，并引入注册。**这是 #33 / #34 的底座。**
+
+1. **平台级自然人主体**：新表 `icbc_natural_person`（**无 tenant_id**，已进 `ignore-tables` 与 `IcbcTenantTestConfiguration`），身份证件号码为唯一锚点，持有平台级 `outUserId`（`NP` + 32 位十六进制）；接口 `NaturalPersonService`。同身份证已有主体且手机号/姓名不一致时**拒绝、不覆盖、不自动合并**（`NATURAL_PERSON_IDENTITY_TAKEN`）。
+2. **登录凭证与身份分离**：`icbc_natural_person_login`（多对多）。登录凭证复用 `yudao-module-member`（给 `MemberUserApi` 加了 `createUserIfAbsent`），**落在平台租户 `icbc.seller.platform-tenant-id`（默认 0）**；登录代码在 `TenantUtils.execute(平台租户)` 下跑，不跟着他扫码的那家企业的租户走。
+3. **归属划分**：**实人认证结果归自然人主体**（跨企业复用），**收方入驻状态归收方档案**（与子商户绑定的动作）。`icbc_payee_info` 新增 `natural_person_id`；历史档案第一次访问时由 `PayeeInfoService.ensureNaturalPerson` 补挂。
+4. **`outUserId` 改成平台级**：实人认证 / 收方入驻 / 预下单 / 付款全用主体的编号；`partnerPayeeId` 降级为「收方档案编号」。预下单取 `发票/付款` 的 `outUserId` 已改（`InvoiceApplicationServiceImpl.outUserIdOf`）；额度台账也把主体 `outUserId` 收进 `payee_no` 口径（旧票是档案编号，两个都要收）。
+5. **修正子商户不一致**：`submitPayeeOnboarding` / `queryPayeeOnboarding` 改用**本租户付方档案**的 `partnerPayerId`（原来用全局 `icbc.out-vendor-id`）；没配付方档案直接报 `SELLER_ONBOARDING_PAYER_NOT_CONFIGURED`。入驻回执靠 `appIdSub` 反查租户（`TenantUtils.executeIgnore` 查付方档案）——**定位不到就抛异常让通知落失败、在通知监控里人工处理，不猜、不跨企业乱写**。
+6. **自然人登录端点**：`/app-api/icbc/seller/auth/*`（`sms-send` / `sms-login` / `logout` / `subjects` / `subjects/bind` / `subjects/unbind`）。令牌用户类型是**会员**（`/app-api` 通道）。绑定身份就是「确认时才注册」的落地：按收方档案找人，手机号与身份登记不一致就拒绝。**后续所有自然人侧业务端点先过 `assertBound`（显式指定 naturalPersonId，不静默推断）。**
+7. **平台运营人工入口**：`/icbc/platform/natural-person/*`（分页 / 认领 / 解绑 / 停用恢复），权限 `icbc:platform:natural-person:query|manage` 只登记在平台运营；菜单 5173 / 5174；前端 `views/icbc/naturalPerson`。
+8. **既有令牌路径行为不变**（`PublicTokenPurposeEnum` 五类），注册没有收紧任何既有通道。
+9. **顺带修了一个潜在缺陷**：`icbc_callback_notify.notify_id` 由 64 加宽到 128。`IcbcNotifyParser` 的幂等键是「类型:业务号:sha1」拼出来的，业务号一变长就会溢出（平台级 outUserId 让它在测试里真的溢出了）。
+
+> **待工行书面确认**：收方与实人认证是否按子商户隔离。ADR 0017 已按「两种答复都不返工」定形（实人认证归主体、入驻状态归档案）；确认后只需调整「是否允许复用既有收方」。
+
+> **#31 未做的部分**：自然人端（`yudao-ui-seller-uniapp`）的登录界面与「待我确认」等页面属于 #34；#31 只交付后端端点与平台运营 PC 页。迁移里的「冲突身份人工清单」目前是 `sql/mysql/icbc-natural-person.sql` 末尾的核对查询（注释形式）+ 平台运营页，**没有** 做成导出。
+
 ## #5 剩余小口子（已处理）
 
 1. 计税方法：已在 `icbc_goods_config` 增加 `tax_method`（SIMPLE/GENERAL），预下单时简易计税品类禁止开专票（票种 01）。

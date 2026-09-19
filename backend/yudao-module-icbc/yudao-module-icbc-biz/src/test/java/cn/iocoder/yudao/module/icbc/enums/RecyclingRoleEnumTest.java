@@ -65,6 +65,9 @@ public class RecyclingRoleEnumTest {
     @Test
     public void testAdminOwnsAllTenantScopedPermissions() {
         for (String permission : RecyclingRoleEnum.allPermissions()) {
+            if (permission.startsWith("icbc:platform:")) {
+                continue; // 平台运营专属（跨租户），租户管理员不碰
+            }
             if (permission.equals(RecyclingPermission.PLATFORM_INVOICE_QUERY)
                     || permission.equals(RecyclingPermission.PLATFORM_QUALIFICATION_QUERY)
                     || permission.equals(RecyclingPermission.PLATFORM_QUALIFICATION_AUDIT)

@@ -129,7 +129,9 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SCRAP_CODE_DELETE, RecyclingPermission.SCRAP_CODE_QUERY,
             RecyclingPermission.QUOTA_QUERY,
             RecyclingPermission.TAX_DECLARATION_QUERY,
-            RecyclingPermission.SETTLEMENT_QUERY));
+            RecyclingPermission.SETTLEMENT_QUERY,
+            RecyclingPermission.PLATFORM_NATURAL_PERSON_QUERY,
+            RecyclingPermission.PLATFORM_NATURAL_PERSON_MANAGE));
 
     /**
      * yudao 超级管理员：平台自有系统租户的最高权限，绕过角色映射。

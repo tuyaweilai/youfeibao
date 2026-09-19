@@ -2,26 +2,33 @@ package cn.iocoder.yudao.module.icbc.service.onboarding;
 
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
+import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.authorization.IcbcSellerAuthorizationDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.lead.IcbcContactLeadDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.payer.PayerInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.agreement.IcbcFrameworkAgreementMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.authorization.IcbcSellerAuthorizationMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.payer.PayerInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOutcomeEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeRealNameStatusEnum;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGatewayResult;
+import cn.iocoder.yudao.module.icbc.gateway.model.FaceVerifyPageReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.FaceVerifyStatus;
 import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingPageReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingStatus;
+import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.impl.SellerOnboardingServiceImpl;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.Rollback;
@@ -35,24 +42,36 @@ import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * {@link SellerOnboardingServiceImpl} 的单元测试。
  *
- * <p>断言外部可观察行为：工行侧发出的指令、出售者档案的状态、建档总览的结论。
- * 假适配层（{@link IcbcGateway} mock）记录调用序列。
+ * <p>断言外部可观察行为：工行侧收到的指令、**自然人主体**上的实人认证结果、**收方档案**上的入驻状态、
+ * 建档总览的结论。假适配层（{@link IcbcGateway} mock）记录调用序列。
+ *
+ * <p>归属划分见 ADR 0017：实人认证记在自然人主体上（跨企业复用），收方入驻记在收方档案上
+ * （与子商户绑定的动作）。
  */
 @Import({SellerOnboardingServiceImpl.class, UnitTestConfiguration.class})
 @Transactional
 @Rollback
 public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
 
+    /** 本租户的子商户编号（= 付方档案的合作方付方编号） */
+    private static final String OUT_VENDOR_ID = "PAYER_SUB_1";
+
     @Resource
     private SellerOnboardingService sellerOnboardingService;
 
     @Resource
+    private NaturalPersonService naturalPersonService;
+
+    @Resource
     private PayeeInfoMapper payeeInfoMapper;
+    @Resource
+    private PayerInfoMapper payerInfoMapper;
     @Resource
     private IcbcFrameworkAgreementMapper frameworkAgreementMapper;
     @Resource
@@ -79,11 +98,12 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         assertNull(sellerOnboardingService.findReturningCustomer("110101199001019999", "13900000000"));
     }
 
-    // ==================== 实人认证 ====================
+    // ==================== 实人认证（记在自然人主体上） ====================
 
     @Test
-    public void testStartRealName_returnsFormAndMarksPending() {
+    public void testStartRealName_usesPlatformOutUserIdAndMarksPending() {
         PayeeInfoDO payee = insertPayee("USER_A", "110101199001010002", "13800000002");
+        IcbcNaturalPersonDO person = personOf(payee);
         when(icbcGateway.submitFaceVerification(any())).thenReturn(IcbcGatewayResult.success(
                 IcbcPage.builder().formHtml("<form id=\"face\"/>").build(), 0, "成功"));
 
@@ -91,31 +111,56 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
 
         assertEquals("<form id=\"face\"/>", step.getFormHtml());
         assertEquals("REAL_NAME", step.getStep());
-        PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
-        assertEquals(PayeeRealNameStatusEnum.PENDING.getStatus(), updated.getRealNameStatus());
+        // 发给工行的是**平台级**外部用户编号，不是收方档案编号
+        ArgumentCaptor<FaceVerifyPageReq> captor = ArgumentCaptor.forClass(FaceVerifyPageReq.class);
+        verify(icbcGateway).submitFaceVerification(captor.capture());
+        assertEquals(person.getOutUserId(), captor.getValue().getOutUserId());
+        // 认证中记在自然人主体上，收方档案不再承载实人认证状态
+        assertEquals(PayeeRealNameStatusEnum.PENDING.getStatus(),
+                naturalPersonService.getNaturalPerson(person.getId()).getRealNameStatus());
     }
 
     @Test
-    public void testSyncRealName_passed() {
+    public void testSyncRealName_passedRecordsOnNaturalPerson() {
         PayeeInfoDO payee = insertPayee("USER_B", "110101199001010003", "13800000003");
-        when(icbcGateway.queryFaceVerification(eq("USER_B"))).thenReturn(IcbcGatewayResult.success(
-                FaceVerifyStatus.builder().outUserId("USER_B").authResult("02").passed(true).build(), 0, "成功"));
+        IcbcNaturalPersonDO person = personOf(payee);
+        when(icbcGateway.queryFaceVerification(eq(person.getOutUserId()))).thenReturn(IcbcGatewayResult.success(
+                FaceVerifyStatus.builder().outUserId(person.getOutUserId()).authResult("02").passed(true).build(),
+                0, "成功"));
 
-        PayeeInfoDO updated = sellerOnboardingService.syncRealName(payee.getId());
+        sellerOnboardingService.syncRealName(payee.getId());
 
+        IcbcNaturalPersonDO updated = naturalPersonService.getNaturalPerson(person.getId());
         assertEquals(PayeeRealNameStatusEnum.PASSED.getStatus(), updated.getRealNameStatus());
         assertNotNull(updated.getRealNameTime());
     }
 
     @Test
-    public void testHandleFaceVerifyNotify_failed() {
+    public void testHandleFaceVerifyNotify_failedRecordsOnNaturalPerson() {
         PayeeInfoDO payee = insertPayee("USER_C", "110101199001010004", "13800000004");
+        IcbcNaturalPersonDO person = personOf(payee);
 
-        sellerOnboardingService.handleFaceVerifyNotify("USER_C", false, "人脸比对不通过");
+        sellerOnboardingService.handleFaceVerifyNotify(person.getOutUserId(), false, "人脸比对不通过");
 
-        PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
+        IcbcNaturalPersonDO updated = naturalPersonService.getNaturalPerson(person.getId());
         assertEquals(PayeeRealNameStatusEnum.FAILED.getStatus(), updated.getRealNameStatus());
         assertEquals("人脸比对不通过", updated.getRealNameMsg());
+    }
+
+    @Test
+    public void testRealNameIsReadFromNaturalPersonNotPayee() {
+        // 实人认证的归属已经移到自然人主体（ADR 0017）：建档总览读的是主体，而不是收方档案。
+        // 「同一个人在两家企业只认证一次」用租户拦截器在 IcbcTenantIsolationTest 里验证
+        //（同一个租户内身份证号本身就唯一，这里造不出两家企业）。
+        PayeeInfoDO payee = insertPayee("USER_SHARE_A", "110101199001010099", "13800000099");
+        IcbcNaturalPersonDO person = personOf(payee);
+        naturalPersonService.applyRealNameResult(person.getId(), true, null);
+
+        assertEquals(PayeeRealNameStatusEnum.PASSED.getStatus(),
+                sellerOnboardingService.getOnboarding(payee.getId()).getRealNameStatus());
+        // 收方档案上的同名字段不再被写入
+        assertEquals(PayeeRealNameStatusEnum.NOT_STARTED.getStatus(),
+                payeeInfoMapper.selectById(payee.getId()).getRealNameStatus());
     }
 
     // ==================== 收方入驻前置 ====================
@@ -123,7 +168,6 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
     @Test
     public void testSubmitOnboarding_rejectedBeforeRealName() {
         PayeeInfoDO payee = insertPayee("USER_D", "110101199001010005", "13800000005");
-        payee.setRealNameStatus(PayeeRealNameStatusEnum.NOT_STARTED.getStatus());
 
         SellerOnboardingSubmitReqVO reqVO = new SellerOnboardingSubmitReqVO();
         reqVO.setPayeeId(payee.getId());
@@ -134,7 +178,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
     @Test
     public void testSubmitOnboarding_requiresBankCard() {
         PayeeInfoDO payee = insertPayee("USER_E", "110101199001010006", "13800000006");
-        markRealNamePassed(payee.getId());
+        markRealNamePassed(payee);
         payeeInfoMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<PayeeInfoDO>()
                 .eq(PayeeInfoDO::getId, payee.getId())
                 .set(PayeeInfoDO::getBankCardNo, null));
@@ -146,9 +190,11 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testSubmitOnboarding_success() {
+    public void testSubmitOnboarding_sendsTenantSubMerchantNotGlobalConfig() {
         PayeeInfoDO payee = insertPayee("USER_F", "110101199001010007", "13800000007");
-        markRealNamePassed(payee.getId());
+        IcbcNaturalPersonDO person = personOf(payee);
+        markRealNamePassed(payee);
+        insertPayer(OUT_VENDOR_ID);
         when(icbcGateway.submitPayeeOnboarding(any())).thenReturn(IcbcGatewayResult.success(
                 IcbcPage.builder().formHtml("<form id=\"onboard\"/>").build(), 0, "成功"));
 
@@ -162,10 +208,27 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         SellerStepRespVO step = sellerOnboardingService.submitOnboarding(reqVO);
 
         assertEquals("<form id=\"onboard\"/>", step.getFormHtml());
+        // 子商户必须是本租户的付方档案（与预下单 / 付款同一口径），不是全局配置
+        ArgumentCaptor<PayeeOnboardingPageReq> captor = ArgumentCaptor.forClass(PayeeOnboardingPageReq.class);
+        verify(icbcGateway).submitPayeeOnboarding(captor.capture());
+        assertEquals(OUT_VENDOR_ID, captor.getValue().getOutVendorId());
+        assertEquals(person.getOutUserId(), captor.getValue().getOutUserId());
         // 银行卡识别结果写回档案
         PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
         assertEquals("中国工商银行", updated.getBankName());
         assertEquals("9999-12-30", updated.getIdValidityPeriod());
+    }
+
+    @Test
+    public void testSubmitOnboarding_withoutPayerIsRejected() {
+        PayeeInfoDO payee = insertPayee("USER_NOPAYER", "110101199001010008", "13800000008");
+        markRealNamePassed(payee);
+
+        SellerOnboardingSubmitReqVO reqVO = new SellerOnboardingSubmitReqVO();
+        reqVO.setPayeeId(payee.getId());
+        // 没有付方档案就定不出子商户（回收企业），不能拿全局配置糊过去
+        assertServiceException(() -> sellerOnboardingService.submitOnboarding(reqVO),
+                SELLER_ONBOARDING_PAYER_NOT_CONFIGURED);
     }
 
     // ==================== 两条成败线的四种组合 ====================
@@ -218,11 +281,16 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         assertEquals("01", updated.getIcbcOpenacctStatus());
     }
 
-    @Test
-    public void testHandleOnboardingNotify_reconciles() {
-        PayeeInfoDO payee = insertPayee("USER_NOTIFY", "110101199001010021", "13800000021");
+    // ==================== 入驻通知按子商户归位 ====================
 
-        sellerOnboardingService.handleOnboardingNotify("USER_NOTIFY", "pass", "02", "MEDIUM_9", null);
+    @Test
+    public void testHandleOnboardingNotify_reconcilesOwnTenantPayee() {
+        PayeeInfoDO payee = insertPayee("USER_NOTIFY", "110101199001010021", "13800000021");
+        IcbcNaturalPersonDO person = personOf(payee);
+        insertPayer(OUT_VENDOR_ID);
+
+        sellerOnboardingService.handleOnboardingNotify(person.getOutUserId(), OUT_VENDOR_ID,
+                "pass", "02", "MEDIUM_9", null);
 
         PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
         assertEquals(PayeeOnboardingOutcomeEnum.READY.getCode(), updated.getOnboardingState());
@@ -233,8 +301,11 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
     public void testHandleOnboardingNotify_rejectedWithoutOpenacctStatus() {
         // 数据接口回调只带 result（无 openacctStatus），拒绝仍要可见
         PayeeInfoDO payee = insertPayee("USER_REJECT_ONLY", "110101199001010031", "13800000031");
+        IcbcNaturalPersonDO person = personOf(payee);
+        insertPayer(OUT_VENDOR_ID);
 
-        sellerOnboardingService.handleOnboardingNotify("USER_REJECT_ONLY", "reject", null, null, "资料不符");
+        sellerOnboardingService.handleOnboardingNotify(person.getOutUserId(), OUT_VENDOR_ID,
+                "reject", null, null, "资料不符");
 
         PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
         assertEquals(PayeeOnboardingOutcomeEnum.REJECTED.getCode(), updated.getOnboardingState());
@@ -243,11 +314,25 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testHandleOnboardingNotify_unknownVendorIsFailureNotGuess() {
+        // 定位不到是哪家回收企业时抛出去让通知落失败，在通知监控里人工处理——不猜、不跨企业乱写
+        PayeeInfoDO payee = insertPayee("USER_VENDOR_UNKNOWN", "110101199001010032", "13800000032");
+        IcbcNaturalPersonDO person = personOf(payee);
+
+        assertServiceException(() -> sellerOnboardingService.handleOnboardingNotify(person.getOutUserId(),
+                "NOT_A_PAYER", "pass", "02", "M", null), SELLER_ONBOARDING_VENDOR_UNRESOLVED, "NOT_A_PAYER");
+        assertNull(payeeInfoMapper.selectById(payee.getId()).getOnboardingState());
+    }
+
+    @Test
     public void testSyncOnboarding_viaGatewayQuery() {
         PayeeInfoDO payee = insertPayee("USER_SYNC", "110101199001010022", "13800000022");
-        when(icbcGateway.queryPayeeOnboarding(eq("USER_SYNC"))).thenReturn(IcbcGatewayResult.success(
-                PayeeOnboardingStatus.builder().outUserId("USER_SYNC")
-                        .openacctStatus("02").result("pass").mediumId("MEDIUM_SYNC").build(), 0, "成功"));
+        IcbcNaturalPersonDO person = personOf(payee);
+        insertPayer(OUT_VENDOR_ID);
+        when(icbcGateway.queryPayeeOnboarding(eq(person.getOutUserId()), eq(OUT_VENDOR_ID)))
+                .thenReturn(IcbcGatewayResult.success(
+                        PayeeOnboardingStatus.builder().outUserId(person.getOutUserId())
+                                .openacctStatus("02").result("pass").mediumId("MEDIUM_SYNC").build(), 0, "成功"));
 
         PayeeInfoDO updated = sellerOnboardingService.syncOnboarding(payee.getId());
 
@@ -324,7 +409,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
     @Test
     public void testAssertReadyForInvoice_fullChain() {
         PayeeInfoDO payee = insertPayee("USER_READY", "110101199001010027", "13800000027");
-        markRealNamePassed(payee.getId());
+        markRealNamePassed(payee);
         sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), "02", "pass", "M1", null);
         sellerOnboardingService.saveFrameworkAgreement(agreementReq(payee.getId(), "废钢"));
         authorize(payee.getId());
@@ -336,12 +421,15 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         assertNull(overview.getInvoiceBlockReason());
         assertNotNull(overview.getFrameworkAgreement());
         assertNotNull(overview.getAuthorization());
+        // 建档总览要带出平台级身份，方便定位「这个人是谁」
+        assertEquals(personOf(payee).getId(), overview.getNaturalPersonId());
+        assertEquals(personOf(payee).getOutUserId(), overview.getOutUserId());
     }
 
     @Test
     public void testAssertReadyForInvoice_blockedOnRejected() {
         PayeeInfoDO payee = insertPayee("USER_REJECT", "110101199001010028", "13800000028");
-        markRealNamePassed(payee.getId());
+        markRealNamePassed(payee);
         sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), "02", "reject", null, "资料不符");
         sellerOnboardingService.saveFrameworkAgreement(agreementReq(payee.getId(), "废钢"));
         authorize(payee.getId());
@@ -358,7 +446,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
     @Test
     public void testAssertReadyForInvoice_blockedOnMissingAgreement() {
         PayeeInfoDO payee = insertPayee("USER_NOAGREE", "110101199001010029", "13800000029");
-        markRealNamePassed(payee.getId());
+        markRealNamePassed(payee);
         sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), "02", "pass", "M2", null);
         authorize(payee.getId());
 
@@ -369,26 +457,35 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testAssertReadyForInvoiceByOutUserId_unknownPayeeIsAllowed() {
-        // 没有档案时放行，保持对既有数据的兼容
-        assertDoesNotThrow(() -> sellerOnboardingService.assertReadyForInvoiceByOutUserId("NOT_EXIST"));
+    public void testAssertReadyForInvoiceByOutUserId_unknownIdentityIsAllowed() {
+        // 平台级身份层查不到这个人时放行，保持对既有数据的兼容
+        assertDoesNotThrow(() -> sellerOnboardingService.assertReadyForInvoiceByOutUserId("NP_NOT_EXIST"));
     }
 
     @Test
     public void testAssertReadyForInvoiceByOutUserId_blocksIncompletePayee() {
         PayeeInfoDO payee = insertPayee("USER_GATE", "110101199001010030", "13800000030");
+
         assertServiceException(
-                () -> sellerOnboardingService.assertReadyForInvoiceByOutUserId("USER_GATE"),
+                () -> sellerOnboardingService.assertReadyForInvoiceByOutUserId(personOf(payee).getOutUserId()),
                 SELLER_ONBOARDING_NOT_READY);
     }
 
     // ==================== 助手 ====================
 
+    /**
+     * 建一条收方档案，并像 {@code PayeeInfoServiceImpl} 那样挂到平台级自然人主体上。
+     */
     private PayeeInfoDO insertPayee(String partnerPayeeId, String idCardNo, String mobile) {
+        return insertPayeeWithPerson(partnerPayeeId, registerPerson("张三", idCardNo, mobile), mobile);
+    }
+
+    private PayeeInfoDO insertPayeeWithPerson(String partnerPayeeId, IcbcNaturalPersonDO person, String mobile) {
         PayeeInfoDO payee = PayeeInfoDO.builder()
                 .partnerPayeeId(partnerPayeeId)
-                .name("张三")
-                .idCardNo(idCardNo)
+                .naturalPersonId(person.getId())
+                .name(person.getName())
+                .idCardNo(person.getIdCardNo())
                 .mobile(mobile)
                 .bankCardNo("6222021234567890")
                 .businessType("RECYCLE")
@@ -399,11 +496,28 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         return payee;
     }
 
-    private void markRealNamePassed(Long payeeId) {
-        PayeeInfoDO update = new PayeeInfoDO();
-        update.setId(payeeId);
-        update.setRealNameStatus(PayeeRealNameStatusEnum.PASSED.getStatus());
-        payeeInfoMapper.updateById(update);
+    private IcbcNaturalPersonDO personOf(PayeeInfoDO payee) {
+        return naturalPersonService.getNaturalPerson(payee.getNaturalPersonId());
+    }
+
+    private IcbcNaturalPersonDO registerPerson(String name, String idCardNo, String mobile) {
+        NaturalPersonRegisterReqVO reqVO = new NaturalPersonRegisterReqVO();
+        reqVO.setName(name);
+        reqVO.setIdCardNo(idCardNo);
+        reqVO.setMobile(mobile);
+        return naturalPersonService.register(reqVO);
+    }
+
+    private void insertPayer(String outVendorId) {
+        PayerInfoDO payer = new PayerInfoDO();
+        payer.setPartnerPayerId(outVendorId);
+        payer.setName("某某再生资源有限公司");
+        payer.setTenantId(1L);
+        payerInfoMapper.insert(payer);
+    }
+
+    private void markRealNamePassed(PayeeInfoDO payee) {
+        naturalPersonService.applyRealNameResult(payee.getNaturalPersonId(), true, null);
     }
 
     private SellerRealNameReqVO realNameReq(Long payeeId) {

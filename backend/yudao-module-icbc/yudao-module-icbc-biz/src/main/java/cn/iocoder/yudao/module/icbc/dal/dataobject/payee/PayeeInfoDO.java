@@ -41,6 +41,14 @@ public class PayeeInfoDO extends TenantBaseDO {
      * 合作方收方编号（我方生成）
      */
     private String partnerPayeeId;
+
+    /**
+     * 自然人主体编号（平台级身份档案，见 ADR 0017）。
+     *
+     * <p>收方档案是「回收企业 × 自然人」的档案，而身份是跨企业的；同一个自然人在不同租户会有
+     * 多条收方档案，但都指向同一个自然人主体。实人认证结果记在主体上，收方入驻状态记在本档案上。
+     */
+    private Long naturalPersonId;
     
     /**
      * 收方姓名
@@ -125,6 +133,10 @@ public class PayeeInfoDO extends TenantBaseDO {
      * 实人认证状态：0-未认证，1-认证中，2-认证通过，3-认证未通过
      *
      * 枚举 {@link PayeeRealNameStatusEnum}
+     *
+     * @deprecated 实人认证是**自然人主体**的事（跨企业复用），已迁到
+     * {@link cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO}
+     * （ADR 0017）。本字段只保留历史数据，不再写入。
      */
     private Integer realNameStatus;
 
