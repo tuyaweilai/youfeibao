@@ -21,6 +21,32 @@ export interface PayeeVO {
   occupation?: string // 职业
   companyName?: string // 关联企业名称
   createTime?: Date // 创建时间
+  // 收款账户变更（换银行卡，#37）
+  bankCardChangeStatus?: number // 0-银行审核中，1-已生效，2-已拒绝，9-已取消
+  bankCardChangeStatusName?: string
+  bankCardChangeNewCardTail?: string
+  bankCardChangeRequestedAt?: number
+}
+
+// 收款账户变更记录（#37）
+export interface PayeeBankCardChangeVO {
+  id?: number
+  changeNo?: string
+  payeeId?: number
+  naturalPersonId?: number
+  status?: number // 0-银行审核中，1-已生效，2-已拒绝，9-已取消
+  statusName?: string
+  oldCardTail?: string
+  newCardTail?: string
+  newBankName?: string
+  icbcOpenacctStatus?: string
+  auditResult?: string
+  rejectReason?: string
+  requestSource?: string
+  requestedAt?: number
+  resolvedAt?: number
+  remark?: string
+  createTime?: number
 }
 
 // 出售者档案 API
@@ -53,5 +79,15 @@ export const PayeeApi = {
   // 导出出售者档案 Excel
   exportPayee: async (params: any) => {
     return await request.download({ url: `/icbc/payee-info/export-excel`, params })
+  },
+
+  // 收款账户变更记录（换银行卡，#37）
+  getBankCardChangeList: async (payeeId: number) => {
+    return await request.get({ url: `/icbc/payee-info/bank-card-change/list`, params: { payeeId } })
+  },
+
+  // 取消在途的收款账户变更（企业侧人工清障）
+  cancelBankCardChange: async (changeId: number, reason?: string) => {
+    return await request.post({ url: `/icbc/payee-info/bank-card-change/cancel`, params: { changeId, reason } })
   }
 }

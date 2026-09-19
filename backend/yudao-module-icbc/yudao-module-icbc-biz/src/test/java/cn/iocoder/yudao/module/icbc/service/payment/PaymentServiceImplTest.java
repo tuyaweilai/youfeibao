@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.icbc.service.payment;
 
 import cn.iocoder.yudao.framework.common.exception.ServiceException;
+import cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.payment.vo.PaymentApplyReqVO;
@@ -22,6 +23,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.PaymentReq;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.service.payment.impl.PaymentServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -67,6 +69,10 @@ public class PaymentServiceImplTest extends BaseDbUnitTest {
 
     @MockBean
     private InvoiceOrderService invoiceOrderService;
+
+    /** 换卡审核期间付款挂起（#37）：默认放行，具体用例自己抛 */
+    @MockBean
+    private PayeeBankCardChangeService payeeBankCardChangeService;
 
     @BeforeEach
     public void setUp() {
@@ -203,6 +209,24 @@ public class PaymentServiceImplTest extends BaseDbUnitTest {
         assertEquals("账户状态异常", order.getErrorMsg());
         // 失败状态可见且可重新发起
         assertTrue(PaymentStatusEnum.isReInitiable(order.getPaymentStatus()));
+    }
+
+    // ==================== 换卡审核期间付款挂起（#37） ====================
+
+    @Test
+    public void testApplyPayment_blockedWhileBankCardChangeInProgress() {
+        stubInvoiceOrder(PreInvoiceStatusEnum.SUCCESS);
+        stubAcquisition(new BigDecimal("1000.00"));
+        ServiceException suspended = ServiceExceptionUtil.exception(PAYEE_BANK_CARD_CHANGE_IN_PROGRESS);
+        doThrow(suspended).when(payeeBankCardChangeService).assertPaymentNotSuspended(any());
+
+        assertServiceException(() -> paymentService.applyPayment(
+                        buildApply(PARTNER_ORDER_ID, new BigDecimal("1000.00"))),
+                PAYEE_BANK_CARD_CHANGE_IN_PROGRESS);
+
+        // 没向工行提交任何付款指令，也没落支付单：挂起是「不发起」，不是「提交失败」
+        assertEquals(0, fakeIcbcGateway.countOperation(FakeIcbcGateway.OP_SUBMIT_PAYMENT));
+        assertNull(paymentOrderMapper.selectByPartnerOrderId(PARTNER_ORDER_ID));
     }
 
     // ==================== 状态收敛（通知 / 查询共用） ====================

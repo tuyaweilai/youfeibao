@@ -231,6 +231,41 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testGetOnboardingPage_changeCardReusesOnboardingForm() {
+        PayeeInfoDO payee = insertPayee("王五", "110101199003033456");
+        // 建档已完成、但换卡在途：不能短路成 DONE，要输出新卡的收方入驻页面（#37）
+        when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(onboarding(2, "READY", true));
+        when(sellerOnboardingService.hasPendingBankCardChange(payee.getId())).thenReturn(true);
+        SellerStepRespVO step = new SellerStepRespVO();
+        step.setFormHtml("<form>change-card</form>");
+        when(sellerOnboardingService.submitOnboarding(any())).thenReturn(step);
+        String token = mint("ONBOARDING", null, payee.getId());
+
+        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token, "03");
+
+        assertEquals("ONBOARDING", page.getStep());
+        assertEquals("变更银行卡", page.getStepName());
+        assertEquals("<form>change-card</form>", page.getFormHtml());
+        verify(sellerOnboardingService).submitOnboarding(any());
+    }
+
+    @Test
+    public void testSyncOnboarding_syncsCardChangeEvenWhenOnboardingReady() {
+        PayeeInfoDO payee = insertPayee("冯六", "110101199010101234");
+        SellerOnboardingRespVO ready = onboarding(2, "READY", true);
+        ready.setBankCardChangeStatusName("银行审核中");
+        when(sellerOnboardingService.getOnboarding(payee.getId()))
+                .thenReturn(ready, onboarding(2, "READY", true));
+        String token = mint("ONBOARDING", null, payee.getId());
+
+        PublicOnboardingStatusRespVO status = publicAccessService.syncOnboarding(token);
+
+        // 换卡在途时要主动向工行查一次（结果属于新卡），否则按钮会一直停在「建档已完成」
+        verify(sellerOnboardingService).syncOnboarding(eq(payee.getId()));
+        assertEquals("DONE", status.getStep());
+    }
+
+    @Test
     public void testGetOnboardingPage_failedOnboardingAsksContact() {
         PayeeInfoDO payee = insertPayee("周九", "110101199007077890");
         when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(onboarding(2, "REJECTED", false));

@@ -74,6 +74,14 @@
       <el-table-column label="身份证号" align="center" prop="idCardNo" min-width="180" />
       <el-table-column label="手机号" align="center" prop="mobile" width="130" />
       <el-table-column label="银行卡号" align="center" prop="bankCardNo" min-width="170" />
+      <el-table-column label="收款账户" align="center" width="150">
+        <template #default="scope">
+          <el-tag v-if="scope.row.bankCardChangeStatus === 0" type="warning">
+            变更中（新卡尾号 {{ scope.row.bankCardChangeNewCardTail || '—' }}）
+          </el-tag>
+          <span v-else class="text-gray-400">—</span>
+        </template>
+      </el-table-column>
       <el-table-column label="开户银行" align="center" prop="bankName" min-width="140" />
       <el-table-column label="审核状态" align="center" prop="status" width="110">
         <template #default="scope">
@@ -93,8 +101,9 @@
         :formatter="dateFormatter"
         width="170"
       />
-      <el-table-column label="操作" align="center" fixed="right" width="140">
+      <el-table-column label="操作" align="center" fixed="right" width="200">
         <template #default="scope">
+          <el-button link type="primary" @click="openChangeDialog(scope.row)"> 换卡记录 </el-button>
           <el-button
             link
             type="primary"
@@ -123,12 +132,44 @@
     />
   </ContentWrap>
 
+  <!-- 换卡记录弹窗：企业侧要能看清「钱会打到哪张卡、审核到哪一步」 -->
+  <el-dialog v-model="changeDialogVisible" title="收款账户变更记录" width="760px">
+    <el-table v-loading="changeLoading" :data="changeList" :stripe="true">
+      <el-table-column label="变更单号" prop="changeNo" min-width="180" />
+      <el-table-column label="原卡尾号" prop="oldCardTail" width="100" />
+      <el-table-column label="新卡尾号" prop="newCardTail" width="100" />
+      <el-table-column label="状态" align="center" width="120">
+        <template #default="scope">
+          <el-tag :type="changeTagType(scope.row.status)">{{ scope.row.statusName }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="发起时间" prop="requestedAt" :formatter="dateFormatter" width="170" />
+      <el-table-column label="原因" prop="rejectReason" min-width="160" />
+      <el-table-column label="操作" align="center" width="110">
+        <template #default="scope">
+          <el-button
+            v-if="scope.row.status === 0"
+            link
+            type="danger"
+            v-hasPermi="['icbc:payee-info:update']"
+            @click="cancelChange(scope.row)"
+          >
+            取消变更
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <template #footer>
+      <el-button @click="changeDialogVisible = false">关闭</el-button>
+    </template>
+  </el-dialog>
+
   <!-- 表单弹窗：添加/修改 -->
   <PayeeForm ref="formRef" @success="getList" />
 </template>
 
 <script setup lang="ts">
-import { PayeeApi, PayeeVO } from '@/api/icbc/payee'
+import { PayeeApi, PayeeVO, PayeeBankCardChangeVO } from '@/api/icbc/payee'
 import PayeeForm from './PayeeForm.vue'
 import { dateFormatter } from '@/utils/formatTime'
 import download from '@/utils/download'
@@ -215,6 +256,41 @@ const statusLabel = (status?: number) =>
   status !== undefined && statusMap[status] ? statusMap[status].label : '未知'
 const statusType = (status?: number): 'info' | 'success' | 'danger' =>
   status !== undefined && statusMap[status] ? statusMap[status].type : 'info'
+
+// ==================== 换卡记录（#37） ====================
+
+const changeDialogVisible = ref(false)
+const changeLoading = ref(false)
+const changeList = ref<PayeeBankCardChangeVO[]>([])
+
+const openChangeDialog = async (row: PayeeVO) => {
+  changeDialogVisible.value = true
+  changeLoading.value = true
+  try {
+    changeList.value = await PayeeApi.getBankCardChangeList(row.id!)
+  } finally {
+    changeLoading.value = false
+  }
+}
+
+const changeTagType = (status?: number): 'warning' | 'success' | 'danger' | 'info' => {
+  if (status === 0) return 'warning'
+  if (status === 1) return 'success'
+  if (status === 2) return 'danger'
+  return 'info'
+}
+
+const cancelChange = async (row: PayeeBankCardChangeVO) => {
+  try {
+    await message.confirm('取消后原卡继续有效，该出售者的付款随即恢复。确认取消这笔变更？')
+  } catch {
+    return
+  }
+  await PayeeApi.cancelBankCardChange(row.id!, '企业侧人工取消')
+  message.success('已取消，原卡继续有效')
+  changeList.value = await PayeeApi.getBankCardChangeList(row.payeeId!)
+  await getList()
+}
 
 /** 初始化 */
 onMounted(() => {

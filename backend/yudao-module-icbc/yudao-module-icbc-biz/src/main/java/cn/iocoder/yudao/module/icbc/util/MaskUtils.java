@@ -38,4 +38,16 @@ public final class MaskUtils {
                 + mobile.substring(mobile.length() - 4);
     }
 
+    /**
+     * 银行卡尾号：只给尾号，不整段展示。
+     *
+     * @param bankCardNo 银行卡号；为空时返回 {@code null}
+     */
+    public static String cardTail(String bankCardNo) {
+        if (StrUtil.isBlank(bankCardNo)) {
+            return null;
+        }
+        return bankCardNo.length() <= 4 ? bankCardNo : bankCardNo.substring(bankCardNo.length() - 4);
+    }
+
 }

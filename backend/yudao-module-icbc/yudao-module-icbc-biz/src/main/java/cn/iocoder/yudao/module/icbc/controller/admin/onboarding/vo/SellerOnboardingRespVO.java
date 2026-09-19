@@ -70,6 +70,18 @@ public class SellerOnboardingRespVO {
     @Schema(description = "有效框架收购协议（未签署时为空）")
     private FrameworkAgreementRespVO frameworkAgreement;
 
+    @Schema(description = "收款账户变更状态：0-银行审核中，1-已生效，2-已拒绝，9-已取消（无变更时为空）")
+    private Integer bankCardChangeStatus;
+
+    @Schema(description = "收款账户变更状态名")
+    private String bankCardChangeStatusName;
+
+    @Schema(description = "待变更的新卡尾号（无在途变更时为空）")
+    private String bankCardChangeNewCardTail;
+
+    @Schema(description = "待变更的新卡发起时间")
+    private LocalDateTime bankCardChangeRequestedAt;
+
     @Schema(description = "首次授权（未授权时为空）")
     private SellerAuthorizationRespVO authorization;
 

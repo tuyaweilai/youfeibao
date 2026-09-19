@@ -249,4 +249,15 @@ public interface ErrorCodeConstants {
     ErrorCode SELLER_NOTIFY_NOT_EXISTS = new ErrorCode(1_030_026_000, "触达记录不存在");
     ErrorCode SELLER_NOTIFY_LINK_UNAVAILABLE = new ErrorCode(1_030_026_001,
             "尚未配置自然人端入口地址（icbc.notify.seller-app-url），无法生成确认链接");
+
+    // ========== 换银行卡（#37，ADR 0010：换卡重走收方入驻，审核期间付款挂起） 1-030-027-000 ==========
+    ErrorCode PAYEE_BANK_CARD_CHANGE_IN_PROGRESS = new ErrorCode(1_030_027_000,
+            "该出售者的收款账户正在银行审核中，新交易的付款已挂起；审核通过或取消变更后才能发起付款");
+    ErrorCode PAYEE_BANK_CARD_CHANGE_NOT_EXISTS = new ErrorCode(1_030_027_001, "收款账户变更单不存在");
+    ErrorCode PAYEE_BANK_CARD_CHANGE_ALREADY_PENDING = new ErrorCode(1_030_027_002,
+            "该出售者已有一笔收款账户变更在银行审核中，不能同时再发起一笔");
+    ErrorCode PAYEE_BANK_CARD_CHANGE_NOT_CANCELLABLE = new ErrorCode(1_030_027_003,
+            "只有「银行审核中」的变更可以取消，当前状态：{}");
+    ErrorCode PAYEE_BANK_CARD_CHANGE_NOT_ONBOARDED = new ErrorCode(1_030_027_004,
+            "该出售者尚未完成首次收方入驻，请先完成建档再变更银行卡");
 }

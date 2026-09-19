@@ -5,6 +5,9 @@ import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceFileRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeBankCardChangeSaveReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenCreateReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.settlement.vo.SettlementRespVO;
 import cn.iocoder.yudao.module.icbc.controller.app.seller.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
@@ -12,6 +15,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreem
 import cn.iocoder.yudao.module.icbc.dal.dataobject.authorization.IcbcSellerAuthorizationDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.IcbcPayeeBankCardChangeDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.settlement.IcbcSettlementDO;
@@ -25,8 +29,10 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.settlement.IcbcSettlementMapper;
 import cn.iocoder.yudao.module.icbc.enums.*;
 import cn.iocoder.yudao.module.icbc.service.download.InvoiceDownloadService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import cn.iocoder.yudao.module.icbc.service.sellerportal.SellerPortalService;
 import cn.iocoder.yudao.module.icbc.service.settlement.SettlementService;
+import cn.iocoder.yudao.module.icbc.service.token.PublicTokenService;
 import cn.iocoder.yudao.module.icbc.util.MaskUtils;
 import cn.iocoder.yudao.module.system.api.tenant.TenantApi;
 import lombok.extern.slf4j.Slf4j;
@@ -101,6 +107,10 @@ public class SellerPortalServiceImpl implements SellerPortalService {
     private InvoiceDownloadService invoiceDownloadService;
     @Resource
     private TenantApi tenantApi;
+    @Resource
+    private PayeeBankCardChangeService payeeBankCardChangeService;
+    @Resource
+    private PublicTokenService publicTokenService;
 
     // ==================== 首页 ====================
 
@@ -319,12 +329,81 @@ public class SellerPortalServiceImpl implements SellerPortalService {
         resp.setLogoutNote("注销账号不等于删除交易记录：交易记录是税务凭证，会永久保留");
         resp.setBankCards(payeesOf(naturalPersonId).stream().map(payee -> {
             SellerProfileRespVO.SellerBankCardVO card = new SellerProfileRespVO.SellerBankCardVO();
+            card.setPayeeId(payee.getId());
             card.setTenantId(payee.getTenantId());
             card.setEnterpriseName(enterpriseName(payee.getTenantId()));
             card.setBankName(payee.getBankName());
-            card.setCardTail(cardTail(payee.getBankCardNo()));
+            card.setCardTail(MaskUtils.cardTail(payee.getBankCardNo()));
             return card;
         }).toList());
+        fillCardChangeStatus(resp.getBankCards());
+        return resp;
+    }
+
+    /**
+     * 收款账户变更状态（#37）：「钱正在换卡途中」对本人必须可见，文案只讲工行能给的那一步（ADR 0021）。
+     */
+    private void fillCardChangeStatus(List<SellerProfileRespVO.SellerBankCardVO> cards) {
+        if (cards == null || cards.isEmpty()) {
+            return;
+        }
+        Set<Long> payeeIds = cards.stream().map(SellerProfileRespVO.SellerBankCardVO::getPayeeId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        if (payeeIds.isEmpty()) {
+            return;
+        }
+        Map<Long, IcbcPayeeBankCardChangeDO> pending = TenantUtils.executeIgnore(
+                () -> payeeBankCardChangeService.pendingMap(payeeIds));
+        for (SellerProfileRespVO.SellerBankCardVO card : cards) {
+            IcbcPayeeBankCardChangeDO change = pending.get(card.getPayeeId());
+            if (change == null) {
+                continue;
+            }
+            card.setChangeStatus(change.getStatus());
+            card.setChangeStatusName(PayeeBankCardChangeStatusEnum.nameOf(change.getStatus()));
+            card.setChangeRequestedAt(change.getRequestedAt());
+        }
+    }
+
+    // ==================== 变更收款账户（换银行卡，#37） ====================
+
+    @Override
+    public SellerBankCardChangeRespVO requestBankCardChange(SellerBankCardChangeReqVO reqVO, String ip) {
+        assertBound(reqVO.getNaturalPersonId());
+        Long tenantId = reqVO.getTenantId();
+        // 只能换本人在**指定回收企业**的那一份收款账户（企业之间互相看不到，ADR 0017）
+        PayeeInfoDO payee = TenantUtils.execute(tenantId,
+                () -> payeeInfoMapper.selectByNaturalPersonId(reqVO.getNaturalPersonId()));
+        if (payee == null) {
+            throw exception(SELLER_RECORD_NOT_FOUND);
+        }
+        PayeeBankCardChangeSaveReqVO saveReqVO = new PayeeBankCardChangeSaveReqVO();
+        saveReqVO.setPayeeId(payee.getId());
+        saveReqVO.setNewBankCardNo(reqVO.getBankCardNo());
+        saveReqVO.setNewBankName(reqVO.getBankName());
+        saveReqVO.setNewBankBranch(reqVO.getBankBranch());
+        saveReqVO.setIdSignDate(reqVO.getIdSignDate());
+        saveReqVO.setIdValidityPeriod(reqVO.getIdValidityPeriod());
+        saveReqVO.setRequestSource("SELLER_PORTAL");
+        saveReqVO.setRequestIp(ip);
+        IcbcPayeeBankCardChangeDO change = TenantUtils.execute(tenantId,
+                () -> payeeBankCardChangeService.requestChange(saveReqVO));
+        // 一次性的 ONBOARDING 令牌：用它打开后端输出的工行收方入驻表单，与首次建档同一套机制
+        PublicTokenCreateReqVO tokenReqVO = new PublicTokenCreateReqVO();
+        tokenReqVO.setPurpose(PublicTokenPurposeEnum.ONBOARDING.getCode());
+        tokenReqVO.setPayeeId(payee.getId());
+        PublicTokenRespVO token = TenantUtils.execute(tenantId, () -> publicTokenService.mint(tokenReqVO));
+
+        SellerBankCardChangeRespVO resp = new SellerBankCardChangeRespVO();
+        resp.setChangeNo(change.getChangeNo());
+        resp.setStatus(change.getStatus());
+        resp.setStatusName(PayeeBankCardChangeStatusEnum.nameOf(change.getStatus()));
+        resp.setOldCardTail(change.getOldCardTail());
+        resp.setNewCardTail(MaskUtils.cardTail(change.getNewBankCardNo()));
+        resp.setToken(token.getToken());
+        resp.setExpiresTime(token.getExpiresTime());
+        resp.setMessage("请到工行页面绑定你的新银行卡；审核结果以银行为准。");
+        resp.setScopeNote("新卡审核通过前，原卡仍然有效；审核期间该企业新交易的付款会挂起，不会打到废卡。");
         return resp;
     }
 
@@ -696,13 +775,6 @@ public class SellerPortalServiceImpl implements SellerPortalService {
 
     private String num(BigDecimal value) {
         return value == null ? "" : value.stripTrailingZeros().toPlainString();
-    }
-
-    private String cardTail(String bankCardNo) {
-        if (StrUtil.isBlank(bankCardNo)) {
-            return null;
-        }
-        return bankCardNo.length() <= 4 ? bankCardNo : bankCardNo.substring(bankCardNo.length() - 4);
     }
 
     // ==================== HTML 小工具 ====================

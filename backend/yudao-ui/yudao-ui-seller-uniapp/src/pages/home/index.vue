@@ -171,13 +171,21 @@
 
         <view class="card">
           <view class="card__title">收款账户</view>
-          <view v-for="(card, i) in profile.bankCards" :key="i" class="kv">
-            <text class="kv__k">{{ card.enterpriseName }}</text>
-            <text>{{ card.bankName || '—' }} 尾号 {{ card.cardTail || '—' }}</text>
+          <view v-for="(card, i) in profile.bankCards" :key="i" class="bank-card">
+            <view class="kv">
+              <text class="kv__k">{{ card.enterpriseName }}</text>
+              <text>{{ card.bankName || '—' }} 尾号 {{ card.cardTail || '—' }}</text>
+            </view>
+            <view v-if="card.changeStatusName" class="change-status">
+              {{ card.changeStatusName }}（换卡审核期间，该企业新交易的付款会挂起；原卡在你确认前仍然有效）
+            </view>
+            <view class="record__actions">
+              <text class="link" @click="onChangeCard(card)">变更银行卡</text>
+            </view>
           </view>
           <view v-if="!profile.bankCards?.length" class="muted">还没有登记收款账户。</view>
-          <view class="record__actions">
-            <text class="link" @click="onChangeCard">变更银行卡</text>
+          <view class="scope-note">
+            工行收方入驻只绑本人一张卡；换卡要重新走一次工行审核，不允许多张卡。
           </view>
         </view>
 
@@ -226,6 +234,7 @@ import {
   SellerPayment,
   SellerProfile,
   SellerRecordGroup,
+  SellerBankCard,
   PendingItem
 } from '@/api/seller'
 import { useSellerAuthStore } from '@/store/auth'
@@ -336,11 +345,23 @@ function downloadInvoice(invoiceOrderId: number) {
   ).catch((e) => uni.showToast({ title: (e as Error).message, icon: 'none' }))
 }
 
-function onChangeCard() {
-  uni.showModal({
-    title: '变更银行卡',
-    content: '换卡需要重新走工行收方入驻（S7）。请先联系客服或现场收货员协助办理。',
-    showCancel: false
+function onChangeCard(card: SellerBankCard) {
+  if (!card.tenantId) {
+    uni.showToast({ title: '请先让回收企业登记收款账户', icon: 'none' })
+    return
+  }
+  if (card.changeStatusName) {
+    uni.showModal({
+      title: '收款账户变更中',
+      content: `${card.changeStatusName}。审核通过前，该企业新交易的付款会挂起；原卡在你确认前仍然有效。`,
+      showCancel: false
+    })
+    return
+  }
+  uni.navigateTo({
+    url: `/pages/bankCard/index?tenantId=${card.tenantId}` +
+      `&enterpriseName=${encodeURIComponent(card.enterpriseName || '')}` +
+      `&cardTail=${encodeURIComponent(card.cardTail || '')}`
   })
 }
 
@@ -545,6 +566,18 @@ function formatTime(time?: string) {
 .auth {
   padding: 16rpx 0;
   border-top: 1rpx solid #eef0f3;
+}
+
+.bank-card {
+  padding: 16rpx 0;
+  border-top: 1rpx solid #eef0f3;
+}
+
+.change-status {
+  margin-top: 6rpx;
+  color: #b26a00;
+  font-size: 26rpx;
+  line-height: 1.6;
 }
 
 .kv {

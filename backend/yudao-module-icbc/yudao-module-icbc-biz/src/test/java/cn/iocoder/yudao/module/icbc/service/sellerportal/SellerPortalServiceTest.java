@@ -3,6 +3,8 @@ package cn.iocoder.yudao.module.icbc.service.sellerportal;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.app.seller.vo.*;
+import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenCreateReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.authorization.IcbcSellerAuthorizationDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
@@ -15,16 +17,24 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOutcomeEnum;
 import cn.iocoder.yudao.module.icbc.enums.PaymentStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PublicTokenPurposeEnum;
 import cn.iocoder.yudao.module.icbc.service.download.InvoiceDownloadService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.impl.NaturalPersonServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.payee.impl.PayeeBankCardChangeServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.sellerportal.impl.SellerPortalServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.settlement.SettlementService;
+import cn.iocoder.yudao.module.icbc.service.token.PublicTokenService;
 import cn.iocoder.yudao.module.system.api.tenant.TenantApi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.Rollback;
@@ -39,6 +49,8 @@ import java.util.List;
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -47,7 +59,8 @@ import static org.mockito.Mockito.when;
  * <p>覆盖：跨企业仅本人可见、按企业分组、收款状态只讲可核验的事、「我收到了」不改银行状态、
  * 企业授权列表与自助撤销。
  */
-@Import({SellerPortalServiceImpl.class, NaturalPersonServiceImpl.class, UnitTestConfiguration.class})
+@Import({SellerPortalServiceImpl.class, NaturalPersonServiceImpl.class, PayeeInfoServiceImpl.class,
+        PayeeBankCardChangeServiceImpl.class, UnitTestConfiguration.class})
 @Sql(scripts = "/sql/create_tables.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Transactional
 @Rollback
@@ -69,6 +82,13 @@ public class SellerPortalServiceTest extends BaseDbUnitTest {
     private InvoiceOrderMapper invoiceOrderMapper;
     @Resource
     private IcbcSellerAuthorizationMapper authorizationMapper;
+
+    @Resource
+    private PayeeBankCardChangeService bankCardChangeService;
+
+    @MockBean
+    private PublicTokenService publicTokenService;
+
 
     @MockBean
     private TenantApi tenantApi;
@@ -235,7 +255,82 @@ public class SellerPortalServiceTest extends BaseDbUnitTest {
         assertTrue(profile.getLogoutNote().contains("不等于删除交易记录"));
     }
 
+    // ==================== 变更收款账户（换银行卡，#37） ====================
+
+    @Test
+    public void testRequestBankCardChange_createsPendingAndMintsOnboardingToken() {
+        IcbcNaturalPersonDO person = register("110101199001019901", "13800139901");
+        bindLogin(person);
+        PayeeInfoDO payee = insertReadyPayee(person.getId(), 1L, "PARTNER_CHANGE", "6222021234567890");
+        PublicTokenRespVO token = new PublicTokenRespVO();
+        token.setToken("TK_ONBOARD");
+        token.setExpiresTime(LocalDateTime.now().plusHours(1));
+        when(publicTokenService.mint(any())).thenReturn(token);
+
+        SellerBankCardChangeRespVO resp = sellerPortalService.requestBankCardChange(
+                changeReq(person.getId(), 1L, "6222029999888877"), "10.0.0.1");
+
+        assertEquals("银行审核中", resp.getStatusName());
+        assertEquals("7890", resp.getOldCardTail());
+        assertEquals("8877", resp.getNewCardTail());
+        assertEquals("TK_ONBOARD", resp.getToken());
+        assertTrue(resp.getScopeNote().contains("付款会挂起"), "实际：" + resp.getScopeNote());
+        // 生效卡不变：新卡要等工行审核通过（不允许多张卡）
+        assertEquals("6222021234567890", payeeInfoMapper.selectById(payee.getId()).getBankCardNo());
+        // 复用的是 ONBOARDING 令牌与后端输出表单机制，不新造流程
+        ArgumentCaptor<PublicTokenCreateReqVO> captor = ArgumentCaptor.forClass(PublicTokenCreateReqVO.class);
+        verify(publicTokenService).mint(captor.capture());
+        assertEquals(PublicTokenPurposeEnum.ONBOARDING.getCode(), captor.getValue().getPurpose());
+        assertEquals(payee.getId(), captor.getValue().getPayeeId());
+    }
+
+    @Test
+    public void testGetProfile_showsPendingCardChangeStatus() {
+        IcbcNaturalPersonDO person = register("110101199001019902", "13800139902");
+        bindLogin(person);
+        PayeeInfoDO payee = insertReadyPayee(person.getId(), 1L, "PARTNER_CHANGE2", "6222021234567890");
+        PublicTokenRespVO token = new PublicTokenRespVO();
+        token.setToken("TK_ONBOARD");
+        when(publicTokenService.mint(any())).thenReturn(token);
+        when(tenantApi.getTenantName(1L)).thenReturn("某某再生资源有限公司");
+
+        sellerPortalService.requestBankCardChange(changeReq(person.getId(), 1L, "6222029999888877"), "10.0.0.1");
+        SellerProfileRespVO profile = sellerPortalService.getProfile(person.getId());
+
+        assertEquals(1, profile.getBankCards().size());
+        SellerProfileRespVO.SellerBankCardVO card = profile.getBankCards().get(0);
+        assertEquals(payee.getId(), card.getPayeeId());
+        assertEquals("7890", card.getCardTail());
+        assertEquals("银行审核中", card.getChangeStatusName());
+    }
+
     // ==================== 造数 ====================
+
+    private SellerBankCardChangeReqVO changeReq(Long naturalPersonId, Long tenantId, String cardNo) {
+        SellerBankCardChangeReqVO reqVO = new SellerBankCardChangeReqVO();
+        reqVO.setNaturalPersonId(naturalPersonId);
+        reqVO.setTenantId(tenantId);
+        reqVO.setBankCardNo(cardNo);
+        return reqVO;
+    }
+
+    private PayeeInfoDO insertReadyPayee(Long naturalPersonId, Long tenantId, String partnerPayeeId,
+                                         String bankCardNo) {
+        PayeeInfoDO payee = PayeeInfoDO.builder()
+                .partnerPayeeId(partnerPayeeId)
+                .naturalPersonId(naturalPersonId)
+                .name("张三")
+                .mobile("13800138000")
+                .idCardNo("110101199001011234")
+                .bankCardNo(bankCardNo)
+                .bankName("中国工商银行")
+                .onboardingState(PayeeOnboardingOutcomeEnum.READY.getCode())
+                .status(IcbcStatusEnum.AuditStatus.APPROVED.getStatus())
+                .build();
+        payee.setTenantId(tenantId);
+        payeeInfoMapper.insert(payee);
+        return payee;
+    }
 
     private IcbcNaturalPersonDO register(String idCardNo, String mobile) {
         cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO req =

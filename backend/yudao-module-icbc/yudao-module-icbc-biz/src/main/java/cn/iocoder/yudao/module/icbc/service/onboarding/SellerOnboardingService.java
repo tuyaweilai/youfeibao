@@ -90,6 +90,13 @@ public interface SellerOnboardingService {
      */
     void assertReadyForInvoiceByOutUserId(String outUserId);
 
+    /**
+     * 某收方是否有在途的收款账户变更（换卡，#37）。
+     *
+     * <p>有在途变更时，建档页面不该因「建档已完成」而短路——它要输出**新卡**的收方入驻页面。
+     */
+    boolean hasPendingBankCardChange(Long payeeId);
+
     // ==================== 框架收购协议 ====================
 
     /**

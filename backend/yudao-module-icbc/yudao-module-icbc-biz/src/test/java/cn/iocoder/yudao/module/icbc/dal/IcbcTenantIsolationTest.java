@@ -11,6 +11,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.IcbcPayeeBankCardChangeDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
@@ -18,6 +19,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.appointment.IcbcAppointmentMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeBankCardChangeMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
@@ -68,6 +70,8 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
 
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
+    @Resource
+    private PayeeBankCardChangeMapper payeeBankCardChangeMapper;
     @Resource
     private InvoiceOrderMapper invoiceOrderMapper;
     @Resource
@@ -190,6 +194,31 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
         });
         // 自然人本人跨企业看自己的预约：显式开阀读取
         assertNotNull(TenantUtils.executeIgnore(() -> appointmentMapper.selectById(appointmentId)));
+    }
+
+    @Test
+    public void testBankCardChangeIsolatedByTenant() {
+        // 换卡是租户表：在 A 企业换的卡，B 企业看不到（ADR 0017 的交易可见性边界）
+        Long changeId = TenantUtils.execute(1L, () -> {
+            IcbcPayeeBankCardChangeDO change = IcbcPayeeBankCardChangeDO.builder()
+                    .changeNo("BC_TENANT_1")
+                    .payeeId(1L)
+                    .naturalPersonId(1L)
+                    .status(0)
+                    .newBankCardNo("6222029999888877")
+                    .requestedAt(java.time.LocalDateTime.now())
+                    .build();
+            payeeBankCardChangeMapper.insert(change);
+            return change.getId();
+        });
+
+        TenantUtils.execute(1L, () -> assertNotNull(payeeBankCardChangeMapper.selectById(changeId)));
+        TenantUtils.execute(2L, () -> {
+            assertNull(payeeBankCardChangeMapper.selectById(changeId));
+            assertTrue(payeeBankCardChangeMapper.selectList().isEmpty());
+        });
+        // 自然人本人在自己的资料里看得到：显式开阀读取
+        assertNotNull(TenantUtils.executeIgnore(() -> payeeBankCardChangeMapper.selectById(changeId)));
     }
 
     @Test

@@ -35,6 +35,12 @@
       "style": {
         "navigationBarTitleText": "预约到站"
       }
+    },
+    {
+      "path": "pages/bankCard/index",
+      "style": {
+        "navigationBarTitleText": "变更收款账户"
+      }
     }
   ],
   "globalStyle": {

@@ -90,4 +90,18 @@ public class PayeeInfoRespVO {
     @ExcelProperty("创建时间")
     private Date createTime;
 
+    // ==================== 收款账户变更（#37） ====================
+
+    @Schema(description = "收款账户变更状态：0-银行审核中，1-已生效，2-已拒绝，9-已取消（无变更时为空）", example = "0")
+    private Integer bankCardChangeStatus;
+
+    @Schema(description = "收款账户变更状态名", example = "银行审核中")
+    private String bankCardChangeStatusName;
+
+    @Schema(description = "待变更的新卡尾号", example = "5678")
+    private String bankCardChangeNewCardTail;
+
+    @Schema(description = "变更发起时间")
+    private java.time.LocalDateTime bankCardChangeRequestedAt;
+
 } 

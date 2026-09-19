@@ -56,6 +56,9 @@
           <view class="quota__message">{{ onboarding.message }}</view>
           <view class="kv"><text class="kv__k">实名认证</text><text>{{ onboarding.realNameStatusName || '未认证' }}</text></view>
           <view class="kv"><text class="kv__k">收方入驻</text><text>{{ onboarding.onboardingStateName || '未开始' }}</text></view>
+          <view v-if="onboarding.bankCardChangeStatusName" class="kv">
+            <text class="kv__k">收款账户变更</text><text>{{ onboarding.bankCardChangeStatusName }}</text>
+          </view>
           <view v-if="onboarding.nextStep" class="quota__exempt quota__exempt--warn">下一步：{{ onboarding.nextStep }}</view>
           <button v-if="onboarding.step !== 'DONE'" class="btn btn--primary" @click="openOnboardingForm">
             去工行页面（实名 / 绑卡）

@@ -138,10 +138,17 @@ export interface SellerAuthorization {
 }
 
 export interface SellerBankCard {
+  payeeId?: number
   tenantId?: number
   enterpriseName?: string
   bankName?: string
   cardTail?: string
+  /** 收款账户变更状态（#37）：0-银行审核中，1-已生效，2-已拒绝，9-已取消 */
+  changeStatus?: number
+  /** 变更状态名，例如「银行审核中」 */
+  changeStatusName?: string
+  /** 变更发起时间（毫秒时间戳；yudao 把 LocalDateTime 按毫秒序列化） */
+  changeRequestedAt?: number
 }
 
 export interface SellerProfile {
@@ -174,6 +181,32 @@ export const revokeAuthorization = (naturalPersonId: number, tenantId: number, r
 
 export const getProfile = (naturalPersonId: number) =>
   appGet<SellerProfile>('/icbc/seller/portal/profile', { naturalPersonId })
+
+// ==================== 变更收款账户（换银行卡，#37） ====================
+
+/** 变更返回：携带一枚 ONBOARDING 一次性令牌，用它打开工行收方入驻表单 */
+export interface SellerBankCardChange {
+  changeNo?: string
+  status?: number
+  statusName?: string
+  oldCardTail?: string
+  newCardTail?: string
+  token?: string
+  expiresTime?: string
+  message?: string
+  scopeNote?: string
+}
+
+/**
+ * 发起变更收款账户。换卡要重走工行收方入驻（ADR 0010）：卡号由本人填，审核期间新交易的付款会挂起。
+ */
+export const requestBankCardChange = (data: {
+  naturalPersonId: number
+  tenantId: number
+  bankCardNo: string
+  bankName?: string
+  bankBranch?: string
+}) => appPost<SellerBankCardChange>('/icbc/seller/portal/bank-card/change', data)
 
 export const confirmReceived = (naturalPersonId: number, paymentOrderId: number) =>
   appPost<boolean>('/icbc/seller/portal/payments/received', { naturalPersonId, paymentOrderId })

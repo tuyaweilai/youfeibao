@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.controller.app.seller.vo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -39,6 +40,9 @@ public class SellerProfileRespVO {
     @Data
     public static class SellerBankCardVO {
 
+        @Schema(description = "收方（出售者）档案编号", example = "1024")
+        private Long payeeId;
+
         @Schema(description = "租户编号", example = "1")
         private Long tenantId;
 
@@ -50,6 +54,15 @@ public class SellerProfileRespVO {
 
         @Schema(description = "银行卡尾号", example = "1234")
         private String cardTail;
+
+        @Schema(description = "收款账户变更状态：0-银行审核中，1-已生效，2-已拒绝，9-已取消（无变更时为空）")
+        private Integer changeStatus;
+
+        @Schema(description = "收款账户变更状态名", example = "银行审核中")
+        private String changeStatusName;
+
+        @Schema(description = "变更发起时间")
+        private LocalDateTime changeRequestedAt;
 
     }
 

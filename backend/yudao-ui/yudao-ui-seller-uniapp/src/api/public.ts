@@ -69,6 +69,8 @@ export interface OnboardingStatusVO {
   step?: string
   realNameStatusName?: string
   onboardingStateName?: string
+  /** 收款账户变更状态名（换卡在途时非空，例如「银行审核中」，#37） */
+  bankCardChangeStatusName?: string
   nextStep?: string
   invoiceEligible?: boolean
   message?: string

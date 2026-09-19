@@ -4,10 +4,12 @@ import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.*;
+import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeBankCardChangeSaveReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.authorization.IcbcSellerAuthorizationDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.lead.IcbcContactLeadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.IcbcPayeeBankCardChangeDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payer.PayerInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.agreement.IcbcFrameworkAgreementMapper;
@@ -16,6 +18,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payer.PayerInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PayeeBankCardChangeStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOutcomeEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeRealNameStatusEnum;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
@@ -27,6 +30,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingPageReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingStatus;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.impl.SellerOnboardingServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -67,6 +71,9 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
 
     @Resource
     private NaturalPersonService naturalPersonService;
+
+    @Resource
+    private PayeeBankCardChangeService bankCardChangeService;
 
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
@@ -471,6 +478,70 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
                 SELLER_ONBOARDING_NOT_READY);
     }
 
+    // ==================== 换银行卡（#37） ====================
+
+    @Test
+    public void testSubmitOnboarding_usesPendingNewCardAndKeepsActiveCard() {
+        PayeeInfoDO payee = insertPayee("USER_CHANGE", "110101199001010041", "13800000041");
+        markReady(payee);
+        insertPayer(OUT_VENDOR_ID);
+        bankCardChangeService.requestChange(changeReq(payee.getId(), "6222029999888877", "中国工商银行"));
+        when(icbcGateway.submitPayeeOnboarding(any())).thenReturn(IcbcGatewayResult.success(
+                IcbcPage.builder().formHtml("<form id=\"change\"/>").build(), 0, "成功"));
+
+        SellerOnboardingSubmitReqVO reqVO = new SellerOnboardingSubmitReqVO();
+        reqVO.setPayeeId(payee.getId());
+        // 故意传一个假的旧卡结果：换卡在途时不该被它覆盖
+        reqVO.setBankName("骗人的银行");
+        reqVO.setIdValidityPeriod("1999-01-01");
+        SellerStepRespVO step = sellerOnboardingService.submitOnboarding(reqVO);
+
+        assertEquals("<form id=\"change\"/>", step.getFormHtml());
+        ArgumentCaptor<PayeeOnboardingPageReq> captor = ArgumentCaptor.forClass(PayeeOnboardingPageReq.class);
+        verify(icbcGateway).submitPayeeOnboarding(captor.capture());
+        // 送给工行的是**变更单上的新卡**，不是生效中的旧卡
+        assertEquals("6222029999888877", captor.getValue().getReceiverAccount());
+        // 生效卡与档案字段都不动：换卡要等工行审核通过（PayeeBankCardChangeService）
+        PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
+        assertEquals("6222021234567890", updated.getBankCardNo());
+        assertNotEquals("骗人的银行", updated.getBankName());
+        assertNotEquals("1999-01-01", updated.getIdValidityPeriod());
+    }
+
+    @Test
+    public void testReconcileOnboardingStatus_changeRejectedKeepsOldCardEffective() {
+        PayeeInfoDO payee = insertPayee("USER_CHANGE2", "110101199001010042", "13800000042");
+        markReady(payee);
+        bankCardChangeService.requestChange(changeReq(payee.getId(), "6222029999888877", null));
+
+        // 工行审核拒绝：结果属于新卡，不该改写建档状态
+        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), "02", "reject", null, "卡号与姓名不符");
+
+        PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
+        assertEquals("6222021234567890", updated.getBankCardNo());
+        assertEquals(PayeeOnboardingOutcomeEnum.READY.getCode(), updated.getOnboardingState());
+        List<IcbcPayeeBankCardChangeDO> history = bankCardChangeService.listByPayeeId(payee.getId());
+        assertEquals(1, history.size());
+        assertEquals(PayeeBankCardChangeStatusEnum.REJECTED.getStatus(), history.get(0).getStatus());
+        assertEquals("卡号与姓名不符", history.get(0).getRejectReason());
+        assertFalse(sellerOnboardingService.hasPendingBankCardChange(payee.getId()));
+    }
+
+    @Test
+    public void testReconcileOnboardingStatus_changePassedPromotesNewCard() {
+        PayeeInfoDO payee = insertPayee("USER_CHANGE3", "110101199001010043", "13800000043");
+        markReady(payee);
+        bankCardChangeService.requestChange(changeReq(payee.getId(), "6222029999888877", "中国工商银行"));
+
+        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), "02", "pass", "M-NEW", null);
+
+        PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
+        assertEquals("6222029999888877", updated.getBankCardNo());
+        assertEquals("中国工商银行", updated.getBankName());
+        assertEquals(PayeeOnboardingOutcomeEnum.READY.getCode(), updated.getOnboardingState());
+        assertFalse(sellerOnboardingService.hasPendingBankCardChange(payee.getId()));
+    }
+
     // ==================== 助手 ====================
 
     /**
@@ -518,6 +589,21 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
 
     private void markRealNamePassed(PayeeInfoDO payee) {
         naturalPersonService.applyRealNameResult(payee.getNaturalPersonId(), true, null);
+    }
+
+    /** 先把建档推到 READY：换卡是「已入驻之后」的事。 */
+    private void markReady(PayeeInfoDO payee) {
+        markRealNamePassed(payee);
+        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), "02", "pass", "M-OLD", null);
+    }
+
+    private PayeeBankCardChangeSaveReqVO changeReq(Long payeeId, String newCardNo, String bankName) {
+        PayeeBankCardChangeSaveReqVO reqVO = new PayeeBankCardChangeSaveReqVO();
+        reqVO.setPayeeId(payeeId);
+        reqVO.setNewBankCardNo(newCardNo);
+        reqVO.setNewBankName(bankName);
+        reqVO.setRequestSource("SELLER_PORTAL");
+        return reqVO;
     }
 
     private SellerRealNameReqVO realNameReq(Long payeeId) {

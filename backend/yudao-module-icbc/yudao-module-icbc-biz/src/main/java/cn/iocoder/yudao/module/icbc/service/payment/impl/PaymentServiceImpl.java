@@ -24,6 +24,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.PaymentReq;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.service.notify.SellerNotifyService;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import cn.iocoder.yudao.module.icbc.service.payment.PaymentService;
 import cn.iocoder.yudao.module.icbc.util.AmountUtils;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -73,6 +74,9 @@ public class PaymentServiceImpl implements PaymentService {
     @Resource
     private SellerNotifyService sellerNotifyService;
 
+    @Resource
+    private PayeeBankCardChangeService payeeBankCardChangeService;
+
     // ==================== 发起付款 ====================
 
     @Override
@@ -90,11 +94,18 @@ public class PaymentServiceImpl implements PaymentService {
 
         // 4. 同一业务单号已有支付单：成功 / 在途不重复提交，异常状态可重新发起（AC #5）
         PaymentOrderDO existing = paymentOrderMapper.selectByPartnerOrderId(invoiceOrder.getPartnerOrderId());
+        if (existing != null && !PaymentStatusEnum.isReInitiable(existing.getPaymentStatus())) {
+            return reuseOrReInitiate(existing, invoiceOrder, amount, reqVO);
+        }
+
+        // 5. 收款账户变更（#37）：审核期间新交易的付款挂起，别把钱打到废卡（退汇）
+        payeeBankCardChangeService.assertPaymentNotSuspended(acquisition.getPayeeId());
+
         if (existing != null) {
             return reuseOrReInitiate(existing, invoiceOrder, amount, reqVO);
         }
 
-        // 5. 首次发起：先落库再提交，保证「结果未知」时也有据可查
+        // 6. 首次发起：先落库再提交，保证「结果未知」时也有据可查
         PaymentOrderDO order = createOrder(invoiceOrder, acquisition, amount, reqVO);
         paymentOrderMapper.insert(order);
         return submitPaymentPage(order, invoiceOrder, reqVO);

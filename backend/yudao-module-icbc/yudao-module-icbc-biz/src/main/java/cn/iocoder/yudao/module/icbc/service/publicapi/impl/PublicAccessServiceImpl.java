@@ -162,6 +162,19 @@ public class PublicAccessServiceImpl implements PublicAccessService {
             resp.setMessage("请在工行页面完成人脸识别实名认证。");
             return resp;
         }
+        // 换卡（#37）：有在途变更时不能因「建档已完成」而短路——要输出**新卡**的收方入驻页面。
+        // 走的是同一个 ONBOARDING 令牌与后端输出表单机制，不新造流程（ADR 0010）。
+        if (sellerOnboardingService.hasPendingBankCardChange(payeeId)) {
+            SellerOnboardingSubmitReqVO req = new SellerOnboardingSubmitReqVO();
+            req.setPayeeId(payeeId);
+            req.setTrxChannel(trxChannel == null || trxChannel.isBlank() ? "03" : trxChannel);
+            SellerStepRespVO step = sellerOnboardingService.submitOnboarding(req);
+            resp.setStep(STEP_ONBOARDING);
+            resp.setStepName("变更银行卡");
+            resp.setFormHtml(step == null ? null : step.getFormHtml());
+            resp.setMessage("请在工行页面绑定你的新银行卡并完成审核。审核期间新交易的付款会挂起，原卡在你确认前仍然有效。");
+            return resp;
+        }
         if (!ONBOARDING_READY.equals(overview.getOnboardingState())) {
             if (isOnboardingFailed(overview.getOnboardingState())) {
                 resp.setStep(STEP_DONE);
@@ -196,7 +209,9 @@ public class PublicAccessServiceImpl implements PublicAccessService {
             // 按当前步骤主动向工行查一次，把状态收敛回来
             if (!REAL_NAME_PASSED.equals(current.getRealNameStatus())) {
                 sellerOnboardingService.syncRealName(payeeId);
-            } else if (!ONBOARDING_READY.equals(current.getOnboardingState())) {
+            } else if (current.getBankCardChangeStatusName() != null
+                    || !ONBOARDING_READY.equals(current.getOnboardingState())) {
+                // 换卡在途时也要查：入驻结果是属于新卡的（#37）
                 sellerOnboardingService.syncOnboarding(payeeId);
             }
             return toOnboardingStatus(sellerOnboardingService.getOnboarding(payeeId));
@@ -228,10 +243,16 @@ public class PublicAccessServiceImpl implements PublicAccessService {
         resp.setStep(currentStep(overview));
         resp.setRealNameStatusName(overview.getRealNameStatusName());
         resp.setOnboardingStateName(overview.getOnboardingStateName());
+        resp.setBankCardChangeStatusName(overview.getBankCardChangeStatusName());
         resp.setNextStep(overview.getNextStep());
         resp.setInvoiceEligible(overview.getInvoiceEligible());
-        resp.setMessage(Boolean.TRUE.equals(overview.getInvoiceEligible())
-                ? "建档已完成。" : overview.getInvoiceBlockReason());
+        if (overview.getBankCardChangeStatusName() != null) {
+            resp.setMessage("收款账户变更：" + overview.getBankCardChangeStatusName()
+                    + "。审核通过前，新交易的付款会挂起；原卡在你确认变更前仍然有效。");
+        } else {
+            resp.setMessage(Boolean.TRUE.equals(overview.getInvoiceEligible())
+                    ? "建档已完成。" : overview.getInvoiceBlockReason());
+        }
         return resp;
     }
 
@@ -243,6 +264,10 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     private String currentStep(SellerOnboardingRespVO overview) {
         if (!REAL_NAME_PASSED.equals(overview.getRealNameStatus())) {
             return STEP_REAL_NAME;
+        }
+        // 换卡在途：即使建档已完成，他也还有一步要做（在工行页面绑新卡）
+        if (overview.getBankCardChangeStatusName() != null) {
+            return STEP_ONBOARDING;
         }
         return ONBOARDING_READY.equals(overview.getOnboardingState()) ? STEP_DONE : STEP_ONBOARDING;
     }

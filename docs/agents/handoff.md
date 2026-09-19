@@ -327,12 +327,26 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 > 测试：`SellerNotifyServiceTest`（默认关闭只落记录、开启后发且幂等、未留手机号 / 未配入口可解释、付款仅异常态提醒、发票带票号、转达链接与文案、免登录通知口径、租户开关、改版重发）。
 
+## #37 换银行卡与工行答复收口（编码部分已完成，第 5 条待工行书面答复）
+
+按 [ADR 0010](docs/adr/0010-付款走公对私直付到银行卡.md)：工行收方入驻绑的是本人**一张**卡，换卡必须重走收方入驻。
+
+1. **不新造流程**：换卡复用既有的 `ONBOARDING` 令牌与后端输出表单机制。自然人端发起后拿到令牌，用它打开 `/icbc/public/onboarding/form`；`PublicAccessServiceImpl.buildOnboardingPage` 发现有在途变更时不因「建档已完成」而短路，直接输出**新卡**的收方入驻页。
+2. **不允许多张卡**：收方档案 `icbc_payee_info.bank_card_no` 是唯一生效中的那张卡；待变更的新卡只活在 `icbc_payee_bank_card_change`（租户表，`icbc-bank-card-change.sql` 幂等）的表上，工行审核通过才搬到档案上。同一收方同一时刻只允许一笔在途变更。
+3. **审核期间新交易的付款挂起**：`PayeeBankCardChangeService#assertPaymentNotSuspended` 是 `PaymentServiceImpl.applyPayment` 发起新指令前的唯一门禁（已成功 / 在途的重复调用照旧返回，不误伤）。企业侧可见：`/icbc/payee-info/page|get` 带 `bankCardChangeStatusName`，PC 出售者档案列表给「变更中」标签 + 「换卡记录」弹窗（含取消变更，用于清掉没办完的在途单）。
+4. **结果归属拆开**：变更在途时入驻结果走 `PayeeBankCardChangeService#applyOnboardingResult`，**不改建档状态**——通过则新卡生效（搬到档案）并留痕为「已生效」；拒绝 / 开户失败则变更单记「已拒绝」，**原卡继续有效**（不因一次换卡失败把他的收款能力打掉）。
+5. **AC5 待工行书面答复**：收方与实人认证是否按子商户隔离。两种答复**都不改数据结构**，只需按答复调整「是否允许复用既有收方」；本期未动。
+
+> 测试：`PayeeBankCardChangeServiceTest`（发起快照旧卡尾号 / 未入驻拒结 / 重复在途拒结 / 通过换卡生效 / 拒绝保旧卡 / 仅 result 拒绝也收敛 / 无在途不碰档案 / 付款挂起与取消后恢复 / 历史与批量）；`SellerOnboardingServiceImplTest` 补换卡三例；`PaymentServiceImplTest` 补挂起一例；`PublicAccessServiceImplTest` 补换卡页与同步两例；`IcbcTenantIsolationTest` 补换卡表租户隔离一例。
+
+> 已知简化：只有管理后台（PC）与自然人端能看到「变更中」；现场端登记时不做提示（付款本来就从 PC 发起，挂起发生在发起那一刻）。「同一收方同时只允许一笔在途」由服务层校验，未加 DB 约束（MySQL 局部唯一索引与 H2 兼容性权衡）。
+
 ## 下一步建议
 
 - **A.** #13 代办税费申报——**已完成**；
 - **B.** #15 平台运营：通知监控与重放——**已完成**；#16 计费计量——**已完成**；
 - **C.** #20 收货员现场端（uni-app H5）、#19 自然人出售者端。
-- **D.** #35 预约到站与 #36 触达（短信三条 + 收货员转达）——**已完成**；#37 换银行卡待工行答复 / 人工确认。
+- **D.** #35 预约到站与 #36 触达（短信三条 + 收货员转达）——**已完成**；#37 换银行卡编码部分已完成，仅剩「收方与实人认证是否按子商户隔离」待工行书面答复（两种答复都不改数据结构）。
 
 ## 约定与坑
 

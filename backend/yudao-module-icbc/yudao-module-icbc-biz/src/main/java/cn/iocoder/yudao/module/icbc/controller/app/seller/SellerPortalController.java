@@ -88,6 +88,14 @@ public class SellerPortalController {
         return success(sellerPortalService.getProfile(naturalPersonId));
     }
 
+    @PostMapping("/bank-card/change")
+    @Operation(summary = "变更收款账户（换银行卡）",
+            description = "卡号由本人填；返回一次性 ONBOARDING 令牌，前端用它打开工行收方入驻表单。审核期间新交易的付款挂起。")
+    public CommonResult<SellerBankCardChangeRespVO> requestBankCardChange(
+            @Valid @RequestBody SellerBankCardChangeReqVO reqVO) {
+        return success(sellerPortalService.requestBankCardChange(reqVO, getClientIP()));
+    }
+
     @PostMapping("/payments/received")
     @Operation(summary = "我收到了", description = "自然人自行确认，不改动银行状态")
     public CommonResult<Boolean> confirmReceived(@Valid @RequestBody SellerConfirmReceiveReqVO reqVO) {

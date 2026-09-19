@@ -987,3 +987,35 @@ CREATE TABLE IF NOT EXISTS icbc_notify_setting (
     PRIMARY KEY (id),
     CONSTRAINT uk_notify_setting_tenant UNIQUE (tenant_id)
 );
+
+-- icbc_payee_bank_card_change table（换银行卡 / 收款账户变更，#37；租户表）
+CREATE TABLE IF NOT EXISTS icbc_payee_bank_card_change (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    change_no VARCHAR(64) NOT NULL,
+    payee_id BIGINT NOT NULL,
+    natural_person_id BIGINT,
+    status INT NOT NULL DEFAULT 0,
+    old_card_tail VARCHAR(8),
+    new_bank_card_no VARCHAR(64) NOT NULL,
+    new_bank_name VARCHAR(100),
+    new_bank_branch VARCHAR(100),
+    id_sign_date VARCHAR(20),
+    id_validity_period VARCHAR(20),
+    icbc_openacct_status VARCHAR(8),
+    audit_result VARCHAR(16),
+    icbc_medium_id VARCHAR(64),
+    reject_reason VARCHAR(500),
+    request_source VARCHAR(32),
+    request_ip VARCHAR(64),
+    requested_at DATETIME NOT NULL,
+    resolved_at DATETIME,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_bank_card_change_no UNIQUE (change_no)
+);

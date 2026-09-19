@@ -22,6 +22,9 @@ public class PublicOnboardingStatusRespVO {
     @Schema(description = "收方入驻结果名", example = "入驻成功")
     private String onboardingStateName;
 
+    @Schema(description = "收款账户变更状态名（换卡在途时非空，例如「银行审核中」）", example = "银行审核中")
+    private String bankCardChangeStatusName;
+
     @Schema(description = "下一步该做什么")
     private String nextStep;
 
