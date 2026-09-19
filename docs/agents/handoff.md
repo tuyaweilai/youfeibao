@@ -79,7 +79,11 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 > **待工行书面确认**：收方与实人认证是否按子商户隔离。ADR 0017 已按「两种答复都不返工」定形（实人认证归主体、入驻状态归档案）；确认后只需调整「是否允许复用既有收方」。
 
-> **#31 未做的部分**：自然人端（`yudao-ui-seller-uniapp`）的登录界面与「待我确认」等页面属于 #34；#31 只交付后端端点与平台运营 PC 页。迁移里的「冲突身份人工清单」目前是 `sql/mysql/icbc-natural-person.sql` 末尾的核对查询（注释形式）+ 平台运营页，**没有** 做成导出。
+> **#31 未做的部分**：自然人端（`yudao-ui-seller-uniapp`）的登录界面与「待我确认」等页面属于 #34；#31 只交付后端端点与平台运营 PC 页。
+
+> **身份冲突人工清单**：`GET /icbc/platform/natural-person/conflicts`（权限 `icbc:platform:natural-person:query`）跨租户只读聚合 `icbc_payee_info`，列出「同一身份证、姓名或手机号不一致」的档案；平台运营「自然人主体」页有「身份冲突清单」弹窗。清单只读，不自动合并；裁决走人工认领 / 解绑 / 停用。迁移 SQL 末尾的原查询保留作 DBA 兜底核对。
+
+> **绑定身份的租户口径**：`bindSubject` 运行在扫码企业的租户下，但登录凭证落在平台租户，读凭证必须回到平台租户（`inPlatformTenant`）；否则手机号一致性校验会被静默跳过。
 
 ## #5 剩余小口子（已处理）
 
