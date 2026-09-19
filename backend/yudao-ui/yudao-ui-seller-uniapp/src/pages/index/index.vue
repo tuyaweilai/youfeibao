@@ -1,5 +1,9 @@
 <template>
-  <view class="page">
+  <view v-if="webViewUrl" class="webview">
+    <web-view :src="webViewUrl" />
+  </view>
+
+  <view v-else class="page">
     <view v-if="!token" class="empty card">
       <view class="empty__title">入口无效</view>
       <view class="empty__desc">请用收购确认书上的链接或二维码打开；令牌一次性有效，过期请让回收企业重新签发。</view>
@@ -16,6 +20,23 @@
         >
           {{ tab.label }}
         </view>
+      </view>
+
+      <!-- 实名与收方入驻 -->
+      <view v-if="activeTab === 'onboarding'" class="card">
+        <view v-if="onboarding" class="quota">
+          <view class="quota__name">实名与收方入驻</view>
+          <view class="quota__message">{{ onboarding.message }}</view>
+          <view class="kv"><text class="kv__k">实名认证</text><text>{{ onboarding.realNameStatusName || '未认证' }}</text></view>
+          <view class="kv"><text class="kv__k">收方入驻</text><text>{{ onboarding.onboardingStateName || '未开始' }}</text></view>
+          <view v-if="onboarding.nextStep" class="quota__exempt quota__exempt--warn">下一步：{{ onboarding.nextStep }}</view>
+          <button v-if="onboarding.step !== 'DONE'" class="btn btn--primary" @click="openOnboardingForm">
+            去工行页面（实名 / 绑卡）
+          </button>
+          <button class="btn btn--ghost" :loading="loading" @click="loadOnboarding">我已完成，刷新</button>
+        </view>
+        <view v-else-if="loading" class="loading">加载中…</view>
+        <view v-else class="error">{{ error }}</view>
       </view>
 
       <!-- 额度 -->
@@ -98,7 +119,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { queryQuota, querySettlement, submitContactLead, QuotaVO, SettlementVO } from '@/api/public'
+import { queryQuota, querySettlement, submitContactLead, syncOnboarding, onboardingFormUrl, QuotaVO, SettlementVO, OnboardingStatusVO } from '@/api/public'
 import { resolveEntryParams, setPurpose, setToken } from '@/utils/token'
 import { downloadInvoicePdf } from '@/utils/download'
 
@@ -108,10 +129,12 @@ const PURPOSE_SECTION: Record<string, string> = {
   QUOTA_QUERY: 'quota',
   INVOICE_DOWNLOAD: 'invoice',
   SETTLEMENT_STATEMENT: 'settlement',
-  CONTACT_LEAD: 'contact'
+  CONTACT_LEAD: 'contact',
+  ONBOARDING: 'onboarding'
 }
 
 const ALL_TABS = [
+  { key: 'onboarding', label: '实名与入驻' },
   { key: 'quota', label: '我的额度' },
   { key: 'invoice', label: '我的发票' },
   { key: 'settlement', label: '汇算清缴' },
@@ -127,6 +150,8 @@ const submitting = ref(false)
 const error = ref('')
 const quota = ref<QuotaVO | null>(null)
 const settlement = ref<SettlementVO | null>(null)
+const onboarding = ref<OnboardingStatusVO | null>(null)
+const webViewUrl = ref('')
 const contact = reactive({ name: '', mobile: '', remark: '' })
 
 // 令牌按用途签发，只放行对应功能；没带用途时给出全部入口
@@ -156,11 +181,43 @@ function switchTab(key: string) {
 async function loadActive() {
   if (!token.value) return
   error.value = ''
-  if (activeTab.value === 'quota') {
+  if (activeTab.value === 'onboarding') {
+    await loadOnboarding()
+  } else if (activeTab.value === 'quota') {
     await loadQuota()
   } else if (activeTab.value === 'settlement') {
     await loadSettlement()
   }
+}
+
+async function loadOnboarding() {
+  loading.value = true
+  try {
+    onboarding.value = await syncOnboarding(token.value)
+  } catch (e) {
+    error.value = (e as Error).message
+  } finally {
+    loading.value = false
+  }
+}
+
+function trxChannel(): string {
+  // #ifdef MP-WEIXIN
+  return '05'
+  // #endif
+  // #ifndef MP-WEIXIN
+  return '03'
+  // #endif
+}
+
+function openOnboardingForm() {
+  const url = onboardingFormUrl(token.value, trxChannel())
+  // #ifdef H5
+  window.open(url, '_blank')
+  // #endif
+  // #ifndef H5
+  webViewUrl.value = url
+  // #endif
 }
 
 async function loadQuota() {
@@ -358,6 +415,17 @@ async function onSubmitContact() {
   margin-top: 8rpx;
   color: #ffffff;
   background-color: $seller-primary;
+}
+
+.btn--ghost {
+  color: $seller-primary;
+  background-color: #ffffff;
+  border: 1rpx solid $seller-primary;
+}
+
+.webview {
+  width: 100%;
+  height: 100vh;
 }
 
 .tip {

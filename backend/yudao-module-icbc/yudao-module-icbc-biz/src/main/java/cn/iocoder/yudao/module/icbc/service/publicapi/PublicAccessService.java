@@ -1,7 +1,8 @@
 package cn.iocoder.yudao.module.icbc.service.publicapi;
 
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicContactLeadReqVO;
-import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingPageRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingStatusRespVO;import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.tax.vo.SellerSettlementStatementRespVO;
 
@@ -32,5 +33,25 @@ public interface PublicAccessService {
      * 用令牌取该自然人的汇算清缴对账单（当年开票与已缴税款）。
      */
     PublicSettlementStatementRespVO querySettlement(String token);
+
+    /**
+     * 用令牌取「当前该做的工行页面」：实名认证或收方入驻。
+     *
+     * @param token       公开令牌（用途 ONBOARDING，绑定收方）
+     * @param trxChannel  交易渠道（H5=03、微信小程序=05）；为空按 H5 处理
+     * @return 当前步骤与工行表单 HTML
+     */
+    PublicOnboardingPageRespVO getOnboardingPage(String token, String trxChannel);
+
+    /**
+     * 用令牌刷新建档状态：按当前步骤向工行主动查询一次并收敛。
+     */
+    PublicOnboardingStatusRespVO syncOnboarding(String token);
+
+    /**
+     * 用令牌直接输出「当前该做的工行页面」HTML（自动提交表单）。
+     * 小程序 `web-view` 与 H5 新窗口都指向这个 URL，内容由后端生成，前端不拼工行 URL。
+     */
+    void writeOnboardingForm(String token, String trxChannel, HttpServletResponse response);
 
 }

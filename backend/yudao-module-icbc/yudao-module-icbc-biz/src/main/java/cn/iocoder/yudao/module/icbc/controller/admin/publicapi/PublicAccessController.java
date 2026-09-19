@@ -2,6 +2,8 @@ package cn.iocoder.yudao.module.icbc.controller.admin.publicapi;
 
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicContactLeadReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingPageRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingStatusRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
 import cn.iocoder.yudao.module.icbc.service.publicapi.PublicAccessService;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
+import java.io.IOException;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
@@ -60,6 +63,33 @@ public class PublicAccessController {
     @Parameter(name = "token", description = "公开令牌", required = true)
     public CommonResult<PublicSettlementStatementRespVO> querySettlement(@RequestParam("token") String token) {
         return success(publicAccessService.querySettlement(token));
+    }
+
+    @GetMapping("/onboarding/page")
+    @Operation(summary = "用令牌取自然人当前该做的工行建档页面（实名认证 / 收方入驻）")
+    @Parameter(name = "token", description = "公开令牌", required = true)
+    @Parameter(name = "trxChannel", description = "交易渠道：H5=03、微信小程序=05", example = "03")
+    public CommonResult<PublicOnboardingPageRespVO> getOnboardingPage(
+            @RequestParam("token") String token,
+            @RequestParam(value = "trxChannel", required = false) String trxChannel) {
+        return success(publicAccessService.getOnboardingPage(token, trxChannel));
+    }
+
+    @PostMapping("/onboarding/sync")
+    @Operation(summary = "用令牌刷新建档状态（向工行主动查询一次）")
+    @Parameter(name = "token", description = "公开令牌", required = true)
+    public CommonResult<PublicOnboardingStatusRespVO> syncOnboarding(@RequestParam("token") String token) {
+        return success(publicAccessService.syncOnboarding(token));
+    }
+
+    @GetMapping("/onboarding/form")
+    @Operation(summary = "用令牌直接取当前该做的工行建档页面 HTML")
+    @Parameter(name = "token", description = "公开令牌", required = true)
+    @Parameter(name = "trxChannel", description = "交易渠道：H5=03、微信小程序=05", example = "03")
+    public void onboardingForm(@RequestParam("token") String token,
+                              @RequestParam(value = "trxChannel", required = false) String trxChannel,
+                              HttpServletResponse response) throws IOException {
+        publicAccessService.writeOnboardingForm(token, trxChannel, response);
     }
 
 }

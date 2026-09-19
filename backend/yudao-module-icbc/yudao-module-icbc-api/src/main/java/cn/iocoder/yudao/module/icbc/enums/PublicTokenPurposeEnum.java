@@ -18,7 +18,9 @@ public enum PublicTokenPurposeEnum {
     /** 额度查询：绑定一个自然人收方，有效期内限次使用（页面可刷新） */
     QUOTA_QUERY("QUOTA_QUERY", "额度查询", BusinessKeyType.PAYEE, 20),
     /** 汇算清缴对账：绑定一个自然人收方，出售者查自己的开票与已缴税款（可刷新） */
-    SETTLEMENT_STATEMENT("SETTLEMENT_STATEMENT", "汇算清缴对账", BusinessKeyType.PAYEE, 20);
+    SETTLEMENT_STATEMENT("SETTLEMENT_STATEMENT", "汇算清缴对账", BusinessKeyType.PAYEE, 20),
+    /** 出售者建档：绑定一个自然人收方，让自然人在自己手机上完成工行实名 / 收方入驻（可重开页面） */
+    ONBOARDING("ONBOARDING", "出售者建档", BusinessKeyType.PAYEE, 20);
 
     /**
      * 令牌绑定的业务键类型。

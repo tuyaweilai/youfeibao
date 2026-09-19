@@ -171,6 +171,17 @@
         <view v-if="overview.authorization" class="tip">已于 {{ formatTime(overview.authorization.authorizedAt) }} 授权</view>
       </view>
 
+      <!-- 5. 交给出售者自助办理 -->
+      <view class="card">
+        <view class="card__title">交给出售者自助办理（可选）</view>
+        <view class="tip">出售者也可在自己手机上完成实名 / 绑卡：生成链接发给本人，用微信打开即可。</view>
+        <button class="btn btn--ghost" :loading="creatingLink" @click="onCreateSelfServiceLink">生成自助链接</button>
+        <view v-if="selfService" class="link-box">
+          <view class="link-box__url">{{ selfService.link || selfService.token }}</view>
+          <button class="link" @click="copyLink">复制</button>
+        </view>
+      </view>
+
       <button class="btn btn--ghost" @click="backToSeller">换一位出售者</button>
     </template>
   </view>
@@ -196,6 +207,8 @@ import {
   syncRealName
 } from '@/api/onboarding'
 import { openIcbcFormHtml } from '@/utils/icbcForm'
+import { createPublicToken } from '@/api/publicToken'
+import { SELLER_APP_URL } from '@/config/env'
 
 defineOptions({ name: 'FieldPayee' })
 
@@ -211,6 +224,8 @@ const syncing = ref(false)
 const leavingContact = ref(false)
 const savingAgreement = ref(false)
 const savingAuthorization = ref(false)
+const creatingLink = ref(false)
+const selfService = ref<{ link: string; token: string } | null>(null)
 
 const lookup = reactive({ idCardNo: '', mobile: '' })
 const newSeller = reactive({ name: '', idCardNo: '', mobile: '', bankCardNo: '', address: '' })
@@ -408,8 +423,38 @@ function backToSeller() {
   overview.value = {}
   foundSeller.value = null
   lookedUp.value = false
+  selfService.value = null
   lookup.idCardNo = ''
   lookup.mobile = ''
+}
+
+async function onCreateSelfServiceLink() {
+  if (!payeeId.value) return
+  creatingLink.value = true
+  try {
+    const resp = await createPublicToken({ purpose: 'ONBOARDING', payeeId: payeeId.value })
+    const token = resp.token || ''
+    const link = SELLER_APP_URL
+      ? `${SELLER_APP_URL.replace(/\/$/, '')}/#/?token=${encodeURIComponent(token)}&purpose=ONBOARDING`
+      : ''
+    selfService.value = { link, token }
+    if (link) {
+      copyLink()
+    }
+  } catch (e) {
+    showError(e)
+  } finally {
+    creatingLink.value = false
+  }
+}
+
+function copyLink() {
+  const text = selfService.value?.link || selfService.value?.token || ''
+  if (!text) return
+  uni.setClipboardData({
+    data: text,
+    success: () => uni.showToast({ title: '已复制', icon: 'none' })
+  })
 }
 
 function formatTime(ts?: number) {
@@ -572,6 +617,20 @@ function showError(e: unknown) {
   align-items: center;
   justify-content: space-between;
   padding: 16rpx 0;
+}
+
+.link-box {
+  margin-top: 16rpx;
+  padding: 16rpx 20rpx;
+  background-color: #f5f6f8;
+  border-radius: 12rpx;
+  word-break: break-all;
+
+  &__url {
+    color: $field-text-secondary;
+    font-size: 24rpx;
+    line-height: 1.6;
+  }
 }
 
 .hint {

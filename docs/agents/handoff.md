@@ -58,7 +58,7 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 - 工程在 `backend/yudao-ui/yudao-ui-seller-uniapp/`（决策见 `docs/adr/0011`）。
 - **#28 薄前端已完成**：入口取 `token` + `purpose`（一次性令牌，无账号），按用途放行额度查询 / 发票下载 / 汇算清缴 / 留联系方式，调 `/icbc/public/*`（#21）。命令：`pnpm dev:h5` / `pnpm build:h5` / `pnpm build:mp-weixin` / `pnpm ts:check`。
-- **#29 承载工行实名 / 确认 / 入驻页面**：容器问题已由工行答复解除（实人认证跳工行 H5 活体，H5 与小程序 `web-view` 都可用；不做 App；一期 H5 先行、随后小程序）。剩下的设计缺口：**工行表单怎么送到自然人手机上**（现场端 `real-name/start` 是收货员动作，返回的 `formHtml` 只到了收货员设备）——需新增一个公开端点 + 令牌用途，让自然人端凭令牌取回当前步骤的表单；`jumpUrl` / `trxChannel` 仍待工行确认。
+- **#29 承载工行实名 / 确认 / 入驻页面已完成**：新增令牌用途 `ONBOARDING`（绑定收方）与公开端点 `GET /icbc/public/onboarding/form`（后端直接输出工行自动提交表单 HTML）、`POST /icbc/public/onboarding/sync`（向工行查一次并收敛）、`GET /icbc/public/onboarding/page`（JSON：步骤 + 表单）。自然人端新增「实名与入驻」：小程序用 `web-view`、H5 新窗口打开；现场端可一键生成自助链接（`VITE_APP_SELLER_URL`）交给出售者。容器顺序：一期 H5、随后小程序、不做 App。
 - 命令：`pnpm dev:h5` / `pnpm build:h5` / `pnpm ts:check`；开发期 `/admin-api` 代理到 48080，登录租户 1 + `admin/admin123`。
 - H5 运行时能力（相机 / 离线存储 / 承接工行自动提交表单）需真机冒烟，清单在 `yudao-ui-field-uniapp/README.md`。
 

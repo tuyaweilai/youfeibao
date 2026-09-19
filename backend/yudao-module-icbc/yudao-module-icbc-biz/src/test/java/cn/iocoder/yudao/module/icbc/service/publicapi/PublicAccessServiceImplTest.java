@@ -3,8 +3,12 @@ package cn.iocoder.yudao.module.icbc.service.publicapi;
 import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicContactLeadReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingPageRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingStatusRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.SellerOnboardingRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.SellerStepRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenCreateReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
@@ -18,6 +22,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.service.download.impl.InvoiceDownloadServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.publicapi.impl.PublicAccessServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.quota.impl.NaturalPersonQuotaServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
 import cn.iocoder.yudao.module.icbc.service.tax.impl.AnnualSettlementServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenCodec;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenService;
@@ -26,6 +31,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.jdbc.Sql;
@@ -43,6 +49,10 @@ import java.util.List;
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.PUBLIC_TOKEN_USED_UP;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * {@link PublicAccessServiceImpl} 的单元测试：三类公开端点，从令牌解析租户后执行。
@@ -73,6 +83,9 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
     private InvoiceFileMapper invoiceFileMapper;
     @Resource
     private IcbcContactLeadMapper contactLeadMapper;
+
+    @MockBean
+    private SellerOnboardingService sellerOnboardingService;
 
     @BeforeEach
     public void setUp() {
@@ -164,6 +177,102 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
         assertEquals(1, statement.getInvoiceCount());
         assertEquals(0, new BigDecimal("120000.00").compareTo(statement.getInvoicedAmount()));
         assertTrue(statement.getMessage().contains("汇算清缴"), "实际：" + statement.getMessage());
+    }
+
+    @Test
+    public void testGetOnboardingPage_realNameWhenNotVerified() {
+        PayeeInfoDO payee = insertPayee("赵六", "110101199004044567");
+        when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(onboarding(0, null, null));
+        SellerStepRespVO step = new SellerStepRespVO();
+        step.setFormHtml("<form>real-name</form>");
+        when(sellerOnboardingService.startRealName(any())).thenReturn(step);
+        String token = mint("ONBOARDING", null, payee.getId());
+
+        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token, "03");
+
+        assertEquals("REAL_NAME", page.getStep());
+        assertEquals("<form>real-name</form>", page.getFormHtml());
+        verify(sellerOnboardingService).startRealName(any());
+    }
+
+    @Test
+    public void testGetOnboardingPage_onboardingAfterRealName() {
+        PayeeInfoDO payee = insertPayee("钱七", "110101199005055678");
+        when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(onboarding(2, null, null));
+        SellerStepRespVO step = new SellerStepRespVO();
+        step.setFormHtml("<form>onboarding</form>");
+        when(sellerOnboardingService.submitOnboarding(any())).thenReturn(step);
+        String token = mint("ONBOARDING", null, payee.getId());
+
+        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token, "05");
+
+        assertEquals("ONBOARDING", page.getStep());
+        assertEquals("<form>onboarding</form>", page.getFormHtml());
+    }
+
+    @Test
+    public void testGetOnboardingPage_doneWhenReady() {
+        PayeeInfoDO payee = insertPayee("孙八", "110101199006066789");
+        when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(onboarding(2, "READY", true));
+        String token = mint("ONBOARDING", null, payee.getId());
+
+        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token, "03");
+
+        assertEquals("DONE", page.getStep());
+        assertNull(page.getFormHtml());
+    }
+
+    @Test
+    public void testGetOnboardingPage_failedOnboardingAsksContact() {
+        PayeeInfoDO payee = insertPayee("周九", "110101199007077890");
+        when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(onboarding(2, "REJECTED", false));
+        String token = mint("ONBOARDING", null, payee.getId());
+
+        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token, "03");
+
+        assertEquals("DONE", page.getStep());
+        assertTrue(page.getMessage().contains("联系方式"), "实际：" + page.getMessage());
+    }
+
+    @Test
+    public void testSyncOnboarding_syncsRealNameThenReturnsStatus() {
+        PayeeInfoDO payee = insertPayee("吴十", "110101199008088901");
+        when(sellerOnboardingService.getOnboarding(payee.getId()))
+                .thenReturn(onboarding(0, null, null), onboarding(2, "READY", true));
+        String token = mint("ONBOARDING", null, payee.getId());
+
+        PublicOnboardingStatusRespVO status = publicAccessService.syncOnboarding(token);
+
+        verify(sellerOnboardingService).syncRealName(eq(payee.getId()));
+        assertEquals("DONE", status.getStep());
+        assertEquals(Boolean.TRUE, status.getInvoiceEligible());
+    }
+
+    @Test
+    public void testWriteOnboardingForm_returnsHtml() throws Exception {
+        PayeeInfoDO payee = insertPayee("郑十一", "110101199009099012");
+        when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(onboarding(0, null, null));
+        SellerStepRespVO step = new SellerStepRespVO();
+        step.setFormHtml("<form>go</form>");
+        when(sellerOnboardingService.startRealName(any())).thenReturn(step);
+        String token = mint("ONBOARDING", null, payee.getId());
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        publicAccessService.writeOnboardingForm(token, "03", response);
+
+        assertTrue(response.getContentAsString().contains("<form>go</form>"));
+    }
+
+    private SellerOnboardingRespVO onboarding(Integer realNameStatus, String onboardingState,
+                                              Boolean invoiceEligible) {
+        SellerOnboardingRespVO resp = new SellerOnboardingRespVO();
+        resp.setRealNameStatus(realNameStatus);
+        resp.setOnboardingState(onboardingState);
+        resp.setOnboardingStateName(onboardingState);
+        resp.setRealNameStatusName(realNameStatus != null && realNameStatus == 2 ? "认证通过" : "未认证");
+        resp.setInvoiceEligible(invoiceEligible);
+        resp.setInvoiceBlockReason(invoiceEligible != null && invoiceEligible ? null : "建档未完成");
+        return resp;
     }
 
     // ==================== 造数 ====================

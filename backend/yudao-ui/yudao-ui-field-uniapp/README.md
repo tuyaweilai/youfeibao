@@ -17,6 +17,7 @@
 
 ```bash
 cd backend/yudao-ui/yudao-ui-field-uniapp
+cp .env.example .env    # 可选，默认值即可跑
 pnpm install
 pnpm dev:h5        # 本地开发，默认 http://localhost:5173，/admin-api 代理到 http://localhost:48080
 pnpm build:h5      # 生产构建，产物在 dist/
