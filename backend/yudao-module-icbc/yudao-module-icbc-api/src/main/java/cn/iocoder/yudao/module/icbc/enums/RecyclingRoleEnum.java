@@ -41,7 +41,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_ATTACH,
             RecyclingPermission.EVIDENCE_DELETE, RecyclingPermission.EVIDENCE_EXPORT,
             RecyclingPermission.PUBLIC_TOKEN_CREATE,
-            RecyclingPermission.API_LOG_QUERY, RecyclingPermission.CALLBACK_QUERY,
+            RecyclingPermission.API_LOG_QUERY,
             RecyclingPermission.TEST_QUERY, RecyclingPermission.TENANT_ROLE_INIT,
             RecyclingPermission.QUALIFICATION_CREATE, RecyclingPermission.QUALIFICATION_UPDATE,
             RecyclingPermission.QUALIFICATION_DELETE, RecyclingPermission.QUALIFICATION_QUERY,
@@ -115,8 +115,9 @@ public enum RecyclingRoleEnum {
      * 平台运营：平台方角色，可跨租户查看工行日志、通知与全平台发票。
      */
     PLATFORM_OPERATOR("recycling_platform_operator", "平台运营", Set.of(
-            RecyclingPermission.API_LOG_QUERY, RecyclingPermission.CALLBACK_QUERY,
-            RecyclingPermission.CALLBACK_RETRY, RecyclingPermission.PLATFORM_INVOICE_QUERY,
+            RecyclingPermission.API_LOG_QUERY,
+            RecyclingPermission.PLATFORM_CALLBACK_QUERY, RecyclingPermission.PLATFORM_CALLBACK_RETRY,
+            RecyclingPermission.PLATFORM_INVOICE_QUERY, RecyclingPermission.PLATFORM_EVIDENCE_QUERY,
             RecyclingPermission.RED_INVOICE_QUERY,
             RecyclingPermission.PLATFORM_QUALIFICATION_QUERY, RecyclingPermission.PLATFORM_QUALIFICATION_AUDIT,
             RecyclingPermission.QUALIFICATION_QUERY, RecyclingPermission.QUALIFICATION_UPDATE,

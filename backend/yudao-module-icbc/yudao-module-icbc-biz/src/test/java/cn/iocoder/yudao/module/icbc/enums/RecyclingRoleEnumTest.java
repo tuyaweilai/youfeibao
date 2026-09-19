@@ -66,7 +66,9 @@ public class RecyclingRoleEnumTest {
                     || permission.equals(RecyclingPermission.SCRAP_CODE_CREATE)
                     || permission.equals(RecyclingPermission.SCRAP_CODE_UPDATE)
                     || permission.equals(RecyclingPermission.SCRAP_CODE_DELETE)
-                    || permission.equals(RecyclingPermission.CALLBACK_RETRY)) {
+                    || permission.equals(RecyclingPermission.PLATFORM_CALLBACK_QUERY)
+                    || permission.equals(RecyclingPermission.PLATFORM_CALLBACK_RETRY)
+                    || permission.equals(RecyclingPermission.PLATFORM_EVIDENCE_QUERY)) {
                 continue; // 平台运营专属，租户管理员不碰
             }
             assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(), permission),
@@ -84,6 +86,17 @@ public class RecyclingRoleEnumTest {
 
         assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
                 RecyclingPermission.PLATFORM_INVOICE_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.PLATFORM_CALLBACK_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.PLATFORM_CALLBACK_RETRY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.PLATFORM_EVIDENCE_QUERY));
+        // 通知监控与重放是平台专属，租户管理员不能跨租户看
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.PLATFORM_CALLBACK_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.PLATFORM_CALLBACK_RETRY));
         // 平台运营不参与租户内的收购登记
         assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
                 RecyclingPermission.PAYEE_CREATE));

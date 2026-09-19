@@ -35,4 +35,8 @@ public interface CallbackNotifyMapper extends BaseMapperX<CallbackNotifyDO> {
         return selectList(CallbackNotifyDO::getProcessStatus, processStatus);
     }
 
+    default List<CallbackNotifyDO> selectListByBusinessId(String businessId) {
+        return selectList(CallbackNotifyDO::getBusinessId, businessId);
+    }
+
 } 

@@ -125,6 +125,7 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
                 completeCount++;
             }
             EvidenceCompletenessItemRespVO item = new EvidenceCompletenessItemRespVO();
+            item.setTenantId(order.getTenantId());
             item.setPartnerOrderId(order.getPartnerOrderId());
             item.setInvoiceNo(order.getInvoiceNo());
             item.setPresentCount(chain.getPresentCount());

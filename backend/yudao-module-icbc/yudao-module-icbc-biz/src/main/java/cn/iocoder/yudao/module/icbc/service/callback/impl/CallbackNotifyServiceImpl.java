@@ -2,7 +2,9 @@ package cn.iocoder.yudao.module.icbc.service.callback.impl;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.tenant.core.aop.TenantIgnore;
+import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.callback.vo.CallbackNotifyPageReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.callback.vo.CallbackNotifySummaryRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.callback.CallbackNotifyDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.callback.CallbackNotifyMapper;
 import cn.iocoder.yudao.module.icbc.enums.CallbackNotifyTypeEnum;
@@ -21,6 +23,7 @@ import org.springframework.validation.annotation.Validated;
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +92,65 @@ public class CallbackNotifyServiceImpl implements CallbackNotifyService {
     @Override
     public PageResult<CallbackNotifyDO> getCallbackNotifyPage(CallbackNotifyPageReqVO pageReqVO) {
         return callbackNotifyMapper.selectPage(pageReqVO);
+    }
+
+    @Override
+    public PageResult<CallbackNotifyDO> getPlatformCallbackNotifyPage(CallbackNotifyPageReqVO pageReqVO) {
+        return TenantUtils.executeIgnore(() -> callbackNotifyMapper.selectPage(pageReqVO));
+    }
+
+    @Override
+    public CallbackNotifySummaryRespVO getPlatformCallbackNotifySummary() {
+        return TenantUtils.executeIgnore(this::buildSummary);
+    }
+
+    private CallbackNotifySummaryRespVO buildSummary() {
+        List<CallbackNotifyDO> records = callbackNotifyMapper.selectList();
+        Map<String, CallbackNotifySummaryRespVO.TypeStat> stats = new java.util.LinkedHashMap<>();
+        // 先按九类通知的固定顺序铺开，保证「没收到某类通知」也能在概览里看到
+        for (CallbackNotifyTypeEnum type : CallbackNotifyTypeEnum.values()) {
+            if (!type.isBankNotify()) {
+                continue; // 平台通知概览只看银税協同的九类
+            }
+            stats.put(type.getType(), newTypeStat(type.getType()));
+        }
+        long success = 0;
+        long failure = 0;
+        long pending = 0;
+        for (CallbackNotifyDO record : records) {
+            if (CallbackProcessStatusEnum.SUCCESS.getStatus().equals(record.getProcessStatus())) {
+                success++;
+            } else if (CallbackProcessStatusEnum.FAILURE.getStatus().equals(record.getProcessStatus())) {
+                failure++;
+            } else {
+                pending++;
+            }
+            CallbackNotifySummaryRespVO.TypeStat stat = stats.get(record.getNotifyType());
+            if (stat != null) {
+                stat.setTotal(stat.getTotal() + 1);
+                if (CallbackProcessStatusEnum.FAILURE.getStatus().equals(record.getProcessStatus())) {
+                    stat.setFailureCount(stat.getFailureCount() + 1);
+                }
+            }
+        }
+        CallbackNotifySummaryRespVO summary = new CallbackNotifySummaryRespVO();
+        summary.setTotal((long) records.size());
+        summary.setPendingCount(pending);
+        summary.setSuccessCount(success);
+        summary.setFailureCount(failure);
+        summary.setTypes(new ArrayList<>(stats.values()));
+        return summary;
+    }
+
+    private CallbackNotifySummaryRespVO.TypeStat newTypeStat(String notifyType) {
+        CallbackNotifyTypeEnum type = CallbackNotifyTypeEnum.of(notifyType);
+        CallbackNotifySummaryRespVO.TypeStat stat = new CallbackNotifySummaryRespVO.TypeStat();
+        stat.setNotifyType(notifyType);
+        stat.setNotifyTypeName(type != null ? type.getName() : "未知");
+        stat.setBusinessName(CallbackNotifyTypeEnum.businessNameOf(notifyType));
+        stat.setTotal(0L);
+        stat.setFailureCount(0L);
+        return stat;
     }
 
     @Override
@@ -201,6 +263,11 @@ public class CallbackNotifyServiceImpl implements CallbackNotifyService {
     @Override
     public List<CallbackNotifyDO> getPendingCallbacks() {
         return callbackNotifyMapper.selectListByProcessStatus(CallbackProcessStatusEnum.PENDING.getStatus());
+    }
+
+    @Override
+    public List<CallbackNotifyDO> getCallbackNotifyListByBusinessId(String businessId) {
+        return TenantUtils.executeIgnore(() -> callbackNotifyMapper.selectListByBusinessId(businessId));
     }
 
     private void markSuccess(CallbackNotifyDO record) {

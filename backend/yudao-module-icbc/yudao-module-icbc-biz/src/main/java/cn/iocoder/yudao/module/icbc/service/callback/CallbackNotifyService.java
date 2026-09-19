@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.icbc.service.callback;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.callback.vo.CallbackNotifyPageReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.callback.vo.CallbackNotifySummaryRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.callback.CallbackNotifyDO;
 
 import java.util.List;
@@ -30,6 +31,16 @@ public interface CallbackNotifyService {
     PageResult<CallbackNotifyDO> getCallbackNotifyPage(CallbackNotifyPageReqVO pageReqVO);
 
     /**
+     * 平台运营：跨租户获得全部回调通知分页。通知是工行推来的全局事件，不按租户过滤。
+     */
+    PageResult<CallbackNotifyDO> getPlatformCallbackNotifyPage(CallbackNotifyPageReqVO pageReqVO);
+
+    /**
+     * 平台运营：九类通知的处理结果概览（总数 / 待处理 / 成功 / 失败，按类型细分）。
+     */
+    CallbackNotifySummaryRespVO getPlatformCallbackNotifySummary();
+
+    /**
      * 获得回调通知
      */
     CallbackNotifyDO getCallbackNotify(Long id);
@@ -56,6 +67,11 @@ public interface CallbackNotifyService {
      * 获取待处理的回调通知
      */
     List<CallbackNotifyDO> getPendingCallbacks();
+
+    /**
+     * 根据业务 ID 获得回调通知列表（同一笔业务可能有多类通知）
+     */
+    List<CallbackNotifyDO> getCallbackNotifyListByBusinessId(String businessId);
 
     /**
      * 回调通知创建请求VO

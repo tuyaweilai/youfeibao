@@ -10,6 +10,9 @@ import java.util.List;
 @Data
 public class EvidenceCompletenessItemRespVO {
 
+    @Schema(description = "租户编号（平台运营跨租户查看时用于区分归属）", example = "1")
+    private Long tenantId;
+
     @Schema(description = "合作方订单号", example = "ORDER_20231201_001")
     private String partnerOrderId;
 

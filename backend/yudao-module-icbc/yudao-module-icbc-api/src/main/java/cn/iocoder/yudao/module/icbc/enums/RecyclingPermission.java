@@ -78,11 +78,16 @@ public interface RecyclingPermission {
 
     String PUBLIC_TOKEN_CREATE = "icbc:public-token:create";
 
-    // ========== 工行调用日志与异步通知（平台运营） ==========
+    // ========== 工行调用日志（平台运营） ==========
 
     String API_LOG_QUERY = "icbc:api-log:query";
-    String CALLBACK_QUERY = "icbc:callback:query";
-    String CALLBACK_RETRY = "icbc:callback:retry";
+
+    // ========== 通知监控与重放（#15：平台运营） ==========
+
+    /** 查看九类通知的处理结果、时间与关联业务（跨租户） */
+    String PLATFORM_CALLBACK_QUERY = "icbc:platform:callback:query";
+    /** 手动重放处理失败的通知（跨租户） */
+    String PLATFORM_CALLBACK_RETRY = "icbc:platform:callback:retry";
 
     // ========== 连通性自检 ==========
 
@@ -117,6 +122,8 @@ public interface RecyclingPermission {
     String PLATFORM_INVOICE_QUERY = "icbc:platform:invoice:query";
     String PLATFORM_QUALIFICATION_QUERY = "icbc:platform:qualification:query";
     String PLATFORM_QUALIFICATION_AUDIT = "icbc:platform:qualification:audit";
+    /** 全平台五流齐备率与异常票清单（#15） */
+    String PLATFORM_EVIDENCE_QUERY = "icbc:platform:evidence:query";
 
     // ========== 平台运营：报废产品税收分类编码表 ==========
 

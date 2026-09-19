@@ -3,6 +3,9 @@ package cn.iocoder.yudao.module.icbc.enums;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.util.Arrays;
+import java.util.Optional;
+
 /**
  * 工行回调处理状态枚举
  *
@@ -24,5 +27,13 @@ public enum CallbackProcessStatusEnum {
      * 状态名
      */
     private final String name;
+
+    public static Optional<CallbackProcessStatusEnum> ofStatus(Integer status) {
+        return Arrays.stream(values()).filter(item -> item.status.equals(status)).findFirst();
+    }
+
+    public static String nameOf(Integer status) {
+        return ofStatus(status).map(CallbackProcessStatusEnum::getName).orElse("未知");
+    }
 
 } 

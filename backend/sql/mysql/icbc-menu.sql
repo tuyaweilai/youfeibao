@@ -53,6 +53,10 @@ VALUES
 (5144, '编码新增', 'icbc:scrap-code:create', 3, 1, 5143, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5145, '编码修改', 'icbc:scrap-code:update', 3, 2, 5143, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5146, '编码删除', 'icbc:scrap-code:delete', 3, 3, 5143, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 通知监控与全平台证据（#15）
+(5147, '通知监控', 'icbc:platform:callback:query', 2, 3, 5140, 'callback', '', 'icbc/platformCallback/index', 'IcbcPlatformCallback', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5148, '重放通知', 'icbc:platform:callback:retry', 3, 1, 5147, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5149, '全平台证据与异常票', 'icbc:platform:evidence:query', 2, 4, 5140, 'evidence', '', 'icbc/platformEvidence/index', 'IcbcPlatformEvidence', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- 一票一档证据链
 (5151, '一票一档', 'icbc:evidence:query', 2, 6, 5100, 'evidence', '', 'icbc/evidence/index', 'IcbcEvidence', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5152, '补录证据', 'icbc:evidence:attach', 3, 1, 5151, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
