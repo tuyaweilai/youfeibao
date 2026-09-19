@@ -551,3 +551,31 @@ CREATE TABLE IF NOT EXISTS icbc_acquisition (
 CREATE INDEX IF NOT EXISTS idx_acquisition_payee_id ON icbc_acquisition(payee_id);
 CREATE INDEX IF NOT EXISTS idx_acquisition_invoice_order ON icbc_acquisition(invoice_partner_order_id);
  
+-- icbc_red_invoice table (Red Invoice / red offset, #14)
+CREATE TABLE IF NOT EXISTS icbc_red_invoice (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    red_offset_no VARCHAR(35) NOT NULL,
+    invoice_order_id BIGINT,
+    partner_order_id VARCHAR(35) NOT NULL,
+    acquisition_id BIGINT,
+    reason VARCHAR(2) NOT NULL,
+    amount DECIMAL(10,2),
+    tax_amount DECIMAL(10,2),
+    red_offset_status INTEGER NOT NULL DEFAULT 0,
+    red_offset_status_code VARCHAR(2),
+    red_invoice_no VARCHAR(20),
+    red_invoice_date DATETIME,
+    revoke_status VARCHAR(2),
+    revoke_time DATETIME,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_red_offset_no UNIQUE (red_offset_no)
+);
+
+CREATE INDEX IF NOT EXISTS idx_red_partner_order_id ON icbc_red_invoice(partner_order_id);

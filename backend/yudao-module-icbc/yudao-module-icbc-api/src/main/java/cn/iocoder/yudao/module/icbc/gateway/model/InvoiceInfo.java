@@ -41,9 +41,30 @@ public class InvoiceInfo {
      */
     private String taxStatus;
     /**
-     * 红字确认单状态：00 初始，…，10 撤销成功，11 撤销失败
+     * 红字确认单状态：00 初始 / 01 申请中 / 02 申请成功 / 03 申请失败 / 04 上传处理中 /
+     * 05 上传已受理 / 06 上传中 / 07 上传成功 / 08 上传失败 / 09 撤销中 / 10 撤销成功 / 11 撤销失败
      */
     private String redOffsetStatus;
+    /**
+     * 红冲发票号（工行 {@code redOffsetInvoiceCode}）：非空即代表红票已开出
+     */
+    private String redOffsetInvoiceCode;
+    /**
+     * 红冲原因：01 开票有误 / 02 销货退回 / 03 服务中止 / 04 销售折让
+     */
+    private String redOffsetReason;
+    /**
+     * 红字冲销金额
+     */
+    private String redOffsetAmount;
+    /**
+     * 红字冲销税额
+     */
+    private String redOffsetTax;
+    /**
+     * 红字冲销含税金额
+     */
+    private String redOffsetAmountTax;
     private String invoiceCode;
     /**
      * 发票号码（工行通知里 {@code invoiceCode} 是发票号码；预查询未单列，由适配层回填同一值）

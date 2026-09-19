@@ -116,4 +116,14 @@ public interface InvoiceOrderService {
      */
     void onPaymentSucceeded(String partnerOrderId);
 
+    /**
+     * 发票取消（#14）：把预开票状态置为「取消」、订单状态置为「已取消」。
+     *
+     * <p>仅限「预开票成功但未支付」的发票；已付款 / 已开票的发票不在这里取消，要走红冲。
+     * 通知（{@code notifyType=06}）与主动取消都调它，幂等。
+     *
+     * @param partnerOrderId 合作方订单号
+     */
+    void applyInvoiceCancelled(String partnerOrderId);
+
 } 

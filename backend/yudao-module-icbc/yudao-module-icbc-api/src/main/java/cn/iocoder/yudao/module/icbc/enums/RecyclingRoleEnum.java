@@ -31,6 +31,9 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PAYER_CREATE, RecyclingPermission.PAYER_UPDATE,
             RecyclingPermission.PAYER_DELETE, RecyclingPermission.PAYER_QUERY,
             RecyclingPermission.INVOICE_CREATE, RecyclingPermission.INVOICE_QUERY,
+            RecyclingPermission.INVOICE_CANCEL,
+            RecyclingPermission.RED_INVOICE_APPLY, RecyclingPermission.RED_INVOICE_REVOKE,
+            RecyclingPermission.RED_INVOICE_QUERY,
             RecyclingPermission.INVOICE_APPLICATION_APPLY, RecyclingPermission.INVOICE_APPLICATION_QUERY,
             RecyclingPermission.PAYMENT_CREATE, RecyclingPermission.PAYMENT_QUERY,
             RecyclingPermission.DOWNLOAD_EXECUTE, RecyclingPermission.DOWNLOAD_QUERY,
@@ -70,6 +73,9 @@ public enum RecyclingRoleEnum {
     INVOICER("recycling_invoicer", "开票员", Set.of(
             RecyclingPermission.PAYER_QUERY,
             RecyclingPermission.INVOICE_CREATE, RecyclingPermission.INVOICE_QUERY,
+            RecyclingPermission.INVOICE_CANCEL,
+            RecyclingPermission.RED_INVOICE_APPLY, RecyclingPermission.RED_INVOICE_REVOKE,
+            RecyclingPermission.RED_INVOICE_QUERY,
             RecyclingPermission.INVOICE_APPLICATION_APPLY, RecyclingPermission.INVOICE_APPLICATION_QUERY,
             RecyclingPermission.ACQUISITION_QUERY,
             RecyclingPermission.PAYMENT_CREATE, RecyclingPermission.PAYMENT_QUERY,
@@ -85,6 +91,7 @@ public enum RecyclingRoleEnum {
      */
     FINANCE("recycling_finance", "财务", Set.of(
             RecyclingPermission.INVOICE_QUERY,
+            RecyclingPermission.RED_INVOICE_QUERY,
             RecyclingPermission.INVOICE_APPLICATION_QUERY,
             RecyclingPermission.ACQUISITION_QUERY, RecyclingPermission.ACQUISITION_EXPORT,
             RecyclingPermission.PAYMENT_QUERY,
@@ -98,6 +105,7 @@ public enum RecyclingRoleEnum {
     PLATFORM_OPERATOR("recycling_platform_operator", "平台运营", Set.of(
             RecyclingPermission.API_LOG_QUERY, RecyclingPermission.CALLBACK_QUERY,
             RecyclingPermission.CALLBACK_RETRY, RecyclingPermission.PLATFORM_INVOICE_QUERY,
+            RecyclingPermission.RED_INVOICE_QUERY,
             RecyclingPermission.PLATFORM_QUALIFICATION_QUERY, RecyclingPermission.PLATFORM_QUALIFICATION_AUDIT,
             RecyclingPermission.QUALIFICATION_QUERY, RecyclingPermission.QUALIFICATION_UPDATE,
             RecyclingPermission.GOODS_CONFIG_CREATE, RecyclingPermission.GOODS_CONFIG_UPDATE,

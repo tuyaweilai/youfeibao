@@ -10,6 +10,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.evidence.IcbcEvidenceDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.OrderItemDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.RedInvoiceDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
@@ -18,6 +19,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.evidence.IcbcEvidenceMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.RedInvoiceMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
 import cn.iocoder.yudao.module.icbc.enums.EvidenceFlowEnum;
@@ -62,6 +64,8 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
     private InvoiceOrderMapper invoiceOrderMapper;
     @Resource
     private OrderItemMapper orderItemMapper;
+    @Resource
+    private RedInvoiceMapper redInvoiceMapper;
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
     @Resource
@@ -320,6 +324,17 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
             flowSources.get(EvidenceFlowEnum.INVOICE).add(source);
         }
 
+        // 发票流（红冲）：红票开出后，蓝票的红冲也是发票流的一部分，红蓝一一对应
+        RedInvoiceDO red = ctx.redByOrder.get(order.getPartnerOrderId());
+        if (red != null && StrUtil.isNotBlank(red.getRedInvoiceNo())) {
+            EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+            source.setSourceType("RED_INVOICE");
+            source.setTitle("红字发票（红冲）");
+            source.setRef(red.getRedInvoiceNo());
+            source.setOccurredTime(red.getRedInvoiceDate());
+            flowSources.get(EvidenceFlowEnum.INVOICE).add(source);
+        }
+
         // 信息流：整张票就是一个台账条目；有收购登记单时以登记单为准
         if (CollUtil.isNotEmpty(items)) {
             EvidenceSourceRespVO source = new EvidenceSourceRespVO();
@@ -454,6 +469,14 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
                     PaymentOrderDO::getPartnerOrderId, partnerOrderIds)) {
                 ctx.paymentByOrder.put(payment.getPartnerOrderId(), payment);
             }
+            for (RedInvoiceDO red : redInvoiceMapper.selectList(
+                    RedInvoiceDO::getPartnerOrderId, partnerOrderIds)) {
+                // 同一蓝票可能有多条（撤销后重冲），取 id 最大的一条
+                RedInvoiceDO exists = ctx.redByOrder.get(red.getPartnerOrderId());
+                if (exists == null || red.getId() > exists.getId()) {
+                    ctx.redByOrder.put(red.getPartnerOrderId(), red);
+                }
+            }
             List<InvoiceDownloadDO> downloads = invoiceDownloadMapper.selectList(
                     InvoiceDownloadDO::getPartnerOrderId, partnerOrderIds);
             for (InvoiceDownloadDO download : downloads) {
@@ -553,6 +576,7 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
         private final Map<Long, List<InvoiceFileDO>> filesByDownload = new HashMap<>();
         private final Map<Long, List<OrderItemDO>> itemsByOrderId = new HashMap<>();
         private final Map<Long, PayeeInfoDO> payeeById = new HashMap<>();
+        private final Map<String, RedInvoiceDO> redByOrder = new HashMap<>();
     }
 
 }

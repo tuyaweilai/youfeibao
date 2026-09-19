@@ -213,6 +213,38 @@ public class FakeIcbcGateway implements IcbcGateway {
         invocations.clear();
     }
 
+    /**
+     * 清空调用序列并把可覆盖的结果恢复为默认值，供测试之间互不影响。
+     */
+    public void resetAll() {
+        invocations.clear();
+        faceVerifyPageResult = IcbcGatewayResult.success(
+                IcbcPage.builder().formHtml("<form id=\"face-verify\"></form>").build(), 0, "成功");
+        faceVerifyStatusResult = IcbcGatewayResult.success(
+                FaceVerifyStatus.builder().outUserId("x").authResult("02").passed(true).build(), 0, "成功");
+        payeeOnboardingResult = IcbcGatewayResult.success(
+                IcbcPage.builder().formHtml("<form id=\"payee-onboarding\"></form>").build(), 0, "成功");
+        payeeOnboardingStatusResult = IcbcGatewayResult.success(
+                PayeeOnboardingStatus.builder().receiverStatus("1").auditStatus("1").build(), 0, "成功");
+        enterpriseAuthResult = IcbcGatewayResult.success(
+                IcbcPage.builder().formHtml("<form id=\"enterprise-auth\"></form>").build(), 0, "成功");
+        preOrderResult = IcbcGatewayResult.success(
+                IcbcPage.builder().formHtml("<form id=\"pre-order\"></form>").build(), 0, "成功");
+        invoiceInfoResult = IcbcGatewayResult.success(InvoiceInfo.builder().build(), 10100000, "接口访问成功");
+        paymentResult = IcbcGatewayResult.success(
+                IcbcPage.builder().formHtml("<form id=\"payment\"></form>").build(), 0, "成功");
+        invoiceFileResult = IcbcGatewayResult.success(InvoiceFile.builder().fileName("invoice.pdf")
+                .content("PDF".getBytes(StandardCharsets.UTF_8)).build(), 10100000, "接口访问成功");
+        invoiceCancelResult = IcbcGatewayResult.success(
+                InvoiceCancelResult.builder().reversalStatus("00").build(), 10100000, "接口访问成功");
+        redInvoiceResult = IcbcGatewayResult.success(
+                IcbcPage.builder().formHtml("<form id=\"red-invoice\"></form>").build(), 0, "成功");
+        redInvoiceRevokeResult = IcbcGatewayResult.success(
+                RedInvoiceRevokeResult.builder().revokeStatus("10").build(), 10100000, "接口访问成功");
+        connectivityResult = IcbcGatewayResult.success(IcbcConnectivity.builder().reachable(true).returnCode(30601006)
+                .returnMsg("未查询到收方信息").build(), 30601006, "未查询到收方信息");
+    }
+
     @Data
     @AllArgsConstructor
     public static class IcbcInvocation {

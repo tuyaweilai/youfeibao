@@ -162,4 +162,19 @@ public interface ErrorCodeConstants {
     // ========== 开票 / 缴税 / 上传状态与缴税凭证（#10） 1-030-016-000 ==========
     ErrorCode INVOICE_TAX_CERTIFICATE_NOT_AVAILABLE = new ErrorCode(1_030_016_000, "缴税尚未成功，暂不能出具缴税凭证");
     ErrorCode INVOICE_TAX_CERTIFICATE_EXPORT_FAILED = new ErrorCode(1_030_016_001, "缴税凭证导出失败");
+
+    // ========== 红冲与发票取消（#14） 1-030-017-000 ==========
+    ErrorCode RED_INVOICE_NOT_EXISTS = new ErrorCode(1_030_017_000, "红冲记录不存在");
+    ErrorCode RED_INVOICE_REASON_INVALID = new ErrorCode(1_030_017_001, "红冲原因不合法：只能是 01 开票有误 / 02 销货退回 / 03 服务中止 / 04 销售折让");
+    ErrorCode RED_INVOICE_BLUE_NOT_ISSUED = new ErrorCode(1_030_017_002, "原蓝票尚未开具，不能发起红冲");
+    ErrorCode RED_INVOICE_AMOUNT_MISMATCH = new ErrorCode(1_030_017_003, "开票有误必须全额红冲：红冲金额 {} 与蓝票金额 {} 不一致");
+    ErrorCode RED_INVOICE_GOODS_MISMATCH = new ErrorCode(1_030_017_004, "开票有误必须全额红冲：红冲明细的单价、金额、数量必须与原蓝票一致");
+    ErrorCode RED_INVOICE_ALREADY_EXISTS = new ErrorCode(1_030_017_005, "该蓝票已有生效中的红冲记录，不能重复发起");
+    ErrorCode RED_INVOICE_NOT_REVOCABLE = new ErrorCode(1_030_017_006, "红字确认单当前状态不允许撤销：{}");
+    ErrorCode RED_INVOICE_AMOUNT_REQUIRED = new ErrorCode(1_030_017_007, "红冲必须填写红冲金额");
+    ErrorCode INVOICE_CANCEL_NOT_PRE_SUCCESS = new ErrorCode(1_030_017_008, "仅「预开票成功」的发票可以取消，当前状态不允许取消");
+    ErrorCode INVOICE_CANCEL_PAID = new ErrorCode(1_030_017_009, "已支付的发票不能取消，请走红冲流程");
+    ErrorCode INVOICE_CANCEL_RESULT_UNKNOWN = new ErrorCode(1_030_017_010, "工行取消结果未知，请勿重复提交，稍后查询发票状态");
+    ErrorCode INVOICE_CANCEL_FAILED = new ErrorCode(1_030_017_012, "发票取消未成功：{}");
+    ErrorCode RED_INVOICE_RESULT_UNKNOWN = new ErrorCode(1_030_017_011, "工行红冲结果未知，请勿重复提交，稍后查询红冲状态");
 }

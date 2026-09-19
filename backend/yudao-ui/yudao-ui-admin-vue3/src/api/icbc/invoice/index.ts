@@ -80,6 +80,11 @@ export interface InvoiceQueryRespVO {
   taxPaymentMethodName?: string
   taxVoucherNo?: string
   nextAction?: string
+  redSerialNo?: string
+  redOffsetStatus?: number
+  redOffsetStatusName?: string
+  redInvoiceNo?: string
+  redInvoiceDate?: Date
 }
 
 // 代办税费缴税凭证
@@ -188,5 +193,89 @@ export const InvoiceApplicationApi = {
   // 批量发起：逐笔独立成败
   applyBatch: async (data: InvoiceApplicationBatchVO) => {
     return await request.post({ url: `/icbc/invoice-application/apply-batch`, data })
+  }
+}
+
+// ==================== 红冲与发票取消（#14） ====================
+
+export interface RedInvoiceGoodsVO {
+  goodsSeqno?: string
+  blueGoodsSeqno?: string
+  projectName?: string
+  goodsNum?: string
+  goodsAmt?: string
+  weight?: string
+  price?: string
+  units?: string
+}
+
+export interface RedInvoiceApplyVO {
+  partnerOrderId: string
+  reason: string // 01 开票有误 / 02 销货退回 / 03 服务中止 / 04 销售折让
+  amount?: number
+  goods?: RedInvoiceGoodsVO[]
+  jumpUrlBase?: string
+  remark?: string
+}
+
+export interface RedInvoiceApplyResultVO {
+  success?: boolean
+  duplicate?: boolean
+  redOffsetNo?: string
+  partnerOrderId?: string
+  reason?: string
+  amount?: number
+  redOffsetStatus?: number
+  redOffsetStatusName?: string
+  nextAction?: string
+  confirmPageHtml?: string
+  message?: string
+}
+
+export interface RedInvoiceQueryVO {
+  redOffsetNo?: string
+  partnerOrderId?: string
+  invoiceOrderId?: number
+  acquisitionId?: number
+  reason?: string
+  reasonName?: string
+  amount?: number
+  taxAmount?: number
+  redOffsetStatus?: number
+  redOffsetStatusName?: string
+  redOffsetStatusCode?: string
+  redInvoiceNo?: string
+  redInvoiceDate?: Date
+  revokeStatus?: string
+  revokeTime?: Date
+  nextAction?: string
+  createTime?: Date
+}
+
+// 红冲与发票取消 API
+export const RedInvoiceApi = {
+  // 发起红字冲销，返回红字确认单页面表单 HTML
+  apply: async (data: RedInvoiceApplyVO) => {
+    return await request.post({ url: `/icbc/red-invoice/apply`, data })
+  },
+  // 撤销尚未生效的红字确认单
+  revoke: async (redOffsetNo: string) => {
+    return await request.post({ url: `/icbc/red-invoice/revoke`, data: { redOffsetNo } })
+  },
+  // 取消预开票成功但未支付的发票
+  cancel: async (partnerOrderId: string) => {
+    return await request.post({ url: `/icbc/red-invoice/cancel`, data: { partnerOrderId } })
+  },
+  // 按红冲流水号查询
+  get: async (redOffsetNo: string) => {
+    return await request.get({ url: `/icbc/red-invoice/get`, params: { redOffsetNo } })
+  },
+  // 按蓝票合作方订单号查询最近一次红冲
+  getByPartner: async (partnerOrderId: string) => {
+    return await request.get({ url: `/icbc/red-invoice/get-by-partner`, params: { partnerOrderId } })
+  },
+  // 主动向工行查询红冲最新状态
+  refresh: async (redOffsetNo: string) => {
+    return await request.get({ url: `/icbc/red-invoice/query`, params: { redOffsetNo } })
   }
 }

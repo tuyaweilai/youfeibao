@@ -97,6 +97,12 @@ public class InvoiceQueryRespVO {
     @Schema(description = "红冲流水号", example = "RED202312010001")
     private String redSerialNo;
 
+    @Schema(description = "红冲状态：见 RedOffsetStatusEnum", example = "7")
+    private Integer redOffsetStatus;
+
+    @Schema(description = "红冲状态名称", example = "红冲成功")
+    private String redOffsetStatusName;
+
     @Schema(description = "红票发票号码", example = "87654321")
     private String redInvoiceNo;
 

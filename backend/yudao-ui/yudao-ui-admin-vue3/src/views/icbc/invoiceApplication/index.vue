@@ -143,14 +143,53 @@
       <el-descriptions-item label="实缴税额">{{ statusResult.taxRealAmount ?? '-' }}</el-descriptions-item>
       <el-descriptions-item label="缴税时间">{{ formatTime(statusResult.taxTime) || '-' }}</el-descriptions-item>
       <el-descriptions-item label="应征凭证序号">{{ statusResult.taxVoucherNo || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="红冲状态">{{ statusResult.redOffsetStatusName || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="红冲流水号">{{ statusResult.redSerialNo || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="红票号码">{{ statusResult.redInvoiceNo || '-' }}</el-descriptions-item>
     </el-descriptions>
     <el-alert v-if="statusResult?.nextAction" class="mt-10px" type="warning" :closable="false"
       :title="statusResult.nextAction" />
     <template #footer>
+      <el-button v-if="canCancelPreInvoice" type="warning" @click="handleCancelInvoice"
+        v-hasPermi="['icbc:invoice-order:cancel']">
+        取消预开票
+      </el-button>
+      <el-button v-if="canApplyRed" type="danger" @click="handleOpenRedApply"
+        v-hasPermi="['icbc:red-invoice:apply']">
+        发起红冲
+      </el-button>
+      <el-button v-if="canRevokeRed" @click="handleRevokeRed"
+        v-hasPermi="['icbc:red-invoice:revoke']">
+        撤销红字确认单
+      </el-button>
       <el-button v-if="statusResult && ['缴税成功', '无需缴税'].includes(statusResult.taxStatusName || '')"
         type="primary" @click="handleTaxCertificate">
         查看缴税凭证
       </el-button>
+    </template>
+  </el-dialog>
+
+  <!-- 发起红冲 -->
+  <el-dialog v-model="redApplyVisible" title="发起红字冲销" width="520px">
+    <el-form label-width="100px">
+      <el-form-item label="红冲原因">
+        <el-select v-model="redForm.reason" class="!w-full">
+          <el-option label="开票有误（必须全额红冲）" value="01" />
+          <el-option label="销货退回" value="02" />
+          <el-option label="服务中止" value="03" />
+          <el-option label="销售折让" value="04" />
+        </el-select>
+      </el-form-item>
+      <el-form-item v-if="redForm.reason !== '01'" label="红冲金额">
+        <el-input-number v-model="redForm.amount" :precision="2" :min="0.01" class="!w-full" />
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="redForm.remark" type="textarea" :rows="2" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="redApplyVisible = false">取消</el-button>
+      <el-button type="primary" :loading="redSubmitting" @click="handleSubmitRedApply">发起红冲</el-button>
     </template>
   </el-dialog>
 
@@ -186,7 +225,9 @@ import {
   InvoiceApplicationResultVO,
   InvoicePreCheckRespVO,
   InvoiceQueryRespVO,
-  InvoiceTaxCertificateVO
+  InvoiceTaxCertificateVO,
+  RedInvoiceApi,
+  RedInvoiceApplyResultVO
 } from '@/api/icbc/invoice'
 import { formatDate } from '@/utils/formatTime'
 import { openIcbcForm } from '../util'
@@ -306,6 +347,72 @@ const statusResult = ref<InvoiceQueryRespVO>()
 const handleQueryStatus = async (partnerOrderId: string) => {
   statusResult.value = await InvoiceApi.query({ outOrderId: partnerOrderId })
   statusVisible.value = true
+}
+
+// ==================== 红冲与发票取消（#14） ====================
+// 预开票成功且未支付时可以取消；已开票（真正出票）后只能红冲
+const canCancelPreInvoice = computed(
+  () => statusResult.value?.preInvoiceStatus === 2 && statusResult.value?.paymentStatus !== 2
+)
+const canApplyRed = computed(() => statusResult.value?.invoiceStatus === 2)
+// 0/1/2/3/4/5/6/8/11 可撤销；7 红冲成功、9 撤销中、10 已撤销不可撤销
+const RED_REVOCABLE = [0, 1, 2, 3, 4, 5, 6, 8, 11]
+const canRevokeRed = computed(() => {
+  const s = statusResult.value?.redOffsetStatus
+  return s !== undefined && RED_REVOCABLE.includes(s)
+})
+
+const redApplyVisible = ref(false)
+const redSubmitting = ref(false)
+const redForm = reactive({ reason: '01', amount: undefined as number | undefined, remark: '' })
+
+const handleOpenRedApply = () => {
+  redForm.reason = '01'
+  redForm.amount = statusResult.value?.invoiceAmount
+  redForm.remark = ''
+  redApplyVisible.value = true
+}
+
+const handleSubmitRedApply = async () => {
+  const partnerOrderId = statusResult.value?.partnerOrderId
+  if (!partnerOrderId) return
+  redSubmitting.value = true
+  try {
+    const res: RedInvoiceApplyResultVO = await RedInvoiceApi.apply({
+      partnerOrderId,
+      reason: redForm.reason,
+      amount: redForm.reason === '01' ? undefined : redForm.amount,
+      remark: redForm.remark,
+      jumpUrlBase: baseForm.jumpUrlBase
+    })
+    if (res.confirmPageHtml) {
+      openIcbcForm(res.confirmPageHtml, '红字确认单页面')
+    }
+    message.success(res.duplicate ? '该蓝票已有红冲记录' : '已取得红字确认单页面')
+    redApplyVisible.value = false
+    await handleQueryStatus(partnerOrderId)
+  } finally {
+    redSubmitting.value = false
+  }
+}
+
+const handleCancelInvoice = async () => {
+  const partnerOrderId = statusResult.value?.partnerOrderId
+  if (!partnerOrderId) return
+  await message.confirm('确认取消这张尚未支付的预开票吗？')
+  await RedInvoiceApi.cancel(partnerOrderId)
+  message.success('已取消')
+  await handleQueryStatus(partnerOrderId)
+}
+
+const handleRevokeRed = async () => {
+  const redOffsetNo = statusResult.value?.redSerialNo
+  const partnerOrderId = statusResult.value?.partnerOrderId
+  if (!redOffsetNo || !partnerOrderId) return
+  await message.confirm('确认撤销这张尚未生效的红字确认单吗？')
+  await RedInvoiceApi.revoke(redOffsetNo)
+  message.success('已撤销')
+  await handleQueryStatus(partnerOrderId)
 }
 
 // ==================== 缴税凭证 ====================

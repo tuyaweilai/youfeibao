@@ -42,6 +42,13 @@ public interface RecyclingPermission {
 
     String INVOICE_CREATE = "icbc:invoice-order:create";
     String INVOICE_QUERY = "icbc:invoice-order:query";
+    String INVOICE_CANCEL = "icbc:invoice-order:cancel";
+
+    // ========== 红冲（#14：红字冲销与撤销） ==========
+
+    String RED_INVOICE_APPLY = "icbc:red-invoice:apply";
+    String RED_INVOICE_REVOKE = "icbc:red-invoice:revoke";
+    String RED_INVOICE_QUERY = "icbc:red-invoice:query";
 
     // ========== 开票申请（#8：预下单与自然人确认） ==========
 

@@ -2,7 +2,7 @@
 -- 幂等：先按固定 id 范围删除，再插入。
 -- 组件路径对应前端 backend/yudao-ui/yudao-ui-admin-vue3/src/views/icbc/* 与 views/enterprise/*
 
-DELETE FROM `system_menu` WHERE `id` BETWEEN 5100 AND 5159;
+DELETE FROM `system_menu` WHERE `id` BETWEEN 5100 AND 5199;
 
 INSERT INTO `system_menu`
 (`id`, `name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
@@ -70,4 +70,9 @@ VALUES
 (5139, '导出收购确认书', 'icbc:acquisition:export', 3, 3, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- 开票申请（#8：预下单与自然人确认）
 (5156, '开票申请（按收购单）', 'icbc:invoice-application:query', 2, 8, 5100, 'invoice-application', '', 'icbc/invoiceApplication/index', 'IcbcInvoiceApplication', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5157, '发起开票申请', 'icbc:invoice-application:apply', 3, 1, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5157, '发起开票申请', 'icbc:invoice-application:apply', 3, 1, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 红冲与发票取消（#14）
+(5158, '发起红冲', 'icbc:red-invoice:apply', 3, 2, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5159, '撤销红字确认单', 'icbc:red-invoice:revoke', 3, 3, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5160, '取消预开票', 'icbc:invoice-order:cancel', 3, 4, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5161, '查询红冲', 'icbc:red-invoice:query', 3, 5, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');

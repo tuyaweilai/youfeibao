@@ -10,15 +10,18 @@ import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryReqV
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.OrderItemDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.RedInvoiceDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.RedInvoiceMapper;
 import cn.iocoder.yudao.module.icbc.enums.IcbcTaxMethodEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcTaxPaymentMethodEnum;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceConfirmStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PaymentStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.RedOffsetStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.TaxStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.UploadStatusEnum;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
@@ -30,6 +33,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderGoods;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderReq;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.util.AmountUtils;
+import cn.iocoder.yudao.module.icbc.util.IcbcTimeUtils;
 import cn.iocoder.yudao.module.icbc.service.goodscfg.IcbcGoodsConfigService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
@@ -41,8 +45,6 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -62,6 +64,9 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
     
     @Resource
     private OrderItemMapper orderItemMapper;
+
+    @Resource
+    private RedInvoiceMapper redInvoiceMapper;
     
     @Resource
     private IcbcGateway icbcGateway;
@@ -188,8 +193,24 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
         response.setTaxPaymentMethod(order.getTaxPaymentMethod());
         response.setTaxPaymentMethodName(IcbcTaxPaymentMethodEnum.nameOf(order.getTaxPaymentMethod()));
         response.setTaxVoucherNo(order.getTaxVoucherNo());
+        fillRedFields(response, order);
         response.setNextAction(resolveNextAction(order));
         return response;
+    }
+
+    /**
+     * 把该蓝票最近一次红冲记录带进查询响应：红冲与取消后状态同步可见。
+     */
+    private void fillRedFields(InvoiceQueryRespVO response, InvoiceOrderDO order) {
+        RedInvoiceDO red = redInvoiceMapper.selectLatestByPartnerOrderId(order.getPartnerOrderId());
+        if (red == null) {
+            return;
+        }
+        response.setRedSerialNo(red.getRedOffsetNo());
+        response.setRedOffsetStatus(red.getRedOffsetStatus());
+        response.setRedOffsetStatusName(RedOffsetStatusEnum.nameOf(red.getRedOffsetStatus()));
+        response.setRedInvoiceNo(red.getRedInvoiceNo());
+        response.setRedInvoiceDate(red.getRedInvoiceDate());
     }
 
     /**
@@ -312,6 +333,26 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
         }
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void applyInvoiceCancelled(String partnerOrderId) {
+        InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId(partnerOrderId);
+        if (order == null) {
+            // 通知早于平台数据落库：抛业务异常，通知落失败、数据落库后可重放
+            throw exception(ErrorCodeConstants.CALLBACK_BUSINESS_NOT_EXISTS);
+        }
+        InvoiceOrderDO update = new InvoiceOrderDO();
+        update.setId(order.getId());
+        update.setPreInvoiceStatus(PreInvoiceStatusEnum.CANCELLED.getStatus());
+        // 已付款 / 已开票不因取消通知被抹掉；未支付的预开票取消后订单即已取消
+        if (!PaymentStatusEnum.isSuccess(order.getPaymentStatus())
+                && !InvoiceIssueStatusEnum.isIssued(order.getInvoiceStatus())) {
+            update.setOrderStatus(9);
+        }
+        invoiceOrderMapper.updateById(update);
+        log.info("发票取消状态收敛 - partnerOrderId: {}", partnerOrderId);
+    }
+
     /**
      * 开票状态：发票号码是最硬的凭证，有号码即已开票；预开票失败则开票失败；
      * 已付款但工行还没出票时进入开票中。
@@ -381,7 +422,7 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
         if (StrUtil.isNotBlank(invoiceNo)) {
             update.setInvoiceNo(invoiceNo);
         }
-        LocalDateTime invoiceDate = parseIcbcTime(info.getInvoiceDate());
+        LocalDateTime invoiceDate = IcbcTimeUtils.parse(info.getInvoiceDate());
         if (invoiceDate != null) {
             update.setInvoiceDate(invoiceDate);
         }
@@ -402,7 +443,7 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
         if (taxRealAmount != null) {
             update.setTaxRealAmount(taxRealAmount);
         }
-        LocalDateTime taxTime = parseIcbcTime(info.getTradeTime());
+        LocalDateTime taxTime = IcbcTimeUtils.parse(info.getTradeTime());
         if (taxTime != null) {
             update.setTaxTime(taxTime);
         }
@@ -478,32 +519,6 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
             return action;
         }
         return UploadStatusEnum.nextActionOf(order.getUploadStatus());
-    }
-
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
-    /**
-     * 宽容解析工行回传的时间：{@code yyyy-MM-dd HH:mm:ss}、{@code yyyy-MM-dd} 与 ISO 都接受，
-     * 解析失败返回空（不阻断其余字段收敛）。
-     */
-    private LocalDateTime parseIcbcTime(String text) {
-        if (StrUtil.isBlank(text)) {
-            return null;
-        }
-        String value = text.trim();
-        for (DateTimeFormatter formatter : new DateTimeFormatter[]{DATE_TIME_FORMATTER, DATE_FORMATTER}) {
-            try {
-                return LocalDateTime.parse(value, formatter);
-            } catch (DateTimeParseException ignored) {
-                // 换下一种格式
-            }
-        }
-        try {
-            return LocalDateTime.parse(value);
-        } catch (DateTimeParseException ignored) {
-            return null;
-        }
     }
 
     @Override
