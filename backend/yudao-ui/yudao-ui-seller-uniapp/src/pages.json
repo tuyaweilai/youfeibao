@@ -29,6 +29,12 @@
       "style": {
         "navigationBarTitleText": "结算确认"
       }
+    },
+    {
+      "path": "pages/appointment/index",
+      "style": {
+        "navigationBarTitleText": "预约到站"
+      }
     }
   ],
   "globalStyle": {

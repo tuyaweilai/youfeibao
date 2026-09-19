@@ -913,3 +913,36 @@ CREATE TABLE IF NOT EXISTS icbc_station (
     PRIMARY KEY (id),
     CONSTRAINT uk_station_code UNIQUE (station_code)
 );
+
+-- icbc_appointment table（到站预约，#35；租户表；不是订单）
+CREATE TABLE IF NOT EXISTS icbc_appointment (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    appointment_no VARCHAR(64) NOT NULL,
+    natural_person_id BIGINT NOT NULL,
+    payee_id BIGINT,
+    seller_name VARCHAR(100),
+    station_id BIGINT NOT NULL,
+    station_code VARCHAR(64),
+    station_name VARCHAR(100),
+    goods_config_id BIGINT NOT NULL,
+    category_name VARCHAR(100),
+    unit VARCHAR(32),
+    expected_quantity DECIMAL(14,4),
+    plate_no VARCHAR(32),
+    expected_arrival_time DATETIME,
+    status INT NOT NULL DEFAULT 0,
+    arrived_at DATETIME,
+    acquisition_id BIGINT,
+    cancelled_at DATETIME,
+    cancel_reason VARCHAR(255),
+    no_show_reason VARCHAR(255),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_appointment_no UNIQUE (appointment_no)
+);

@@ -6,6 +6,7 @@ import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonConflictRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.appointment.IcbcAppointmentDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
@@ -14,6 +15,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.appointment.IcbcAppointmentMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
@@ -76,6 +78,8 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
     private InvoiceFileMapper invoiceFileMapper;
     @Resource
     private IcbcAcquisitionMapper acquisitionMapper;
+    @Resource
+    private IcbcAppointmentMapper appointmentMapper;
     @Resource
     private PlatformInvoiceQueryService platformInvoiceQueryService;
 
@@ -162,6 +166,30 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
         reqVO.setIdCardNo(idCardNo);
         reqVO.setMobile(mobile);
         return reqVO;
+    }
+
+    @Test
+    public void testAppointmentIsolatedByTenant() {
+        // 预约是租户表：他扫码约的是某一家企业的场站，别家企业看不到
+        Long appointmentId = TenantUtils.execute(1L, () -> {
+            IcbcAppointmentDO appointment = IcbcAppointmentDO.builder()
+                    .appointmentNo("APT_TENANT_1")
+                    .naturalPersonId(1L)
+                    .stationId(1L)
+                    .goodsConfigId(1L)
+                    .status(0)
+                    .build();
+            appointmentMapper.insert(appointment);
+            return appointment.getId();
+        });
+
+        TenantUtils.execute(1L, () -> assertNotNull(appointmentMapper.selectById(appointmentId)));
+        TenantUtils.execute(2L, () -> {
+            assertNull(appointmentMapper.selectById(appointmentId));
+            assertTrue(appointmentMapper.selectList().isEmpty());
+        });
+        // 自然人本人跨企业看自己的预约：显式开阀读取
+        assertNotNull(TenantUtils.executeIgnore(() -> appointmentMapper.selectById(appointmentId)));
     }
 
     @Test

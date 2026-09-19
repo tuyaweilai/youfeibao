@@ -237,4 +237,11 @@ public interface ErrorCodeConstants {
     // ========== 自然人端首页与记录（#34） 1-030-024-000 ==========
     ErrorCode SELLER_AUTHORIZATION_ALREADY_REVOKED = new ErrorCode(1_030_024_001, "该企业的授权已撤销");
     ErrorCode SELLER_RECORD_NOT_FOUND = new ErrorCode(1_030_024_002, "记录不存在或不属于当前身份");
+
+    // ========== 预约到站（#35，ADR 0020：不是订单） 1-030-025-000 ==========
+    ErrorCode APPOINTMENT_NOT_EXISTS = new ErrorCode(1_030_025_000, "预约不存在");
+    ErrorCode APPOINTMENT_NOT_CANCELLABLE = new ErrorCode(1_030_025_001, "只能取消尚未到站的预约");
+    ErrorCode APPOINTMENT_STATUS_NOT_ALLOW = new ErrorCode(1_030_025_002, "预约当前状态不允许该操作：{}");
+    ErrorCode APPOINTMENT_EXPECTED_QUANTITY_INVALID = new ErrorCode(1_030_025_003, "预计数量不能为负");
+    ErrorCode APPOINTMENT_ARRIVAL_TIME_REQUIRED = new ErrorCode(1_030_025_004, "请填写预计到站时间");
 }

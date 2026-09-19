@@ -223,6 +223,55 @@ export interface Settlement {
 export const listSettlements = (naturalPersonId: number) =>
   appGet<Settlement[]>('/icbc/seller/settlement/list', { naturalPersonId })
 
+// ==================== 到站预约（#35，ADR 0020：不是订单） ====================
+
+export interface Appointment {
+  id: number
+  appointmentNo?: string
+  enterpriseName?: string
+  stationName?: string
+  stationCode?: string
+  categoryName?: string
+  unit?: string
+  expectedQuantity?: number
+  expectedQuantityText?: string
+  plateNo?: string
+  expectedArrivalTime?: string
+  status?: number
+  statusName?: string
+  arrivedAt?: string
+  acquisitionId?: number
+  cancelledAt?: string
+  cancelReason?: string
+  scopeNote?: string
+  createTime?: string
+}
+
+export interface AppointmentGoods {
+  id: number
+  name?: string
+  unit?: string
+}
+
+export const listAppointmentGoods = () =>
+  appGet<AppointmentGoods[]>('/icbc/seller/appointment/goods')
+
+export const createAppointment = (data: {
+  naturalPersonId: number
+  stationCode: string
+  goodsConfigId: number
+  expectedQuantity?: number
+  plateNo?: string
+  expectedArrivalTime: number
+  remark?: string
+}) => appPost<number>('/icbc/seller/appointment/create', data)
+
+export const cancelAppointment = (naturalPersonId: number, id: number, reason?: string) =>
+  appPost<boolean>('/icbc/seller/appointment/cancel', { naturalPersonId, id, reason })
+
+export const listAppointments = (naturalPersonId: number) =>
+  appGet<Appointment[]>('/icbc/seller/appointment/list', { naturalPersonId })
+
 export const getSettlement = (naturalPersonId: number, id: number) =>
   appGet<Settlement>('/icbc/seller/settlement/get', { naturalPersonId, id })
 

@@ -155,6 +155,20 @@ public class RecyclingRoleEnumTest {
     }
 
     @Test
+    public void testAppointmentPermissions() {
+        // 收货员现场登记要带出预约，并能标到场 / 未到场
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.APPOINTMENT_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.APPOINTMENT_MANAGE));
+        // 预约不进统计与额度口径，平台运营不参与
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.APPOINTMENT_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.APPOINTMENT_MANAGE));
+    }
+
+    @Test
     public void testRoleCodesForPermission() {
         Set<String> roles = RecyclingRoleEnum.roleCodesForPermission(RecyclingPermission.PAYEE_CREATE);
         assertTrue(roles.contains(RecyclingRoleEnum.RECEIVER.getCode()));

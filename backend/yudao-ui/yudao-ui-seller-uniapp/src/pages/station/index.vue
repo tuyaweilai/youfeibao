@@ -30,6 +30,8 @@
       </view>
 
       <button class="btn btn--primary" @click="goMine">查看我的待确认</button>
+      <button class="btn btn--ghost" @click="goAppointment">预约到站（不是下单）</button>
+      <view class="foot">预约只是告诉他你大概什么时候来；不占额度、不产生开票、不进五流。</view>
       <view class="foot">令牌一次性链接（收购确认书上的二维码）也仍然可用</view>
     </template>
   </view>
@@ -78,6 +80,18 @@ async function load() {
 function goMine() {
   if (getToken() && getSubject()) {
     uni.navigateTo({ url: '/pages/home/index' })
+    return
+  }
+  uni.navigateTo({ url: `/pages/login/index?station=${encodeURIComponent(stationCode.value)}` })
+}
+
+function goAppointment() {
+  const extra =
+    `station=${encodeURIComponent(stationCode.value)}` +
+    `&stationName=${encodeURIComponent(station.value?.stationName || '')}` +
+    `&enterpriseName=${encodeURIComponent(station.value?.enterpriseName || '')}`
+  if (getToken() && getSubject()) {
+    uni.navigateTo({ url: `/pages/appointment/index?${extra}` })
     return
   }
   uni.navigateTo({ url: `/pages/login/index?station=${encodeURIComponent(stationCode.value)}` })

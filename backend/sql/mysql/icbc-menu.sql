@@ -103,4 +103,7 @@ VALUES
 (5176, '生成与处理异议', 'icbc:settlement-confirm:manage', 3, 1, 5175, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- 场站与场站二维码（#34：一码一场站，码内不带令牌）
 (5177, '场站', 'icbc:station:query', 2, 11, 5100, 'station', '', 'icbc/station/index', 'IcbcStation', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5178, '维护场站', 'icbc:station:manage', 3, 1, 5177, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5178, '维护场站', 'icbc:station:manage', 3, 1, 5177, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 到站预约（#35：不是订单，只有到场 / 未到场）
+(5179, '到站预约', 'icbc:appointment:query', 2, 12, 5100, 'appointment', '', 'icbc/appointment/index', 'IcbcAppointment', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5180, '标记到场与未到场', 'icbc:appointment:manage', 3, 1, 5179, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');

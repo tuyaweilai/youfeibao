@@ -181,4 +181,11 @@ public interface RecyclingPermission {
     /** 维护场站与场站码 */
     String STATION_MANAGE = "icbc:station:manage";
 
+    // ========== 到站预约（#35，ADR 0020：不是订单） ==========
+
+    /** 查看预约、待带出的预约（现场登记用） */
+    String APPOINTMENT_QUERY = "icbc:appointment:query";
+    /** 标记到场 / 未到场 */
+    String APPOINTMENT_MANAGE = "icbc:appointment:manage";
+
 }

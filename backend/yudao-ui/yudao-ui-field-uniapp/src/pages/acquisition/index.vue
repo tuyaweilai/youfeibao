@@ -37,6 +37,34 @@
         </view>
       </view>
 
+      <!-- 到站预约（#35）：只用来带出，不是订单 -->
+      <view v-if="appointments.length" class="card">
+        <view class="card__title">本场预约（带出，不是订单）</view>
+        <view class="hint">
+          预约只是他事先说了一句「大概什么时候来、卖什么」；数量以实际过磅为准，不占额度、不产生开票。
+        </view>
+        <view
+          v-for="item in appointments"
+          :key="item.id"
+          class="appointment"
+          :class="{ 'appointment--active': selectedAppointmentId === item.id }"
+          @click="applyAppointment(item)"
+        >
+          <view class="appointment__row">
+            <text class="appointment__cat">{{ item.categoryName }}</text>
+            <text class="appointment__qty">{{ item.expectedQuantityText || '未填数量' }}</text>
+          </view>
+          <view class="appointment__meta">
+            {{ formatArrival(item.expectedArrivalTime) }} 到站
+            <template v-if="item.plateNo"> · {{ item.plateNo }}</template>
+          </view>
+          <view class="appointment__actions">
+            <text class="link" @click.stop="applyAppointment(item)">带出</text>
+            <text class="link link--danger" @click.stop="onNoShow(item)">未到场</text>
+          </view>
+        </view>
+      </view>
+
       <!-- 品类 -->
       <view class="card">
         <view class="card__title">品类</view>
@@ -57,6 +85,9 @@
         <view class="field">
           <text class="field__label">数量{{ selectedGoods?.unit ? `（${selectedGoods.unit}）` : '' }}（展示与发票明细，不参与金额）</text>
           <input v-model="form.quantity" class="input" type="digit" placeholder="0" />
+          <view v-if="prefilledQuantityText" class="hint">
+            来自预约：{{ prefilledQuantityText }}，请以实际过磅为准。
+          </view>
         </view>
         <view class="field">
           <text class="field__label">毛重</text>
@@ -176,6 +207,12 @@ import { onLoad } from '@dcloudio/uni-app'
 import { getEnabledGoodsList, GoodsConfigVO } from '@/api/goodsConfig'
 import { findReturningCustomer, PayeeVO } from '@/api/payee'
 import { createAcquisition, AcquisitionCreateReq, AcquisitionCreateResp } from '@/api/acquisition'
+import {
+  AppointmentVO,
+  getPendingAppointments,
+  markAppointmentArrived,
+  markAppointmentNoShow
+} from '@/api/appointment'
 import { chooseImage, pathToDataUrl, dataUrlToUploadPath, uploadImage } from '@/utils/upload'
 import { comparePlate } from '@/utils/plate'
 import { saveDraft } from '@/utils/draft'
@@ -199,6 +236,10 @@ const looking = ref(false)
 const submitting = ref(false)
 const result = ref<AcquisitionCreateResp | null>(null)
 const clientRequestId = ref(newId())
+const appointments = ref<AppointmentVO[]>([])
+const selectedAppointmentId = ref<number | null>(null)
+/** 从预约带出的数量文案（一律带「约」）：只作提示，不当准数用 */
+const prefilledQuantityText = ref('')
 
 const uploading = reactive<Record<PhotoKey, boolean>>({
   weightTicketImageUrl: false,
@@ -389,6 +430,11 @@ async function onLookup() {
     lookedUp.value = true
     if (found) {
       uni.showToast({ title: `已带出：${found.name}`, icon: 'none' })
+      if (found.id) {
+        loadAppointments(found.id)
+      }
+    } else {
+      appointments.value = []
     }
   } catch (e) {
     showError(e)
@@ -401,6 +447,70 @@ function clearSeller() {
   seller.value = null
   lookedUp.value = false
   form.payeeId = undefined
+  appointments.value = []
+  selectedAppointmentId.value = null
+  prefilledQuantityText.value = ''
+}
+
+async function loadAppointments(payeeId: number) {
+  try {
+    appointments.value = await getPendingAppointments(payeeId)
+  } catch {
+    // 预约是锦上添花：拉不到不影响正常登记
+    appointments.value = []
+  }
+}
+
+/**
+ * 带出预约内容：品类、约多少、车牌。数量一律只是「约」，以实际过磅为准。
+ */
+function applyAppointment(item: AppointmentVO) {
+  selectedAppointmentId.value = item.id
+  prefilledQuantityText.value = item.expectedQuantityText || ''
+  if (item.goodsConfigId) {
+    const index = goodsList.value.findIndex((goods) => goods.id === item.goodsConfigId)
+    if (index >= 0) {
+      goodsIndex.value = index
+      form.goodsConfigId = item.goodsConfigId
+    }
+  }
+  if (item.expectedQuantity != null) {
+    form.quantity = String(item.expectedQuantity)
+    if (!prefilledQuantityText.value) {
+      prefilledQuantityText.value = `约 ${item.expectedQuantity}`
+    }
+  }
+  if (item.plateNo) {
+    form.vehiclePlateNo = item.plateNo
+  }
+  uni.showToast({ title: `已带出预约（${item.expectedQuantityText || '数量未填'}）`, icon: 'none' })
+}
+
+function onNoShow(item: AppointmentVO) {
+  uni.showModal({
+    title: '标记未到场',
+    content: '标记后这条预约就结束了，不影响你登记收购。',
+    success: async (res) => {
+      if (!res.confirm) return
+      try {
+        await markAppointmentNoShow(item.id, '现场标记未到场')
+        uni.showToast({ title: '已标记未到场', icon: 'none' })
+        if (form.payeeId) {
+          loadAppointments(form.payeeId)
+        }
+      } catch (e) {
+        showError(e)
+      }
+    }
+  })
+}
+
+function formatArrival(value?: number) {
+  if (value === undefined || value === null) return '未填时间'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '未填时间'
+  const pad = (num: number) => String(num).padStart(2, '0')
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 function validate(): string | null {
@@ -463,6 +573,14 @@ async function onSubmit() {
       }
     })
     result.value = await createAcquisition(payload)
+    // 他来过就标到场；预约只是排队与带出，失败了也不影响这笔已经落下的收购单
+    if (selectedAppointmentId.value) {
+      try {
+        await markAppointmentArrived(selectedAppointmentId.value, result.value?.id)
+      } catch {
+        // 忽略：预约状态不是业务事实
+      }
+    }
   } catch (e) {
     if (isNetworkError(e)) {
       saveCurrentDraft()
@@ -730,6 +848,44 @@ function showError(e: unknown) {
   &__meta {
     margin-top: 8rpx;
     color: $field-text-secondary;
+  }
+}
+
+.appointment {
+  padding: 16rpx;
+  margin-top: 12rpx;
+  border: 1rpx solid #eef0f3;
+  border-radius: 12rpx;
+
+  &--active {
+    border-color: $field-primary;
+    background-color: #eef4ff;
+  }
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16rpx;
+  }
+
+  &__cat {
+    font-weight: 600;
+  }
+
+  &__qty {
+    color: $field-primary;
+  }
+
+  &__meta {
+    margin-top: 6rpx;
+    color: $field-text-secondary;
+    font-size: 26rpx;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 32rpx;
+    margin-top: 10rpx;
   }
 }
 

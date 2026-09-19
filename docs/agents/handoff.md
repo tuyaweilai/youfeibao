@@ -296,11 +296,25 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 > 待联调确认：申报期截止日固定为次月 15 日（未顺延法定节假日）；附加税费综合率 6% 为「城建 7% + 教育费附加 3% + 地方教育附加 2%，自然人减半」的简化；个税预缴 0.5% 由平台按销售额计算，与工行逐票 `taxAmount` 的对应关系待现场核对。汇算清缴对账单只覆盖本租户，跨企业合并仍由出售者在税务端完成。
 
+## #35 预约到站（已完成）
+
+自然人主动声明「我将在某个时间到某个场站卖某品类、大约多少量、车牌是多少」，用于排队与**到站登记时带出**。**它不是订单**（ADR 0020 / 0004）：不占额度、不产生开票、不进五流；没有接单 / 拒单，只有到场与未到场。
+
+1. **表 `icbc_appointment`**（租户表）：`natural_person_id` + `payee_id`（本租户未建档可空）+ `station_id/station_code/station_name` + `goods_config_id/category_name/unit` 快照 + `expected_quantity`（可空）+ `plate_no` + `expected_arrival_time` + `status`（待到站 / 已到场 / 未到场 / 已取消）+ `arrived_at/acquisition_id` + 取消与未到场留痕。迁移 `icbc-appointment.sql`（幂等）。
+2. **自然人端**：`/app-api/icbc/seller/appointment/create|cancel|list|goods`。发起时按场站码解析到场站所属租户，写入落在**那家回收企业**；`assertBound` 显式校验身份；取消只限「待到站」。`list` 跨企业只对本人可见（`TenantUtils.executeIgnore`）。
+3. **现场端**：`GET /icbc/appointment/pending?payeeId=` 按出售者（经自然人主体）返回本租户待到站预约，按预计到站时间升序——这是本功能的**全部价值**（带出品类 / 约多少 / 车牌）。字段端 `pages/acquisition` 带档后展示预约卡，点「带出」回填；登记成功后调 `arrive` 挂上收购单。
+4. **管理后台页**：`views/icbc/appointment/index.vue`，可查到站预约并标记到场 / 未到场；菜单 5179 / 5180，权限 `icbc:appointment:query|manage` 登记进 `RecyclingPermission` + `RecyclingRoleEnum`（管理员 / 收货员；平台运营不参与）。
+5. **口径**：`expectedQuantityText` 一律以「约」标注；响应带 `scopeNote`（不是订单 / 不占额度 / 不产生开票 / 不进五流）；界面上也写清。**任何统计与额度口径都不得引用预约数据**（额度只认收购单与发票事实）。
+6. **测试**：`AppointmentServiceTest`（未绑定拒结、场站码无效拒结、快照与「约」文案、负数量 / 缺时间拒结、取消只限本人且只限待到站、到场幂等、终态拒绝、按出售者带出只取待到站并按时间升序、跨企业本人可见、分页筛选）与 `RecyclingRoleEnumTest#testAppointmentPermissions`。
+
+> 已知简化：预约匹配靠「场站所属租户 + 自然人主体」，与 #34 的结算单派单同源；多场站租户要精确到站，需要把 `station_id` 挂到收购单 / 结算单。
+
 ## 下一步建议
 
 - **A.** #13 代办税费申报——**已完成**；
 - **B.** #15 平台运营：通知监控与重放——**已完成**；#16 计费计量——**已完成**；
 - **C.** #20 收货员现场端（uni-app H5）、#19 自然人出售者端。
+- **D.** #35 预约到站——**已完成**；#36 触达（短信三条 + 收货员一键转达）与 #37 换银行卡待工行答复 / 人工确认。
 
 ## 约定与坑
 

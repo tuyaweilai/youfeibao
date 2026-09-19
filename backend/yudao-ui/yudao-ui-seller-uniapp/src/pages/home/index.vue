@@ -164,6 +164,9 @@
           <view class="kv"><text class="kv__k">身份证号</text><text>{{ profile.idCardMasked || '—' }}</text></view>
           <view class="kv"><text class="kv__k">实名认证</text><text>{{ profile.realNameStatusName || '—' }}</text></view>
           <view class="kv"><text class="kv__k">客服电话</text><text>{{ profile.serviceMobile }}</text></view>
+          <view class="record__actions">
+            <text class="link" @click="goAppointments">我的预约到站</text>
+          </view>
         </view>
 
         <view class="card">
@@ -356,6 +359,10 @@ function onRevoke(item: SellerAuthorization) {
       }
     }
   })
+}
+
+function goAppointments() {
+  uni.navigateTo({ url: '/pages/appointment/index' })
 }
 
 function contactService() {
