@@ -8,7 +8,8 @@
 - **#23 登录与导航**：`src/utils/request.ts` 统一带 `tenant-id` + token，401 清登录态回登录页；`src/store/auth.ts` 持久化登录态；首页进入「收购登记 / 出售者建档 / 我的收购单」，未登录拦截。
 - **#24 收购登记主流程**：`pages/acquisition/index` 选品类带出单位 / 税率 / 计税方法 / 税收分类编码，身份证或手机号带档，数量 / 单价自动算金额、毛重 − 皮重自动算净重，漏填品类或磅单号拦住提交，提交后展示额度提示；`pages/acquisition/detail` 看进度（已登记 / 待付款 / 已付款 / 已开票）、可打印并导出确认书 Excel；`pages/my-acquisitions` 列单据进详情。
 - **#25 现场照片与识别回填**：拍磅单 / 车头 / 车尾照片并上传（`/infra/file/upload`），车牌手输并实时比对（一致 / 不一致 / 无法比对）；详情页可「修正识别结果」调 `/icbc/acquisition/correct` 后重新比对。一期无真实 OCR，重量与车牌默认手工录入（ADR 0013）。
-- 待后续子票：#26 新出售者一次性手续（工行 H5 容器）、#27 弱网暂存与补传。
+- **#26 新出售者一次性手续**：`pages/payee` 带档或新建出售者，再依次完成实人认证 → 收方入驻 → 框架收购协议 → 首次授权；工行自动提交表单用新窗口承载（`utils/icbcForm.ts`，ADR 0016），后端数据接口 `sync` 收敛；入驻未通过可留联系方式。
+- 待后续子票：#27 弱网暂存与补传。
 
 ## 开发
 
@@ -57,15 +58,17 @@ src/
   utils/download.ts 带鉴权下载（确认书 Excel）
   utils/upload.ts   拍照 + 上传到文件服务
   utils/plate.ts    车牌比对归一化
+  utils/icbcForm.ts 新窗口承载工行自动提交表单
   store/auth.ts     pinia 登录态
   api/auth.ts       登录 / 登出 / 权限信息接口
   api/goodsConfig.ts 启用品类
-  api/payee.ts      回头客带档
+  api/payee.ts      回头客带档 / 新增档案
+  api/onboarding.ts 出售者建档（实名 / 入驻 / 协议 / 授权）
   api/acquisition.ts 收购登记
   pages/login/      登录页
   pages/home/       首页（导航 + 退出）
   pages/acquisition/ 登记表单 + 确认书详情
-  pages/payee/      出售者建档（占位，#26）
+  pages/payee/      出售者建档一次性手续
   pages/my-acquisitions/ 我的收购单
   env.d.ts          TS 类型声明
 ```
