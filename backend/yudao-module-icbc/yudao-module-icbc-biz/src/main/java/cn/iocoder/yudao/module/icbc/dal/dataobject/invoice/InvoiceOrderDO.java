@@ -86,7 +86,10 @@ public class InvoiceOrderDO extends TenantBaseDO {
     private Integer orderStatus;
     
     /**
-     * 开票状态：0-未开票，1-开票中，2-开票成功，3-开票失败
+     * 开票状态：0-未开票，1-开票中，2-已开票，3-开票失败
+     *
+     * 枚举 {@link cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum}；与
+     * {@link #preInvoiceStatus}（预开票状态）是两条不同的状态线。
      */
     private Integer invoiceStatus;
     
@@ -96,9 +99,38 @@ public class InvoiceOrderDO extends TenantBaseDO {
     private Integer paymentStatus;
     
     /**
-     * 缴税状态：0-未缴税，1-缴税中，2-缴税成功，3-缴税失败
+     * 缴税状态：0-未缴税，1-缴税中，2-缴税成功，3-缴税失败，4-异常（金额不一致），5-异常（未知），6-无需缴税
+     *
+     * 枚举 {@link cn.iocoder.yudao.module.icbc.enums.TaxStatusEnum}
      */
     private Integer taxStatus;
+
+    /**
+     * 发票上传状态：0-未上传，1-处理中，2-已受理，3-上传中，4-上传成功，5-上传失败
+     *
+     * 枚举 {@link cn.iocoder.yudao.module.icbc.enums.UploadStatusEnum}
+     */
+    private Integer uploadStatus;
+
+    /**
+     * 实缴税额（工行 taxRealAmount），缴税成功后用于出具缴税凭证
+     */
+    private BigDecimal taxRealAmount;
+
+    /**
+     * 缴税时间（工行 tradeTime）
+     */
+    private LocalDateTime taxTime;
+
+    /**
+     * 税费缴纳方式：0-自然人自行办理，1-企业委托扣缴
+     */
+    private String taxPaymentMethod;
+
+    /**
+     * 应征凭证序号（征收信息明细的 voucherNum），缴税凭证编号
+     */
+    private String taxVoucherNo;
 
     /**
      * 自然人确认状态：0-未确认，1-自然人确认完成，2-全部确认完成

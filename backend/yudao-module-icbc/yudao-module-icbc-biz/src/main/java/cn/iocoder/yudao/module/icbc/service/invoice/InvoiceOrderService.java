@@ -5,6 +5,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoicePreOrderR
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
+import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceInfo;
 
 /**
  * 工行反向开票订单 Service 接口
@@ -92,5 +93,27 @@ public interface InvoiceOrderService {
      * @param preInvoiceStatusCode 预开票状态码：00/01/02/03/04，可空
      */
     void applyPreInvoiceStatus(String partnerOrderId, String confirmStatusCode, String preInvoiceStatusCode);
+
+    /**
+     * 用工行通知 / 预查询里的五条状态线收敛平台侧状态。
+     *
+     * <p>这是开票、缴税、上传三条状态线的<strong>唯一收敛入口</strong>：通知（{@code notifyType=01/03/04/05}）
+     * 与主动预查询都调它，两侧天然一致。各条线独立更新、未上送的不覆盖；重复通知幂等，
+     * 乱序通知不回退已结清的成功态；查不到业务单时抛业务异常，通知落失败可重放。
+     *
+     * @param partnerOrderId 合作方订单号
+     * @param info           工行侧状态快照（通知或预查询）
+     */
+    void applyInvoiceInfo(String partnerOrderId, InvoiceInfo info);
+
+    /**
+     * 付款成功的回调：把开票状态推进为「开票中」，并尽力向工行确认一次最新开票状态。
+     *
+     * <p>付款成功是「真正开票」的触发点。该方法<strong>不抛异常</strong>：开票数据缺失或
+     * 查询失败都不应把已经成功的付款拖回失败，后续通知与查询会补齐。
+     *
+     * @param partnerOrderId 合作方订单号
+     */
+    void onPaymentSucceeded(String partnerOrderId);
 
 } 

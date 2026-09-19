@@ -6,7 +6,9 @@ import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoicePreOrderR
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoicePreOrderRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceTaxCertificateRespVO;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
+import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceTaxCertificateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +17,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
 import static cn.iocoder.yudao.framework.apilog.core.enums.OperateTypeEnum.CREATE;
@@ -35,6 +38,9 @@ public class InvoiceOrderController {
 
     @Resource
     private InvoiceOrderService invoiceOrderService;
+
+    @Resource
+    private InvoiceTaxCertificateService invoiceTaxCertificateService;
 
     @PostMapping("/pre-order")
     @Operation(summary = "创建反向开票预下单")
@@ -64,6 +70,23 @@ public class InvoiceOrderController {
         log.info("收到反向开票查询请求（POST） - partnerOrderId: {}", queryReqVO.getOutOrderId());
         InvoiceQueryRespVO response = invoiceOrderService.queryInvoiceInfo(queryReqVO);
         return success(response);
+    }
+
+    @GetMapping("/tax-certificate")
+    @Operation(summary = "查询代办税费缴税凭证")
+    @PreAuthorize("@icbc.hasPermission('icbc:invoice-order:query')")
+    @ApiAccessLog(operateType = GET)
+    public CommonResult<InvoiceTaxCertificateRespVO> getTaxCertificate(@RequestParam("partnerOrderId") String partnerOrderId) {
+        return success(invoiceTaxCertificateService.getCertificate(partnerOrderId));
+    }
+
+    @GetMapping("/tax-certificate/export")
+    @Operation(summary = "导出代办税费缴税凭证")
+    @PreAuthorize("@icbc.hasPermission('icbc:invoice-order:query')")
+    @ApiAccessLog(operateType = GET)
+    public void exportTaxCertificate(@RequestParam("partnerOrderId") String partnerOrderId,
+                                     HttpServletResponse response) {
+        invoiceTaxCertificateService.exportCertificate(partnerOrderId, response);
     }
 
 }

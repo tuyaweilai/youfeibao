@@ -129,15 +129,52 @@
   </el-dialog>
 
   <!-- 状态查询 -->
-  <el-dialog v-model="statusVisible" title="开票状态" width="560px">
+  <el-dialog v-model="statusVisible" title="开票状态（开票 / 缴税 / 上传各自独立）" width="680px">
     <el-descriptions v-if="statusResult" :column="2" border>
       <el-descriptions-item label="订单号">{{ statusResult.orderNo }}</el-descriptions-item>
       <el-descriptions-item label="合作方订单号">{{ statusResult.partnerOrderId }}</el-descriptions-item>
       <el-descriptions-item label="自然人确认">{{ confirmStatusLabel(statusResult.confirmStatus) }}</el-descriptions-item>
       <el-descriptions-item label="预开票">{{ preInvoiceStatusLabel(statusResult.preInvoiceStatus) }}</el-descriptions-item>
       <el-descriptions-item label="订单状态">{{ orderStatusLabel(statusResult.orderStatus) }}</el-descriptions-item>
+      <el-descriptions-item label="开票">{{ statusResult.invoiceStatusName || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="缴税">{{ statusResult.taxStatusName || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="上传">{{ statusResult.uploadStatusName || '-' }}</el-descriptions-item>
       <el-descriptions-item label="发票号码">{{ statusResult.invoiceNo || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="实缴税额">{{ statusResult.taxRealAmount ?? '-' }}</el-descriptions-item>
+      <el-descriptions-item label="缴税时间">{{ formatTime(statusResult.taxTime) || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="应征凭证序号">{{ statusResult.taxVoucherNo || '-' }}</el-descriptions-item>
     </el-descriptions>
+    <el-alert v-if="statusResult?.nextAction" class="mt-10px" type="warning" :closable="false"
+      :title="statusResult.nextAction" />
+    <template #footer>
+      <el-button v-if="statusResult && ['缴税成功', '无需缴税'].includes(statusResult.taxStatusName || '')"
+        type="primary" @click="handleTaxCertificate">
+        查看缴税凭证
+      </el-button>
+    </template>
+  </el-dialog>
+
+  <!-- 代办税费缴税凭证 -->
+  <el-dialog v-model="certificateVisible" title="代办税费缴税凭证" width="720px">
+    <el-descriptions v-if="certificate" :column="2" border>
+      <el-descriptions-item label="凭证编号">{{ certificate.certificateNo }}</el-descriptions-item>
+      <el-descriptions-item label="状态">{{ certificate.taxStatusName }}</el-descriptions-item>
+      <el-descriptions-item label="扣缴义务人">{{ certificate.payerName || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="纳税人识别号">{{ certificate.payerTaxNo || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="出售者">{{ certificate.sellerName || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="身份证号">{{ certificate.sellerIdCardNo || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="发票号码">{{ certificate.invoiceNo || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="开票日期">{{ certificate.invoiceDate || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="发票金额">{{ certificate.invoiceAmount ?? '-' }}</el-descriptions-item>
+      <el-descriptions-item label="应缴税额">{{ certificate.taxAmount ?? '-' }}</el-descriptions-item>
+      <el-descriptions-item label="实缴税额">{{ certificate.taxRealAmount ?? '-' }}</el-descriptions-item>
+      <el-descriptions-item label="缴税时间">{{ certificate.taxTime || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="缴纳方式">{{ certificate.taxPaymentMethodName || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="应征凭证序号">{{ certificate.taxVoucherNo || '-' }}</el-descriptions-item>
+    </el-descriptions>
+    <template #footer>
+      <el-button @click="handleExportCertificate">导出凭证</el-button>
+    </template>
   </el-dialog>
 </template>
 
@@ -148,8 +185,10 @@ import {
   InvoiceApplicationApi,
   InvoiceApplicationResultVO,
   InvoicePreCheckRespVO,
-  InvoiceQueryRespVO
+  InvoiceQueryRespVO,
+  InvoiceTaxCertificateVO
 } from '@/api/icbc/invoice'
+import { formatDate } from '@/utils/formatTime'
 import { openIcbcForm } from '../util'
 
 defineOptions({ name: 'IcbcInvoiceApplication' })
@@ -268,6 +307,23 @@ const handleQueryStatus = async (partnerOrderId: string) => {
   statusResult.value = await InvoiceApi.query({ outOrderId: partnerOrderId })
   statusVisible.value = true
 }
+
+// ==================== 缴税凭证 ====================
+const certificateVisible = ref(false)
+const certificate = ref<InvoiceTaxCertificateVO>()
+const handleTaxCertificate = async () => {
+  const partnerOrderId = statusResult.value?.partnerOrderId
+  if (!partnerOrderId) return
+  certificate.value = await InvoiceApi.getTaxCertificate(partnerOrderId)
+  certificateVisible.value = true
+}
+const handleExportCertificate = async () => {
+  const partnerOrderId = certificate.value?.partnerOrderId
+  if (!partnerOrderId) return
+  await InvoiceApi.exportTaxCertificate(partnerOrderId)
+}
+
+const formatTime = (value?: Date) => (value ? formatDate(new Date(value)) : '')
 
 const CONFIRM_STATUS: Record<number, string> = { 0: '未确认', 1: '自然人确认完成', 2: '全部确认完成' }
 const PRE_INVOICE_STATUS: Record<number, string> = {

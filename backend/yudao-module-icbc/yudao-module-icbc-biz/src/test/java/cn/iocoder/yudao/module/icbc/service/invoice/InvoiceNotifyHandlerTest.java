@@ -7,10 +7,14 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.callback.CallbackNotifyDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.callback.CallbackNotifyMapper;
 import cn.iocoder.yudao.module.icbc.enums.CallbackProcessStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.TaxStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.UploadStatusEnum;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
 import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyParser;
 import cn.iocoder.yudao.module.icbc.service.callback.handler.InvoiceNotifyHandler;
+import cn.iocoder.yudao.module.icbc.service.callback.handler.InvoiceUploadNotifyHandler;
 import cn.iocoder.yudao.module.icbc.service.callback.handler.PreOrderExceptionNotifyHandler;
+import cn.iocoder.yudao.module.icbc.service.callback.handler.TaxNotifyHandler;
 import cn.iocoder.yudao.module.icbc.service.callback.impl.CallbackNotifyServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.goodscfg.IcbcGoodsConfigService;
 import cn.iocoder.yudao.module.icbc.service.invoice.impl.InvoiceOrderServiceImpl;
@@ -36,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 @Import({CallbackNotifyServiceImpl.class, IcbcNotifyParser.class,
         InvoiceNotifyHandler.class, PreOrderExceptionNotifyHandler.class,
+        TaxNotifyHandler.class, InvoiceUploadNotifyHandler.class,
         InvoiceOrderServiceImpl.class, UnitTestConfiguration.class})
 @Transactional
 @Rollback
@@ -99,6 +104,66 @@ public class InvoiceNotifyHandlerTest extends BaseDbUnitTest {
                 .filter(item -> "ACQ_NOTIFY_MISSING".equals(item.getBusinessId())).findFirst().orElse(null);
         assertNotNull(record);
         assertEquals(CallbackProcessStatusEnum.FAILURE.getStatus(), record.getProcessStatus());
+    }
+
+    @Test
+    public void testTaxNotifyConvergesTaxStatusAndFields() {
+        insertOrder("ACQ_NOTIFY_TAX");
+
+        String result = callbackNotifyService.receive("{\"notifyType\":\"04\",\"outOrderId\":\"ACQ_NOTIFY_TAX\","
+                + "\"taxStatus\":\"04\",\"taxRealAmount\":\"10.00\",\"tradeTime\":\"2026-12-01 10:35:00\","
+                + "\"taxPaymentMethod\":\"1\"}");
+
+        assertEquals("SUCCESS", result);
+        InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId("ACQ_NOTIFY_TAX");
+        assertEquals(TaxStatusEnum.SUCCESS.getStatus(), order.getTaxStatus());
+        assertEquals(new BigDecimal("10.00"), order.getTaxRealAmount());
+        assertNotNull(order.getTaxTime());
+        assertEquals("1", order.getTaxPaymentMethod());
+    }
+
+    @Test
+    public void testUploadNotifyConvergesUploadStatus() {
+        insertOrder("ACQ_NOTIFY_UPLOAD");
+
+        String result = callbackNotifyService.receive(
+                "{\"notifyType\":\"05\",\"outOrderId\":\"ACQ_NOTIFY_UPLOAD\",\"uploadStatus\":\"04\"}");
+
+        assertEquals("SUCCESS", result);
+        InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId("ACQ_NOTIFY_UPLOAD");
+        assertEquals(UploadStatusEnum.SUCCESS.getStatus(), order.getUploadStatus());
+    }
+
+    @Test
+    public void testDuplicateTaxNotifyIsIdempotent() {
+        insertOrder("ACQ_NOTIFY_TAX_DUP");
+        String body = "{\"notifyType\":\"04\",\"notifyId\":\"TAX-DUP-1\",\"outOrderId\":\"ACQ_NOTIFY_TAX_DUP\","
+                + "\"taxStatus\":\"04\",\"taxRealAmount\":\"10.00\"}";
+
+        assertEquals("SUCCESS", callbackNotifyService.receive(body));
+        assertEquals("SUCCESS", callbackNotifyService.receive(body));
+
+        InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId("ACQ_NOTIFY_TAX_DUP");
+        assertEquals(TaxStatusEnum.SUCCESS.getStatus(), order.getTaxStatus());
+        assertEquals(new BigDecimal("10.00"), order.getTaxRealAmount());
+    }
+
+    @Test
+    public void testEarlyTaxNotifyCanBeReplayedAfterOrderPersisted() {
+        String body = "{\"notifyType\":\"04\",\"outOrderId\":\"ACQ_NOTIFY_LATE\","
+                + "\"taxStatus\":\"04\",\"taxRealAmount\":\"10.00\"}";
+        // 通知早到：落失败
+        assertEquals("FAILURE", callbackNotifyService.receive(body));
+        CallbackNotifyDO record = callbackNotifyMapper.selectList().stream()
+                .filter(item -> "ACQ_NOTIFY_LATE".equals(item.getBusinessId())).findFirst().orElse(null);
+        assertNotNull(record);
+
+        // 平台数据补落库后重放，状态收敛
+        insertOrder("ACQ_NOTIFY_LATE");
+        callbackNotifyService.replay(record.getId());
+
+        InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId("ACQ_NOTIFY_LATE");
+        assertEquals(TaxStatusEnum.SUCCESS.getStatus(), order.getTaxStatus());
     }
 
     private void insertOrder(String partnerOrderId) {

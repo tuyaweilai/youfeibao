@@ -158,4 +158,8 @@ public interface ErrorCodeConstants {
     ErrorCode INVOICE_APPLICATION_PAYEE_NOT_READY = new ErrorCode(1_030_015_003, "出售者档案信息不全，请先在「出售者建档」补齐姓名、身份证、手机号与地址");
     ErrorCode INVOICE_APPLICATION_ELEMENT_MISSING = new ErrorCode(1_030_015_004, "收购单关键要件不全：{}");
     ErrorCode INVOICE_APPLICATION_GOODS_CODE_MISSING = new ErrorCode(1_030_015_005, "品类未配置商品和服务税收分类合并编码，请先在「编码配置」补齐");
+
+    // ========== 开票 / 缴税 / 上传状态与缴税凭证（#10） 1-030-016-000 ==========
+    ErrorCode INVOICE_TAX_CERTIFICATE_NOT_AVAILABLE = new ErrorCode(1_030_016_000, "缴税尚未成功，暂不能出具缴税凭证");
+    ErrorCode INVOICE_TAX_CERTIFICATE_EXPORT_FAILED = new ErrorCode(1_030_016_001, "缴税凭证导出失败");
 }

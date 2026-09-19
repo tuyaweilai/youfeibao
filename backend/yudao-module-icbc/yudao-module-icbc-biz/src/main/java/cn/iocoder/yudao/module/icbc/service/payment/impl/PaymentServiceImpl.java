@@ -328,6 +328,10 @@ public class PaymentServiceImpl implements PaymentService {
         if (PaymentStatusEnum.isSuccess(platformStatus)) {
             acquisitionService.markPaidByInvoicePartnerOrderId(partnerOrderId);
         }
+        if (firstSuccess) {
+            // 付款成功是「真正开票」的触发点：推进为开票中，并尽力向工行确认一次开票状态
+            invoiceOrderService.onPaymentSucceeded(partnerOrderId);
+        }
         log.info("支付状态收敛 - partnerOrderId: {}, payStatus: {}, platformStatus: {}",
                 partnerOrderId, payStatus, platformStatus);
     }

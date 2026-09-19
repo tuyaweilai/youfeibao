@@ -5,32 +5,32 @@ import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyContext;
 import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyHandler;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceNotifyInfoAssembler;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
-import com.alibaba.fastjson.JSONObject;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 
 /**
- * 预下单异常通知处理器（{@code notifyType=01}）。
+ * 发票上传状态通知处理器（{@code notifyType=05}）。
  *
- * <p>预下单 / 自然人确认阶段出问题时，工行推送这一条通知，携带 {@code invoiceStatus}
- * （例如 {@code 03} 预开票失败）。与开票通知共用同一条状态收敛路径。
+ * <p>发票文件上传至税务端后，工行推送 {@code uploadStatus}（00–05）。平台据此收敛上传状态线，
+ * 与开票、缴税两条线互不阻塞。与查询路径共用
+ * {@link InvoiceOrderService#applyInvoiceInfo}，两侧一致；通知乱序 / 重复 / 早到都不丢。
  */
 @Component
-public class PreOrderExceptionNotifyHandler implements IcbcNotifyHandler {
+public class InvoiceUploadNotifyHandler implements IcbcNotifyHandler {
 
     @Resource
     private InvoiceOrderService invoiceOrderService;
 
     @Override
     public CallbackNotifyTypeEnum supportType() {
-        return CallbackNotifyTypeEnum.PRE_ORDER_EXCEPTION;
+        return CallbackNotifyTypeEnum.INVOICE_UPLOAD;
     }
 
     @Override
     public void handle(IcbcNotifyContext context) {
-        JSONObject payload = context.payload();
         invoiceOrderService.applyInvoiceInfo(context.getBusinessId(),
-                InvoiceNotifyInfoAssembler.fromNotify(payload));
+                InvoiceNotifyInfoAssembler.fromNotify(context.payload()));
     }
+
 }

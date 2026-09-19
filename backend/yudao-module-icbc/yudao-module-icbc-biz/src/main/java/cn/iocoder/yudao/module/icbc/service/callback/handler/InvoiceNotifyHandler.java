@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.service.callback.handler;
 import cn.iocoder.yudao.module.icbc.enums.CallbackNotifyTypeEnum;
 import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyContext;
 import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyHandler;
+import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceNotifyInfoAssembler;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import com.alibaba.fastjson.JSONObject;
 import org.springframework.stereotype.Component;
@@ -30,7 +31,7 @@ public class InvoiceNotifyHandler implements IcbcNotifyHandler {
     @Override
     public void handle(IcbcNotifyContext context) {
         JSONObject payload = context.payload();
-        invoiceOrderService.applyPreInvoiceStatus(context.getBusinessId(),
-                payload.getString("confirmStatus"), payload.getString("invoiceStatus"));
+        invoiceOrderService.applyInvoiceInfo(context.getBusinessId(),
+                InvoiceNotifyInfoAssembler.fromNotify(payload));
     }
 }

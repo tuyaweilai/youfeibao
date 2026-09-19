@@ -520,6 +520,25 @@ public class IcbcSdkGateway implements IcbcGateway {
                         .build());
             }
         }
+        List<InvoiceInfo.LevyItem> levyItems = new ArrayList<>();
+        if (response.getInvoiceLevyItemResponse() != null) {
+            JSONArray levyArray = (JSONArray) JSONArray.toJSON(response.getInvoiceLevyItemResponse());
+            for (int i = 0; i < levyArray.size(); i++) {
+                JSONObject item = levyArray.getJSONObject(i);
+                levyItems.add(InvoiceInfo.LevyItem.builder()
+                        .levyItemCode(item.getString("levyItemCode"))
+                        .levyItemName(item.getString("levyItemName"))
+                        .levyGradeCode(item.getString("levyGradeCode"))
+                        .levyGradeName(item.getString("levyGradeName"))
+                        .taxBasis(item.getString("taxBasis"))
+                        .taxRate(item.getString("taxRate"))
+                        .taxPayable(item.getString("taxPayable"))
+                        .voucherNum(item.getString("voucherNum"))
+                        .taxStartDate(item.getString("taxStartDate"))
+                        .taxEndDate(item.getString("taxEndDate"))
+                        .build());
+            }
+        }
         return InvoiceInfo.builder()
                 .outOrderId(response.getOutOrderId())
                 .outUserId(response.getOutUserId())
@@ -533,14 +552,19 @@ public class IcbcSdkGateway implements IcbcGateway {
                 .taxStatus(response.getTaxStatus())
                 .redOffsetStatus(response.getRedOffsetStatus())
                 .invoiceCode(response.getInvoiceCode())
+                .invoiceNo(response.getInvoiceCode())
                 .invoiceDate(response.getInvoiceDate())
                 .taxAmount(response.getTaxAmount())
+                .taxRealAmount(response.getTaxRealAmount())
+                .tradeTime(response.getTradeTime())
+                .supplementaryTax(response.getSupplementaryTax())
                 .payAmount(response.getPayAmount())
                 .actuallyReceivedAmount(response.getActuallyReceivedAmount())
                 .icbcOrderId(response.getIcbcOrderId())
                 .jOrderId(response.getjOrderId())
                 .serialNo(response.getSerialNo())
                 .invoiceDetail(details)
+                .levyItems(levyItems)
                 .redOffsetDetail(redDetails)
                 .build();
     }

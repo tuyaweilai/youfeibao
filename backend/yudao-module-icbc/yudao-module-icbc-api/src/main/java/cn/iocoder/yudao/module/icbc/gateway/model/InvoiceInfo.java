@@ -45,8 +45,32 @@ public class InvoiceInfo {
      */
     private String redOffsetStatus;
     private String invoiceCode;
+    /**
+     * 发票号码（工行通知里 {@code invoiceCode} 是发票号码；预查询未单列，由适配层回填同一值）
+     */
+    private String invoiceNo;
     private String invoiceDate;
     private String taxAmount;
+    /**
+     * 实缴税额（工行 {@code taxRealAmount}），缴税成功后用于出具缴税凭证
+     */
+    private String taxRealAmount;
+    /**
+     * 缴税时间（工行 {@code tradeTime}），格式 yyyy-MM-dd HH:mm:ss
+     */
+    private String tradeTime;
+    /**
+     * 税费缴纳方式：0-自然人自行办理，1-企业委托扣缴
+     */
+    private String taxPaymentMethod;
+    /**
+     * 补缴税费标志
+     */
+    private String supplementaryTax;
+    /**
+     * 应征凭证序号（取征收信息明细里的 {@code voucherNum}），缴税凭证的编号来源
+     */
+    private String taxVoucherNo;
     private String payAmount;
     private String actuallyReceivedAmount;
     private String icbcOrderId;
@@ -62,6 +86,11 @@ public class InvoiceInfo {
     private List<RedOffsetDetail> redOffsetDetail;
 
     /**
+     * 征收信息明细（通知类型 03 且预开票成功、以及缴税通知里可能带）
+     */
+    private List<LevyItem> levyItems;
+
+    /**
      * 发票明细
      */
     @Data
@@ -75,6 +104,29 @@ public class InvoiceInfo {
         private String amount;
         private String taxAmount;
         private String taxInclusiveAmount;
+
+    }
+
+    /**
+     * 征收信息明细
+     */
+    @Data
+    @Builder
+    public static class LevyItem {
+
+        private String levyItemCode;
+        private String levyItemName;
+        private String levyGradeCode;
+        private String levyGradeName;
+        private String taxBasis;
+        private String taxRate;
+        private String taxPayable;
+        /**
+         * 应征凭证序号
+         */
+        private String voucherNum;
+        private String taxStartDate;
+        private String taxEndDate;
 
     }
 

@@ -14,8 +14,13 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
 import cn.iocoder.yudao.module.icbc.enums.IcbcTaxMethodEnum;
+import cn.iocoder.yudao.module.icbc.enums.IcbcTaxPaymentMethodEnum;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceConfirmStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PaymentStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.TaxStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.UploadStatusEnum;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGatewayResult;
 import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
@@ -36,6 +41,8 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -145,11 +152,12 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
                 .outVendorId(order.getPayerNo())
                 .build());
         if (result.isSuccess() && result.getData() != null) {
-            applyIcbcInvoiceInfo(order, result.getData());
+            applyInvoiceInfo(order.getPartnerOrderId(), result.getData());
             order = invoiceOrderMapper.selectById(order.getId());
         }
-        log.info("反向开票查询成功 - orderNo: {}, partnerOrderId: {}, confirmStatus: {}, preInvoiceStatus: {}",
-                order.getOrderNo(), order.getPartnerOrderId(), order.getConfirmStatus(), order.getPreInvoiceStatus());
+        log.info("反向开票查询成功 - orderNo: {}, partnerOrderId: {}, confirmStatus: {}, preInvoiceStatus: {}, invoiceStatus: {}, taxStatus: {}, uploadStatus: {}",
+                order.getOrderNo(), order.getPartnerOrderId(), order.getConfirmStatus(), order.getPreInvoiceStatus(),
+                order.getInvoiceStatus(), order.getTaxStatus(), order.getUploadStatus());
         return buildQueryResponse(order);
     }
 
@@ -159,10 +167,15 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
         response.setReturnMsg("成功");
         response.setOrderNo(order.getOrderNo());
         response.setPartnerOrderId(order.getPartnerOrderId());
+        response.setAcquisitionId(order.getAcquisitionId());
         response.setOrderStatus(order.getOrderStatus());
         response.setInvoiceStatus(order.getInvoiceStatus());
+        response.setInvoiceStatusName(InvoiceIssueStatusEnum.nameOf(order.getInvoiceStatus()));
         response.setPaymentStatus(order.getPaymentStatus());
         response.setTaxStatus(order.getTaxStatus());
+        response.setTaxStatusName(TaxStatusEnum.nameOf(order.getTaxStatus()));
+        response.setUploadStatus(order.getUploadStatus());
+        response.setUploadStatusName(UploadStatusEnum.nameOf(order.getUploadStatus()));
         response.setConfirmStatus(order.getConfirmStatus());
         response.setPreInvoiceStatus(order.getPreInvoiceStatus());
         response.setInvoiceNo(order.getInvoiceNo());
@@ -170,62 +183,327 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
         response.setInvoiceDate(order.getInvoiceDate());
         response.setInvoiceAmount(order.getInvoiceAmount());
         response.setTaxAmount(order.getTaxAmount());
+        response.setTaxRealAmount(order.getTaxRealAmount());
+        response.setTaxTime(order.getTaxTime());
+        response.setTaxPaymentMethod(order.getTaxPaymentMethod());
+        response.setTaxPaymentMethodName(IcbcTaxPaymentMethodEnum.nameOf(order.getTaxPaymentMethod()));
+        response.setTaxVoucherNo(order.getTaxVoucherNo());
+        response.setNextAction(resolveNextAction(order));
         return response;
     }
 
     /**
-     * 把工行预查询结果收敛回本地订单：自然人确认与预开票两条状态线独立更新，
-     * 并同步发票代码 / 税额等已落库字段。
+     * 把工行通知 / 预查询结果收敛回本地订单：自然人确认、预开票、开票、缴税、上传
+     * <strong>五条状态线各自独立更新</strong>，任一条线上送新值就更新那一条，不互相覆盖。
+     *
+     * <p>通知（{@code notifyType=01/03/04/05}）与主动预查询<strong>调用同一个方法</strong>，
+     * 所以两侧得到同一份状态；乱序到达的旧通知、重复到达的通知与通知早于本地数据落库三种情况
+     * 都能收敛：
+     * <ul>
+     *   <li>重复：状态写成同一值，无副作用；</li>
+     *   <li>乱序：已结清的成功态（已开票 / 缴税成功 / 上传成功）不被旧的进行中态回退；</li>
+     *   <li>早到：查不到业务单时抛 {@link ErrorCodeConstants#CALLBACK_BUSINESS_NOT_EXISTS}，
+     *       通知落为失败但保留记录，数据落库后可重放。</li>
+     * </ul>
      */
-    private void applyIcbcInvoiceInfo(InvoiceOrderDO order, InvoiceInfo info) {
-        InvoiceOrderDO update = buildPreInvoiceUpdate(order,
-                info.getConfirmStatus(), info.getInvoiceStatus(), false);
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void applyInvoiceInfo(String partnerOrderId, InvoiceInfo info) {
+        InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId(partnerOrderId);
+        if (order == null) {
+            // 通知早于平台数据落库：抛业务异常，让通知落为失败、数据落库后可重放
+            throw exception(ErrorCodeConstants.CALLBACK_BUSINESS_NOT_EXISTS);
+        }
+        InvoiceOrderDO update = new InvoiceOrderDO();
+        update.setId(order.getId());
+        boolean changed = false;
+
+        // 1. 自然人确认与预开票状态：两条线独立更新，未上送的不覆盖
+        Integer confirm = order.getConfirmStatus();
+        Integer preInvoice = order.getPreInvoiceStatus();
+        if (StrUtil.isNotBlank(info.getConfirmStatus())) {
+            confirm = InvoiceConfirmStatusEnum.toStatus(info.getConfirmStatus());
+            update.setConfirmStatus(confirm);
+            changed = true;
+        }
+        if (StrUtil.isNotBlank(info.getInvoiceStatus())) {
+            preInvoice = PreInvoiceStatusEnum.toStatus(info.getInvoiceStatus());
+            update.setPreInvoiceStatus(preInvoice);
+            changed = true;
+        }
+
+        // 2. 开票状态：拿到发票号码即已开票；预开票失败即开票失败；已付款但未出票为开票中
+        Integer issue = order.getInvoiceStatus();
+        Integer newIssue = resolveIssueStatus(order, info, preInvoice);
+        if (newIssue != null && shouldApplyIssue(issue, newIssue)) {
+            issue = newIssue;
+            update.setInvoiceStatus(issue);
+            changed = true;
+        }
+
+        // 3. 缴税状态：独立收敛，已结清后不回退
+        Integer tax = order.getTaxStatus();
+        Integer newTax = TaxStatusEnum.toStatus(info.getTaxStatus());
+        if (newTax != null && shouldApplyTax(tax, newTax)) {
+            tax = newTax;
+            update.setTaxStatus(tax);
+            changed = true;
+        }
+
+        // 4. 上传状态：独立收敛，上传成功后不回退
+        Integer upload = order.getUploadStatus();
+        Integer newUpload = UploadStatusEnum.toStatus(info.getUploadStatus());
+        if (newUpload != null && shouldApplyUpload(upload, newUpload)) {
+            upload = newUpload;
+            update.setUploadStatus(upload);
+            changed = true;
+        }
+
+        // 5. 发票与缴税字段
+        applyInvoiceFields(update, order, info, issue);
+        applyTaxFields(update, info);
+
+        // 6. 订单状态由各条状态线推出，且不回退（已取消不碰）。
+        //    没有任何新状态时不重算，避免用本地快照把订单状态推着走
+        if (changed) {
+            Integer derived = resolveOrderStatus(confirm, preInvoice, order.getPaymentStatus(), issue, tax, upload);
+            Integer current = order.getOrderStatus() == null ? 0 : order.getOrderStatus();
+            if (!Integer.valueOf(9).equals(current) && derived > current) {
+                update.setOrderStatus(derived);
+            }
+        }
+        invoiceOrderMapper.updateById(update);
+        log.info("开票状态收敛 - partnerOrderId: {}, confirmStatus: {}, preInvoiceStatus: {}, invoiceStatus: {}, taxStatus: {}, uploadStatus: {}",
+                partnerOrderId, confirm, preInvoice, issue, tax, upload);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void onPaymentSucceeded(String partnerOrderId) {
+        InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId(partnerOrderId);
+        if (order == null) {
+            // 付款状态已经收敛，不因开票数据缺失把付款拖下水
+            return;
+        }
+        // 付款成功是「真正开票」的触发点：先进入开票中，再尽力向工行确认一次最新状态
+        if (!InvoiceIssueStatusEnum.isIssued(order.getInvoiceStatus())
+                && !InvoiceIssueStatusEnum.isException(order.getInvoiceStatus())) {
+            InvoiceOrderDO update = new InvoiceOrderDO();
+            update.setId(order.getId());
+            update.setInvoiceStatus(InvoiceIssueStatusEnum.ISSUING.getStatus());
+            int current = order.getOrderStatus() == null ? 0 : order.getOrderStatus();
+            if (!Integer.valueOf(9).equals(current) && current < 2) {
+                update.setOrderStatus(2);
+            }
+            invoiceOrderMapper.updateById(update);
+        }
+        try {
+            IcbcGatewayResult<InvoiceInfo> result = icbcGateway.queryInvoiceInfo(InvoiceQueryReq.builder()
+                    .outOrderId(order.getPartnerOrderId())
+                    .outUserId(order.getPayeeNo())
+                    .outVendorId(order.getPayerNo())
+                    .build());
+            if (result.isSuccess() && result.getData() != null) {
+                applyInvoiceInfo(partnerOrderId, result.getData());
+            }
+        } catch (RuntimeException e) {
+            // 查询失败不影响付款收敛：开票 / 缴税 / 上传由通知与后续查询补齐
+            log.warn("付款成功后确认开票状态失败，等待通知或后续查询收敛 - partnerOrderId: {}", partnerOrderId, e);
+        }
+    }
+
+    /**
+     * 开票状态：发票号码是最硬的凭证，有号码即已开票；预开票失败则开票失败；
+     * 已付款但工行还没出票时进入开票中。
+     */
+    private Integer resolveIssueStatus(InvoiceOrderDO order, InvoiceInfo info, Integer preInvoiceStatus) {
+        if (StrUtil.isNotBlank(info.getInvoiceCode()) || StrUtil.isNotBlank(info.getInvoiceNo())) {
+            return InvoiceIssueStatusEnum.ISSUED.getStatus();
+        }
+        if (PreInvoiceStatusEnum.FAILED.getStatus().equals(preInvoiceStatus)) {
+            return InvoiceIssueStatusEnum.FAILED.getStatus();
+        }
+        if (PaymentStatusEnum.isSuccess(order.getPaymentStatus())) {
+            return InvoiceIssueStatusEnum.ISSUING.getStatus();
+        }
+        return null;
+    }
+
+    /**
+     * 已开票是正终态，不被任何后续状态回退；开票失败也不被旧的进行中态回退。
+     */
+    private boolean shouldApplyIssue(Integer current, Integer next) {
+        if (current == null) {
+            return true;
+        }
+        if (InvoiceIssueStatusEnum.isIssued(next)) {
+            return true;
+        }
+        if (InvoiceIssueStatusEnum.isIssued(current)) {
+            return false;
+        }
+        return next >= current;
+    }
+
+    /**
+     * 缴税已结清（成功 / 无需缴税）后，旧通知里的缴税中 / 异常不回退。
+     */
+    private boolean shouldApplyTax(Integer current, Integer next) {
+        if (current == null) {
+            return true;
+        }
+        if (TaxStatusEnum.isPaid(current)) {
+            return TaxStatusEnum.isPaid(next);
+        }
+        return true;
+    }
+
+    /**
+     * 上传成功后，旧通知里的处理中 / 已受理 / 上传中不回退。
+     */
+    private boolean shouldApplyUpload(Integer current, Integer next) {
+        if (current == null) {
+            return true;
+        }
+        if (UploadStatusEnum.isSuccess(current)) {
+            return UploadStatusEnum.isSuccess(next);
+        }
+        return true;
+    }
+
+    private void applyInvoiceFields(InvoiceOrderDO update, InvoiceOrderDO order, InvoiceInfo info,
+                                    Integer issueStatus) {
         if (StrUtil.isNotBlank(info.getInvoiceCode())) {
             update.setInvoiceCode(info.getInvoiceCode());
         }
-        if (StrUtil.isNotBlank(info.getTaxAmount())) {
-            update.setTaxAmount(AmountUtils.parse(info.getTaxAmount()));
+        String invoiceNo = StrUtil.isNotBlank(info.getInvoiceNo())
+                ? info.getInvoiceNo() : info.getInvoiceCode();
+        if (StrUtil.isNotBlank(invoiceNo)) {
+            update.setInvoiceNo(invoiceNo);
         }
-        invoiceOrderMapper.updateById(update);
+        LocalDateTime invoiceDate = parseIcbcTime(info.getInvoiceDate());
+        if (invoiceDate != null) {
+            update.setInvoiceDate(invoiceDate);
+        }
+        BigDecimal invoiceAmount = AmountUtils.parse(info.getPayAmount());
+        if (invoiceAmount != null) {
+            update.setInvoiceAmount(invoiceAmount);
+        } else if (InvoiceIssueStatusEnum.isIssued(issueStatus) && order.getInvoiceAmount() == null) {
+            update.setInvoiceAmount(order.getTotalAmount());
+        }
+        BigDecimal taxAmount = AmountUtils.parse(info.getTaxAmount());
+        if (taxAmount != null) {
+            update.setTaxAmount(taxAmount);
+        }
+    }
+
+    private void applyTaxFields(InvoiceOrderDO update, InvoiceInfo info) {
+        BigDecimal taxRealAmount = AmountUtils.parse(info.getTaxRealAmount());
+        if (taxRealAmount != null) {
+            update.setTaxRealAmount(taxRealAmount);
+        }
+        LocalDateTime taxTime = parseIcbcTime(info.getTradeTime());
+        if (taxTime != null) {
+            update.setTaxTime(taxTime);
+        }
+        if (StrUtil.isNotBlank(info.getTaxPaymentMethod())) {
+            update.setTaxPaymentMethod(info.getTaxPaymentMethod());
+        }
+        String voucherNo = resolveTaxVoucherNo(info);
+        if (StrUtil.isNotBlank(voucherNo)) {
+            update.setTaxVoucherNo(voucherNo);
+        }
     }
 
     /**
-     * 用工行状态码构造一条状态更新：两条状态线独立更新，未上送的不覆盖。
-     *
-     * @param resolveOrderStatusFromSnapshot 无状态码时是否仍按快照重算订单状态：
-     *        通知路径为 true（确保收敛），预查询路径为 false（未拿到新状态则保持本地快照）
+     * 缴税凭证编号取征收信息明细里的应征凭证序号；多条明细时取第一条。
      */
-    private InvoiceOrderDO buildPreInvoiceUpdate(InvoiceOrderDO order, String confirmStatusCode,
-                                                 String preInvoiceStatusCode, boolean resolveOrderStatusFromSnapshot) {
-        InvoiceOrderDO update = new InvoiceOrderDO();
-        update.setId(order.getId());
-        Integer confirm = order.getConfirmStatus();
-        Integer preInvoice = order.getPreInvoiceStatus();
-        boolean hasStatus = false;
-        if (StrUtil.isNotBlank(confirmStatusCode)) {
-            confirm = InvoiceConfirmStatusEnum.toStatus(confirmStatusCode);
-            update.setConfirmStatus(confirm);
-            hasStatus = true;
+    private String resolveTaxVoucherNo(InvoiceInfo info) {
+        if (StrUtil.isNotBlank(info.getTaxVoucherNo())) {
+            return info.getTaxVoucherNo();
         }
-        if (StrUtil.isNotBlank(preInvoiceStatusCode)) {
-            preInvoice = PreInvoiceStatusEnum.toStatus(preInvoiceStatusCode);
-            update.setPreInvoiceStatus(preInvoice);
-            hasStatus = true;
+        if (info.getLevyItems() == null) {
+            return null;
         }
-        if (hasStatus || resolveOrderStatusFromSnapshot) {
-            update.setOrderStatus(resolveOrderStatus(confirm, preInvoice));
+        for (InvoiceInfo.LevyItem item : info.getLevyItems()) {
+            if (item != null && StrUtil.isNotBlank(item.getVoucherNum())) {
+                return item.getVoucherNum();
+            }
         }
-        return update;
+        return null;
     }
 
     /**
-     * 订单状态由两条状态线推出：自然人确认完成且预开票成功才算「已确认」。
+     * 订单状态由五条状态线推出：
+     * 待确认(0) → 已确认(1) → 已支付(2) → 已开票(3) → 已完成(4)。
      */
-    private Integer resolveOrderStatus(Integer confirmStatus, Integer preInvoiceStatus) {
+    private Integer resolveOrderStatus(Integer confirmStatus, Integer preInvoiceStatus, Integer paymentStatus,
+                                       Integer issueStatus, Integer taxStatus, Integer uploadStatus) {
+        if (InvoiceIssueStatusEnum.isIssued(issueStatus)
+                && TaxStatusEnum.isPaid(taxStatus) && UploadStatusEnum.isSuccess(uploadStatus)) {
+            return 4;
+        }
+        if (InvoiceIssueStatusEnum.isIssued(issueStatus)) {
+            return 3;
+        }
+        if (PaymentStatusEnum.isSuccess(paymentStatus)) {
+            return 2;
+        }
         boolean confirmed = confirmStatus != null
                 && confirmStatus >= InvoiceConfirmStatusEnum.NATURAL_PERSON_CONFIRMED.getStatus();
         boolean preInvoiceSuccess = PreInvoiceStatusEnum.SUCCESS.getStatus().equals(preInvoiceStatus);
         return confirmed && preInvoiceSuccess ? 1 : 0;
+    }
+
+    /**
+     * 三类状态里任一条失败 / 异常时，优先给出异常那条的下一步动作；没有异常时，
+     * 再进行中的状态给出提示；全部正常终态时为空。
+     */
+    private String resolveNextAction(InvoiceOrderDO order) {
+        if (InvoiceIssueStatusEnum.isException(order.getInvoiceStatus())) {
+            return InvoiceIssueStatusEnum.nextActionOf(order.getInvoiceStatus());
+        }
+        if (TaxStatusEnum.isException(order.getTaxStatus())) {
+            return TaxStatusEnum.nextActionOf(order.getTaxStatus());
+        }
+        if (UploadStatusEnum.isException(order.getUploadStatus())) {
+            return UploadStatusEnum.nextActionOf(order.getUploadStatus());
+        }
+        String action = InvoiceIssueStatusEnum.nextActionOf(order.getInvoiceStatus());
+        if (action != null) {
+            return action;
+        }
+        action = TaxStatusEnum.nextActionOf(order.getTaxStatus());
+        if (action != null) {
+            return action;
+        }
+        return UploadStatusEnum.nextActionOf(order.getUploadStatus());
+    }
+
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    /**
+     * 宽容解析工行回传的时间：{@code yyyy-MM-dd HH:mm:ss}、{@code yyyy-MM-dd} 与 ISO 都接受，
+     * 解析失败返回空（不阻断其余字段收敛）。
+     */
+    private LocalDateTime parseIcbcTime(String text) {
+        if (StrUtil.isBlank(text)) {
+            return null;
+        }
+        String value = text.trim();
+        for (DateTimeFormatter formatter : new DateTimeFormatter[]{DATE_TIME_FORMATTER, DATE_FORMATTER}) {
+            try {
+                return LocalDateTime.parse(value, formatter);
+            } catch (DateTimeParseException ignored) {
+                // 换下一种格式
+            }
+        }
+        try {
+            return LocalDateTime.parse(value);
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
     }
 
     @Override
@@ -246,15 +524,10 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void applyPreInvoiceStatus(String partnerOrderId, String confirmStatusCode, String preInvoiceStatusCode) {
-        InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId(partnerOrderId);
-        if (order == null) {
-            // 通知早于平台数据落库：抛出业务异常，让通知落为失败、数据落库后可重放
-            throw exception(ErrorCodeConstants.CALLBACK_BUSINESS_NOT_EXISTS);
-        }
-        InvoiceOrderDO update = buildPreInvoiceUpdate(order, confirmStatusCode, preInvoiceStatusCode, true);
-        invoiceOrderMapper.updateById(update);
-        log.info("开票状态收敛 - partnerOrderId: {}, confirmStatus: {}, preInvoiceStatus: {}",
-                partnerOrderId, update.getConfirmStatus(), update.getPreInvoiceStatus());
+        applyInvoiceInfo(partnerOrderId, InvoiceInfo.builder()
+                .confirmStatus(confirmStatusCode)
+                .invoiceStatus(preInvoiceStatusCode)
+                .build());
     }
 
     @Override

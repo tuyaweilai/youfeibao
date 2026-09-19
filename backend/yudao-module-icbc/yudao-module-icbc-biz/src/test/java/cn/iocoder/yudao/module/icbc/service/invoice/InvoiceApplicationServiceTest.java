@@ -175,10 +175,15 @@ public class InvoiceApplicationServiceTest extends BaseDbUnitTest {
         assertTrue(result.getConfirmPageHtml().contains("pre-order"));
         // 收购单被挂回并推进，业务单号以收购单号为准（保证幂等）
         verify(acquisitionService).linkInvoice(100L, "ACQ100");
-        // 工行报文使用公对私结算
+        // 工行报文使用公对私结算，且开的是报废产品收购发票：销售方为自然人，购买方与开票方为回收企业
         PreOrderReq submitted = fakeIcbcGateway.lastPayload(FakeIcbcGateway.OP_SUBMIT_PRE_ORDER);
         assertEquals("05", submitted.getPayChannel());
+        assertEquals("24", submitted.getSpecificElements());
         assertEquals("04", submitted.getBuyerInvTypeCode());
+        assertEquals("张三", submitted.getNaturalPersonName());
+        assertEquals("110101199001011234", submitted.getCardNumber());
+        assertEquals("91110000123456789X", submitted.getTaxpayerNo());
+        assertEquals("北京某某再生资源有限公司", submitted.getTaxpayerName());
         // 订单已落库并绑定收购单
         InvoiceOrderDO order = invoiceOrderMapper.selectByPartnerOrderId("ACQ100");
         assertNotNull(order);
