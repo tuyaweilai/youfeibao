@@ -92,3 +92,35 @@ SELECT 9003, 2, 0, 'icbc_seller_notify_invoice_issued', '反向开票-发票已�
        'DEBUG_DING_TALK', 'admin', NOW(), 'admin', NOW(), b'0'
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `system_sms_template` WHERE `code` = 'icbc_seller_notify_invoice_issued');
+
+-- ----------------------------
+-- 短信日志列宽：三条模板都带一次性令牌链接，链接本身就约 260 字符（payload + HMAC 签名）。
+-- 而快照里 `system_sms_log`.`template_content` 与 `template_params` 都只有 varchar(255)：
+-- 渲染后的正文（约 320 字符）与参数 JSON 都装不下，插日志即报
+-- "Data too long for column 'template_content'"。日志插不进去 → 短信永远发不出去，
+-- 「短信转达」只能退化成「复制链接当面给他」，自动触达则落一条发送失败记录。
+-- 单测里 SmsSendApi 是 Mock 的（不写这张表），所以只有真库跑得出来这个错。
+-- 上游快照保持原样（ADR 0012），在引入长链接的这个文件里幂等加宽。
+-- ----------------------------
+SET @col_len := (
+  SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'system_sms_log' AND COLUMN_NAME = 'template_content'
+);
+SET @ddl := IF(@col_len IS NOT NULL AND @col_len < 1024,
+  'ALTER TABLE `system_sms_log` MODIFY COLUMN `template_content` varchar(1024) NOT NULL COMMENT ''短信内容''',
+  'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- template_params 存的是同一批参数的 JSON（也含整条链接），一样会溢出
+SET @col_len := (
+  SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'system_sms_log' AND COLUMN_NAME = 'template_params'
+);
+SET @ddl := IF(@col_len IS NOT NULL AND @col_len < 1024,
+  'ALTER TABLE `system_sms_log` MODIFY COLUMN `template_params` varchar(1024) NOT NULL COMMENT ''短信参数''',
+  'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

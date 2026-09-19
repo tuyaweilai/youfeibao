@@ -374,6 +374,8 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - **额度台账口径**：只在 `NaturalPersonQuotaServiceImpl` 一处；改口径（如是否算在途）不要散到调用方去。额度是**软上限**——平台自己的台账，跨平台累计不可见。
 - **前端**：`pnpm build:local` 验证编译；`pnpm ts:check` 有 1247 个既有 TS 错误，判断自己的改动看 `src/(views|api)/icbc` 有无新报错即可（跑 ts:check 需加 `NODE_OPTIONS=--max-old-space-size=6144`）。
 - **时间字段**：yudao 全局 Jackson 把 `LocalDateTime` 按**毫秒时间戳**序列化/反序列化（`TimestampLocalDateTimeSerializer/Deserializer`）。因此 `@RequestBody` 里的 `LocalDateTime` 字段，前端日期选择器必须用 `value-format="x"`，接口类型声明为 `number`；字段上的 `@DateTimeFormat` 对 JSON body **无效**（只作用于 query/form）。不要用 `YYYY-MM-DD HH:mm:ss`，否则反序列化会得到 0 或报错。
+- **触达本地联调**：`ICBC_SELLER_APP_URL`（自然人端入口，本地 `http://localhost:5174`）不配，「复制确认链接 / 短信转达」直接报「尚未配置自然人端入口地址（icbc.notify.seller-app-url）」——`SellerNotifyServiceImpl.resolveSellerAppUrl()` 在 `seller-app-url` 为空时退化用 `ICBC_STATION_ENTRY_URL`，两条都空就抛 `SELLER_NOTIFY_LINK_UNAVAILABLE`。
+- **短信日志列宽**：yudao 快照里 `system_sms_log`.`template_content` / `template_params` 只有 `varchar(255)`，而带一次性令牌链接的正文约 320–380 字符（链接自身约 260 字符）→ 插日志报 `Data too long for column 'template_content'`，**短信永远发不出去**（转达退化成「复制链接当面给他」，自动触达落一条发送失败记录）。单测把 `SmsSendApi` Mock 掉了，不写这张表，所以只有真库能暴露。`icbc-seller-notify.sql` 已幂等加宽到 `varchar(1024)`；以后再往短信里塞长链接照这个口子走，**别去改快照 `ruoyi-vue-pro.sql`（ADR 0012）**。
 - **工具**：不要在同一条消息里同时发 `edit` 和依赖它的 `bash`（会并发，文件可能未落盘）。
 
 ## 重启后端时修掉的启动阻塞（2026-09-19）
