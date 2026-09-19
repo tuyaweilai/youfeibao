@@ -4,25 +4,25 @@
 
 ## 现状
 
-**#22 工程骨架**：最小 uni-app（vue3 + vite + TS + pinia），一期只发 H5。业务页面按子票推进：
-
-- #23 工程骨架与登录（请求封装、鉴权、导航）
-- #24 收购登记主流程（配置带出、门禁与确认书）
-- #25 现场照片与识别回填
-- #26 新出售者一次性手续（工行 H5 容器）
-- #27 弱网暂存与离线补传
+- **#22 工程骨架**：最小 uni-app（vue3 + vite + TS + pinia），一期只发 H5。
+- **#23 登录与导航**：`src/utils/request.ts` 统一带 `tenant-id` + token，401 清登录态回登录页；`src/store/auth.ts` 持久化登录态；首页进入「收购登记 / 出售者建档 / 我的收购单」，未登录拦截。业务页面待后续子票：
+  - #24 收购登记主流程（配置带出、门禁与确认书）
+  - #25 现场照片与识别回填
+  - #26 新出售者一次性手续（工行 H5 容器）
+  - #27 弱网暂存与离线补传
 
 ## 开发
 
 ```bash
 cd backend/yudao-ui/yudao-ui-field-uniapp
 pnpm install
-pnpm dev:h5        # 本地开发，默认 5173
+pnpm dev:h5        # 本地开发，默认 http://localhost:5173，/admin-api 代理到 http://localhost:48080
 pnpm build:h5      # 生产构建，产物在 dist/
-pnpm ts:check      # 类型检查
 ```
 
-Node >= 16、pnpm >= 8.6（与 PC 后台一致）。
+Node >= 16、pnpm >= 8.6（与 PC 后台一致）。后端需按根目录 README 起本地环境；默认登录租户 `1`、账号 `admin` / `admin123`（登录页可改租户编号）。
+
+API 基地址由 `.env` 的 `VITE_APP_BASE_URL` 控制（默认相对路径 `/admin-api`）；生产部署时前端与后端同源即可，或改成后端地址。
 
 ## 一期边界（H5）
 
@@ -48,10 +48,19 @@ Node >= 16、pnpm >= 8.6（与 PC 后台一致）。
 
 ```
 src/
-  App.vue           应用根（启动钩子）
+  App.vue           应用根（全局样式）
   main.ts           入口（vue3 + pinia）
   pages.json        路由与窗口样式
   manifest.json     应用标识与渠道配置
-  pages/home/       首页
+  config/env.ts     API 基地址与租户编号
+  utils/request.ts  统一请求封装（tenant-id + token + 401 处理）
+  utils/auth.ts     token / 用户信息本地存储
+  store/auth.ts     pinia 登录态
+  api/auth.ts       登录 / 登出 / 权限信息接口
+  pages/login/      登录页（启动入口，已登录自动进首页）
+  pages/home/       首页（导航 + 退出）
+  pages/acquisition/ 收购登记（占位，#24）
+  pages/payee/      出售者建档（占位，#26）
+  pages/my-acquisitions/ 我的收购单（占位，#24/#27）
   env.d.ts          TS 类型声明
 ```

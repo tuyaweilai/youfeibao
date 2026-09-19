@@ -16,4 +16,19 @@ page {
   color: #1f2329;
   font-size: 28rpx;
 }
+
+.placeholder {
+  padding: 48rpx 32rpx;
+
+  &__title {
+    font-size: 40rpx;
+    font-weight: 600;
+  }
+
+  &__desc {
+    margin-top: 20rpx;
+    color: #8a919f;
+    line-height: 1.6;
+  }
+}
 </style>

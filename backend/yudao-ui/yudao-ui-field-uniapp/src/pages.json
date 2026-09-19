@@ -5,6 +5,30 @@
       "style": {
         "navigationBarTitleText": "收货现场"
       }
+    },
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/acquisition/index",
+      "style": {
+        "navigationBarTitleText": "收购登记"
+      }
+    },
+    {
+      "path": "pages/payee/index",
+      "style": {
+        "navigationBarTitleText": "出售者建档"
+      }
+    },
+    {
+      "path": "pages/my-acquisitions/index",
+      "style": {
+        "navigationBarTitleText": "我的收购单"
+      }
     }
   ],
   "globalStyle": {
