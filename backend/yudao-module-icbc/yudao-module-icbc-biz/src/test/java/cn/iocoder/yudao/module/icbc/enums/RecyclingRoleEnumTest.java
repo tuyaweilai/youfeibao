@@ -27,6 +27,11 @@ public class RecyclingRoleEnumTest {
                 RecyclingPermission.INVOICE_CREATE));
         assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
                 RecyclingPermission.PAYMENT_CREATE));
+        // 现场选品类要读配置（单位 / 税率 / 税收分类编码），但只能读
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.GOODS_CONFIG_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.GOODS_CONFIG_CREATE));
     }
 
     @Test

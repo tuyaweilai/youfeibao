@@ -5,11 +5,9 @@
 ## 现状
 
 - **#22 工程骨架**：最小 uni-app（vue3 + vite + TS + pinia），一期只发 H5。
-- **#23 登录与导航**：`src/utils/request.ts` 统一带 `tenant-id` + token，401 清登录态回登录页；`src/store/auth.ts` 持久化登录态；首页进入「收购登记 / 出售者建档 / 我的收购单」，未登录拦截。业务页面待后续子票：
-  - #24 收购登记主流程（配置带出、门禁与确认书）
-  - #25 现场照片与识别回填
-  - #26 新出售者一次性手续（工行 H5 容器）
-  - #27 弱网暂存与离线补传
+- **#23 登录与导航**：`src/utils/request.ts` 统一带 `tenant-id` + token，401 清登录态回登录页；`src/store/auth.ts` 持久化登录态；首页进入「收购登记 / 出售者建档 / 我的收购单」，未登录拦截。
+- **#24 收购登记主流程**：`pages/acquisition/index` 选品类带出单位 / 税率 / 计税方法 / 税收分类编码，身份证或手机号带档，数量 / 单价自动算金额、毛重 − 皮重自动算净重，漏填品类或磅单号拦住提交，提交后展示额度提示；`pages/acquisition/detail` 看进度（已登记 / 待付款 / 已付款 / 已开票）、可打印并导出确认书 Excel；`pages/my-acquisitions` 列单据进详情。
+- 待后续子票：#25 现场照片与识别回填、#26 新出售者一次性手续（工行 H5 容器）、#27 弱网暂存与补传。
 
 ## 开发
 
@@ -55,12 +53,16 @@ src/
   config/env.ts     API 基地址与租户编号
   utils/request.ts  统一请求封装（tenant-id + token + 401 处理）
   utils/auth.ts     token / 用户信息本地存储
+  utils/download.ts 带鉴权下载（确认书 Excel）
   store/auth.ts     pinia 登录态
   api/auth.ts       登录 / 登出 / 权限信息接口
-  pages/login/      登录页（启动入口，已登录自动进首页）
+  api/goodsConfig.ts 启用品类
+  api/payee.ts      回头客带档
+  api/acquisition.ts 收购登记
+  pages/login/      登录页
   pages/home/       首页（导航 + 退出）
-  pages/acquisition/ 收购登记（占位，#24）
+  pages/acquisition/ 登记表单 + 确认书详情
   pages/payee/      出售者建档（占位，#26）
-  pages/my-acquisitions/ 我的收购单（占位，#24/#27）
+  pages/my-acquisitions/ 我的收购单
   env.d.ts          TS 类型声明
 ```

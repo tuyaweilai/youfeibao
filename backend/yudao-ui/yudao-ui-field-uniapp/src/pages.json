@@ -19,6 +19,12 @@
       }
     },
     {
+      "path": "pages/acquisition/detail",
+      "style": {
+        "navigationBarTitleText": "收购确认书"
+      }
+    },
+    {
       "path": "pages/payee/index",
       "style": {
         "navigationBarTitleText": "出售者建档"

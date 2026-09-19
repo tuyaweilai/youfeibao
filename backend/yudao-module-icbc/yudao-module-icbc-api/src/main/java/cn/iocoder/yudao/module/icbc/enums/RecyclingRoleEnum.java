@@ -69,6 +69,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.ACQUISITION_CREATE, RecyclingPermission.ACQUISITION_UPDATE,
             RecyclingPermission.ACQUISITION_QUERY, RecyclingPermission.ACQUISITION_EXPORT,
             RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_ATTACH,
+            RecyclingPermission.GOODS_CONFIG_QUERY,
             RecyclingPermission.QUOTA_QUERY, RecyclingPermission.QUOTA_GUIDANCE_HANDLE,
             RecyclingPermission.PUBLIC_TOKEN_CREATE)),
 
