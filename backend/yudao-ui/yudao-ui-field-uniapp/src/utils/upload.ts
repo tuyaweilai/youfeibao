@@ -61,3 +61,36 @@ export async function captureAndUpload(): Promise<string> {
   }
   return uploadImage(paths[0])
 }
+
+/** 把本地图片路径读成 base64 dataURL，便于弱网时把照片一起暂存到本地 */
+export async function pathToDataUrl(tempPath: string): Promise<string> {
+  // #ifdef H5
+  const blob = await (await fetch(tempPath)).blob()
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(new Error('读取照片失败'))
+    reader.readAsDataURL(blob)
+  })
+  // #endif
+  // #ifndef H5
+  return tempPath
+  // #endif
+}
+
+/** 把 base64 dataURL 还原成上传接口可用的本地路径 */
+export function dataUrlToUploadPath(dataUrl: string): string {
+  // #ifdef H5
+  const [meta, base64] = dataUrl.split(',')
+  const mime = meta.match(/:(.*?);/)?.[1] || 'image/jpeg'
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return URL.createObjectURL(new Blob([bytes], { type: mime }))
+  // #endif
+  // #ifndef H5
+  return dataUrl
+  // #endif
+}

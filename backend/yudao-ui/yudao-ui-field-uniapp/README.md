@@ -9,7 +9,9 @@
 - **#24 收购登记主流程**：`pages/acquisition/index` 选品类带出单位 / 税率 / 计税方法 / 税收分类编码，身份证或手机号带档，数量 / 单价自动算金额、毛重 − 皮重自动算净重，漏填品类或磅单号拦住提交，提交后展示额度提示；`pages/acquisition/detail` 看进度（已登记 / 待付款 / 已付款 / 已开票）、可打印并导出确认书 Excel；`pages/my-acquisitions` 列单据进详情。
 - **#25 现场照片与识别回填**：拍磅单 / 车头 / 车尾照片并上传（`/infra/file/upload`），车牌手输并实时比对（一致 / 不一致 / 无法比对）；详情页可「修正识别结果」调 `/icbc/acquisition/correct` 后重新比对。一期无真实 OCR，重量与车牌默认手工录入（ADR 0013）。
 - **#26 新出售者一次性手续**：`pages/payee` 带档或新建出售者，再依次完成实人认证 → 收方入驻 → 框架收购协议 → 首次授权；工行自动提交表单用新窗口承载（`utils/icbcForm.ts`，ADR 0016），后端数据接口 `sync` 收敛；入驻未通过可留联系方式。
-- 待后续子票：#27 弱网暂存与补传。
+- **#27 弱网暂存与离线补传**：选照片即先读成 base64 存本地，上传不动也不丢；提交/暂存时把登记（含照片）落本地草稿，恢复后走 `/icbc/acquisition/sync-offline`（按 `clientRequestId` 幂等）逐条补传，成功删草稿、失败留原因可重试（`utils/draft.ts`、`pages/offline`，首页有入口与计数）。
+
+现场端一期子票已全部完成（#22–#27）。
 
 ## 开发
 
@@ -59,6 +61,8 @@ src/
   utils/upload.ts   拍照 + 上传到文件服务
   utils/plate.ts    车牌比对归一化
   utils/icbcForm.ts 新窗口承载工行自动提交表单
+  utils/network.ts  网络状态
+  utils/draft.ts    弱网草稿与补传
   store/auth.ts     pinia 登录态
   api/auth.ts       登录 / 登出 / 权限信息接口
   api/goodsConfig.ts 启用品类
@@ -70,5 +74,6 @@ src/
   pages/acquisition/ 登记表单 + 确认书详情
   pages/payee/      出售者建档一次性手续
   pages/my-acquisitions/ 我的收购单
+  pages/offline/    待补传草稿
   env.d.ts          TS 类型声明
 ```

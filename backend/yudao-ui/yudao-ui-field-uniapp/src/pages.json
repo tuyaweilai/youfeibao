@@ -35,6 +35,12 @@
       "style": {
         "navigationBarTitleText": "我的收购单"
       }
+    },
+    {
+      "path": "pages/offline/index",
+      "style": {
+        "navigationBarTitleText": "待补传"
+      }
     }
   ],
   "globalStyle": {

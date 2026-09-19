@@ -95,3 +95,16 @@ export const getAcquisition = (id: number) => get<AcquisitionVO>('/icbc/acquisit
 
 export const getAcquisitionPage = (params: { pageNo: number; pageSize: number }) =>
   get<{ list: AcquisitionVO[]; total: number }>('/icbc/acquisition/page', params)
+
+export interface AcquisitionSyncResultVO {
+  clientRequestId?: string
+  id?: number
+  acquisitionNo?: string
+  success?: boolean
+  duplicated?: boolean
+  errorMsg?: string
+}
+
+/** 弱网补传：按 clientRequestId 幂等，重复补传不产生重复单据，逐条返回成败 */
+export const syncOfflineAcquisitions = (items: AcquisitionCreateReq[]) =>
+  post<AcquisitionSyncResultVO[]>('/icbc/acquisition/sync-offline', { items })

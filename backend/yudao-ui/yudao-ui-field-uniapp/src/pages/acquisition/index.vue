@@ -88,14 +88,14 @@
             <view class="photo__label">{{ photo.label }}</view>
             <view class="photo__box" @click="pickPhoto(photo.key)">
               <image
-                v-if="form[photo.key]"
-                :src="form[photo.key]"
+                v-if="photoUrl[photo.key] || photoData[photo.key]"
+                :src="photoUrl[photo.key] || photoData[photo.key]"
                 mode="aspectFill"
                 class="photo__img"
               />
               <text v-else class="photo__add">{{ uploading[photo.key] ? '上传中…' : '+ 拍照' }}</text>
             </view>
-            <button v-if="form[photo.key]" class="link" @click="removePhoto(photo.key)">删除</button>
+            <button v-if="photoUrl[photo.key] || photoData[photo.key]" class="link" @click="removePhoto(photo.key)">删除</button>
           </view>
         </view>
         <view class="hint">
@@ -134,7 +134,8 @@
       </view>
 
       <button class="btn btn--primary submit" :loading="submitting" @click="onSubmit">提交登记</button>
-      <view class="tip">漏填品类，或磅单号与磅单照片都没有，会拦住提交。</view>
+      <button class="btn btn--ghost" @click="onSaveDraft">暂存到本地（弱网用）</button>
+      <view class="tip">漏填品类，或磅单号与磅单照片都没有，会拦住提交；断网时自动暂存，恢复后到「待补传」补传。</view>
     </template>
   </view>
 </template>
@@ -144,14 +145,16 @@ import { computed, reactive, ref, watch } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getEnabledGoodsList, GoodsConfigVO } from '@/api/goodsConfig'
 import { findReturningCustomer, PayeeVO } from '@/api/payee'
-import { createAcquisition, AcquisitionCreateResp } from '@/api/acquisition'
-import { captureAndUpload } from '@/utils/upload'
+import { createAcquisition, AcquisitionCreateReq, AcquisitionCreateResp } from '@/api/acquisition'
+import { chooseImage, pathToDataUrl, dataUrlToUploadPath, uploadImage } from '@/utils/upload'
 import { comparePlate } from '@/utils/plate'
+import { saveDraft } from '@/utils/draft'
 
 defineOptions({ name: 'FieldAcquisition' })
 
 type PhotoKey = 'weightTicketImageUrl' | 'vehicleFrontImageUrl' | 'vehicleRearImageUrl'
 
+const PHOTO_KEYS: PhotoKey[] = ['weightTicketImageUrl', 'vehicleFrontImageUrl', 'vehicleRearImageUrl']
 const photos: { key: PhotoKey; label: string }[] = [
   { key: 'weightTicketImageUrl', label: '磅单照片' },
   { key: 'vehicleFrontImageUrl', label: '车头照片' },
@@ -165,10 +168,24 @@ const lookedUp = ref(false)
 const looking = ref(false)
 const submitting = ref(false)
 const result = ref<AcquisitionCreateResp | null>(null)
+const clientRequestId = ref(newId())
+
 const uploading = reactive<Record<PhotoKey, boolean>>({
   weightTicketImageUrl: false,
   vehicleFrontImageUrl: false,
   vehicleRearImageUrl: false
+})
+// 已上传成功的照片 URL
+const photoUrl = reactive<Record<PhotoKey, string>>({
+  weightTicketImageUrl: '',
+  vehicleFrontImageUrl: '',
+  vehicleRearImageUrl: ''
+})
+// 本地照片（base64）：弱网时先存本地，提交或补传时再上传
+const photoData = reactive<Record<PhotoKey, string>>({
+  weightTicketImageUrl: '',
+  vehicleFrontImageUrl: '',
+  vehicleRearImageUrl: ''
 })
 
 const lookup = reactive({ idCardNo: '', mobile: '' })
@@ -185,9 +202,6 @@ const form = reactive({
   weightTicketNo: '',
   weightTicketPlateNo: '',
   vehiclePlateNo: '',
-  weightTicketImageUrl: '',
-  vehicleFrontImageUrl: '',
-  vehicleRearImageUrl: '',
   tradeAddress: '',
   settlementMethod: '',
   remark: ''
@@ -258,9 +272,17 @@ async function pickPhoto(key: PhotoKey) {
   if (uploading[key]) return
   uploading[key] = true
   try {
-    form[key] = await captureAndUpload()
+    const paths = await chooseImage(1)
+    if (!paths.length) return
+    // 先把照片读成 base64 存本地，保证断网也不丢
+    photoData[key] = await pathToDataUrl(paths[0])
+    try {
+      photoUrl[key] = await uploadImage(paths[0])
+    } catch {
+      // 网络不好：照片留在本地，提交或补传时再传
+      photoUrl[key] = ''
+    }
   } catch (e) {
-    // 用户取消选图不弹错
     if (!(e as Error).message?.includes('未选择')) {
       showError(e)
     }
@@ -270,7 +292,16 @@ async function pickPhoto(key: PhotoKey) {
 }
 
 function removePhoto(key: PhotoKey) {
-  form[key] = ''
+  photoUrl[key] = ''
+  photoData[key] = ''
+}
+
+async function ensurePhotosUploaded() {
+  for (const key of PHOTO_KEYS) {
+    if (photoData[key] && !photoUrl[key]) {
+      photoUrl[key] = await uploadImage(dataUrlToUploadPath(photoData[key]))
+    }
+  }
 }
 
 async function onLookup() {
@@ -308,8 +339,32 @@ function validate(): string | null {
   if (!form.goodsConfigId) return '请选择品类'
   if (!(toNum(form.quantity)! > 0)) return '请填写数量'
   if (!(toNum(form.amount)! > 0)) return '金额需大于 0（数量 × 单价）'
-  if (!form.weightTicketNo.trim() && !form.weightTicketImageUrl) return '磅单号与磅单照片至少填一个'
+  if (!form.weightTicketNo.trim() && !photoData.weightTicketImageUrl && !photoUrl.weightTicketImageUrl) {
+    return '磅单号与磅单照片至少填一个'
+  }
   return null
+}
+
+function buildPayload(): AcquisitionCreateReq {
+  return {
+    clientRequestId: clientRequestId.value,
+    payeeId: form.payeeId!,
+    goodsConfigId: form.goodsConfigId!,
+    specification: form.specification || undefined,
+    quantity: toNum(form.quantity) ?? undefined,
+    unitPrice: toNum(form.unitPrice) ?? undefined,
+    amount: toNum(form.amount) ?? undefined,
+    grossWeight: toNum(form.grossWeight) ?? undefined,
+    tareWeight: toNum(form.tareWeight) ?? undefined,
+    netWeight: toNum(form.netWeight) ?? undefined,
+    weightTicketNo: form.weightTicketNo.trim() || undefined,
+    weightTicketPlateNo: form.weightTicketPlateNo || undefined,
+    vehiclePlateNo: form.vehiclePlateNo || undefined,
+    tradeAddress: form.tradeAddress || undefined,
+    settlementMethod: form.settlementMethod || undefined,
+    source: 'ONLINE',
+    remark: form.remark || undefined
+  }
 }
 
 async function onSubmit() {
@@ -320,34 +375,68 @@ async function onSubmit() {
   }
   submitting.value = true
   try {
-    result.value = await createAcquisition({
-      clientRequestId: newId(),
-      payeeId: form.payeeId!,
-      goodsConfigId: form.goodsConfigId!,
-      specification: form.specification || undefined,
-      quantity: toNum(form.quantity) ?? undefined,
-      unitPrice: toNum(form.unitPrice) ?? undefined,
-      amount: toNum(form.amount) ?? undefined,
-      grossWeight: toNum(form.grossWeight) ?? undefined,
-      tareWeight: toNum(form.tareWeight) ?? undefined,
-      netWeight: toNum(form.netWeight) ?? undefined,
-      weightTicketNo: form.weightTicketNo.trim() || undefined,
-      weightTicketImageUrl: form.weightTicketImageUrl || undefined,
-      weightTicketPlateNo: form.weightTicketPlateNo || undefined,
-      vehiclePlateNo: form.vehiclePlateNo || undefined,
-      vehicleFrontImageUrl: form.vehicleFrontImageUrl || undefined,
-      vehicleRearImageUrl: form.vehicleRearImageUrl || undefined,
-      tradeAddress: form.tradeAddress || undefined,
-      settlementMethod: form.settlementMethod || undefined,
-      source: 'ONLINE',
-      remark: form.remark || undefined
+    // 先把本地照片传上去；传不动就暂存
+    await ensurePhotosUploaded()
+    const payload = buildPayload()
+    PHOTO_KEYS.forEach((key) => {
+      if (photoUrl[key]) {
+        payload[key] = photoUrl[key]
+      }
     })
+    result.value = await createAcquisition(payload)
   } catch (e) {
-    // 后端 ACQUISITION_REQUIRED_ELEMENT_MISSING 会在这里逐项列出缺什么
-    showError(e)
+    if (isNetworkError(e)) {
+      saveCurrentDraft()
+    } else {
+      // 后端 ACQUISITION_REQUIRED_ELEMENT_MISSING 会在这里逐项列出缺什么
+      showError(e)
+    }
   } finally {
     submitting.value = false
   }
+}
+
+function onSaveDraft() {
+  const invalid = validate()
+  if (invalid) {
+    uni.showModal({ title: '还差一点', content: invalid, showCancel: false })
+    return
+  }
+  saveCurrentDraft()
+}
+
+function saveCurrentDraft() {
+  try {
+    const photoUrls: Record<string, string> = {}
+    const pending = PHOTO_KEYS.filter((key) => photoData[key] && !photoUrl[key]).map((key) => {
+      return { key, dataUrl: photoData[key] }
+    })
+    PHOTO_KEYS.forEach((key) => {
+      if (photoUrl[key]) {
+        photoUrls[key] = photoUrl[key]
+      }
+    })
+    saveDraft({
+      clientRequestId: clientRequestId.value,
+      createdAt: Date.now(),
+      summary: `${seller.value?.name || '出售者'} · ${form.amount || 0} 元`,
+      payload: buildPayload(),
+      photos: pending,
+      photoUrls
+    })
+    uni.showModal({
+      title: '已暂存',
+      content: '这一笔已存在本地；网络恢复后到首页「待补传」里补传。',
+      showCancel: false
+    })
+  } catch (e) {
+    showError(e)
+  }
+}
+
+function isNetworkError(e: unknown): boolean {
+  const message = (e as Error).message || ''
+  return /网络|HTTP|超时|上传|下载|timeout|fail/i.test(message)
 }
 
 function goDetail() {
@@ -364,6 +453,8 @@ function resetAll() {
   result.value = null
   clearSeller()
   goodsIndex.value = -1
+  PHOTO_KEYS.forEach((key) => removePhoto(key))
+  clientRequestId.value = newId()
   Object.assign(form, {
     payeeId: undefined,
     goodsConfigId: undefined,
@@ -377,9 +468,6 @@ function resetAll() {
     weightTicketNo: '',
     weightTicketPlateNo: '',
     vehiclePlateNo: '',
-    weightTicketImageUrl: '',
-    vehicleFrontImageUrl: '',
-    vehicleRearImageUrl: '',
     tradeAddress: '',
     settlementMethod: '',
     remark: ''

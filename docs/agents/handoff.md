@@ -51,7 +51,8 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - **#24 收购登记主流程已完成**：选品类带出单位 / 税率 / 计税方法 / 编码，身份证或手机号带档，金额与净重自动推算，漏填品类 / 磅单号拦住提交，额度提示与确认书导出（`pages/acquisition/index|detail`、`pages/my-acquisitions`）。为此给收货员补了只读的 `icbc:goods-config:query`（现场选品类要读配置）。
 - **#25 照片与识别回填已完成**：拍磅单 / 车头 / 车尾上传（`/infra/file/upload`），车牌实时比对，详情页可修正识别结果（`/icbc/acquisition/correct`）后重新比对；一期无真实 OCR，手工录入为主。
 - **#26 新出售者手续已完成**：`pages/payee` 带档或新建后依次实名 / 入驻 / 协议 / 授权，工行自动提交表单用新窗口承载（`utils/icbcForm.ts`），后端 `sync` 收敛，失败可留联系方式。
-- 页面占位待后续子票：#27 弱网暂存与补传。
+- **#27 弱网暂存与补传已完成**：照片选完即存 base64，提交失败 / 断网落本地草稿，恢复后 `/icbc/acquisition/sync-offline` 逐条幂等补传（`utils/draft.ts`、`pages/offline`，首页有计数入口）。
+- 现场端一期子票 #22–#27 已全部完成。
 - 命令：`pnpm dev:h5` / `pnpm build:h5` / `pnpm ts:check`；开发期 `/admin-api` 代理到 48080，登录租户 1 + `admin/admin123`。
 - H5 运行时能力（相机 / 离线存储 / 承接工行自动提交表单）需真机冒烟，清单在 `yudao-ui-field-uniapp/README.md`。
 

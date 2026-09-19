@@ -5,6 +5,11 @@
       <view class="home__role">{{ roleText }}</view>
     </view>
 
+    <view v-if="draftCount > 0" class="draft" @click="go('/pages/offline/index')">
+      <text>有 {{ draftCount }} 条收购登记待补传</text>
+      <text class="draft__action">去补传 ›</text>
+    </view>
+
     <view class="menu">
       <view v-for="item in menus" :key="item.url" class="menu__item" @click="go(item.url)">
         <view class="menu__title">{{ item.title }}</view>
@@ -17,13 +22,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '@/store/auth'
+import { countDrafts } from '@/utils/draft'
 
 defineOptions({ name: 'FieldHome' })
 
 const auth = useAuthStore()
+const draftCount = ref(0)
 
 const ROLE_NAMES: Record<string, string> = {
   recycling_receiver: '收货员',
@@ -48,7 +55,9 @@ const menus = [
 onShow(() => {
   if (!auth.token) {
     uni.reLaunch({ url: '/pages/login/index' })
+    return
   }
+  draftCount.value = countDrafts()
 })
 
 function go(url: string) {
@@ -85,6 +94,21 @@ function onLogout() {
     margin-top: 48rpx;
     color: #d03050;
     background-color: #ffffff;
+  }
+}
+
+.draft {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28rpx 32rpx;
+  margin-top: 24rpx;
+  color: #b26a00;
+  background-color: #fff7e6;
+  border-radius: 16rpx;
+
+  &__action {
+    color: $field-primary;
   }
 }
 
