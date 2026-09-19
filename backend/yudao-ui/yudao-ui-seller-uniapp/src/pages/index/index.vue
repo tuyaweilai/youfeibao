@@ -22,6 +22,33 @@
         </view>
       </view>
 
+      <!-- 待办提醒（短信 / 收货员转达的一次性链接打开先看这里，确认时再验手机号） -->
+      <view v-if="activeTab === 'notice'" class="card">
+        <view v-if="notice" class="quota">
+          <view class="quota__name">待办提醒</view>
+          <view class="quota__message">{{ notice.message }}</view>
+          <view v-for="item in notice.items" :key="`${item.type}-${item.settlementId || item.partnerOrderId}`" class="notice-item">
+            <view class="notice-item__top">
+              <text class="notice-item__type">{{ item.typeName }}</text>
+              <text class="notice-item__status">{{ item.statusName }}</text>
+            </view>
+            <view class="notice-item__title">{{ item.title }}</view>
+            <view v-if="item.amount !== undefined && item.amount !== null" class="notice-item__meta">
+              金额 {{ item.amount }} 元（本平台累计）
+            </view>
+            <view v-if="item.deadlineTime" class="notice-item__meta">
+              截止 {{ item.deadlineTime.replace('T', ' ').slice(0, 16) }}
+            </view>
+            <view v-if="item.nextStep" class="notice-item__next">下一步：{{ item.nextStep }}</view>
+          </view>
+          <view v-if="!notice.items?.length" class="muted">暂时没有需要你处理的事。</view>
+          <button class="btn btn--primary" @click="goVerify">验证手机号后处理</button>
+          <view class="scope-note">{{ notice.scopeNote }}</view>
+        </view>
+        <view v-else-if="loading" class="loading">加载中…</view>
+        <view v-else class="error">{{ error }}</view>
+      </view>
+
       <!-- 实名与收方入驻 -->
       <view v-if="activeTab === 'onboarding'" class="card">
         <view v-if="onboarding" class="quota">
@@ -119,9 +146,10 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { queryQuota, querySettlement, submitContactLead, syncOnboarding, onboardingFormUrl, QuotaVO, SettlementVO, OnboardingStatusVO } from '@/api/public'
+import { queryQuota, queryNotice, querySettlement, submitContactLead, syncOnboarding, onboardingFormUrl, QuotaVO, SettlementVO, OnboardingStatusVO, PublicNoticeVO } from '@/api/public'
 import { resolveEntryParams, resolveStationCode, setPurpose, setToken } from '@/utils/token'
 import { getSubject, getToken } from '@/utils/auth'
+import { setTenantId } from '@/config/env'
 import { downloadInvoicePdf } from '@/utils/download'
 
 defineOptions({ name: 'SellerIndex' })
@@ -131,10 +159,12 @@ const PURPOSE_SECTION: Record<string, string> = {
   INVOICE_DOWNLOAD: 'invoice',
   SETTLEMENT_STATEMENT: 'settlement',
   CONTACT_LEAD: 'contact',
-  ONBOARDING: 'onboarding'
+  ONBOARDING: 'onboarding',
+  SELLER_NOTICE: 'notice'
 }
 
 const ALL_TABS = [
+  { key: 'notice', label: '待办提醒' },
   { key: 'onboarding', label: '实名与入驻' },
   { key: 'quota', label: '我的额度' },
   { key: 'invoice', label: '我的发票' },
@@ -150,6 +180,7 @@ const downloading = ref(false)
 const submitting = ref(false)
 const error = ref('')
 const quota = ref<QuotaVO | null>(null)
+const notice = ref<PublicNoticeVO | null>(null)
 const settlement = ref<SettlementVO | null>(null)
 const onboarding = ref<OnboardingStatusVO | null>(null)
 const webViewUrl = ref('')
@@ -201,7 +232,29 @@ async function loadActive() {
     await loadQuota()
   } else if (activeTab.value === 'settlement') {
     await loadSettlement()
+  } else if (activeTab.value === 'notice') {
+    await loadNotice()
   }
+}
+
+async function loadNotice() {
+  loading.value = true
+  try {
+    notice.value = await queryNotice(token.value)
+    // 租户从令牌解析结果拿：登录页用它定位回收企业
+    if (notice.value.tenantId) {
+      setTenantId(notice.value.tenantId)
+    }
+  } catch (e) {
+    error.value = (e as Error).message
+  } finally {
+    loading.value = false
+  }
+}
+
+/** 看通知不需要注册；要确认 / 处理时再用手机号验证（登录即注册） */
+function goVerify() {
+  uni.redirectTo({ url: '/pages/login/index' })
 }
 
 async function loadOnboarding() {
@@ -457,5 +510,51 @@ async function onSubmitContact() {
 
 .error {
   color: #cf1322;
+}
+
+.muted {
+  padding: 20rpx 0;
+  color: $seller-text-secondary;
+}
+
+.notice-item {
+  padding: 20rpx 0;
+  border-top: 1rpx solid #eef0f3;
+
+  &__top {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  &__type {
+    font-weight: 600;
+  }
+
+  &__status {
+    color: $seller-text-secondary;
+  }
+
+  &__title {
+    margin-top: 8rpx;
+  }
+
+  &__meta {
+    margin-top: 6rpx;
+    color: $seller-text-secondary;
+    font-size: 26rpx;
+  }
+
+  &__next {
+    margin-top: 8rpx;
+    color: #b26a00;
+    line-height: 1.6;
+  }
+}
+
+.scope-note {
+  margin-top: 16rpx;
+  color: $seller-text-secondary;
+  font-size: 24rpx;
+  line-height: 1.6;
 }
 </style>

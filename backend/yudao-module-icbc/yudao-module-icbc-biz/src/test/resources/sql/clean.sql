@@ -28,3 +28,5 @@ DELETE FROM icbc_settlement_version;
 DELETE FROM icbc_settlement;
 DELETE FROM icbc_station;
 DELETE FROM icbc_appointment;
+DELETE FROM icbc_seller_notify;
+DELETE FROM icbc_notify_setting;

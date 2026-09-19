@@ -289,6 +289,14 @@ icbc:
     # 免登录场站公开信息读取限流：每 IP 每分钟允许的次数
     resolve-per-minute: ${ICBC_STATION_RESOLVE_PER_MINUTE:60}
 
+  # 出售者触达（#36，ADR 0023）：短信三条 + 收货员一键转达。
+  # sms-enabled 是**平台级**开关，默认关闭（费用与到达率是运营成本）；租户可在
+  # 「触达记录」页单独开启，两者取或。seller-app-url 是拼一次性令牌链接的自然人端入口，
+  # 未配置时退化用下面的 station.entry-url；两条都为空就只能复制令牌，拼不出可点链接。
+  notify:
+    sms-enabled: ${ICBC_NOTIFY_SMS_ENABLED:false}
+    seller-app-url: ${ICBC_SELLER_APP_URL:}
+
   # 结算单与确认门禁（#33）：一次到场批次一次确认，确认是开票硬前置。
   # 三个超时都可配；到期**不自动确认**，而是升级为线下签字 / 提醒。
   settlement:

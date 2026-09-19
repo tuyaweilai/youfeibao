@@ -86,6 +86,35 @@ export interface PublicStationVO {
   guide?: string[]
 }
 
+/** 触达通知条目（#36，ADR 0023）：打开链接就能看到的事，不需要先注册 */
+export interface NoticeItemVO {
+  type?: string
+  typeName?: string
+  title?: string
+  statusName?: string
+  settlementId?: number
+  partnerOrderId?: string
+  amount?: number
+  acquisitionCount?: number
+  invoiceNo?: string
+  deadlineTime?: string
+  nextStep?: string
+}
+
+export interface PublicNoticeVO {
+  purpose?: string
+  tenantId?: number
+  payeeId?: number
+  sellerName?: string
+  message?: string
+  items?: NoticeItemVO[]
+  scopeNote?: string
+}
+
+/** 用令牌看触达通知（待确认结算 / 付款异常），打开即可看 */
+export const queryNotice = (token: string) =>
+  get<PublicNoticeVO>('/icbc/public/notice', { token })
+
 /** 解析场站二维码：只编码场站码，返回公开信息（不含个人数据） */
 export const resolveStation = (code: string) =>
   get<PublicStationVO>('/icbc/public/station', { code })

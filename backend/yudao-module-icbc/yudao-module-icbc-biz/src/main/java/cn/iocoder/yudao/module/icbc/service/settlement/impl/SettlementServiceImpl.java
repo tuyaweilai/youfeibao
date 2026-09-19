@@ -23,6 +23,7 @@ import cn.iocoder.yudao.module.icbc.enums.SettlementConfirmStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.SettlementDisputeReasonEnum;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
+import cn.iocoder.yudao.module.icbc.service.notify.SellerNotifyService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
 import cn.iocoder.yudao.module.icbc.service.settlement.SettlementService;
 import com.alibaba.fastjson.JSON;
@@ -84,6 +85,8 @@ public class SettlementServiceImpl implements SettlementService {
     private PayeeInfoService payeeInfoService;
     @Resource
     private NaturalPersonService naturalPersonService;
+    @Resource
+    private SellerNotifyService sellerNotifyService;
 
     // ==================== 生成 ====================
 
@@ -128,6 +131,8 @@ public class SettlementServiceImpl implements SettlementService {
         settlement.setCurrentVersionId(version.getId());
         settlement.setCurrentVersionNo(version.getVersionNo());
         settlementMapper.updateById(settlement);
+        // 触达（#36）：确认是开票硬前置，生成后提醒出售者「有一单在等他确认」
+        sellerNotifyService.onSettlementPending(settlement.getId());
         log.info("结算单生成成功 - settlementNo: {}, payeeId: {}, 收购单 {} 张",
                 settlement.getSettlementNo(), payee.getId(), acquisitions.size());
         return settlement.getId();
@@ -211,6 +216,8 @@ public class SettlementServiceImpl implements SettlementService {
                 reqVO.getChangeReason(), currentUser(), SOURCE_ENTERPRISE_CHANGE);
         applyPending(settlement, version, reqVO.getChangeReason());
         settlementMapper.updateById(settlement);
+        // 改版后是新的一版，需要重新提醒出售者确认（幂等键带版本号）
+        sellerNotifyService.onSettlementPending(settlement.getId());
     }
 
     @Override
@@ -229,6 +236,8 @@ public class SettlementServiceImpl implements SettlementService {
         settlement.setEnterpriseReplyTime(LocalDateTime.now());
         settlement.setDeadlineTime(LocalDateTime.now().plusDays(confirmTimeoutDays));
         settlementMapper.updateById(settlement);
+        // 内容未变、只是回到待确认：幂等键带的是同一版本号，不会重复轰炸（#36）
+        sellerNotifyService.onSettlementPending(settlement.getId());
     }
 
     @Override

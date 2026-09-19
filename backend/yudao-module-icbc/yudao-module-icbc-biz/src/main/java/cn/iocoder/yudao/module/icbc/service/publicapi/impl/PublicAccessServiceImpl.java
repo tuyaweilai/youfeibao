@@ -11,6 +11,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.SellerStepRes
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicContactLeadReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingPageRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingStatusRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicNoticeRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicStationRespVO;
@@ -21,6 +22,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
 import cn.iocoder.yudao.module.icbc.enums.PublicTokenPurposeEnum;
 import cn.iocoder.yudao.module.icbc.service.download.InvoiceDownloadService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
+import cn.iocoder.yudao.module.icbc.service.notify.SellerNotifyService;
 import cn.iocoder.yudao.module.icbc.service.publicapi.PublicAccessService;
 import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
 import cn.iocoder.yudao.module.icbc.service.tax.AnnualSettlementService;
@@ -71,6 +73,8 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     @Resource
     private SellerOnboardingService sellerOnboardingService;
     @Resource
+    private SellerNotifyService sellerNotifyService;
+    @Resource
     private cn.iocoder.yudao.module.icbc.service.station.StationService stationService;
 
     @Override
@@ -118,6 +122,13 @@ public class PublicAccessServiceImpl implements PublicAccessService {
                     Long.valueOf(payload.getBusinessKey()), null);
             return toPublicStatement(statement);
         });
+    }
+
+    @Override
+    public PublicNoticeRespVO queryNotice(String token) {
+        PublicTokenPayload payload = publicTokenService.redeem(token, PublicTokenPurposeEnum.SELLER_NOTICE);
+        return inTenant(payload.getTenantId(), () ->
+                sellerNotifyService.getNoticeForPayee(Long.valueOf(payload.getBusinessKey())));
     }
 
     private PublicSettlementStatementRespVO toPublicStatement(SellerSettlementStatementRespVO statement) {

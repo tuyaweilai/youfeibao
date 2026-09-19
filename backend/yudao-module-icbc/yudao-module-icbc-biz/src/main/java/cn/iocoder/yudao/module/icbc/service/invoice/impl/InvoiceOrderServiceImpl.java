@@ -35,6 +35,7 @@ import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.util.AmountUtils;
 import cn.iocoder.yudao.module.icbc.util.IcbcTimeUtils;
 import cn.iocoder.yudao.module.icbc.service.goodscfg.IcbcGoodsConfigService;
+import cn.iocoder.yudao.module.icbc.service.notify.SellerNotifyService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
 import lombok.extern.slf4j.Slf4j;
@@ -79,6 +80,9 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
 
     @Resource
     private SellerOnboardingService sellerOnboardingService;
+
+    @Resource
+    private SellerNotifyService sellerNotifyService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -238,6 +242,8 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
         InvoiceOrderDO update = new InvoiceOrderDO();
         update.setId(order.getId());
         boolean changed = false;
+        // 触达（#36）：记住这一版之前是不是已开票，用于识别「首次开出」
+        boolean wasIssued = InvoiceIssueStatusEnum.isIssued(order.getInvoiceStatus());
 
         // 1. 自然人确认与预开票状态：两条线独立更新，未上送的不覆盖
         Integer confirm = order.getConfirmStatus();
@@ -294,6 +300,10 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
             }
         }
         invoiceOrderMapper.updateById(update);
+        if (!wasIssued && InvoiceIssueStatusEnum.isIssued(issue)) {
+            // 票首次开出才提醒：他自己有票可下载（幂等键=合作方订单号，重复通知不重复发）
+            sellerNotifyService.onInvoiceIssued(partnerOrderId);
+        }
         log.info("开票状态收敛 - partnerOrderId: {}, confirmStatus: {}, preInvoiceStatus: {}, invoiceStatus: {}, taxStatus: {}, uploadStatus: {}",
                 partnerOrderId, confirm, preInvoice, issue, tax, upload);
     }

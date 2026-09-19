@@ -244,4 +244,9 @@ public interface ErrorCodeConstants {
     ErrorCode APPOINTMENT_STATUS_NOT_ALLOW = new ErrorCode(1_030_025_002, "预约当前状态不允许该操作：{}");
     ErrorCode APPOINTMENT_EXPECTED_QUANTITY_INVALID = new ErrorCode(1_030_025_003, "预计数量不能为负");
     ErrorCode APPOINTMENT_ARRIVAL_TIME_REQUIRED = new ErrorCode(1_030_025_004, "请填写预计到站时间");
+
+    // ========== 出售者触达（#36，ADR 0023：只靠短信与收货员转达） 1-030-026-000 ==========
+    ErrorCode SELLER_NOTIFY_NOT_EXISTS = new ErrorCode(1_030_026_000, "触达记录不存在");
+    ErrorCode SELLER_NOTIFY_LINK_UNAVAILABLE = new ErrorCode(1_030_026_001,
+            "尚未配置自然人端入口地址（icbc.notify.seller-app-url），无法生成确认链接");
 }

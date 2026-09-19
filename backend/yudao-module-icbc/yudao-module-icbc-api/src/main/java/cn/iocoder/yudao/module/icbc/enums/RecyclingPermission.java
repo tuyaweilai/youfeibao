@@ -188,4 +188,11 @@ public interface RecyclingPermission {
     /** 标记到场 / 未到场 */
     String APPOINTMENT_MANAGE = "icbc:appointment:manage";
 
+    // ========== 出售者触达（#36，ADR 0023：只靠短信与收货员转达） ==========
+
+    /** 查看触达记录与触达设置 */
+    String SELLER_NOTIFY_QUERY = "icbc:seller-notify:query";
+    /** 转达确认链接、发短信、开关本租户短信 */
+    String SELLER_NOTIFY_MANAGE = "icbc:seller-notify:manage";
+
 }

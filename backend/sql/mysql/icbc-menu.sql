@@ -106,4 +106,7 @@ VALUES
 (5178, '维护场站', 'icbc:station:manage', 3, 1, 5177, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- 到站预约（#35：不是订单，只有到场 / 未到场）
 (5179, '到站预约', 'icbc:appointment:query', 2, 12, 5100, 'appointment', '', 'icbc/appointment/index', 'IcbcAppointment', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5180, '标记到场与未到场', 'icbc:appointment:manage', 3, 1, 5179, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5180, '标记到场与未到场', 'icbc:appointment:manage', 3, 1, 5179, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 出售者触达（#36：短信三条 + 收货员一键转达，ADR 0023）
+(5181, '触达记录', 'icbc:seller-notify:query', 2, 13, 5100, 'seller-notify', '', 'icbc/sellerNotify/index', 'IcbcSellerNotify', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5182, '转达与短信开关', 'icbc:seller-notify:manage', 3, 1, 5181, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');

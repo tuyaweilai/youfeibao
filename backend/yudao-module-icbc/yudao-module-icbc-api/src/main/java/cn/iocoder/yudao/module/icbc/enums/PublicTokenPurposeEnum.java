@@ -20,7 +20,12 @@ public enum PublicTokenPurposeEnum {
     /** 汇算清缴对账：绑定一个自然人收方，出售者查自己的开票与已缴税款（可刷新） */
     SETTLEMENT_STATEMENT("SETTLEMENT_STATEMENT", "汇算清缴对账", BusinessKeyType.PAYEE, 20),
     /** 出售者建档：绑定一个自然人收方，让自然人在自己手机上完成工行实名 / 收方入驻（可重开页面） */
-    ONBOARDING("ONBOARDING", "出售者建档", BusinessKeyType.PAYEE, 20);
+    ONBOARDING("ONBOARDING", "出售者建档", BusinessKeyType.PAYEE, 20),
+    /**
+     * 触达通知（#36）：短信 / 收货员转达的链接，绑定一个自然人收方，让他打开就能看到
+     * 「待确认的结算 / 付款异常 / 已开出的票」，**不需要先注册**（ADR 0023）。
+     */
+    SELLER_NOTICE("SELLER_NOTICE", "触达通知", BusinessKeyType.PAYEE, 20);
 
     /**
      * 令牌绑定的业务键类型。

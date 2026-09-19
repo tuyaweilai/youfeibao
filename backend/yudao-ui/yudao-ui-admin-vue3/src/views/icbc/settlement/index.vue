@@ -53,7 +53,7 @@
         </template>
       </el-table-column>
       <el-table-column label="生成时间" prop="generateTime" width="170" :formatter="dateFormatter" />
-      <el-table-column label="操作" align="center" width="200" fixed="right">
+      <el-table-column label="操作" align="center" width="280" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openDetail(row)">明细</el-button>
           <el-button
@@ -73,6 +73,14 @@
             v-hasPermi="['icbc:settlement-confirm:manage']"
           >
             线下签字
+          </el-button>
+          <el-button
+            link
+            type="warning"
+            @click="openForward(row)"
+            v-hasPermi="['icbc:seller-notify:manage']"
+          >
+            转达确认链接
           </el-button>
         </template>
       </el-table-column>
@@ -156,6 +164,14 @@
     </template>
     <template #footer>
       <el-button @click="detailVisible = false">关闭</el-button>
+      <el-button
+        v-if="detail && !detail.confirmTime"
+        type="warning"
+        @click="openForward(detail)"
+        v-hasPermi="['icbc:seller-notify:manage']"
+      >
+        转达确认链接
+      </el-button>
     </template>
   </el-dialog>
 
@@ -222,6 +238,33 @@
       <el-button type="primary" @click="submitOffline">确认</el-button>
     </template>
   </el-dialog>
+
+  <!-- 转达确认链接（#36）：首次交易、从未留手机号的场景只有这条通路 -->
+  <el-dialog v-model="forwardVisible" title="把确认链接转达给出售者" width="560px">
+    <el-alert type="info" :closable="false" class="mb-10px"
+      title="链接打开即可查看（需手机号验证才能确认），收短信的人不需要注册。没留手机号时由收货员当面 / 微信转达。" />
+    <el-checkbox v-model="forwardSendSms" :disabled="!forwardResult?.mobileMasked && !forwardSending">
+      同时发短信到出售者手机号
+    </el-checkbox>
+    <el-descriptions v-if="forwardResult" :column="1" border class="mt-10px">
+      <el-descriptions-item label="结果">{{ forwardResult.message }}</el-descriptions-item>
+      <el-descriptions-item label="手机号">{{ forwardResult.mobileMasked || '未留手机号' }}</el-descriptions-item>
+      <el-descriptions-item label="链接">
+        <div class="break-all">{{ forwardResult.link || '未配置自然人端入口地址' }}</div>
+        <el-button v-if="forwardResult.link" link type="primary" @click="copyForward(forwardResult.link)">复制链接</el-button>
+      </el-descriptions-item>
+      <el-descriptions-item label="短信文案">
+        <div class="break-all">{{ forwardResult.notificationText }}</div>
+        <el-button link type="primary" @click="copyForward(forwardResult.notificationText || '')">复制文案</el-button>
+      </el-descriptions-item>
+    </el-descriptions>
+    <template #footer>
+      <el-button @click="forwardVisible = false">关闭</el-button>
+      <el-button type="primary" :loading="forwardSending" @click="submitForward">
+        {{ forwardResult ? '重新生成' : '生成链接' }}
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -231,6 +274,7 @@ import {
   SettlementVO,
   SETTLEMENT_CONFIRM_STATUS_OPTIONS
 } from '@/api/icbc/settlement'
+import { SellerNotifyApi, SellerNotifyForwardLinkVO } from '@/api/icbc/sellerNotify'
 import { dateFormatter } from '@/utils/formatTime'
 
 defineOptions({ name: 'IcbcSettlement' })
@@ -401,6 +445,43 @@ const openCancel = async (line: any) => {
   await SettlementApi.cancelAcquisition({ acquisitionId: line.acquisitionId, reason: value })
   message.success('已作废')
   detail.value = await SettlementApi.getSettlement(detail.value!.id!)
+}
+
+// ==================== 转达确认链接（#36） ====================
+const forwardVisible = ref(false)
+const forwardSending = ref(false)
+const forwardSendSms = ref(false)
+const forwardTarget = ref<SettlementVO>()
+const forwardResult = ref<SellerNotifyForwardLinkVO>()
+const openForward = (row: SettlementVO) => {
+  forwardTarget.value = row
+  forwardResult.value = undefined
+  forwardSendSms.value = false
+  forwardVisible.value = true
+}
+const submitForward = async () => {
+  if (!forwardTarget.value?.id) return
+  forwardSending.value = true
+  try {
+    const result = await SellerNotifyApi.forwardSettlementLink({
+      settlementId: forwardTarget.value.id,
+      sendSms: forwardSendSms.value
+    })
+    forwardResult.value = result
+    message.success(result.message || '已生成')
+  } catch (e: any) {
+    message.error(e?.msg || '生成失败，请检查自然人端入口地址配置')
+  } finally {
+    forwardSending.value = false
+  }
+}
+const copyForward = async (text: string) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    message.success('已复制')
+  } catch {
+    message.warning('复制失败，请手动选择文本')
+  }
 }
 
 getList()

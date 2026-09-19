@@ -946,3 +946,44 @@ CREATE TABLE IF NOT EXISTS icbc_appointment (
     PRIMARY KEY (id),
     CONSTRAINT uk_appointment_no UNIQUE (appointment_no)
 );
+
+-- icbc_seller_notify table（出售者触达记录，#36；租户表）
+CREATE TABLE IF NOT EXISTS icbc_seller_notify (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    biz_type VARCHAR(32) NOT NULL,
+    biz_key VARCHAR(128) NOT NULL,
+    template_code VARCHAR(64) NOT NULL,
+    natural_person_id BIGINT,
+    payee_id BIGINT,
+    seller_name VARCHAR(100),
+    mobile VARCHAR(32),
+    status INT NOT NULL DEFAULT 0,
+    sms_log_id BIGINT,
+    content VARCHAR(500),
+    link VARCHAR(500),
+    error_msg VARCHAR(500),
+    send_time DATETIME,
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_seller_notify_dedup UNIQUE (tenant_id, biz_type, biz_key)
+);
+
+-- icbc_notify_setting table（租户级触达设置，#36；租户表）
+CREATE TABLE IF NOT EXISTS icbc_notify_setting (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    sms_enabled TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_notify_setting_tenant UNIQUE (tenant_id)
+);

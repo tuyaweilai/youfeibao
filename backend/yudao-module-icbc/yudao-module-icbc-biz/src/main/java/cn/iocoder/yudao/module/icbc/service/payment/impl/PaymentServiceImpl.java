@@ -23,6 +23,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceQueryReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PaymentReq;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
+import cn.iocoder.yudao.module.icbc.service.notify.SellerNotifyService;
 import cn.iocoder.yudao.module.icbc.service.payment.PaymentService;
 import cn.iocoder.yudao.module.icbc.util.AmountUtils;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -68,6 +69,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Resource
     private InvoiceOrderService invoiceOrderService;
+
+    @Resource
+    private SellerNotifyService sellerNotifyService;
 
     // ==================== 发起付款 ====================
 
@@ -331,6 +335,10 @@ public class PaymentServiceImpl implements PaymentService {
         if (firstSuccess) {
             // 付款成功是「真正开票」的触发点：推进为开票中，并尽力向工行确认一次开票状态
             invoiceOrderService.onPaymentSucceeded(partnerOrderId);
+        }
+        if (PaymentStatusEnum.isException(platformStatus)) {
+            // 触达（#36）：失败 / 冲正 / 退汇 / 部分成功他要知道下一步，且知道钱没走通
+            sellerNotifyService.onPaymentException(partnerOrderId);
         }
         log.info("支付状态收敛 - partnerOrderId: {}, payStatus: {}, platformStatus: {}",
                 partnerOrderId, payStatus, platformStatus);

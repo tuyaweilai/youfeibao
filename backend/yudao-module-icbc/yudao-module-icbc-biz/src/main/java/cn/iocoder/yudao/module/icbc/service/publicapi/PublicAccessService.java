@@ -2,7 +2,9 @@ package cn.iocoder.yudao.module.icbc.service.publicapi;
 
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicContactLeadReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingPageRespVO;
-import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingStatusRespVO;import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingStatusRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicNoticeRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicStationRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.tax.vo.SellerSettlementStatementRespVO;
@@ -34,6 +36,11 @@ public interface PublicAccessService {
      * 用令牌取该自然人的汇算清缴对账单（当年开票与已缴税款）。
      */
     PublicSettlementStatementRespVO querySettlement(String token);
+
+    /**
+     * 用令牌查看触达通知（#36）：待确认结算 / 付款异常。打开即可看，**不需要注册**。
+     */
+    PublicNoticeRespVO queryNotice(String token);
 
     /**
      * 用令牌取「当前该做的工行页面」：实名认证或收方入驻。

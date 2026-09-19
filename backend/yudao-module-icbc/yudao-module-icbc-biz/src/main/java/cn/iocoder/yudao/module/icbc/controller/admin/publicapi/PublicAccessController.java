@@ -4,6 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicContactLeadReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingPageRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicOnboardingStatusRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicNoticeRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettlementStatementRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicStationRespVO;
@@ -72,6 +73,13 @@ public class PublicAccessController {
     @Parameter(name = "token", description = "公开令牌", required = true)
     public CommonResult<PublicSettlementStatementRespVO> querySettlement(@RequestParam("token") String token) {
         return success(publicAccessService.querySettlement(token));
+    }
+
+    @GetMapping("/notice")
+    @Operation(summary = "用令牌查看触达通知（待确认结算 / 付款异常），打开即可看，无需注册")
+    @Parameter(name = "token", description = "公开令牌", required = true)
+    public CommonResult<PublicNoticeRespVO> queryNotice(@RequestParam("token") String token) {
+        return success(publicAccessService.queryNotice(token));
     }
 
     @GetMapping("/onboarding/page")
