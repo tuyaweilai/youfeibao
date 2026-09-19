@@ -14,6 +14,8 @@ mvn -pl yudao-module-icbc/yudao-module-icbc-biz test                      # 运�
 
 前端（PC 管理后台）在 `backend/yudao-ui/yudao-ui-admin-vue3/`（vue3 + vite5 + element-plus，pnpm；见 `docs/adr/0011-前端形态与终端矩阵.md`）。依赖的构建脚本在 `pnpm-workspace.yaml` 放行，Node 需 >= 16、pnpm >= 8.6。
 
+收货员现场端（uni-app，一期 H5）在 `backend/yudao-ui/yudao-ui-field-uniapp/`（见 `docs/adr/0016-现场端基座与工行页面承载.md`），命令为 `pnpm dev:h5` / `pnpm build:h5`。
+
 ```bash
 cd backend/yudao-ui/yudao-ui-admin-vue3
 pnpm install        # 首次
