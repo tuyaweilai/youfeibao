@@ -19,6 +19,7 @@ import cn.iocoder.yudao.module.icbc.enums.*;
 import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
 import cn.iocoder.yudao.module.icbc.service.tax.TaxDeclarationService;
 import cn.iocoder.yudao.module.icbc.service.tax.TaxSupplementService;
+import cn.iocoder.yudao.module.icbc.util.IcbcMonthRange;
 import cn.iocoder.yudao.module.icbc.util.MaskUtils;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.extern.slf4j.Slf4j;
@@ -31,8 +32,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.YearMonth;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -55,7 +54,6 @@ import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 @Validated
 public class TaxDeclarationServiceImpl implements TaxDeclarationService {
 
-    private static final DateTimeFormatter MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
     /** 会挡住申报的缺项：出售者身份不全、征收率未识别 */
     private static final Set<String> BLOCKING_MISSING_TYPES = Set.of(
             "SELLER_INFO_MISSING", "TAX_RATE_UNKNOWN");
@@ -660,9 +658,8 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
 
         static MonthRange of(String periodMonth) {
             try {
-                YearMonth month = YearMonth.parse(periodMonth, MONTH_FORMATTER);
-                LocalDateTime start = month.atDay(1).atStartOfDay();
-                return new MonthRange(periodMonth, start, start.plusMonths(1));
+                IcbcMonthRange range = IcbcMonthRange.of(periodMonth);
+                return new MonthRange(periodMonth, range.getStart(), range.getEnd());
             } catch (DateTimeParseException | NullPointerException e) {
                 throw exception(TAX_PERIOD_MONTH_INVALID, String.valueOf(periodMonth));
             }

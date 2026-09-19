@@ -125,6 +125,13 @@ public interface RecyclingPermission {
     /** 全平台五流齐备率与异常票清单（#15） */
     String PLATFORM_EVIDENCE_QUERY = "icbc:platform:evidence:query";
 
+    // ========== 计费计量（#16：按成功开具的收购发票张数计费） ==========
+
+    /** 查看各租户按期间的成功开票张数与应计费用（跨租户） */
+    String PLATFORM_BILLING_QUERY = "icbc:platform:billing:query";
+    /** 重新计量并落台账（跨租户） */
+    String PLATFORM_BILLING_MANAGE = "icbc:platform:billing:manage";
+
     // ========== 平台运营：报废产品税收分类编码表 ==========
 
     String SCRAP_CODE_CREATE = "icbc:scrap-code:create";

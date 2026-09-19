@@ -68,7 +68,9 @@ public class RecyclingRoleEnumTest {
                     || permission.equals(RecyclingPermission.SCRAP_CODE_DELETE)
                     || permission.equals(RecyclingPermission.PLATFORM_CALLBACK_QUERY)
                     || permission.equals(RecyclingPermission.PLATFORM_CALLBACK_RETRY)
-                    || permission.equals(RecyclingPermission.PLATFORM_EVIDENCE_QUERY)) {
+                    || permission.equals(RecyclingPermission.PLATFORM_EVIDENCE_QUERY)
+                    || permission.equals(RecyclingPermission.PLATFORM_BILLING_QUERY)
+                    || permission.equals(RecyclingPermission.PLATFORM_BILLING_MANAGE)) {
                 continue; // 平台运营专属，租户管理员不碰
             }
             assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(), permission),
@@ -92,6 +94,15 @@ public class RecyclingRoleEnumTest {
                 RecyclingPermission.PLATFORM_CALLBACK_RETRY));
         assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
                 RecyclingPermission.PLATFORM_EVIDENCE_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.PLATFORM_BILLING_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.PLATFORM_BILLING_MANAGE));
+        // 计费台账是平台自己的账，租户内角色一个都不能看 / 改
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.PLATFORM_BILLING_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.PLATFORM_BILLING_MANAGE));
         // 通知监控与重放是平台专属，租户管理员不能跨租户看
         assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
                 RecyclingPermission.PLATFORM_CALLBACK_QUERY));

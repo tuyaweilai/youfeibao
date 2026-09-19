@@ -9,6 +9,8 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 
+import java.util.Set;
+
 /**
  * 让 icbc 单元测试真正打开 MyBatis-Plus 的多租户拦截器。
  *
@@ -31,6 +33,10 @@ public class IcbcTenantTestConfiguration {
             public Object postProcessAfterInitialization(Object bean, String beanName) {
                 if (bean instanceof MybatisPlusInterceptor) {
                     TenantProperties properties = new TenantProperties();
+                    // 与生产 application.yaml 的 yudao.tenant.ignore-tables 保持一致：
+                    // 这几张是无租户隔离语义的全局表（报废产品编码、公开令牌、平台计费台账）
+                    properties.setIgnoreTables(Set.of(
+                            "icbc_scrap_code", "icbc_public_token", "icbc_billing_ledger"));
                     MyBatisUtils.addInterceptor((MybatisPlusInterceptor) bean,
                             new TenantLineInnerInterceptor(new TenantDatabaseInterceptor(properties)), 0);
                 }

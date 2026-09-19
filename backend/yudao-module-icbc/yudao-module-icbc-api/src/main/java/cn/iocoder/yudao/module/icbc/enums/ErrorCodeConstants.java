@@ -193,4 +193,8 @@ public interface ErrorCodeConstants {
     ErrorCode TAX_SUPPLEMENT_STATUS_INVALID = new ErrorCode(1_030_019_005, "补缴记录当前状态不允许{}：{}（{}）");
     ErrorCode SETTLEMENT_REMINDER_NOT_EXISTS = new ErrorCode(1_030_019_006, "汇算清缴提醒不存在");
     ErrorCode TAX_PERIOD_MONTH_INVALID = new ErrorCode(1_030_019_007, "申报月格式不正确，应为 yyyy-MM：{}");
+
+    // ========== 平台计费计量（#16：按成功开具的收购发票张数计费） 1-030-020-000 ==========
+    ErrorCode BILLING_PERIOD_MONTH_INVALID = new ErrorCode(1_030_020_000, "计费期间格式不正确，应为 yyyy-MM：{}");
+    ErrorCode BILLING_TENANT_REQUIRED = new ErrorCode(1_030_020_001, "计费计量必须指定租户");
 }

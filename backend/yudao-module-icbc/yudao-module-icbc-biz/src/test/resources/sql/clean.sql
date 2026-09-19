@@ -1,5 +1,6 @@
 -- Clean test tables
 DELETE FROM icbc_tax_declaration_invoice;
+DELETE FROM icbc_billing_ledger;
 DELETE FROM icbc_tax_declaration_item;
 DELETE FROM icbc_tax_declaration;
 DELETE FROM icbc_tax_supplement;

@@ -118,6 +118,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.API_LOG_QUERY,
             RecyclingPermission.PLATFORM_CALLBACK_QUERY, RecyclingPermission.PLATFORM_CALLBACK_RETRY,
             RecyclingPermission.PLATFORM_INVOICE_QUERY, RecyclingPermission.PLATFORM_EVIDENCE_QUERY,
+            RecyclingPermission.PLATFORM_BILLING_QUERY, RecyclingPermission.PLATFORM_BILLING_MANAGE,
             RecyclingPermission.RED_INVOICE_QUERY,
             RecyclingPermission.PLATFORM_QUALIFICATION_QUERY, RecyclingPermission.PLATFORM_QUALIFICATION_AUDIT,
             RecyclingPermission.QUALIFICATION_QUERY, RecyclingPermission.QUALIFICATION_UPDATE,

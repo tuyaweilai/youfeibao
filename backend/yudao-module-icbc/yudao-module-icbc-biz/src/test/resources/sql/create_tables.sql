@@ -753,3 +753,24 @@ CREATE TABLE IF NOT EXISTS icbc_settlement_reminder (
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id)
 );
+
+-- icbc_billing_ledger table (平台计费计量台账, #16；全局表，tenant_id 是被计费租户)
+CREATE TABLE IF NOT EXISTS icbc_billing_ledger (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    tenant_id BIGINT NOT NULL,
+    period_month VARCHAR(7) NOT NULL,
+    issued_count INTEGER NOT NULL DEFAULT 0,
+    reversed_count INTEGER NOT NULL DEFAULT 0,
+    billable_count INTEGER NOT NULL DEFAULT 0,
+    unit_price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    amount DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+    generated_time DATETIME,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_billing_tenant_period ON icbc_billing_ledger(tenant_id, period_month);
