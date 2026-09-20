@@ -95,4 +95,21 @@ public interface IcbcSettlementMapper extends BaseMapperX<IcbcSettlementDO> {
                 .orderByAsc(IcbcSettlementDO::getId));
     }
 
+    // ==================== 工作台待办（#56 T18） ====================
+
+    /** 工作台「待结算确认 / 异议」条数：处于给定确认状态的结算单。 */
+    default long selectCountByConfirmStatus(Integer confirmStatus) {
+        return selectCount(new LambdaQueryWrapperX<IcbcSettlementDO>()
+                .eq(IcbcSettlementDO::getConfirmStatus, confirmStatus));
+    }
+
+    /** 工作台「待结算确认 / 异议」明细：等待最久的排在前面，最多 {@code limit} 条。 */
+    default List<IcbcSettlementDO> selectListByConfirmStatus(Integer confirmStatus, int limit) {
+        return selectList(new LambdaQueryWrapperX<IcbcSettlementDO>()
+                .eq(IcbcSettlementDO::getConfirmStatus, confirmStatus)
+                .orderByAsc(IcbcSettlementDO::getGenerateTime)
+                .orderByAsc(IcbcSettlementDO::getId)
+                .last("LIMIT " + limit));
+    }
+
 }

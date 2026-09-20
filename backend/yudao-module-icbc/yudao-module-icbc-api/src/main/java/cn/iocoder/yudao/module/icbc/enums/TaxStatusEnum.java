@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.icbc.enums;
 
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 缴税状态（代办税费）。
@@ -25,6 +26,10 @@ public enum TaxStatusEnum {
     ABNORMAL_AMOUNT(4, "缴税异常：缴税金额不一致", "缴税金额与应缴金额不一致，请财务核对发票税额与实缴税额后联系工行更正"),
     ABNORMAL_UNKNOWN(5, "缴税异常：未知异常", "缴税出现未知异常，请财务联系工行核实缴税结果"),
     NOT_REQUIRED(6, "无需缴税", null);
+
+    /** 需人工关注的异常状态：缴税失败 / 金额不一致 / 未知异常 */
+    private static final Set<Integer> EXCEPTION = Set.of(
+            FAILED.status, ABNORMAL_AMOUNT.status, ABNORMAL_UNKNOWN.status);
 
     private final Integer status;
     private final String name;
@@ -92,8 +97,14 @@ public enum TaxStatusEnum {
      * 是否为需要人工关注的异常态
      */
     public static boolean isException(Integer status) {
-        return FAILED.status.equals(status) || ABNORMAL_AMOUNT.status.equals(status)
-                || ABNORMAL_UNKNOWN.status.equals(status);
+        return status != null && EXCEPTION.contains(status);
+    }
+
+    /**
+     * 全部异常状态。工作台等聚合场景按集合一次性取数，不逐个状态拼条件。
+     */
+    public static Set<Integer> exceptionStatuses() {
+        return EXCEPTION;
     }
 
     public static String nameOf(Integer status) {

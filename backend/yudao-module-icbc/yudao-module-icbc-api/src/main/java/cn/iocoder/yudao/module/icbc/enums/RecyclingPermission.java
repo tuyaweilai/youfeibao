@@ -214,4 +214,9 @@ public interface RecyclingPermission {
     /** 登记交接批次、补录、加磅次与指定有效磅次 */
     String HANDOVER_BATCH_MANAGE = "icbc:handover-batch:manage";
 
+    // ========== 工作台待办与开票就绪徽标（#56 T18） ==========
+
+    /** 查看工作台一屏（八类待办、额度 / 资质 / 就绪预警与开票就绪徽标的明细） */
+    String WORKBENCH_QUERY = "icbc:workbench:query";
+
 }

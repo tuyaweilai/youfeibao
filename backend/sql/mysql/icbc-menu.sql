@@ -213,7 +213,12 @@ VALUES
 (5150, '计费计量', 'icbc:platform:billing:query', 2, 5, 5140, 'billing', '', 'icbc/platformBilling/index', 'IcbcPlatformBilling', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5172, '重新计量', 'icbc:platform:billing:manage', 3, 1, 5150, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5173, '自然人主体', 'icbc:platform:natural-person:query', 2, 6, 5140, 'natural-person', '', 'icbc/naturalPerson/index', 'IcbcNaturalPerson', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5174, '身份认领与解绑', 'icbc:platform:natural-person:manage', 3, 1, 5173, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5174, '身份认领与解绑', 'icbc:platform:natural-person:manage', 3, 1, 5173, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+
+-- ===== 工作台（#56 T18）=====
+-- 工作台页（5200）的查询权限行。其余权限行由 RecyclingPermissionSyncService 依据
+-- RecyclingRoleEnum 幂等补齐；这一行显式落库，便于读 SQL 就能看懂工作台有哪些入口。
+(5210, '工作台待办查询', 'icbc:workbench:query', 3, 1, 5200, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
 
 -- =====================================================================
 -- 3. 回收企业租户套餐

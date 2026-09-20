@@ -5,6 +5,7 @@ import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.AcquisitionPageReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
+import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.Collection;
@@ -129,6 +130,46 @@ public interface IcbcAcquisitionMapper extends BaseMapperX<IcbcAcquisitionDO> {
                 .ne(IcbcAcquisitionDO::getStatus,
                         cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum.CANCELLED.getStatus())
                 .orderByAsc(IcbcAcquisitionDO::getId));
+    }
+
+    // ==================== 工作台待办（#56 T18） ====================
+
+    /**
+     * 工作台「待称重」条数：未作废、且净重未录的收购单（登记要件允许重量留空）。
+     */
+    default long selectCountPendingWeigh() {
+        return selectCount(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .ne(IcbcAcquisitionDO::getStatus, AcquisitionStatusEnum.CANCELLED.getStatus())
+                .isNull(IcbcAcquisitionDO::getNetWeight));
+    }
+
+    /** 工作台「待称重」明细：按登记时间升序，最多 {@code limit} 条。 */
+    default List<IcbcAcquisitionDO> selectListPendingWeigh(int limit) {
+        return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .ne(IcbcAcquisitionDO::getStatus, AcquisitionStatusEnum.CANCELLED.getStatus())
+                .isNull(IcbcAcquisitionDO::getNetWeight)
+                .orderByAsc(IcbcAcquisitionDO::getId)
+                .last("LIMIT " + limit));
+    }
+
+    /**
+     * 工作台「待验收」条数：未作废、已录磅重、尚未归入结算单（现场还没点「结束本次收货」）。
+     */
+    default long selectCountPendingInspection() {
+        return selectCount(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .ne(IcbcAcquisitionDO::getStatus, AcquisitionStatusEnum.CANCELLED.getStatus())
+                .isNotNull(IcbcAcquisitionDO::getNetWeight)
+                .isNull(IcbcAcquisitionDO::getSettlementId));
+    }
+
+    /** 工作台「待验收」明细：按登记时间升序，最多 {@code limit} 条。 */
+    default List<IcbcAcquisitionDO> selectListPendingInspection(int limit) {
+        return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .ne(IcbcAcquisitionDO::getStatus, AcquisitionStatusEnum.CANCELLED.getStatus())
+                .isNotNull(IcbcAcquisitionDO::getNetWeight)
+                .isNull(IcbcAcquisitionDO::getSettlementId)
+                .orderByAsc(IcbcAcquisitionDO::getId)
+                .last("LIMIT " + limit));
     }
 
 }

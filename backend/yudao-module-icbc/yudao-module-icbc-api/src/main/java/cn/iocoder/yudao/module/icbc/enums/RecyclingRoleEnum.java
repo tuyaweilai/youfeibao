@@ -67,7 +67,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SELLER_NOTIFY_QUERY, RecyclingPermission.SELLER_NOTIFY_MANAGE,
             RecyclingPermission.PURCHASE_CONTRACT_QUERY, RecyclingPermission.PURCHASE_CONTRACT_MANAGE,
             RecyclingPermission.PURCHASE_CONTRACT_AUDIT,
-            RecyclingPermission.HANDOVER_BATCH_QUERY, RecyclingPermission.HANDOVER_BATCH_MANAGE)),
+            RecyclingPermission.HANDOVER_BATCH_QUERY, RecyclingPermission.HANDOVER_BATCH_MANAGE,
+            RecyclingPermission.WORKBENCH_QUERY)),
 
     /**
      * 收货员：收购现场登记，维护出售者档案与收购单。
@@ -89,7 +90,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SELLER_NOTIFY_QUERY, RecyclingPermission.SELLER_NOTIFY_MANAGE,
             RecyclingPermission.APPOINTMENT_QUERY, RecyclingPermission.APPOINTMENT_MANAGE,
             RecyclingPermission.PURCHASE_CONTRACT_QUERY,
-            RecyclingPermission.HANDOVER_BATCH_QUERY, RecyclingPermission.HANDOVER_BATCH_MANAGE)),
+            RecyclingPermission.HANDOVER_BATCH_QUERY, RecyclingPermission.HANDOVER_BATCH_MANAGE,
+            RecyclingPermission.WORKBENCH_QUERY)),
 
     /**
      * 开票员：发起反向开票与付款，下载发票原件。
@@ -113,7 +115,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.TAX_DECLARATION_QUERY,
             RecyclingPermission.SETTLEMENT_QUERY,
             RecyclingPermission.SETTLEMENT_CONFIRM_QUERY,
-            RecyclingPermission.HANDOVER_BATCH_QUERY)),
+            RecyclingPermission.HANDOVER_BATCH_QUERY,
+            RecyclingPermission.WORKBENCH_QUERY)),
 
     /**
      * 财务：代办税费、对账、归集发票。
@@ -134,7 +137,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SELLER_NOTIFY_QUERY,
             RecyclingPermission.PURCHASE_CONTRACT_QUERY,
             RecyclingPermission.HANDOVER_BATCH_QUERY,
-            RecyclingPermission.PUBLIC_TOKEN_CREATE)),
+            RecyclingPermission.PUBLIC_TOKEN_CREATE,
+            RecyclingPermission.WORKBENCH_QUERY)),
 
     /**
      * 平台运营：平台方角色，可跨租户查看工行日志、通知与全平台发票。

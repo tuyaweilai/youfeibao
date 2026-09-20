@@ -114,6 +114,13 @@ public enum PaymentStatusEnum {
         return status != null && EXCEPTION.contains(status);
     }
 
+    /**
+     * 全部异常状态。工作台等聚合场景按集合一次性取数，不逐个状态拼条件。
+     */
+    public static Set<Integer> exceptionStatuses() {
+        return EXCEPTION;
+    }
+
     public static String nameOf(Integer status) {
         return ofStatus(status).map(PaymentStatusEnum::getName).orElse("未知");
     }
