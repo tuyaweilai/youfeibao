@@ -213,6 +213,27 @@ public class RecyclingRoleEnumTest {
     }
 
     @Test
+    public void testInputInvoicePermissions() {
+        // 进项收票是财务的事：登记与勾稽归财务，管理员全量
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.INPUT_INVOICE_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.INPUT_INVOICE_MANAGE));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.INPUT_INVOICE_MANAGE));
+        // 开票员只看得到，不做收票登记
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.INVOICER.getCode(),
+                RecyclingPermission.INPUT_INVOICE_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.INVOICER.getCode(),
+                RecyclingPermission.INPUT_INVOICE_MANAGE));
+        // 收货员与平台运营不参与租户内的进项收票
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.INPUT_INVOICE_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.INPUT_INVOICE_QUERY));
+    }
+
+    @Test
     public void testOfCode() {
         assertEquals(RecyclingRoleEnum.ADMIN,
                 RecyclingRoleEnum.ofCode(RecyclingRoleEnum.ADMIN.getCode()).orElseThrow());

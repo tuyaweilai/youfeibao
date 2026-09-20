@@ -748,3 +748,37 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
    套餐菜单 93 个含它。**没有动共享本地库**——四个 worktree 会各自重跑这份文件（它删 5100–5299 再重建），
    谁跑谁把别人刚加的段删掉，所以本票只在需要时跑，并且跑完记得重新登录刷新菜单缓存（前端 `roleRouters`）。
 10. **前端**：`pnpm install --prefer-offline`（6.8s）+ `pnpm build:local` 通过。
+
+## #49 T11 进项收票登记与勾稽（已完成）
+
+单位供货方（企业 / 个体工商户 / 个人独资企业 / 合伙企业 / 农民专业合作社）向回收企业开具增值税
+发票后，由财务登记票面事实并勾稽到采购单据，让**票、货、款三者对得上**。自然人出售者不在本链路
+（他们走反向开票，见 ADR 0029）。
+
+1. **两张租户表**：`icbc_input_invoice`（票面事实 + 勾稽合计 + 状态）+ `icbc_input_invoice_link`
+   （**通用关联表**：`biz_type` / `biz_id` / `biz_no` / `biz_amount` / `linked_amount`）。迁移
+   `backend/sql/mysql/icbc-input-invoice.sql`（幂等，已进 README 导入顺序）；测试建表与 `clean.sql` 同步。
+2. **登记唯一**：按「销方 + 发票号码」唯一。`seller_key` = 有税号用税号、否则用销方名称，与 `invoice_no`
+   一起构成 `uk_input_invoice_seller_no`；服务层先查再给可读报错（`INPUT_INVOICE_DUPLICATED`）。
+3. **勾稽不超限**：`InputInvoiceBizTypeEnum` 先支持 `ACQUISITION`（本分支已有）与 `PURCHASE_ORDER`
+   （#46 并行落地，**本分支不 import 它的类**），预留 `STOCK_IN`（#52）。单据号与单据金额一律由调用方
+   传入，金额上限按 `bizAmount` 校验：**同一单据的累计勾稽金额不得超过它**，一张票的累计勾稽金额
+   不得超过其价税合计。合并 #46 后由人工把 `PURCHASE_ORDER` 的 `bizAmount` 查数接到采购订单的只读方法上
+   （一小段）。
+4. **状态**：`InputInvoiceStatusEnum`（已登记 / 部分勾稽 / 已勾稽），由「已勾稽金额与价税合计」的关系
+   推导并落库，每次勾稽 / 取消勾稽后重算；已勾稽的票不能改票面事实（要改先取消勾稽）。
+5. **权限 / 菜单**：`icbc:input-invoice:query|manage` 登记进 `RecyclingPermission` + `RecyclingRoleEnum`
+   （管理员全量；财务可管理；开票员只读）；菜单 5244–5249 挂在「财务票务」（5207）下随套餐递归进回收企业套餐。
+6. **前端**：`views/icbc/inputInvoice/index.vue` + `api/icbc/inputInvoice`（列表 / 登记 / 修改 / 删除 /
+   勾稽记录弹窗含取消勾稽；单据编号与金额由使用方填写，等 #46 / #52 落地后接入选择器）。
+7. **测试**：`InputInvoiceServiceTest` 21 例（票面事实齐全、按销方 + 号码唯一、票种 / 金额校验、
+   部分 → 已勾稽的状态流转、超单据金额 / 超累计 / 超发票金额 / 重复勾稽 / 非法单据类型 / 零金额拒结、
+   取消勾稽重算、已勾稽不可改删、分页筛选、详情带勾稽）；`IcbcTenantIsolationTest` 补一例；
+   `RecyclingRoleEnumTest` 补权限一例。icbc 全量测试见下方「提交记录」。
+
+> **与 #46 的接口约定**：`InputInvoiceBizTypeEnum.PURCHASE_ORDER` 已就位，`bizAmount` 由调用方给出；
+> #46 合并后只需在采购订单侧提供一个按 `id` 取「单号 + 金额」的只读方法并在前端接上选择器，本票
+> 的表结构与校验逻辑不用动。
+
+> **未做（不属本票）**：进项抵扣认证与发票查验平台对接（规格 #38 明确 out of scope，进项一期只做到
+> 收票登记与勾稽）。

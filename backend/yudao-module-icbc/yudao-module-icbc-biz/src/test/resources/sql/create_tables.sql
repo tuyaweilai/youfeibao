@@ -1164,3 +1164,51 @@ ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS handover_batch_id BIGINT;
 ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS weighing_id BIGINT;
 ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS weighing_seq_no INT;
 CREATE INDEX IF NOT EXISTS idx_acquisition_handover_batch ON icbc_acquisition(handover_batch_id);
+
+-- ===== 进项收票登记与勾稽（#49 T11）=====
+
+-- icbc_input_invoice table（进项发票；租户表；按「销方 + 发票号码」唯一）
+CREATE TABLE IF NOT EXISTS icbc_input_invoice (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    invoice_no VARCHAR(64) NOT NULL,
+    invoice_code VARCHAR(32),
+    invoice_type TINYINT NOT NULL,
+    invoice_date DATE NOT NULL,
+    seller_name VARCHAR(200) NOT NULL,
+    seller_tax_no VARCHAR(64),
+    seller_key VARCHAR(200) NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    tax_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    total_amount DECIMAL(18,2) NOT NULL,
+    linked_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    status TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_input_invoice_seller_no UNIQUE (tenant_id, seller_key, invoice_no)
+);
+
+-- icbc_input_invoice_link table（进项发票勾稽关联，通用关联表；租户表）
+CREATE TABLE IF NOT EXISTS icbc_input_invoice_link (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    invoice_id BIGINT NOT NULL,
+    biz_type VARCHAR(32) NOT NULL,
+    biz_id BIGINT NOT NULL,
+    biz_no VARCHAR(64),
+    biz_amount DECIMAL(18,2) NOT NULL,
+    linked_amount DECIMAL(18,2) NOT NULL,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_input_invoice_link UNIQUE (tenant_id, invoice_id, biz_type, biz_id)
+);

@@ -11,6 +11,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcHandoverBatchDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcWeighingDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.inputinvoice.IcbcInputInvoiceDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.IcbcPayeeBankCardChangeDO;
@@ -22,6 +23,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.appointment.IcbcAppointmentMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.handover.IcbcHandoverBatchMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.handover.IcbcWeighingMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.inputinvoice.IcbcInputInvoiceMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeBankCardChangeMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
@@ -92,6 +94,8 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
     private IcbcHandoverBatchMapper handoverBatchMapper;
     @Resource
     private IcbcWeighingMapper weighingMapper;
+    @Resource
+    private IcbcInputInvoiceMapper inputInvoiceMapper;
     @Resource
     private PlatformInvoiceQueryService platformInvoiceQueryService;
 
@@ -438,6 +442,47 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
             assertTrue(handoverBatchMapper.selectList().isEmpty());
             assertTrue(weighingMapper.selectListByBatchId(batchId).isEmpty());
         });
+    }
+
+    @Test
+    public void testInputInvoiceIsolatedByTenant() {
+        // 进项票是租户表：同一个税号的票在甲、乙两家企业各自登记，唯一键不冲突也互不可见
+        Long invoiceId1 = TenantUtils.execute(1L, () -> {
+            IcbcInputInvoiceDO invoice = newInputInvoice("INV_TENANT_1");
+            inputInvoiceMapper.insert(invoice);
+            return invoice.getId();
+        });
+        Long invoiceId2 = TenantUtils.execute(2L, () -> {
+            IcbcInputInvoiceDO invoice = newInputInvoice("INV_TENANT_1");
+            inputInvoiceMapper.insert(invoice);
+            return invoice.getId();
+        });
+        assertNotEquals(invoiceId1, invoiceId2);
+
+        TenantUtils.execute(1L, () -> {
+            assertNotNull(inputInvoiceMapper.selectById(invoiceId1));
+            assertNull(inputInvoiceMapper.selectById(invoiceId2));
+        });
+        TenantUtils.execute(2L, () -> {
+            assertNull(inputInvoiceMapper.selectById(invoiceId1));
+            assertNotNull(inputInvoiceMapper.selectById(invoiceId2));
+        });
+    }
+
+    private IcbcInputInvoiceDO newInputInvoice(String invoiceNo) {
+        return IcbcInputInvoiceDO.builder()
+                .invoiceNo(invoiceNo)
+                .invoiceType(1)
+                .invoiceDate(java.time.LocalDate.of(2026, 6, 1))
+                .sellerName("某某钢铁有限公司")
+                .sellerTaxNo("91110000MA001")
+                .sellerKey("91110000MA001")
+                .amount(new BigDecimal("1000.00"))
+                .taxAmount(new BigDecimal("130.00"))
+                .totalAmount(new BigDecimal("1130.00"))
+                .linkedAmount(BigDecimal.ZERO)
+                .status(0)
+                .build();
     }
 
     private Long insertOrder(Long tenantId, String orderNo, String partnerOrderId) {

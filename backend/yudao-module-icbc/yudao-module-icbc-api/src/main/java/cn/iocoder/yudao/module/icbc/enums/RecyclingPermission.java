@@ -219,4 +219,11 @@ public interface RecyclingPermission {
     /** 查看工作台一屏（八类待办、额度 / 资质 / 就绪预警与开票就绪徽标的明细） */
     String WORKBENCH_QUERY = "icbc:workbench:query";
 
+    // ========== 进项收票登记与勾稽（#49 T11，ADR 0029：非自然人卖方由对方开票、我们收票） ==========
+
+    /** 查看进项发票与勾稽记录 */
+    String INPUT_INVOICE_QUERY = "icbc:input-invoice:query";
+    /** 登记 / 修改 / 删除进项票，勾稽与取消勾稽到采购单据 */
+    String INPUT_INVOICE_MANAGE = "icbc:input-invoice:manage";
+
 }
