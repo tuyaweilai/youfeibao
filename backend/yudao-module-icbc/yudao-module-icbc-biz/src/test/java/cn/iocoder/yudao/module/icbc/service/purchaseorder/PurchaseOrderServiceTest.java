@@ -1,5 +1,7 @@
 package cn.iocoder.yudao.module.icbc.service.purchaseorder;
 
+import org.springframework.boot.test.mock.mockito.MockBean;
+import cn.iocoder.yudao.module.erp.api.stock.StockApi;
 import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
@@ -70,6 +72,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @Transactional
 @Rollback
 public class PurchaseOrderServiceTest extends BaseDbUnitTest {
+
+    /** 库存域只通过 erp-api 的 StockApi 接入（#52）；单元测试不跨模块，用 Mock。 */
+    @MockBean
+    private StockApi stockApi;
 
     @Resource
     private PurchaseOrderService purchaseOrderService;
@@ -527,22 +533,23 @@ public class PurchaseOrderServiceTest extends BaseDbUnitTest {
         assertEquals(0, new BigDecimal("100").compareTo(progress.getPlanQuantity()));
         assertEquals(0, new BigDecimal("80").compareTo(progress.getAcceptedQuantity()));
         assertEquals(0, new BigDecimal("10").compareTo(progress.getSettledQuantity()));
-        assertNull(progress.getStockedQuantity());
+        // 没有过账入库单 → 入库口径为 0（#52 落地后已接入，不再标「待接入」）
+        assertEquals(0, BigDecimal.ZERO.compareTo(progress.getStockedQuantity()));
         assertEquals(0, new BigDecimal("20").compareTo(progress.getUnperformedQuantity()));
         // 完成比例必须带口径，默认验收口径
         assertEquals(PurchasePerformanceBasisEnum.ACCEPTED.getCode(), progress.getCompletionBasis());
         assertEquals("验收口径", progress.getCompletionBasisName());
         assertEquals(0, new BigDecimal("0.8").compareTo(progress.getCompletionRatio()));
 
-        // 五口径清单：顺序固定、入库标「待接入」且不出数字
+        // 五口径清单：顺序固定，入库口径已可算（无入库单时为 0）
         assertEquals(5, progress.getMeasures().size());
         assertEquals(PurchaseProgressMeasureEnum.PLAN.getCode(), progress.getMeasures().get(0).getCode());
         PurchaseOrderProgressRespVO.Measure stockedIn = progress.getMeasures().stream()
                 .filter(measure -> PurchaseProgressMeasureEnum.STOCKED_IN.getCode().equals(measure.getCode()))
                 .findFirst().orElseThrow(AssertionError::new);
-        assertFalse(stockedIn.getAvailable());
-        assertNull(stockedIn.getQuantity());
-        assertNotNull(stockedIn.getUnavailableReason());
+        assertTrue(stockedIn.getAvailable());
+        assertEquals(0, BigDecimal.ZERO.compareTo(stockedIn.getQuantity()));
+        assertNull(stockedIn.getUnavailableReason());
         assertNotNull(stockedIn.getDefinition());
         assertNotNull(stockedIn.getSource());
         assertEquals(PurchaseProgressMeasureEnum.SETTLED.getCode(), progress.getMeasures().get(3).getCode());
@@ -550,7 +557,7 @@ public class PurchaseOrderServiceTest extends BaseDbUnitTest {
         // 明细也是同一套口径
         assertEquals(0, new BigDecimal("80").compareTo(progress.getItems().get(0).getAcceptedQuantity()));
         assertEquals(0, new BigDecimal("10").compareTo(progress.getItems().get(0).getSettledQuantity()));
-        assertNull(progress.getItems().get(0).getStockedQuantity());
+        assertEquals(0, BigDecimal.ZERO.compareTo(progress.getItems().get(0).getStockedQuantity()));
         assertEquals(0, new BigDecimal("20").compareTo(progress.getItems().get(0).getUnperformedQuantity()));
         assertFalse(progress.getItems().get(0).getOverQuantity());
     }

@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.icbc.service.invoice;
 
+import cn.iocoder.yudao.module.erp.api.stock.StockApi;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
@@ -45,6 +46,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @Transactional
 @Rollback
 public class InvoiceNotifyHandlerTest extends BaseDbUnitTest {
+
+    /** 库存域只通过 erp-api 的 StockApi 接入（#52）；单元测试不跨模块，用 Mock。 */
+    @MockBean
+    private StockApi stockApi;
 
     @Resource
     private CallbackNotifyServiceImpl callbackNotifyService;

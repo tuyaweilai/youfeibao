@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.icbc.service.acquisition;
 
+import cn.iocoder.yudao.module.erp.api.stock.StockApi;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.*;
@@ -62,6 +63,10 @@ import static org.mockito.Mockito.when;
 @Sql(scripts = "/sql/create_tables.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Transactional
 public class AcquisitionServiceImplTest extends BaseDbUnitTest {
+
+    /** 库存域只通过 erp-api 的 StockApi 接入（#52）；单元测试不跨模块，用 Mock。 */
+    @MockBean
+    private StockApi stockApi;
 
     @Resource
     private AcquisitionService acquisitionService;

@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.icbc.service.onboarding;
 
+import cn.iocoder.yudao.module.erp.api.stock.StockApi;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO;
@@ -41,6 +42,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 @Transactional
 @Rollback
 public class SellerOnboardingNotifyTest extends BaseDbUnitTest {
+
+    /** 库存域只通过 erp-api 的 StockApi 接入（#52）；单元测试不跨模块，用 Mock。 */
+    @MockBean
+    private StockApi stockApi;
 
     private static final String OUT_VENDOR_ID = "PAYER_SUB_NOTIFY";
 

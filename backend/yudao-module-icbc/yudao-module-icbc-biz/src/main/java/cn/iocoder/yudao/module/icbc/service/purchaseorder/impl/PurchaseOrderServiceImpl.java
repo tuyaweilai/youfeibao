@@ -56,6 +56,7 @@ import cn.iocoder.yudao.module.icbc.enums.PurchaseProgressMeasureEnum;
 import cn.iocoder.yudao.module.icbc.service.purchasecontract.PurchaseContractService;
 import cn.iocoder.yudao.module.icbc.service.purchaseorder.PurchaseOrderAmountDTO;
 import cn.iocoder.yudao.module.icbc.service.purchaseorder.PurchaseOrderService;
+import cn.iocoder.yudao.module.icbc.service.stockin.StockInService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -116,6 +117,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     private IcbcGoodsConfigMapper goodsConfigMapper;
     @Resource
     private PurchaseContractService purchaseContractService;
+    @Resource
+    private StockInService stockInService;
 
     // ==================== 写入 ====================
 
@@ -292,6 +295,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         PurchasePerformanceBasisEnum basis = performanceBasisOf(setting);
         List<IcbcPurchaseOrderItemDO> items = itemMapper.selectListByOrderId(order.getId());
         List<IcbcPurchaseOrderDealDO> deals = dealMapper.selectListByOrderId(order.getId());
+        // 入库量按订单明细汇总（入库单挂收购单、收购单挂订单明细；#52 只在入库模块里认识这层关系）
+        Map<Long, BigDecimal> stockedByItem = stockInService.getStockedQuantityByOrderItems(order.getId());
         Set<Long> settledAcquisitionIds = loadSettledAcquisitionIds(deals);
         Map<Long, List<IcbcPurchaseOrderDealDO>> dealsByItem = deals.stream()
                 .collect(Collectors.groupingBy(IcbcPurchaseOrderDealDO::getItemId));
@@ -300,6 +305,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         BigDecimal plan = zeroIfNull(order.getTotalQuantity());
         BigDecimal accepted = sumDealQuantity(deals);
         BigDecimal settled = sumDealQuantity(settledDeals(deals, settledAcquisitionIds));
+        BigDecimal stocked = stockedByItem.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal basisQuantity = basis == PurchasePerformanceBasisEnum.SETTLED ? settled : accepted;
         BigDecimal unperformed = plan.subtract(basisQuantity);
 
@@ -311,8 +317,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         resp.setTotalAmount(order.getTotalAmount());
         resp.setPlanQuantity(plan);
         resp.setAcceptedQuantity(accepted);
-        // 入库单（#52）尚未落地：不给 0（会被读成「一件没入库」），给 null + 原因，见 measures
-        resp.setStockedQuantity(null);
+        resp.setStockedQuantity(stocked);
         resp.setSettledQuantity(settled);
         resp.setUnperformedQuantity(unperformed);
         resp.setCompletionBasis(basis.getCode());
@@ -340,7 +345,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             progress.setUnit(item.getUnit());
             progress.setQuantity(itemPlan);
             progress.setAcceptedQuantity(itemAccepted);
-            progress.setStockedQuantity(null);
+            progress.setStockedQuantity(stockedByItem.getOrDefault(item.getId(), BigDecimal.ZERO));
             progress.setSettledQuantity(itemSettled);
             progress.setUnperformedQuantity(itemPlan.subtract(itemBasis));
             progress.setOverQuantity(over);
@@ -352,13 +357,14 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         Map<String, BigDecimal> measureQuantities = new HashMap<>();
         measureQuantities.put(PurchaseProgressMeasureEnum.PLAN.getCode(), plan);
         measureQuantities.put(PurchaseProgressMeasureEnum.ACCEPTED.getCode(), accepted);
+        measureQuantities.put(PurchaseProgressMeasureEnum.STOCKED_IN.getCode(), stocked);
         measureQuantities.put(PurchaseProgressMeasureEnum.SETTLED.getCode(), settled);
         measureQuantities.put(PurchaseProgressMeasureEnum.UNPERFORMED.getCode(), unperformed);
         resp.setMeasures(buildMeasures(measureQuantities));
         resp.setAnomalies(buildAnomalies(order, overQuantityCategories));
         resp.setScopeNote("履约分计划 / 验收 / 入库 / 结算 / 未履行五个口径，各有各的来源，不相加、不互相代替；"
                 + "完成比例按「" + basis.getName() + "」计算（可在采购履约配置里改）。"
-                + "入库口径等入库单（T14 / #52）落地后接入，现在不计数。");
+                + "入库只计已过账的入库单，实物入库量与结算重量不要求相等（ADR 0028）。");
         return resp;
     }
 

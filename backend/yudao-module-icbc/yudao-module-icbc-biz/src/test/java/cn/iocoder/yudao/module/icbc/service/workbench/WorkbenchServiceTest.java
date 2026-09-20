@@ -1,5 +1,7 @@
 package cn.iocoder.yudao.module.icbc.service.workbench;
 
+import org.springframework.boot.test.mock.mockito.MockBean;
+import cn.iocoder.yudao.module.erp.api.stock.StockApi;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.workbench.vo.WorkbenchItemRespVO;
@@ -74,6 +76,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Rollback
 public class WorkbenchServiceTest extends BaseDbUnitTest {
 
+    /** 库存域只通过 erp-api 的 StockApi 接入（#52）；单元测试不跨模块，用 Mock。 */
+    @MockBean
+    private StockApi stockApi;
+
     @Resource
     private WorkbenchService workbenchService;
     @Resource
@@ -118,15 +124,22 @@ public class WorkbenchServiceTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testPendingStockIn_unavailableAndStatesWhy() {
+    public void testPendingStockIn_countsAcceptedNotYetStockedIn() {
+        // 已验收（已归入结算单）、未作废、可入库实物量大于 0 → 待入库
+        insertAcquisition("ACQ_ACCEPTED", new BigDecimal("10.0000"), 9001L,
+                AcquisitionStatusEnum.REGISTERED.getStatus());
+        // 未验收的属于「待验收」，不算待入库
+        insertAcquisition("ACQ_NOT_ACCEPTED", new BigDecimal("10.0000"), null,
+                AcquisitionStatusEnum.REGISTERED.getStatus());
+        // 已作废的不算
+        insertAcquisition("ACQ_CANCELLED_STOCK", new BigDecimal("10.0000"), 9002L,
+                AcquisitionStatusEnum.CANCELLED.getStatus());
+
         WorkbenchTodoRespVO todo = todo(workbenchService.getOverview(), "PENDING_STOCK_IN");
 
-        // 入库单（T14）未上线：显式标注待接入并说明原因，而不是给一个用户无法处理的数字
-        assertFalse(todo.isAvailable());
-        assertEquals(0L, todo.getTotal());
-        assertTrue(todo.getItems().isEmpty());
-        assertNotNull(todo.getUnavailableReason());
-        assertTrue(todo.getUnavailableReason().contains("T14"));
+        assertTrue(todo.isAvailable());
+        assertEquals(1L, todo.getTotal());
+        assertEquals("ACQ_ACCEPTED", todo.getItems().get(0).getNo());
     }
 
     // ==================== 现场侧：今日到场 / 待称重 / 待验收 ====================

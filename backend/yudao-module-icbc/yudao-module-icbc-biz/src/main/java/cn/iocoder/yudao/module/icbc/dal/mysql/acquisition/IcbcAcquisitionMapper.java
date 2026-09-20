@@ -76,6 +76,19 @@ public interface IcbcAcquisitionMapper extends BaseMapperX<IcbcAcquisitionDO> {
         return selectPage(reqVO, wrapper.orderByDesc(IcbcAcquisitionDO::getId));
     }
 
+    /**
+     * 某采购订单下的收购单（挂在订单明细上，未作废）。入库模块用它汇总「已入库量」（#52）；
+     * 「直接收购」（{@code purchase_order_id = 0}）不在此列。
+     */
+    default List<IcbcAcquisitionDO> selectListByPurchaseOrderId(Long purchaseOrderId) {
+        if (purchaseOrderId == null || purchaseOrderId == 0L) {
+            return java.util.Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .eq(IcbcAcquisitionDO::getPurchaseOrderId, purchaseOrderId)
+                .ne(IcbcAcquisitionDO::getStatus, AcquisitionStatusEnum.CANCELLED.getStatus()));
+    }
+
     // ==================== 结算单（#33，ADR 0018） ====================
 
     /**

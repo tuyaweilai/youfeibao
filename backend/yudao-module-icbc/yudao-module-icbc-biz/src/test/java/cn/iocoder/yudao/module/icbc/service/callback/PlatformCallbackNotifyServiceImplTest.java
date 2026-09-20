@@ -1,5 +1,7 @@
 package cn.iocoder.yudao.module.icbc.service.callback;
 
+import org.springframework.boot.test.mock.mockito.MockBean;
+import cn.iocoder.yudao.module.erp.api.stock.StockApi;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
@@ -35,6 +37,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Sql(scripts = "/sql/create_tables.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Sql(scripts = "/sql/clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
 public class PlatformCallbackNotifyServiceImplTest extends BaseDbUnitTest {
+
+    /** 库存域只通过 erp-api 的 StockApi 接入（#52）；单元测试不跨模块，用 Mock。 */
+    @MockBean
+    private StockApi stockApi;
 
     @Resource
     private CallbackNotifyServiceImpl callbackNotifyService;

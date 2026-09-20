@@ -11,6 +11,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO
 
 import javax.validation.Valid;
 import java.math.BigDecimal;
+import java.util.Map;
 
 /**
  * 待入库 → 入库单 → 库存流水 Service（#52 T14，ADR 0027）。
@@ -23,9 +24,8 @@ public interface StockInService {
     /**
      * 可入库实物量（**唯一取数点**）。
      *
-     * <p>现在取收购单净重（实物口径，毛重 − 皮重；ADR 0028：结算重量只作计价基准，不影响库存）。
-     * #53（T15）的接收量 {@code accepted_weight} 落地后，**只改这一处**为「有接收量优先取接收量」，
-     * 其余调用方不用动。
+     * <p>接收量优先，无接收结论时退回净重（实物口径，毛重 − 皮重；ADR 0028：结算重量只作计价基准，
+     * 不影响库存）。接收量由 #53（T15）的验收结论给出：拒收 / 退回 / 余货出场的部分不可入库。
      */
     BigDecimal resolveAvailableQuantity(IcbcAcquisitionDO acquisition);
 
@@ -33,6 +33,14 @@ public interface StockInService {
      * 某收购单的累计入库 = 当前已过账入库单合计（作废的已不在其中）。
      */
     BigDecimal getStockedQuantity(Long acquisitionId);
+
+    /**
+     * 某采购订单下**已过账入库的数量**，按订单明细汇总（#47 履约的「入库」口径用）。
+     *
+     * <p>入库单挂收购单、收购单再挂采购订单明细：这层关系收在入库模块内，采购模块不用知道入库单的表结构。
+     * 返回的 Map 只含「有入库量」的明细；待过账与已作废的不计。
+     */
+    Map<Long, BigDecimal> getStockedQuantityByOrderItems(Long purchaseOrderId);
 
     /**
      * 待入库分页：已验收（已归入结算单）、未作废、且剩余可入库大于 0 的收购单。

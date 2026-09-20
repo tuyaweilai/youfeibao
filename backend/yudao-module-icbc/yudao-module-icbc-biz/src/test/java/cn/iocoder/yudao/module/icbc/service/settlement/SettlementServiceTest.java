@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.icbc.service.settlement;
 
+import cn.iocoder.yudao.module.erp.api.stock.StockApi;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.settlement.vo.*;
@@ -48,6 +49,10 @@ import static org.mockito.Mockito.when;
 @Transactional
 @Rollback
 public class SettlementServiceTest extends BaseDbUnitTest {
+
+    /** 库存域只通过 erp-api 的 StockApi 接入（#52）；单元测试不跨模块，用 Mock。 */
+    @MockBean
+    private StockApi stockApi;
 
     private static final Long MEMBER_USER_ID = 9001L;
 

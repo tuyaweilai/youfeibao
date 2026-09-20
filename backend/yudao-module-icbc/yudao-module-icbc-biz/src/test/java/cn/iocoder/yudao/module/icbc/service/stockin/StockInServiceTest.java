@@ -35,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
@@ -69,11 +70,22 @@ public class StockInServiceTest extends BaseDbUnitTest {
     // ==================== 可入库实物量：唯一取数点（AC2） ====================
 
     @Test
-    public void testResolveAvailableQuantity_usesPhysicalNetWeight() {
+    public void testResolveAvailableQuantity_prefersAcceptedThenNetWeight() {
         // 实物口径 = 净重（毛重 − 皮重）；结算重量只作计价基准，不参与库存（ADR 0028）
         IcbcAcquisitionDO acquisition = insertAcquisition("ACQ_QTY", new BigDecimal("12500"), 5L,
                 AcquisitionStatusEnum.REGISTERED.getStatus());
         assertEquals(0, new BigDecimal("12500").compareTo(stockInService.resolveAvailableQuantity(acquisition)));
+
+        // 有接收结论时取接收量（#53）：拒收 / 退回的部分不可入库
+        IcbcAcquisitionDO partial = insertAcquisition("ACQ_PARTIAL_RECEIPT", new BigDecimal("12500"), 5L,
+                AcquisitionStatusEnum.REGISTERED.getStatus());
+        IcbcAcquisitionDO update = new IcbcAcquisitionDO();
+        update.setId(partial.getId());
+        update.setAcceptedWeight(new BigDecimal("12000"));
+        update.setRejectedWeight(new BigDecimal("500"));
+        acquisitionMapper.updateById(update);
+        assertEquals(0, new BigDecimal("12000").compareTo(
+                stockInService.resolveAvailableQuantity(acquisitionMapper.selectById(partial.getId()))));
 
         // 没录重量的单没有可入库量（不是 0 库存，是不能入库）
         IcbcAcquisitionDO noWeight = insertAcquisition("ACQ_NO_WEIGHT", null, 5L,
@@ -378,6 +390,44 @@ public class StockInServiceTest extends BaseDbUnitTest {
         item.setBatchId(batchId);
         item.setQuantity(new BigDecimal(quantity));
         return item;
+    }
+
+    @Test
+    public void testGetStockedQuantityByOrderItems_sumsPostedByOrderItem() {
+        IcbcAcquisitionDO a1 = insertAcquisition("ACQ_PO_1", new BigDecimal("100"), 5L,
+                AcquisitionStatusEnum.REGISTERED.getStatus());
+        linkToOrderItem(a1, 700L, 71L);
+        IcbcAcquisitionDO a2 = insertAcquisition("ACQ_PO_2", new BigDecimal("100"), 5L,
+                AcquisitionStatusEnum.REGISTERED.getStatus());
+        linkToOrderItem(a2, 700L, 71L);
+        IcbcAcquisitionDO a3 = insertAcquisition("ACQ_PO_3", new BigDecimal("100"), 5L,
+                AcquisitionStatusEnum.REGISTERED.getStatus());
+        linkToOrderItem(a3, 700L, 72L);
+        // 未关联订单（直接收购）的不算
+        IcbcAcquisitionDO direct = insertAcquisition("ACQ_DIRECT", new BigDecimal("100"), 5L,
+                AcquisitionStatusEnum.REGISTERED.getStatus());
+
+        stockInService.confirmStockIn(saveReq(a1.getId(), item(1L, 11L, 0L, "40")));
+        // 只建单不过账：不算「已入库」
+        stockInService.createStockIn(saveReq(a2.getId(), item(1L, 11L, 0L, "30")));
+        stockInService.confirmStockIn(saveReq(a3.getId(), item(1L, 11L, 0L, "50")));
+        stockInService.confirmStockIn(saveReq(direct.getId(), item(1L, 11L, 0L, "60")));
+
+        Map<Long, BigDecimal> stocked = stockInService.getStockedQuantityByOrderItems(700L);
+
+        // 只汇总已过账、挂在订单明细上的：ITEM_A（71）= 40（第二张只建单不过账），ITEM_B（72）= 50；直接收购不入
+        assertEquals(2, stocked.size());
+        assertEquals(0, new BigDecimal("40").compareTo(stocked.get(71L)));
+        assertEquals(0, new BigDecimal("50").compareTo(stocked.get(72L)));
+        assertFalse(stocked.containsKey(0L));
+    }
+
+    private void linkToOrderItem(IcbcAcquisitionDO acquisition, Long orderId, Long itemId) {
+        IcbcAcquisitionDO update = new IcbcAcquisitionDO();
+        update.setId(acquisition.getId());
+        update.setPurchaseOrderId(orderId);
+        update.setPurchaseOrderItemId(itemId);
+        acquisitionMapper.updateById(update);
     }
 
     private IcbcAcquisitionDO insertAcquisition(String no, BigDecimal netWeight, Long settlementId,

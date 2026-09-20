@@ -1,5 +1,8 @@
 package cn.iocoder.yudao.module.icbc.service.workbench.impl;
 
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.module.icbc.controller.admin.stockin.vo.StockInPendingPageReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.stockin.vo.StockInPendingRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.workbench.vo.WorkbenchItemRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.workbench.vo.WorkbenchOverviewRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.workbench.vo.WorkbenchReadinessItemRespVO;
@@ -33,6 +36,7 @@ import cn.iocoder.yudao.module.icbc.enums.UploadStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.WorkbenchTodoCodeEnum;
 import cn.iocoder.yudao.module.icbc.service.goodscfg.IcbcGoodsConfigService;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
+import cn.iocoder.yudao.module.icbc.service.stockin.StockInService;
 import cn.iocoder.yudao.module.icbc.service.workbench.WorkbenchService;
 import cn.iocoder.yudao.module.icbc.util.MaskUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +44,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
 import javax.annotation.Resource;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -96,6 +101,8 @@ public class WorkbenchServiceImpl implements WorkbenchService {
     @Resource
     private IcbcQualificationService qualificationService;
     @Resource
+    private StockInService stockInService;
+    @Resource
     private IcbcGoodsConfigService goodsConfigService;
 
     @Override
@@ -150,6 +157,8 @@ public class WorkbenchServiceImpl implements WorkbenchService {
                 return pendingWeigh();
             case PENDING_INSPECT:
                 return pendingInspection();
+            case PENDING_STOCK_IN:
+                return pendingStockIn();
             case PENDING_SETTLE_CONFIRM:
                 return settlementByConfirmStatus(SettlementConfirmStatusEnum.PENDING);
             case SETTLE_DISPUTE:
@@ -159,9 +168,40 @@ public class WorkbenchServiceImpl implements WorkbenchService {
             case INVOICE_FAILED:
                 return invoiceFailed();
             default:
-                // 只有数据源未上线的项会走到这里（当前是待入库）
+                // 八项待办都已接入；保留 default 以便将来新增枚举项时先落「待接入」
                 return null;
         }
+    }
+
+    /** 待入库：已验收（已归入结算单）、未作废，且可入库实物量（接收量优先，无则净重）尚未全部入库的收购单。 */
+    private TodoPreview pendingStockIn() {
+        StockInPendingPageReqVO reqVO = new StockInPendingPageReqVO();
+        reqVO.setPageNo(1);
+        reqVO.setPageSize(PREVIEW_LIMIT);
+        PageResult<StockInPendingRespVO> page = stockInService.getPendingPage(reqVO);
+        List<WorkbenchItemRespVO> items = page.getList().stream().map(this::toItem)
+                .collect(Collectors.toList());
+        return TodoPreview.of(page.getTotal(), items);
+    }
+
+    private WorkbenchItemRespVO toItem(StockInPendingRespVO pending) {
+        WorkbenchItemRespVO item = new WorkbenchItemRespVO();
+        item.setId(pending.getAcquisitionId());
+        item.setNo(pending.getAcquisitionNo());
+        item.setTitle(firstNonBlank(pending.getSellerName(), "未留姓名"));
+        item.setSubtitle(joinNonBlank(" · ", pending.getCategoryName(),
+                "待入库 " + plainQuantity(pending.getRemainingQuantity(), pending.getUnit())));
+        item.setTime(pending.getTradeTime());
+        return item;
+    }
+
+    /** 数量文案：去掉多余的尾零；有单位就带上。 */
+    private static String plainQuantity(BigDecimal quantity, String unit) {
+        if (quantity == null) {
+            return "0";
+        }
+        String text = quantity.stripTrailingZeros().toPlainString();
+        return unit == null || unit.isBlank() ? text : text + unit;
     }
 
     /** 今日到场 / 上门：待到站的预约里，预计到站时间不晚于今日的（含已逾期）。 */

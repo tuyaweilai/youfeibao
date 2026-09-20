@@ -34,6 +34,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -75,15 +76,18 @@ public class StockInServiceImpl implements StockInService {
     // ==================== 取数：可入库实物量与累计入库 ====================
 
     /**
-     * 可入库实物量（**唯一取数点**）：现在取净重（实物口径）。
-     * #53 的接收量落地后只改这一处：有接收量优先取接收量，没有才退回净重。
+     * 可入库实物量（**唯一取数点**）：接收量优先，无接收结论时退回净重（实物口径，毛重 − 皮重）。
+     *
+     * <p>接收量来自 T15（#53）的验收结论：拒收 / 退回 / 余货出场的部分不形成可入库实物量，
+     * 所以这里只能取 {@code resolvePhysicalWeight()}，不能取结算重量（ADR 0028）。
      */
     @Override
     public BigDecimal resolveAvailableQuantity(IcbcAcquisitionDO acquisition) {
         if (acquisition == null) {
             return BigDecimal.ZERO;
         }
-        return acquisition.getNetWeight() == null ? BigDecimal.ZERO : acquisition.getNetWeight();
+        BigDecimal physical = acquisition.resolvePhysicalWeight();
+        return physical == null ? BigDecimal.ZERO : physical;
     }
 
     @Override
@@ -91,6 +95,43 @@ public class StockInServiceImpl implements StockInService {
         // 已过账合计；作废会把状态改成 CANCELLED，自然不再计入（不需要再减一遍）
         return sumByStatus(icbcStockInMapper.selectListByAcquisitionId(acquisitionId),
                 StockInStatusEnum.POSTED);
+    }
+
+    @Override
+    public Map<Long, BigDecimal> getStockedQuantityByOrderItems(Long purchaseOrderId) {
+        if (purchaseOrderId == null) {
+            return Map.of();
+        }
+        // 1. 订单下的收购单（挂在订单明细上）：入库单不直接挂采购订单，中间隔了一层收购单
+        Map<Long, Long> itemIdByAcquisitionId = icbcAcquisitionMapper.selectListByPurchaseOrderId(purchaseOrderId)
+                .stream()
+                .filter(acquisition -> acquisition.getPurchaseOrderItemId() != null
+                        && acquisition.getPurchaseOrderItemId() != 0L)
+                .collect(Collectors.toMap(IcbcAcquisitionDO::getId, IcbcAcquisitionDO::getPurchaseOrderItemId));
+        if (itemIdByAcquisitionId.isEmpty()) {
+            return Map.of();
+        }
+        // 2. 只算已过账的入库单；待过账与已作废都不算（后者作废时已冲销流水）
+        Map<Long, Long> acquisitionIdByStockInId = icbcStockInMapper
+                .selectListByAcquisitionIds(itemIdByAcquisitionId.keySet())
+                .stream()
+                .filter(stockIn -> Objects.equals(stockIn.getStatus(), StockInStatusEnum.POSTED.getStatus()))
+                .collect(Collectors.toMap(IcbcStockInDO::getId, IcbcStockInDO::getAcquisitionId));
+        if (acquisitionIdByStockInId.isEmpty()) {
+            return Map.of();
+        }
+        // 3. 按采购订单明细汇总入库明细的数量
+        Map<Long, BigDecimal> stocked = new HashMap<>();
+        for (IcbcStockInItemDO item : icbcStockInItemMapper
+                .selectListByStockInIds(acquisitionIdByStockInId.keySet())) {
+            Long acquisitionId = acquisitionIdByStockInId.get(item.getStockInId());
+            Long orderItemId = acquisitionId == null ? null : itemIdByAcquisitionId.get(acquisitionId);
+            if (orderItemId == null || item.getQuantity() == null) {
+                continue;
+            }
+            stocked.merge(orderItemId, item.getQuantity(), BigDecimal::add);
+        }
+        return stocked;
     }
 
     // ==================== 待入库 ====================
