@@ -572,8 +572,25 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 - **规格**：[#38](https://github.com/tuyaweilai/youfeibao/issues/38)（`ready-for-agent`），56 条 user story、12 条实现决策、测试决策、out of scope、further notes。
 - **19 张票**：`#39`–`#57`，边用 GitHub 原生 issue dependencies 连（21 条）。
-- **frontier（现在就能 grab）**：`#39` 放开 ERP 并让本地能起 / `#40` 权限收口 / `#41` 菜单清场与租户套餐骨架。三张互不阻塞，可并发。**`#41` 已完成**（本次提交），`#45`（T07）与 `#56`（T18）不再被它阻塞。
-- 依赖链：`#39→#42→#43→#52`；`#39/#40→#44→#45→#46→#47`；`#46/#50→#51→#52→#54/#55`；`#44→#48→#49`；`#41→#56`；`#47/#52→#57`。
+- **frontier（现在就能 grab）**：`#45` T07 采购合同 / `#48` T10 卖方主体准入 / `#50` T12 交接批次与有效磅次 / `#56` T18 工作台。四张互不阻塞（代码前置 `#39`–`#44` 已完成并已关票），可并发。
+- 依赖链：`#45→#46→#47`；`#44→#48→#49`；`#39→#50→#51`；`#46/#50→#51→#52→#54/#55`；`#47/#52→#57`；`#41→#56`。
+
+### 并行开工约定（2026-09-20）
+
+四张 frontier 票会在同一批「脊柱文件」上相遇，合并前先约定好，能省掉大部分冲突：
+
+| 票 | 分支 | 菜单 ID 段 | 主要抢的文件 |
+|---|---|---|---|
+| #56 T18 工作台 | `t18-workbench` | 5210–5219 | `RecyclingPermission`/`RecyclingRoleEnum`、`create_tables.sql`/`clean.sql`、`icbc-menu.sql`、`handoff.md` |
+| #45 T07 采购合同 | `t07-purchase-contract` | 5220–5229 | `icbc-menu.sql`、`README.md`、`handoff.md` |
+| #48 T10 卖方主体准入 | `t10-seller-admission` | 5230–5239 | `RecyclingPermission`/`RecyclingRoleEnum`、`create_tables.sql`/`clean.sql`、`handoff.md` |
+| #50 T12 交接批次与有效磅次 | `t12-handover-batch` | 5240–5249 | 上述全部 + `icbc-menu.sql`、`README.md` |
+
+- **工作目录**：`git worktree`，一票一目录一分支（`../youfeibao-t07` 等），**不要在同一目录多开窗口**。各 worktree 首次用时先 `mvn -pl yudao-server -am -DskipTests install`（各自 `target/`，互不干扰）。
+- **菜单 ID**：`icbc-menu.sql` 的清理范围是 5100–5299，`5210` 往后全空；按上表分段，别抢号。
+- **权限枚举**：`RecyclingPermission` / `RecyclingRoleEnum` 只追加、不重排；一致性测试 `RecyclingPermissionAnnotationConsistencyTest` 会锁死「注解 = 枚举」，两边必须同一次提交。
+- **测试建表**：`create_tables.sql` / `clean.sql` 各票只追加自己的表 / DELETE，不重排。
+- **`handoff.md`**：每票只在自己的小节里追加，别动别人的。
 
 | 票 | 标题 | blocked by |
 |---|---|---|
