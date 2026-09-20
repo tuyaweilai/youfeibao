@@ -198,4 +198,13 @@ public interface RecyclingPermission {
     /** 转达确认链接、发短信、开关本租户短信 */
     String SELLER_NOTIFY_MANAGE = "icbc:seller-notify:manage";
 
+    // ========== 采购合同（#45 T07，ADR 0027：采购条款，与「框架收购协议」不合并） ==========
+
+    /** 查看采购合同、适用品类与历史版本 */
+    String PURCHASE_CONTRACT_QUERY = "icbc:purchase-contract:query";
+    /** 新建 / 修改 / 送审 / 关闭合同 */
+    String PURCHASE_CONTRACT_MANAGE = "icbc:purchase-contract:manage";
+    /** 审核合同（通过后才可作为采购依据） */
+    String PURCHASE_CONTRACT_AUDIT = "icbc:purchase-contract:audit";
+
 }

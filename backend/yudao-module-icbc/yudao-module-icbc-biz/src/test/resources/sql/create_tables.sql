@@ -1022,3 +1022,83 @@ CREATE TABLE IF NOT EXISTS icbc_payee_bank_card_change (
     PRIMARY KEY (id),
     CONSTRAINT uk_bank_card_change_no UNIQUE (change_no)
 );
+
+-- icbc_purchase_contract table（采购合同，#45 / T07；租户表）
+CREATE TABLE IF NOT EXISTS icbc_purchase_contract (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    contract_no VARCHAR(64) NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    counterparty_type TINYINT NOT NULL,
+    payee_id BIGINT,
+    supplier_id BIGINT,
+    counterparty_name VARCHAR(200),
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    quantity_agreement VARCHAR(500),
+    measure_standard VARCHAR(500),
+    quality_standard VARCHAR(500),
+    price_rule VARCHAR(500),
+    transport_responsibility VARCHAR(500),
+    payment_terms VARCHAR(500),
+    attachment_urls VARCHAR(2000),
+    status TINYINT NOT NULL DEFAULT 0,
+    version_no INT NOT NULL DEFAULT 0,
+    submitted_by BIGINT,
+    submitted_time DATETIME,
+    audited_by BIGINT,
+    audited_time DATETIME,
+    audit_remark VARCHAR(500),
+    closed_by BIGINT,
+    closed_time DATETIME,
+    close_reason VARCHAR(500),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_purchase_contract_no UNIQUE (tenant_id, contract_no),
+    CONSTRAINT chk_purchase_contract_counterparty
+        CHECK ((payee_id IS NULL) <> (supplier_id IS NULL))
+);
+
+-- icbc_purchase_contract_category table（采购合同适用品类，#45 / T07；租户表）
+CREATE TABLE IF NOT EXISTS icbc_purchase_contract_category (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    contract_id BIGINT NOT NULL,
+    goods_config_id BIGINT NOT NULL,
+    category_name VARCHAR(100),
+    unit VARCHAR(32),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- icbc_purchase_contract_version table（采购合同版本快照，#45 / T07；租户表）
+CREATE TABLE IF NOT EXISTS icbc_purchase_contract_version (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    contract_id BIGINT NOT NULL,
+    version_no INT NOT NULL,
+    snapshot_json TEXT,
+    snapshot_hash VARCHAR(64),
+    change_reason VARCHAR(500),
+    changed_by VARCHAR(64),
+    audit_status TINYINT NOT NULL DEFAULT 0,
+    audited_by BIGINT,
+    audited_time DATETIME,
+    audit_remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_purchase_contract_version UNIQUE (tenant_id, contract_id, version_no)
+);

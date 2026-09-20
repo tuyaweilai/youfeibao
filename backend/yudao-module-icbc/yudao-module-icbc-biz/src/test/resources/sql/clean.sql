@@ -31,3 +31,6 @@ DELETE FROM icbc_appointment;
 DELETE FROM icbc_payee_bank_card_change;
 DELETE FROM icbc_seller_notify;
 DELETE FROM icbc_notify_setting;
+DELETE FROM icbc_purchase_contract_category;
+DELETE FROM icbc_purchase_contract_version;
+DELETE FROM icbc_purchase_contract;

@@ -167,6 +167,32 @@ public class RecyclingRoleEnumTest {
     }
 
     @Test
+    public void testPurchaseContractPermissions() {
+        // 管理员既能维护也能审核
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.PURCHASE_CONTRACT_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.PURCHASE_CONTRACT_MANAGE));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.PURCHASE_CONTRACT_AUDIT));
+        // 收货员现场要选「有效采购安排」，只读；采购合同不是他的维护对象
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.PURCHASE_CONTRACT_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.PURCHASE_CONTRACT_MANAGE));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.PURCHASE_CONTRACT_AUDIT));
+        // 财务只读
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.PURCHASE_CONTRACT_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.PURCHASE_CONTRACT_MANAGE));
+        // 平台运营不参与租户内的采购合同
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.PURCHASE_CONTRACT_QUERY));
+    }
+
+    @Test
     public void testOfCode() {
         assertEquals(RecyclingRoleEnum.ADMIN,
                 RecyclingRoleEnum.ofCode(RecyclingRoleEnum.ADMIN.getCode()).orElseThrow());
