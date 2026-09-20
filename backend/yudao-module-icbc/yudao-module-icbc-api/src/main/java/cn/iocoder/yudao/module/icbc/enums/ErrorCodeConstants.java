@@ -305,4 +305,49 @@ public interface ErrorCodeConstants {
             "收购单的出售者与交接批次的交易对方不一致，不能挂在同一个批次上");
     ErrorCode WEIGHING_LOCKED_FOR_ACQUISITION = new ErrorCode(1_030_030_011,
             "该收购单按交接批次的有效磅次计量，不能手工改重量（毛重 / 皮重 / 净重）；请先作废收购单再改磅次，或另建批次");
+
+    // ========== 采购订单（#46 T08，ADR 0027） 1-030-031-000 ==========
+    ErrorCode PURCHASE_ORDER_NOT_EXISTS = new ErrorCode(1_030_031_000, "采购订单不存在");
+    ErrorCode PURCHASE_ORDER_STATUS_NOT_ALLOW = new ErrorCode(1_030_031_001,
+            "采购订单当前状态不允许该操作：{}");
+    ErrorCode PURCHASE_ORDER_COUNTERPARTY_REQUIRED = new ErrorCode(1_030_031_002,
+            "请选择交易对方，且自然人出售者与单位供货方只能二选一");
+    ErrorCode PURCHASE_ORDER_PAYEE_NOT_EXISTS = new ErrorCode(1_030_031_003,
+            "出售者档案不存在或不属于本租户，不能作为采购订单的对手方");
+    ErrorCode PURCHASE_ORDER_SUPPLIER_NAME_REQUIRED = new ErrorCode(1_030_031_004,
+            "单位供货方订单的对手方名称不能为空");
+    ErrorCode PURCHASE_ORDER_ITEM_REQUIRED = new ErrorCode(1_030_031_005,
+            "采购订单至少需要一条品类明细");
+    ErrorCode PURCHASE_ORDER_ITEM_NOT_EXISTS = new ErrorCode(1_030_031_006,
+            "采购订单明细不存在或不属于本订单：{}");
+    ErrorCode PURCHASE_ORDER_CATEGORY_NOT_EXISTS = new ErrorCode(1_030_031_007,
+            "采购订单明细的品类不存在或不属于本租户：{}");
+    ErrorCode PURCHASE_ORDER_QUANTITY_INVALID = new ErrorCode(1_030_031_008,
+            "采购订单明细的计划量必须大于 0：{}");
+    ErrorCode PURCHASE_ORDER_PRICE_INVALID = new ErrorCode(1_030_031_009,
+            "采购订单明细的参考单价不能为负：{}");
+    ErrorCode PURCHASE_ORDER_REFERENCE_PRICE_REQUIRED = new ErrorCode(1_030_031_021,
+            "采购订单明细的参考单价不能为空（它也是按交货日价格表方式未覆盖到的日期的兜底价）：{}");
+    ErrorCode PURCHASE_ORDER_PRICE_MODE_INVALID = new ErrorCode(1_030_031_022,
+            "采购订单明细的定价方式不合法：{}");
+    ErrorCode PURCHASE_ORDER_PRICE_TABLE_INVALID = new ErrorCode(1_030_031_011,
+            "交货日价格表的日期与单价不能为空，单价不能为负");
+    ErrorCode PURCHASE_ORDER_DATE_INVALID = new ErrorCode(1_030_031_012,
+            "采购订单的结束日期不能早于开始日期");
+    ErrorCode PURCHASE_ORDER_STATION_NOT_EXISTS = new ErrorCode(1_030_031_013,
+            "执行场站不存在或不属于本租户");
+    ErrorCode PURCHASE_ORDER_NOT_EFFECTIVE = new ErrorCode(1_030_031_014,
+            "采购订单不是「执行中」或已过期，不能作为采购依据：{}");
+    ErrorCode PURCHASE_ORDER_STATUS_TRANSITION_INVALID = new ErrorCode(1_030_031_015,
+            "采购订单不能从「{}」流转到「{}」");
+    ErrorCode PURCHASE_ORDER_SUSPEND_REASON_REQUIRED = new ErrorCode(1_030_031_016,
+            "暂停采购订单必须填写暂停原因");
+    ErrorCode PURCHASE_ORDER_ONLY_DRAFT_DELETABLE = new ErrorCode(1_030_031_017,
+            "只有草稿采购订单可以删除");
+    ErrorCode PURCHASE_ORDER_DEAL_QUANTITY_INVALID = new ErrorCode(1_030_031_018,
+            "成交数量必须大于 0");
+    ErrorCode PURCHASE_ORDER_DEAL_ADJUST_REASON_REQUIRED = new ErrorCode(1_030_031_019,
+            "成交价与参考价不一致时必须填写调整原因");
+    ErrorCode PURCHASE_ORDER_DEAL_PRICE_INVALID = new ErrorCode(1_030_031_020,
+            "成交单价不能为负");
 }

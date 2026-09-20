@@ -31,6 +31,7 @@
 22. `icbc-seller-notify.sql` —— 出售者触达（#36）：短信三条 + 收货员转达；触达记录与租户级短信开关表、短信模板
 22b. `icbc-purchase-contract.sql` —— 采购合同（#45 T07，ADR 0027）：合同主体、适用品类与版本快照三张表。采购履约链建在 `icbc` 模块（#38 规格第 1 条），对手方用「主体类型六态 + 双可空 id」承载自然人出售者与单位供货方
 22c. `icbc-handover-batch.sql` —— 交接批次与有效磅次（#50 T12）：`icbc_handover_batch`（一次物理交接一个批次）+ `icbc_weighing`（每次过磅一条原始读数，只有被选定的那一次参与计量）；`icbc_acquisition` 加 `handover_batch_id` / `weighing_id` / `weighing_seq_no`（计量结果引用有效磅次的值与版本）。必须在 `icbc-acquisition.sql` 之后
+22d. `icbc-purchase-order.sql` —— 采购订单（#46 T08，ADR 0027）：订单主体、品类明细、交货日价格表、成交价格快照四张表。采购执行依据（一个合同 → 多个订单 → 多次收货），对手方同样用「主体类型六态 + 双可空 id」；合同关联走 `PurchaseContractService` 门禁，可选执行场站
 23. `icbc-menu.sql` —— 菜单清场与租户套餐骨架（#41）：删掉已禁用模块 / 外链 / 演示菜单，停用待启用的 ERP 菜单树，落 工作台 / 基础资料 / 交易对方 / 采购管理 / 回收作业 / 仓储管理 / 结算管理 / 财务票务 / 业务追溯 / 经营报表 一级骨架并把既有 icbc 页面挂进去，再落「回收企业套餐」（`system_tenant_package.id = 200`）。幂等，**必须最后导**（依赖前面所有 `system_menu` / `system_tenant_package` 种子）
 
 > enterprise 的菜单与字典已包含在 `ruoyi-vue-pro.sql` 中，不要再单独导入 `enterprise-menu.sql` / `module-enterprise-dict.sql`（会主键冲突）。
@@ -43,7 +44,7 @@ MYSQL="mysql -h 127.0.0.1 -P 13308 -uroot -p --default-character-set=utf8mb4"
 $MYSQL -e "CREATE DATABASE IF NOT EXISTS \`ruoyi-vue-pro\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 for f in ruoyi-vue-pro erp erp-stock-goods-config erp-stock-location-batch erp-supplier quartz 02-initial-data yudao-module-enterprise-auth-flow member-2024-01-18 \
          icbc_payee_info icbc_payer_info icbc_invoice_tables icbc_payment_order \
-         icbc_invoice_download icbc_api_log_callback enterprise icbc-readiness icbc-evidence icbc-public-token icbc-jobs icbc-seller-onboarding icbc-acquisition icbc-invoice-application icbc-payment icbc-invoice-issuance icbc-red-invoice icbc-quota icbc-tax-declaration icbc-billing icbc-natural-person icbc-settlement icbc-station icbc-seller-portal icbc-appointment icbc-seller-notify icbc-handover-batch icbc-purchase-contract icbc-bank-card-change icbc-menu; do
+         icbc_invoice_download icbc_api_log_callback enterprise icbc-readiness icbc-evidence icbc-public-token icbc-jobs icbc-seller-onboarding icbc-acquisition icbc-invoice-application icbc-payment icbc-invoice-issuance icbc-red-invoice icbc-quota icbc-tax-declaration icbc-billing icbc-natural-person icbc-settlement icbc-station icbc-seller-portal icbc-appointment icbc-seller-notify icbc-handover-batch icbc-purchase-contract icbc-purchase-order icbc-bank-card-change icbc-menu; do
   $MYSQL ruoyi-vue-pro < "$f.sql"
 done
 ```

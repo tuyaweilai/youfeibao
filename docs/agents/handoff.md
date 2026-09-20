@@ -748,3 +748,49 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
    套餐菜单 93 个含它。**没有动共享本地库**——四个 worktree 会各自重跑这份文件（它删 5100–5299 再重建），
    谁跑谁把别人刚加的段删掉，所以本票只在需要时跑，并且跑完记得重新登录刷新菜单缓存（前端 `roleRouters`）。
 10. **前端**：`pnpm install --prefer-offline`（6.8s）+ `pnpm build:local` 通过。
+
+## #46 T08 采购订单（已完成）
+
+采购执行依据：向谁买哪些品类、多少量、什么价、在哪段时间、哪个场站，一单多条品类明细、
+一条明细可分多次收货。它不是交易对方下的单（那是到站预约），零散收购可以不挂订单。分支
+`t08-purchase-order`，菜单段 5227–5239，错误码段 `1_030_031_xxx`。
+
+1. **四张租户表**（`backend/sql/mysql/icbc-purchase-order.sql`，幂等；测试建表与 `clean.sql` 同步）：
+   - `icbc_purchase_order`：订单主体。对手方沿用 ADR 0029 的「主体类型六态 + `payee_id` / `supplier_id`
+     双可空 id」，`chk_purchase_order_counterparty` + Service 双重保证恰好一个非空；可空关联
+     `contract_id`（快照 `contract_no`）与 `station_id`（快照 `station_name`）；状态、计划量 / 金额快照、
+     暂停与关闭留痕。`contract_id` / `station_id` / `payee_id` / `supplier_id` / `suspend_reason` /
+     `suspended_time` 都加 `@TableField(updateStrategy = ALWAYS)`（换对手方 / 恢复时要把 null 真正写回）。
+   - `icbc_purchase_order_item`：一条明细一个品类，落名称 / 单位快照；`price_mode`（1 固定单价 /
+     2 按交货日价格表）+ `unit_price`（固定价或兜底价）+ 计划量 / 金额。
+   - `icbc_purchase_order_price`：交货日价格表。取值语义是「交货日不晚于当日的最新一条」，
+     没覆盖到回退明细参考单价；改价整组重建。
+   - `icbc_purchase_order_deal`：**每次成交留价格快照与调整原因**，只追加；同一明细可多条，
+     已收量由这些记录的数量汇总推导（不落冗余字段）。带 `source_type/source_id/source_no` 供 #51
+     把收购单挂回来。
+2. **状态机**：草稿 →（开始执行）执行中 ⇄（暂停 / 恢复）→ 完成 →（关闭）关闭；关闭是终态。
+   暂停必填原因，恢复清空暂停痕迹。**只有「执行中」且未过期可作为采购依据**——
+   `PurchaseOrderService#assertUsableAsPurchaseBasis(id)` 是唯一门禁，收购登记（#51）选采购安排时调用它。
+   超期不落库，由 `end_date` 推导。
+3. **定价**：固定单价直接用明细单价；按交货日价格表取「不晚于交货日的最新一条」，未覆盖回退参考单价。
+   成交价与参考价不一致时 `adjust_reason` 必填。`resolveUnitPrice(itemId, deliveryDate)` 公开供调用。
+4. **合同门禁复用**：关联合同时走 `PurchaseContractService#assertUsableAsPurchaseBasis`，
+   未审核生效或已过期的合同建不出订单（测试锁死）。
+5. **给 #49 的只读方法**（本轮并行约定）：`PurchaseOrderService#getOrderAmount(id)` 返回
+   `PurchaseOrderAmountDTO`（`orderNo` / `totalAmount` / `counterpartyName` / `usableAsPurchaseBasis`）。
+   本票自身不调用；#49 合并后把 `PURCHASE_ORDER` 的 `biz_amount` / `biz_no` 接到这里。
+6. **给 #47 / #51 的口子**：`getProgress(id)` 先立起「计划 / 已收 / 未收」两个口径（`scopeNote` 写明
+   五口径见 #47，到时在同一个 VO 上扩，不另起一套）；`recordDeal` 是收购单挂回价格快照的入口。
+7. **权限 / 菜单**：`icbc:purchase-order:query|manage` 登记进 `RecyclingPermission` + `RecyclingRoleEnum`
+   （管理员可维护；收货员 / 开票员 / 财务只读；平台运营不参与）。`icbc-menu.sql` 追加
+   5227 采购订单 + 5228–5236 按钮（挂在「采购管理」5203 下，随套餐递归）。
+8. **前端**：`api/icbc/purchaseOrder` + `views/icbc/purchaseOrder/index.vue`（列表 / 筛选 / 新增编辑
+   含多明细与交货日价格表 / 记录成交 / 执行进度 / 明细含成交记录 / 状态流转 / 只允许删草稿）。
+9. **测试**：`PurchaseOrderServiceTest` 16 例（多条明细与金额汇总、合同未生效不得建单、对手方恰好一个非空、
+   场站快照、明细与价格表校验、状态流转与终态、暂停必填原因、仅执行中可作依据、过期、分次成交与价格快照、
+   调整原因必填、按交货日价格表取价与回退、进度、只删草稿、只读金额、分页）+ `RecyclingRoleEnumTest`
+   采购订单权限 + `IcbcTenantIsolationTest` 采购订单租户隔离。**icbc 509 测试全绿**（原 491 + 18）。
+
+> **未做（属 #47 / #51）**：五口径分列、超量 / 过期 / 跨场站拦截与授权、退货扣回、关闭后的业务回查；
+> 收购单关联采购订单明细与「直接收购」口径。本票只把订单、定价与成交价格快照做齐，并把门禁
+> `assertUsableAsPurchaseBasis` 与只读金额方法留给后续票。

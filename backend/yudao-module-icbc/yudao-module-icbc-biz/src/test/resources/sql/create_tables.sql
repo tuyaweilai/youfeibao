@@ -1164,3 +1164,108 @@ ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS handover_batch_id BIGINT;
 ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS weighing_id BIGINT;
 ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS weighing_seq_no INT;
 CREATE INDEX IF NOT EXISTS idx_acquisition_handover_batch ON icbc_acquisition(handover_batch_id);
+
+-- ===== 采购订单（#46 T08）=====
+
+-- icbc_purchase_order table（采购订单；租户表）
+CREATE TABLE IF NOT EXISTS icbc_purchase_order (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    order_no VARCHAR(64) NOT NULL,
+    contract_id BIGINT,
+    contract_no VARCHAR(64),
+    counterparty_type TINYINT NOT NULL,
+    payee_id BIGINT,
+    supplier_id BIGINT,
+    counterparty_name VARCHAR(200),
+    station_id BIGINT,
+    station_name VARCHAR(100),
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    status TINYINT NOT NULL DEFAULT 0,
+    total_quantity DECIMAL(16,4),
+    total_amount DECIMAL(16,2),
+    suspend_reason VARCHAR(500),
+    suspended_time DATETIME,
+    completed_time DATETIME,
+    closed_by BIGINT,
+    closed_time DATETIME,
+    close_reason VARCHAR(500),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_purchase_order_no UNIQUE (tenant_id, order_no),
+    CONSTRAINT chk_purchase_order_counterparty
+        CHECK ((payee_id IS NULL) <> (supplier_id IS NULL))
+);
+
+-- icbc_purchase_order_item table（采购订单品类明细；租户表）
+CREATE TABLE IF NOT EXISTS icbc_purchase_order_item (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    order_id BIGINT NOT NULL,
+    goods_config_id BIGINT NOT NULL,
+    category_name VARCHAR(100),
+    unit VARCHAR(32),
+    quantity DECIMAL(16,4) NOT NULL,
+    price_mode TINYINT NOT NULL DEFAULT 1,
+    unit_price DECIMAL(16,4),
+    amount DECIMAL(16,2),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS idx_purchase_order_item_order ON icbc_purchase_order_item(tenant_id, order_id);
+
+-- icbc_purchase_order_price table（交货日价格表；租户表）
+CREATE TABLE IF NOT EXISTS icbc_purchase_order_price (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    order_id BIGINT NOT NULL,
+    item_id BIGINT NOT NULL,
+    delivery_date DATE NOT NULL,
+    unit_price DECIMAL(16,4) NOT NULL,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS idx_purchase_order_price_item ON icbc_purchase_order_price(tenant_id, item_id, delivery_date);
+
+-- icbc_purchase_order_deal table（成交记录，价格快照；租户表）
+CREATE TABLE IF NOT EXISTS icbc_purchase_order_deal (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    order_id BIGINT NOT NULL,
+    item_id BIGINT NOT NULL,
+    deal_no VARCHAR(64) NOT NULL,
+    deal_time DATETIME,
+    delivery_date DATE,
+    quantity DECIMAL(16,4) NOT NULL,
+    unit_price DECIMAL(16,4) NOT NULL,
+    reference_unit_price DECIMAL(16,4),
+    price_adjusted BOOLEAN NOT NULL DEFAULT FALSE,
+    adjust_reason VARCHAR(500),
+    source_type VARCHAR(32),
+    source_id BIGINT,
+    source_no VARCHAR(64),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_purchase_order_deal_no UNIQUE (tenant_id, deal_no)
+);

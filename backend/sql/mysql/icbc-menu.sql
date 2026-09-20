@@ -135,6 +135,19 @@ VALUES
 (5225, '审核采购合同', 'icbc:purchase-contract:audit', 3, 5, 5220, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5226, '删除采购合同', 'icbc:purchase-contract:manage', 3, 6, 5220, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
+-- 采购订单（#46 T08）：采购执行依据，一单多条品类明细、一条明细可分多次收货；
+-- 可选挂已审核生效的合同与执行场站，对手方承载自然人出售者与单位供货方。
+(5227, '采购订单', 'icbc:purchase-order:query', 2, 2, 5203, 'order', '', 'icbc/purchaseOrder/index', 'IcbcPurchaseOrder', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5228, '新增采购订单', 'icbc:purchase-order:manage', 3, 1, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5229, '修改采购订单', 'icbc:purchase-order:manage', 3, 2, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5230, '开始执行采购订单', 'icbc:purchase-order:manage', 3, 3, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5231, '暂停与恢复采购订单', 'icbc:purchase-order:manage', 3, 4, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5232, '完成采购订单', 'icbc:purchase-order:manage', 3, 5, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5233, '关闭采购订单', 'icbc:purchase-order:manage', 3, 6, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5234, '删除采购订单', 'icbc:purchase-order:manage', 3, 7, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5235, '登记成交与价格快照', 'icbc:purchase-order:manage', 3, 8, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5236, '查看执行进度', 'icbc:purchase-order:query', 3, 9, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+
 -- ===== 回收作业 =====
 (5179, '到站预约', 'icbc:appointment:query', 2, 1, 5204, 'appointment', '', 'icbc/appointment/index', 'IcbcAppointment', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5180, '标记到场与未到场', 'icbc:appointment:manage', 3, 1, 5179, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),

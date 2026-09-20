@@ -219,4 +219,11 @@ public interface RecyclingPermission {
     /** 查看工作台一屏（八类待办、额度 / 资质 / 就绪预警与开票就绪徽标的明细） */
     String WORKBENCH_QUERY = "icbc:workbench:query";
 
+    // ========== 采购订单（#46 T08，ADR 0027：采购执行依据，与收购单关联追溯） ==========
+
+    /** 查看采购订单、明细、交货日价格表与执行进度 */
+    String PURCHASE_ORDER_QUERY = "icbc:purchase-order:query";
+    /** 新建 / 修改 / 状态流转 / 记录成交与价格快照 */
+    String PURCHASE_ORDER_MANAGE = "icbc:purchase-order:manage";
+
 }
