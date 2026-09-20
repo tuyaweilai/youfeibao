@@ -439,6 +439,31 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
    新建租户（套餐 200）的 admin 调权限接口拿到 197 条权限、含全部 icbc 业务权限且无 `icbc:platform:*`；
    租户 admin 调收购/出售者接口 200、调平台计费接口返回 `code:403`。icbc 模块 430 测试全绿。
 
+## #42 T04 库存域换列 + StockApi（已完成）
+
+库存以「品类」为维度而不是 ERP 自己的产品；库存能力通过 `StockApi` 开放给回收业务模块。
+
+1. **换列（12 张表）**：`erp-stock-goods-config.sql`（叠加在 `erp.sql` 之后，幂等）把 `product_id` →
+   `goods_config_id`、10 张明细表删 `product_unit_id`；`erp_warehouse` 加 `station_id`；
+   `erp_stock` 加唯一约束 `uk_goods_config_warehouse (goods_config_id, warehouse_id)`；删 `erp_product*` 三张表。
+   README 导入顺序同步。
+2. **ERP 侧**：12 张表的 DO / VO / Service / Mapper 全部改成 `goodsConfigId`；删掉整个 `product` 域
+   （controller / service / dal / vo）——ERP 不再知道 icbc 品类，`goodsConfigId` 对它是不透明 id；
+   库存不足的报错也不再回产品名（改为回品类编号，如 `品类(100)`）。库存服务 `updateStockCountIncrement`
+   捕获 `DuplicateKeyException`，并发下靠唯一约束坍缩到一行余额。
+3. **StockApi**：`erp-api` 新增 `StockApi`（`in` / `out` / `getStockCount` / `getStockSum`）与
+   `StockChangeReqDTO`；`erp-biz` 的 `StockApiImpl` 按「业务类型 + 业务编号 + 业务项编号」幂等；
+   新增业务类型 `RECEIPT_IN(90)` / `RECEIPT_IN_CANCEL(91)`。`icbc-biz` POM 加 `yudao-module-erp-api` 依赖，
+   方向恒为 icbc → erp。
+4. **测试基座**：`yudao-module-erp-biz/src/test/` 从空补上 `UnitTestConfiguration`（只建 H2 数据源、
+   不组件扫描）、`application-unit-test.yaml`、`sql/create_tables.sql` / `clean.sql`（库存域 13 张表）。
+   新增 `ErpStockServiceTest`（余额行唯一、库存不足拦截）、`ErpStockRecordServiceTest`（余额 = 全部流水重算）、
+   `StockApiImplTest`（入/出/余额、业务项幂等）；icbc 侧 `StockApiDependencyTest` 锁依赖可注入。
+   ERP 6 测试 + icbc 431 测试全绿。
+5. **实测**：本地库跑完迁移后 12 张表只有 `goods_config_id`、`erp_stock` 有唯一约束、`erp_product*` 0 张；
+   重启后租户 1 建仓库（`stationId=7`）能写能读、`/erp/warehouse/page` 与 `/erp/stock/page` 均空列表；
+   迁移重复跑幂等。前端 `erp/stock/warehouse` 表单加「归属场站」字段（#43 会换成场站下拉）。
+
 ## 下一步建议
 
 - **A.** #13 代办税费申报——**已完成**；
@@ -456,6 +481,10 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - **新增 icbc 表**：工行返回字段（如 `payee_no`/`payer_no`）在本地库应为可空；表放 `backend/sql/mysql/`，菜单用 `icbc-menu.sql` 幂等维护。**全局表**（无租户隔离语义，如 `icbc_scrap_code`、`icbc_billing_ledger`——后者的 `tenant_id` 是「被计费租户」这个数据列，不是隔离维度）必须登记进 `yudao-server/src/main/resources/application.yaml` 的 `yudao.tenant.ignore-tables`，否则会被拼上 `tenant_id`。租户隔离的单测要打开拦截器（`IcbcTenantTestConfiguration`），它那里同步维护了忽略表清单。单测表结构在 `yudao-module-icbc-biz/src/test/resources/sql/create_tables.sql`。
 - **测 icbc**：`mvn -pl yudao-module-icbc/yudao-module-icbc-biz test`；改了 `-api` 先 `mvn -pl ...-api -DskipTests install`。**不要**用 `-am test`（上游模块有既有失败会挡住 reactor）。
 - **ERP 已启用（#39）**：`erp-biz` 不在 `.m2` 里时 `mvn -pl yudao-server spring-boot:run` 直接失败，改完 `erp` / `icbc` / 任何模块都要先 `mvn -pl yudao-server -am -DskipTests install`。单独构建子模块必须写全路径：`mvn -pl yudao-module-erp/yudao-module-erp-biz -am`（`-pl yudao-module-erp -am` 只构建父 pom，不进子模块）。详见 [backend/sql/mysql/README.md](../../backend/sql/mysql/README.md#构建与启动erp-已启用后的两个坑39)。
+- **ERP 库存维度是品类（#42）**：12 张表只有 `goods_config_id`（不再有 `product_id` / `product_unit_id`），
+  ERP 不知道 `icbc_goods_config`，不校验品类存在；回收业务写库存只走 `erp-api` 的 `StockApi`（按业务项幂等），
+  不要直接碰 `erp_stock` / `erp_stock_record`。测 ERP：`mvn -pl yudao-module-erp/yudao-module-erp-biz test`，
+  测试建的 H2 库需同步改 `yudao-module-erp-biz/src/test/resources/sql/create_tables.sql`。
 - **额度台账口径**：只在 `NaturalPersonQuotaServiceImpl` 一处；改口径（如是否算在途）不要散到调用方去。额度是**软上限**——平台自己的台账，跨平台累计不可见。
 - **前端**：`pnpm build:local` 验证编译；`pnpm ts:check` 有 1247 个既有 TS 错误，判断自己的改动看 `src/(views|api)/icbc` 有无新报错即可（跑 ts:check 需加 `NODE_OPTIONS=--max-old-space-size=6144`）。
 - **时间字段**：yudao 全局 Jackson 把 `LocalDateTime` 按**毫秒时间戳**序列化/反序列化（`TimestampLocalDateTimeSerializer/Deserializer`）。因此 `@RequestBody` 里的 `LocalDateTime` 字段，前端日期选择器必须用 `value-format="x"`，接口类型声明为 `number`；字段上的 `@DateTimeFormat` 对 JSON body **无效**（只作用于 query/form）。不要用 `YYYY-MM-DD HH:mm:ss`，否则反序列化会得到 0 或报错。

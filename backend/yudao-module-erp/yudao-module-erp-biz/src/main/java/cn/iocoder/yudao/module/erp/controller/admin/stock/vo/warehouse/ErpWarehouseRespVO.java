@@ -36,6 +36,10 @@ public class ErpWarehouseRespVO {
     @ExcelProperty("备注")
     private String remark;
 
+    @Schema(description = "归属场站编号", example = "1024")
+    @ExcelProperty("归属场站编号")
+    private Long stationId;
+
     @Schema(description = "负责人", example = "芋头")
     @ExcelProperty("负责人")
     private String principal;

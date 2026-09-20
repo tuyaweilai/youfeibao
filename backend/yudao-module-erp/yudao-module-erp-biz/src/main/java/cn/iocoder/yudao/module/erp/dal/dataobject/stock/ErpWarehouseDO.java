@@ -45,6 +45,12 @@ public class ErpWarehouseDO extends BaseDO {
      */
     private String remark;
     /**
+     * 归属场站编号
+     *
+     * 关联 icbc_station.id
+     */
+    private Long stationId;
+    /**
      * 负责人
      */
     private String principal;

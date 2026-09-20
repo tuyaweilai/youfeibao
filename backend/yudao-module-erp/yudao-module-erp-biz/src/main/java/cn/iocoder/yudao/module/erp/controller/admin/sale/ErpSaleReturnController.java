@@ -8,7 +8,6 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.collection.MapUtils;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
-import cn.iocoder.yudao.module.erp.controller.admin.product.vo.product.ErpProductRespVO;
 import cn.iocoder.yudao.module.erp.controller.admin.sale.vo.returns.ErpSaleReturnPageReqVO;
 import cn.iocoder.yudao.module.erp.controller.admin.sale.vo.returns.ErpSaleReturnRespVO;
 import cn.iocoder.yudao.module.erp.controller.admin.sale.vo.returns.ErpSaleReturnSaveReqVO;
@@ -16,7 +15,6 @@ import cn.iocoder.yudao.module.erp.dal.dataobject.sale.ErpCustomerDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.sale.ErpSaleReturnDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.sale.ErpSaleReturnItemDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockDO;
-import cn.iocoder.yudao.module.erp.service.product.ErpProductService;
 import cn.iocoder.yudao.module.erp.service.sale.ErpCustomerService;
 import cn.iocoder.yudao.module.erp.service.sale.ErpSaleReturnService;
 import cn.iocoder.yudao.module.erp.service.stock.ErpStockService;
@@ -52,8 +50,6 @@ public class ErpSaleReturnController {
     private ErpSaleReturnService saleReturnService;
     @Resource
     private ErpStockService stockService;
-    @Resource
-    private ErpProductService productService;
     @Resource
     private ErpCustomerService customerService;
 
@@ -103,14 +99,10 @@ public class ErpSaleReturnController {
             return success(null);
         }
         List<ErpSaleReturnItemDO> saleReturnItemList = saleReturnService.getSaleReturnItemListByReturnId(id);
-        Map<Long, ErpProductRespVO> productMap = productService.getProductVOMap(
-                convertSet(saleReturnItemList, ErpSaleReturnItemDO::getProductId));
         return success(BeanUtils.toBean(saleReturn, ErpSaleReturnRespVO.class, saleReturnVO ->
                 saleReturnVO.setItems(BeanUtils.toBean(saleReturnItemList, ErpSaleReturnRespVO.Item.class, item -> {
-                    ErpStockDO stock = stockService.getStock(item.getProductId(), item.getWarehouseId());
+                    ErpStockDO stock = stockService.getStock(item.getGoodsConfigId(), item.getWarehouseId());
                     item.setStockCount(stock != null ? stock.getCount() : BigDecimal.ZERO);
-                    MapUtils.findAndThen(productMap, item.getProductId(), product -> item.setProductName(product.getName())
-                            .setProductBarCode(product.getBarCode()).setProductUnitName(product.getUnitName()));
                 }))));
     }
 
@@ -142,9 +134,7 @@ public class ErpSaleReturnController {
         List<ErpSaleReturnItemDO> saleReturnItemList = saleReturnService.getSaleReturnItemListByReturnIds(
                 convertSet(pageResult.getList(), ErpSaleReturnDO::getId));
         Map<Long, List<ErpSaleReturnItemDO>> saleReturnItemMap = convertMultiMap(saleReturnItemList, ErpSaleReturnItemDO::getReturnId);
-        // 1.2 产品信息
-        Map<Long, ErpProductRespVO> productMap = productService.getProductVOMap(
-                convertSet(saleReturnItemList, ErpSaleReturnItemDO::getProductId));
+        // 1.2 品类信息
         // 1.3 客户信息
         Map<Long, ErpCustomerDO> customerMap = customerService.getCustomerMap(
                 convertSet(pageResult.getList(), ErpSaleReturnDO::getCustomerId));
@@ -153,9 +143,7 @@ public class ErpSaleReturnController {
                 convertSet(pageResult.getList(), saleReturn -> Long.parseLong(saleReturn.getCreator())));
         // 2. 开始拼接
         return BeanUtils.toBean(pageResult, ErpSaleReturnRespVO.class, saleReturn -> {
-            saleReturn.setItems(BeanUtils.toBean(saleReturnItemMap.get(saleReturn.getId()), ErpSaleReturnRespVO.Item.class,
-                    item -> MapUtils.findAndThen(productMap, item.getProductId(), product -> item.setProductName(product.getName())
-                            .setProductBarCode(product.getBarCode()).setProductUnitName(product.getUnitName()))));
+            saleReturn.setItems(BeanUtils.toBean(saleReturnItemMap.get(saleReturn.getId()), ErpSaleReturnRespVO.Item.class));
             saleReturn.setProductNames(CollUtil.join(saleReturn.getItems(), "，", ErpSaleReturnRespVO.Item::getProductName));
             MapUtils.findAndThen(customerMap, saleReturn.getCustomerId(), supplier -> saleReturn.setCustomerName(supplier.getName()));
             MapUtils.findAndThen(userMap, Long.parseLong(saleReturn.getCreator()), user -> saleReturn.setCreatorName(user.getNickname()));

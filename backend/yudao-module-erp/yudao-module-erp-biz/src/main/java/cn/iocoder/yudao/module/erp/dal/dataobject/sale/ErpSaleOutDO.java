@@ -94,7 +94,7 @@ public class ErpSaleOutDO extends BaseDO {
     private BigDecimal receiptPrice;
 
     /**
-     * 合计产品价格，单位：元
+     * 合计品类价格，单位：元
      */
     private BigDecimal totalProductPrice;
     /**

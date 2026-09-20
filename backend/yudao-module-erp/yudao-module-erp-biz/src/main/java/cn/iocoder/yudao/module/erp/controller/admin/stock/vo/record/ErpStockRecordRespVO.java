@@ -11,7 +11,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@Schema(description = "管理后台 - ERP 产品库存明细 Response VO")
+@Schema(description = "管理后台 - ERP 品类库存明细 Response VO")
 @Data
 @ExcelIgnoreUnannotated
 public class ErpStockRecordRespVO {
@@ -20,8 +20,8 @@ public class ErpStockRecordRespVO {
     @ExcelProperty("编号")
     private Long id;
 
-    @Schema(description = "产品编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "10625")
-    private Long productId;
+    @Schema(description = "品类编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "10625")
+    private Long goodsConfigId;
 
     @Schema(description = "仓库编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "32407")
     private Long warehouseId;
@@ -58,14 +58,14 @@ public class ErpStockRecordRespVO {
     @Schema(description = "创建人", requiredMode = Schema.RequiredMode.REQUIRED, example = "25682")
     private String creator;
 
-    // ========== 产品信息 ==========
+    // ========== 品类信息 ==========
 
-    @Schema(description = "产品名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "苹果")
-    @ExcelProperty("产品名称")
+    @Schema(description = "品类名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "苹果")
+    @ExcelProperty("品类名称")
     private String productName;
 
-    @Schema(description = "产品分类", requiredMode = Schema.RequiredMode.REQUIRED, example = "水果")
-    @ExcelProperty("产品分类")
+    @Schema(description = "品类分类", requiredMode = Schema.RequiredMode.REQUIRED, example = "水果")
+    @ExcelProperty("品类分类")
     private String categoryName;
 
     @Schema(description = "单位", requiredMode = Schema.RequiredMode.REQUIRED, example = "个")

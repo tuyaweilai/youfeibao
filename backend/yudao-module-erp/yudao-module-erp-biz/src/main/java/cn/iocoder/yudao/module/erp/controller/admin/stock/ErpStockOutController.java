@@ -8,7 +8,6 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.collection.MapUtils;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
-import cn.iocoder.yudao.module.erp.controller.admin.product.vo.product.ErpProductRespVO;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.out.ErpStockOutPageReqVO;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.out.ErpStockOutRespVO;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.out.ErpStockOutSaveReqVO;
@@ -16,7 +15,6 @@ import cn.iocoder.yudao.module.erp.dal.dataobject.sale.ErpCustomerDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockOutDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockOutItemDO;
-import cn.iocoder.yudao.module.erp.service.product.ErpProductService;
 import cn.iocoder.yudao.module.erp.service.sale.ErpCustomerService;
 import cn.iocoder.yudao.module.erp.service.stock.ErpStockOutService;
 import cn.iocoder.yudao.module.erp.service.stock.ErpStockService;
@@ -52,8 +50,6 @@ public class ErpStockOutController {
     private ErpStockOutService stockOutService;
     @Resource
     private ErpStockService stockService;
-    @Resource
-    private ErpProductService productService;
     @Resource
     private ErpCustomerService customerService;
 
@@ -103,14 +99,10 @@ public class ErpStockOutController {
             return success(null);
         }
         List<ErpStockOutItemDO> stockOutItemList = stockOutService.getStockOutItemListByOutId(id);
-        Map<Long, ErpProductRespVO> productMap = productService.getProductVOMap(
-                convertSet(stockOutItemList, ErpStockOutItemDO::getProductId));
         return success(BeanUtils.toBean(stockOut, ErpStockOutRespVO.class, stockOutVO ->
                 stockOutVO.setItems(BeanUtils.toBean(stockOutItemList, ErpStockOutRespVO.Item.class, item -> {
-                    ErpStockDO stock = stockService.getStock(item.getProductId(), item.getWarehouseId());
+                    ErpStockDO stock = stockService.getStock(item.getGoodsConfigId(), item.getWarehouseId());
                     item.setStockCount(stock != null ? stock.getCount() : BigDecimal.ZERO);
-                    MapUtils.findAndThen(productMap, item.getProductId(), product -> item.setProductName(product.getName())
-                            .setProductBarCode(product.getBarCode()).setProductUnitName(product.getUnitName()));
                 }))));
     }
 
@@ -142,9 +134,7 @@ public class ErpStockOutController {
         List<ErpStockOutItemDO> stockOutItemList = stockOutService.getStockOutItemListByOutIds(
                 convertSet(pageResult.getList(), ErpStockOutDO::getId));
         Map<Long, List<ErpStockOutItemDO>> stockOutItemMap = convertMultiMap(stockOutItemList, ErpStockOutItemDO::getOutId);
-        // 1.2 产品信息
-        Map<Long, ErpProductRespVO> productMap = productService.getProductVOMap(
-                convertSet(stockOutItemList, ErpStockOutItemDO::getProductId));
+        // 1.2 品类信息
         // 1.3 客户信息
         Map<Long, ErpCustomerDO> customerMap = customerService.getCustomerMap(
                 convertSet(pageResult.getList(), ErpStockOutDO::getCustomerId));
@@ -153,9 +143,7 @@ public class ErpStockOutController {
                 convertSet(pageResult.getList(), stockOut -> Long.parseLong(stockOut.getCreator())));
         // 2. 开始拼接
         return BeanUtils.toBean(pageResult, ErpStockOutRespVO.class, stockOut -> {
-            stockOut.setItems(BeanUtils.toBean(stockOutItemMap.get(stockOut.getId()), ErpStockOutRespVO.Item.class,
-                    item -> MapUtils.findAndThen(productMap, item.getProductId(), product -> item.setProductName(product.getName())
-                            .setProductBarCode(product.getBarCode()).setProductUnitName(product.getUnitName()))));
+            stockOut.setItems(BeanUtils.toBean(stockOutItemMap.get(stockOut.getId()), ErpStockOutRespVO.Item.class));
             stockOut.setProductNames(CollUtil.join(stockOut.getItems(), "，", ErpStockOutRespVO.Item::getProductName));
             MapUtils.findAndThen(customerMap, stockOut.getCustomerId(), supplier -> stockOut.setCustomerName(supplier.getName()));
             MapUtils.findAndThen(userMap, Long.parseLong(stockOut.getCreator()), user -> stockOut.setCreatorName(user.getNickname()));

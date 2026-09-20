@@ -45,10 +45,10 @@ public interface ErpPurchaseReturnMapper extends BaseMapperX<ErpPurchaseReturnDO
             query.eq(ErpPurchaseInDO::getStatus, ErpAuditStatus.APPROVE.getStatus())
                     .apply("t.refund_price < t.total_price");
         }
-        if (reqVO.getWarehouseId() != null || reqVO.getProductId() != null) {
+        if (reqVO.getWarehouseId() != null || reqVO.getGoodsConfigId() != null) {
             query.leftJoin(ErpPurchaseReturnItemDO.class, ErpPurchaseReturnItemDO::getReturnId, ErpPurchaseReturnDO::getId)
                     .eq(reqVO.getWarehouseId() != null, ErpPurchaseReturnItemDO::getWarehouseId, reqVO.getWarehouseId())
-                    .eq(reqVO.getProductId() != null, ErpPurchaseReturnItemDO::getProductId, reqVO.getProductId())
+                    .eq(reqVO.getGoodsConfigId() != null, ErpPurchaseReturnItemDO::getGoodsConfigId, reqVO.getGoodsConfigId())
                     .groupBy(ErpPurchaseReturnDO::getId); // 避免 1 对多查询，产生相同的 1
         }
         return selectJoinPage(reqVO, ErpPurchaseReturnDO.class, query);

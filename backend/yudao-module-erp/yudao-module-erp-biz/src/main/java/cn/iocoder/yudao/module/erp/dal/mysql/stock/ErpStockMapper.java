@@ -1,7 +1,6 @@
 package cn.iocoder.yudao.module.erp.dal.mysql.stock;
 
 import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.map.MapUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
@@ -16,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * ERP 产品库存 Mapper
+ * ERP 品类库存 Mapper
  *
  * @author 芋道源码
  */
@@ -25,13 +24,13 @@ public interface ErpStockMapper extends BaseMapperX<ErpStockDO> {
 
     default PageResult<ErpStockDO> selectPage(ErpStockPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<ErpStockDO>()
-                .eqIfPresent(ErpStockDO::getProductId, reqVO.getProductId())
+                .eqIfPresent(ErpStockDO::getGoodsConfigId, reqVO.getGoodsConfigId())
                 .eqIfPresent(ErpStockDO::getWarehouseId, reqVO.getWarehouseId())
                 .orderByDesc(ErpStockDO::getId));
     }
 
-    default ErpStockDO selectByProductIdAndWarehouseId(Long productId, Long warehouseId) {
-        return selectOne(ErpStockDO::getProductId, productId,
+    default ErpStockDO selectByGoodsConfigIdAndWarehouseId(Long goodsConfigId, Long warehouseId) {
+        return selectOne(ErpStockDO::getGoodsConfigId, goodsConfigId,
                 ErpStockDO::getWarehouseId, warehouseId);
     }
 
@@ -49,16 +48,17 @@ public interface ErpStockMapper extends BaseMapperX<ErpStockDO> {
         return update(null, updateWrapper);
     }
 
-    default BigDecimal selectSumByProductId(Long productId) {
+    default BigDecimal selectSumByGoodsConfigId(Long goodsConfigId) {
         // SQL sum 查询
         List<Map<String, Object>> result = selectMaps(new QueryWrapper<ErpStockDO>()
                 .select("SUM(count) AS sumCount")
-                .eq("product_id", productId));
-        // 获得数量
-        if (CollUtil.isEmpty(result)) {
+                .eq("goods_config_id", goodsConfigId));
+        // 获得数量。不按列别名取值：不同数据库（H2 / MySQL）返回的 key 大小写不一致，取唯一一列更稳。
+        if (CollUtil.isEmpty(result) || CollUtil.isEmpty(result.get(0))) {
             return BigDecimal.ZERO;
         }
-        return BigDecimal.valueOf(MapUtil.getDouble(result.get(0), "sumCount", 0D));
+        Object value = result.get(0).values().iterator().next();
+        return value != null ? new BigDecimal(value.toString()) : BigDecimal.ZERO;
     }
 
 }

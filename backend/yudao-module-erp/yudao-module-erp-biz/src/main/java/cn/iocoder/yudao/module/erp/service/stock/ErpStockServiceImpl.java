@@ -4,7 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.stock.ErpStockPageReqVO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockDO;
 import cn.iocoder.yudao.module.erp.dal.mysql.stock.ErpStockMapper;
-import cn.iocoder.yudao.module.erp.service.product.ErpProductService;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -16,7 +16,7 @@ import static cn.iocoder.yudao.module.erp.enums.ErrorCodeConstants.STOCK_COUNT_N
 import static cn.iocoder.yudao.module.erp.enums.ErrorCodeConstants.STOCK_COUNT_NEGATIVE2;
 
 /**
- * ERP 产品库存 Service 实现类
+ * ERP 品类库存 Service 实现类
  *
  * @author 芋道源码
  */
@@ -32,8 +32,6 @@ public class ErpStockServiceImpl implements ErpStockService {
     private static final Boolean NEGATIVE_STOCK_COUNT_ENABLE = false;
 
     @Resource
-    private ErpProductService productService;
-    @Resource
     private ErpWarehouseService warehouseService;
 
     @Resource
@@ -45,14 +43,20 @@ public class ErpStockServiceImpl implements ErpStockService {
     }
 
     @Override
-    public ErpStockDO getStock(Long productId, Long warehouseId) {
-        return stockMapper.selectByProductIdAndWarehouseId(productId, warehouseId);
+    public ErpStockDO getStock(Long goodsConfigId, Long warehouseId) {
+        return stockMapper.selectByGoodsConfigIdAndWarehouseId(goodsConfigId, warehouseId);
     }
 
     @Override
-    public BigDecimal getStockCount(Long productId) {
-        BigDecimal count = stockMapper.selectSumByProductId(productId);
+    public BigDecimal getStockCount(Long goodsConfigId) {
+        BigDecimal count = stockMapper.selectSumByGoodsConfigId(goodsConfigId);
         return count != null ? count : BigDecimal.ZERO;
+    }
+
+    @Override
+    public BigDecimal getStockCount(Long goodsConfigId, Long warehouseId) {
+        ErpStockDO stock = stockMapper.selectByGoodsConfigIdAndWarehouseId(goodsConfigId, warehouseId);
+        return stock != null ? stock.getCount() : BigDecimal.ZERO;
     }
 
     @Override
@@ -61,16 +65,21 @@ public class ErpStockServiceImpl implements ErpStockService {
     }
 
     @Override
-    public BigDecimal updateStockCountIncrement(Long productId, Long warehouseId, BigDecimal count) {
+    public BigDecimal updateStockCountIncrement(Long goodsConfigId, Long warehouseId, BigDecimal count) {
         // 1.1 查询当前库存
-        ErpStockDO stock = stockMapper.selectByProductIdAndWarehouseId(productId, warehouseId);
+        ErpStockDO stock = stockMapper.selectByGoodsConfigIdAndWarehouseId(goodsConfigId, warehouseId);
         if (stock == null) {
-            stock = new ErpStockDO().setProductId(productId).setWarehouseId(warehouseId).setCount(BigDecimal.ZERO);
-            stockMapper.insert(stock);
+            stock = new ErpStockDO().setGoodsConfigId(goodsConfigId).setWarehouseId(warehouseId).setCount(BigDecimal.ZERO);
+            try {
+                stockMapper.insert(stock);
+            } catch (DuplicateKeyException ex) {
+                // 并发下另一个请求已经插入：唯一约束兜底，回读既有余额行
+                stock = stockMapper.selectByGoodsConfigIdAndWarehouseId(goodsConfigId, warehouseId);
+            }
         }
         // 1.2 校验库存是否充足
         if (!NEGATIVE_STOCK_COUNT_ENABLE && stock.getCount().add(count).compareTo(BigDecimal.ZERO) < 0) {
-            throw exception(STOCK_COUNT_NEGATIVE, productService.getProduct(productId).getName(),
+            throw exception(STOCK_COUNT_NEGATIVE, String.valueOf(goodsConfigId),
                     warehouseService.getWarehouse(warehouseId).getName(), stock.getCount(), count);
         }
 
@@ -78,7 +87,7 @@ public class ErpStockServiceImpl implements ErpStockService {
         int updateCount = stockMapper.updateCountIncrement(stock.getId(), count, NEGATIVE_STOCK_COUNT_ENABLE);
         if (updateCount == 0) {
             // 此时不好去查询最新库存，所以直接抛出该提示，不提供具体库存数字
-            throw exception(STOCK_COUNT_NEGATIVE2, productService.getProduct(productId).getName(),
+            throw exception(STOCK_COUNT_NEGATIVE2, String.valueOf(goodsConfigId),
                     warehouseService.getWarehouse(warehouseId).getName());
         }
 

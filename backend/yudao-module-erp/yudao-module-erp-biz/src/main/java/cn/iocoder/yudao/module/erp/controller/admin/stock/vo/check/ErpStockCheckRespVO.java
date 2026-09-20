@@ -63,8 +63,8 @@ public class ErpStockCheckRespVO {
     @Schema(description = "盘点项列表", requiredMode = Schema.RequiredMode.REQUIRED)
     private List<Item> items;
 
-    @Schema(description = "产品信息", requiredMode = Schema.RequiredMode.REQUIRED)
-    @ExcelProperty("产品信息")
+    @Schema(description = "品类信息", requiredMode = Schema.RequiredMode.REQUIRED)
+    @ExcelProperty("品类信息")
     private String productNames;
 
     @Data
@@ -76,10 +76,10 @@ public class ErpStockCheckRespVO {
         @Schema(description = "仓库编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "3113")
         private Long warehouseId;
 
-        @Schema(description = "产品编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "3113")
-        private Long productId;
+        @Schema(description = "品类编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "3113")
+        private Long goodsConfigId;
 
-        @Schema(description = "产品单价", requiredMode = Schema.RequiredMode.REQUIRED, example = "100.00")
+        @Schema(description = "品类单价", requiredMode = Schema.RequiredMode.REQUIRED, example = "100.00")
         private BigDecimal productPrice;
 
         @Schema(description = "账面数量（当前库存）", requiredMode = Schema.RequiredMode.REQUIRED, example = "100.00")
@@ -99,11 +99,11 @@ public class ErpStockCheckRespVO {
 
         // ========== 关联字段 ==========
 
-        @Schema(description = "产品名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "巧克力")
+        @Schema(description = "品类名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "巧克力")
         private String productName;
-        @Schema(description = "产品条码", requiredMode = Schema.RequiredMode.REQUIRED, example = "A9985")
+        @Schema(description = "品类条码", requiredMode = Schema.RequiredMode.REQUIRED, example = "A9985")
         private String productBarCode;
-        @Schema(description = "产品单位名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "盒")
+        @Schema(description = "品类单位名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "盒")
         private String productUnitName;
 
     }

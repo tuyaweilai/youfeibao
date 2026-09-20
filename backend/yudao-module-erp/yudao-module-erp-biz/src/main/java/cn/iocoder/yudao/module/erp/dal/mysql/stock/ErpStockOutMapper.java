@@ -26,10 +26,10 @@ public interface ErpStockOutMapper extends BaseMapperX<ErpStockOutDO> {
                 .likeIfPresent(ErpStockOutDO::getRemark, reqVO.getRemark())
                 .eqIfPresent(ErpStockOutDO::getCreator, reqVO.getCreator())
                 .orderByDesc(ErpStockOutDO::getId);
-        if (reqVO.getWarehouseId() != null || reqVO.getProductId() != null) {
+        if (reqVO.getWarehouseId() != null || reqVO.getGoodsConfigId() != null) {
             query.leftJoin(ErpStockOutItemDO.class, ErpStockOutItemDO::getOutId, ErpStockOutDO::getId)
                     .eq(reqVO.getWarehouseId() != null, ErpStockOutItemDO::getWarehouseId, reqVO.getWarehouseId())
-                    .eq(reqVO.getProductId() != null, ErpStockOutItemDO::getProductId, reqVO.getProductId())
+                    .eq(reqVO.getGoodsConfigId() != null, ErpStockOutItemDO::getGoodsConfigId, reqVO.getGoodsConfigId())
                     .groupBy(ErpStockOutDO::getId); // 避免 1 对多查询，产生相同的 1
         }
         return selectJoinPage(reqVO, ErpStockOutDO.class, query);

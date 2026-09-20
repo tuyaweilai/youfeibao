@@ -30,6 +30,9 @@ public class ErpWarehouseSaveReqVO {
     @Schema(description = "备注", example = "随便")
     private String remark;
 
+    @Schema(description = "归属场站编号", example = "1024")
+    private Long stationId;
+
     @Schema(description = "负责人", example = "芋头")
     private String principal;
 

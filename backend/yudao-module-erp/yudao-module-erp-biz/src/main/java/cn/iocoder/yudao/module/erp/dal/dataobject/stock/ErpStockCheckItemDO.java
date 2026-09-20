@@ -1,7 +1,6 @@
 package cn.iocoder.yudao.module.erp.dal.dataobject.stock;
 
 import cn.iocoder.yudao.framework.mybatis.core.dataobject.BaseDO;
-import cn.iocoder.yudao.module.erp.dal.dataobject.product.ErpProductDO;
 import com.baomidou.mybatisplus.annotation.KeySequence;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -42,19 +41,13 @@ public class ErpStockCheckItemDO extends BaseDO {
      */
     private Long warehouseId;
     /**
-     * 产品编号
+     * 品类编号
      *
-     * 关联 {@link ErpProductDO#getId()}
+     * 关联 icbc_goods_config.id
      */
-    private Long productId;
+    private Long goodsConfigId;
     /**
-     * 产品单位编号
-     *
-     * 冗余 {@link ErpProductDO#getUnitId()}
-     */
-    private Long productUnitId;
-    /**
-     * 产品单价
+     * 品类单价
      */
     private BigDecimal productPrice;
     /**

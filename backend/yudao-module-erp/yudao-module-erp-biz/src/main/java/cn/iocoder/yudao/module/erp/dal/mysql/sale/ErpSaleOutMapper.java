@@ -45,10 +45,10 @@ public interface ErpSaleOutMapper extends BaseMapperX<ErpSaleOutDO> {
             query.eq(ErpSaleOutDO::getStatus, ErpAuditStatus.APPROVE.getStatus())
                     .apply("t.receipt_price < t.total_price");
         }
-        if (reqVO.getWarehouseId() != null || reqVO.getProductId() != null) {
+        if (reqVO.getWarehouseId() != null || reqVO.getGoodsConfigId() != null) {
             query.leftJoin(ErpSaleOutItemDO.class, ErpSaleOutItemDO::getOutId, ErpSaleOutDO::getId)
                     .eq(reqVO.getWarehouseId() != null, ErpSaleOutItemDO::getWarehouseId, reqVO.getWarehouseId())
-                    .eq(reqVO.getProductId() != null, ErpSaleOutItemDO::getProductId, reqVO.getProductId())
+                    .eq(reqVO.getGoodsConfigId() != null, ErpSaleOutItemDO::getGoodsConfigId, reqVO.getGoodsConfigId())
                     .groupBy(ErpSaleOutDO::getId); // 避免 1 对多查询，产生相同的 1
         }
         return selectJoinPage(reqVO, ErpSaleOutDO.class, query);

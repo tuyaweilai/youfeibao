@@ -8,14 +8,12 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.collection.MapUtils;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
-import cn.iocoder.yudao.module.erp.controller.admin.product.vo.product.ErpProductRespVO;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.move.ErpStockMovePageReqVO;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.move.ErpStockMoveRespVO;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.move.ErpStockMoveSaveReqVO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockMoveDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockMoveItemDO;
-import cn.iocoder.yudao.module.erp.service.product.ErpProductService;
 import cn.iocoder.yudao.module.erp.service.stock.ErpStockMoveService;
 import cn.iocoder.yudao.module.erp.service.stock.ErpStockService;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
@@ -50,8 +48,6 @@ public class ErpStockMoveController {
     private ErpStockMoveService stockMoveService;
     @Resource
     private ErpStockService stockService;
-    @Resource
-    private ErpProductService productService;
 
     @Resource
     private AdminUserApi adminUserApi;
@@ -99,14 +95,10 @@ public class ErpStockMoveController {
             return success(null);
         }
         List<ErpStockMoveItemDO> stockMoveItemList = stockMoveService.getStockMoveItemListByMoveId(id);
-        Map<Long, ErpProductRespVO> productMap = productService.getProductVOMap(
-                convertSet(stockMoveItemList, ErpStockMoveItemDO::getProductId));
         return success(BeanUtils.toBean(stockMove, ErpStockMoveRespVO.class, stockMoveVO ->
                 stockMoveVO.setItems(BeanUtils.toBean(stockMoveItemList, ErpStockMoveRespVO.Item.class, item -> {
-                    ErpStockDO stock = stockService.getStock(item.getProductId(), item.getFromWarehouseId());
+                    ErpStockDO stock = stockService.getStock(item.getGoodsConfigId(), item.getFromWarehouseId());
                     item.setStockCount(stock != null ? stock.getCount() : BigDecimal.ZERO);
-                    MapUtils.findAndThen(productMap, item.getProductId(), product -> item.setProductName(product.getName())
-                            .setProductBarCode(product.getBarCode()).setProductUnitName(product.getUnitName()));
                 }))));
     }
 
@@ -138,18 +130,14 @@ public class ErpStockMoveController {
         List<ErpStockMoveItemDO> stockMoveItemList = stockMoveService.getStockMoveItemListByMoveIds(
                 convertSet(pageResult.getList(), ErpStockMoveDO::getId));
         Map<Long, List<ErpStockMoveItemDO>> stockMoveItemMap = convertMultiMap(stockMoveItemList, ErpStockMoveItemDO::getMoveId);
-        // 1.2 产品信息
-        Map<Long, ErpProductRespVO> productMap = productService.getProductVOMap(
-                convertSet(stockMoveItemList, ErpStockMoveItemDO::getProductId));
+        // 1.2 品类信息
         // 1.3 TODO 芋艿：搞仓库信息
         // 1.4 管理员信息
         Map<Long, AdminUserRespDTO> userMap = adminUserApi.getUserMap(
                 convertSet(pageResult.getList(), stockMove -> Long.parseLong(stockMove.getCreator())));
         // 2. 开始拼接
         return BeanUtils.toBean(pageResult, ErpStockMoveRespVO.class, stockMove -> {
-            stockMove.setItems(BeanUtils.toBean(stockMoveItemMap.get(stockMove.getId()), ErpStockMoveRespVO.Item.class,
-                    item -> MapUtils.findAndThen(productMap, item.getProductId(), product -> item.setProductName(product.getName())
-                            .setProductBarCode(product.getBarCode()).setProductUnitName(product.getUnitName()))));
+            stockMove.setItems(BeanUtils.toBean(stockMoveItemMap.get(stockMove.getId()), ErpStockMoveRespVO.Item.class));
             stockMove.setProductNames(CollUtil.join(stockMove.getItems(), "，", ErpStockMoveRespVO.Item::getProductName));
             // TODO 芋艿：
 //            MapUtils.findAndThen(customerMap, stockMove.getCustomerId(), supplier -> stockMove.setCustomerName(supplier.getName()));

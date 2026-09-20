@@ -18,10 +18,10 @@ import java.math.BigDecimal;
 public class ErpStockRecordCreateReqBO {
 
     /**
-     * 产品编号
+     * 品类编号
      */
-    @NotNull(message = "产品编号不能为空")
-    private Long productId;
+    @NotNull(message = "品类编号不能为空")
+    private Long goodsConfigId;
     /**
      * 仓库编号
      */

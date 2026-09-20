@@ -25,10 +25,10 @@ public interface ErpStockMoveMapper extends BaseMapperX<ErpStockMoveDO> {
                 .likeIfPresent(ErpStockMoveDO::getRemark, reqVO.getRemark())
                 .eqIfPresent(ErpStockMoveDO::getCreator, reqVO.getCreator())
                 .orderByDesc(ErpStockMoveDO::getId);
-        if (reqVO.getFromWarehouseId() != null || reqVO.getProductId() != null) {
+        if (reqVO.getFromWarehouseId() != null || reqVO.getGoodsConfigId() != null) {
             query.leftJoin(ErpStockMoveItemDO.class, ErpStockMoveItemDO::getMoveId, ErpStockMoveDO::getId)
                     .eq(reqVO.getFromWarehouseId() != null, ErpStockMoveItemDO::getFromWarehouseId, reqVO.getFromWarehouseId())
-                    .eq(reqVO.getProductId() != null, ErpStockMoveItemDO::getProductId, reqVO.getProductId())
+                    .eq(reqVO.getGoodsConfigId() != null, ErpStockMoveItemDO::getGoodsConfigId, reqVO.getGoodsConfigId())
                     .groupBy(ErpStockMoveDO::getId); // 避免 1 对多查询，产生相同的 1
         }
         return selectJoinPage(reqVO, ErpStockMoveDO.class, query);

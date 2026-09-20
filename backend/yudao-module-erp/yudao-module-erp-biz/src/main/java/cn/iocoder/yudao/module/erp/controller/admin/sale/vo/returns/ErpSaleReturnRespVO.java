@@ -58,7 +58,7 @@ public class ErpSaleReturnRespVO {
     @Schema(description = "已退款金额，单位：元", requiredMode = Schema.RequiredMode.REQUIRED, example = "7127")
     private BigDecimal refundPrice;
 
-    @Schema(description = "合计产品价格，单位：元", requiredMode = Schema.RequiredMode.REQUIRED, example = "7127")
+    @Schema(description = "合计品类价格，单位：元", requiredMode = Schema.RequiredMode.REQUIRED, example = "7127")
     private BigDecimal totalProductPrice;
 
     @Schema(description = "合计税额，单位：元", requiredMode = Schema.RequiredMode.REQUIRED, example = "7127")
@@ -93,8 +93,8 @@ public class ErpSaleReturnRespVO {
     @Schema(description = "退货项列表", requiredMode = Schema.RequiredMode.REQUIRED)
     private List<Item> items;
 
-    @Schema(description = "产品信息", requiredMode = Schema.RequiredMode.REQUIRED)
-    @ExcelProperty("产品信息")
+    @Schema(description = "品类信息", requiredMode = Schema.RequiredMode.REQUIRED)
+    @ExcelProperty("品类信息")
     private String productNames;
 
     @Data
@@ -109,17 +109,15 @@ public class ErpSaleReturnRespVO {
         @Schema(description = "仓库编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "3113")
         private Long warehouseId;
 
-        @Schema(description = "产品编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "3113")
-        private Long productId;
+        @Schema(description = "品类编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "3113")
+        private Long goodsConfigId;
 
-        @Schema(description = "产品单位单位", requiredMode = Schema.RequiredMode.REQUIRED, example = "3113")
-        private Long productUnitId;
 
-        @Schema(description = "产品单价", example = "100.00")
+        @Schema(description = "品类单价", example = "100.00")
         private BigDecimal productPrice;
 
-        @Schema(description = "产品数量", requiredMode = Schema.RequiredMode.REQUIRED, example = "100.00")
-        @NotNull(message = "产品数量不能为空")
+        @Schema(description = "品类数量", requiredMode = Schema.RequiredMode.REQUIRED, example = "100.00")
+        @NotNull(message = "品类数量不能为空")
         private BigDecimal count;
 
         @Schema(description = "税率，百分比", example = "99.88")
@@ -133,11 +131,11 @@ public class ErpSaleReturnRespVO {
 
         // ========== 关联字段 ==========
 
-        @Schema(description = "产品名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "巧克力")
+        @Schema(description = "品类名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "巧克力")
         private String productName;
-        @Schema(description = "产品条码", requiredMode = Schema.RequiredMode.REQUIRED, example = "A9985")
+        @Schema(description = "品类条码", requiredMode = Schema.RequiredMode.REQUIRED, example = "A9985")
         private String productBarCode;
-        @Schema(description = "产品单位名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "盒")
+        @Schema(description = "品类单位名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "盒")
         private String productUnitName;
 
         @Schema(description = "库存数量", requiredMode = Schema.RequiredMode.REQUIRED, example = "100.00")

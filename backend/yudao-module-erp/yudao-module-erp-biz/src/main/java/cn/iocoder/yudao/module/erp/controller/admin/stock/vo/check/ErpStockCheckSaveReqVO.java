@@ -42,11 +42,11 @@ public class ErpStockCheckSaveReqVO {
         @NotNull(message = "仓库编号不能为空")
         private Long warehouseId;
 
-        @Schema(description = "产品编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "3113")
-        @NotNull(message = "产品编号不能为空")
-        private Long productId;
+        @Schema(description = "品类编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "3113")
+        @NotNull(message = "品类编号不能为空")
+        private Long goodsConfigId;
 
-        @Schema(description = "产品单价", example = "100.00")
+        @Schema(description = "品类单价", example = "100.00")
         private BigDecimal productPrice;
 
         @Schema(description = "账面数量（当前库存）", requiredMode = Schema.RequiredMode.REQUIRED, example = "100.00")

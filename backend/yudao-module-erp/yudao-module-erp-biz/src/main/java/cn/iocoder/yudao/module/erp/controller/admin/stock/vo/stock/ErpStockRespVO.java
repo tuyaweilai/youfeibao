@@ -16,8 +16,8 @@ public class ErpStockRespVO {
     @ExcelProperty("编号")
     private Long id;
 
-    @Schema(description = "产品编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "19614")
-    private Long productId;
+    @Schema(description = "品类编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "19614")
+    private Long goodsConfigId;
 
     @Schema(description = "仓库编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "2802")
     private Long warehouseId;
@@ -26,14 +26,14 @@ public class ErpStockRespVO {
     @ExcelProperty("库存数量")
     private BigDecimal count;
 
-    // ========== 产品信息 ==========
+    // ========== 品类信息 ==========
 
-    @Schema(description = "产品名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "苹果")
-    @ExcelProperty("产品名称")
+    @Schema(description = "品类名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "苹果")
+    @ExcelProperty("品类名称")
     private String productName;
 
-    @Schema(description = "产品分类", requiredMode = Schema.RequiredMode.REQUIRED, example = "水果")
-    @ExcelProperty("产品分类")
+    @Schema(description = "品类分类", requiredMode = Schema.RequiredMode.REQUIRED, example = "水果")
+    @ExcelProperty("品类分类")
     private String categoryName;
 
     @Schema(description = "单位", requiredMode = Schema.RequiredMode.REQUIRED, example = "个")

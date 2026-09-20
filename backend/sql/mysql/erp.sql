@@ -4,6 +4,10 @@
 -- 本文件的改动只有一处：**删掉了原文件里的 15 条演示数据**（`erp_warehouse` 里一条名叫 "1" 的仓库等），
 -- 建表语句逐字保留，便于与上游比对。
 --
+-- 后续变更**不改本文件**，叠加在 [erp-stock-goods-config.sql](erp-stock-goods-config.sql) 之上（T04 / #42）：
+-- 12 张表的 product_id / product_unit_id 换成 goods_config_id，erp_warehouse 加 station_id，
+-- erp_stock 加唯一约束，并删掉 erp_product / erp_product_category / erp_product_unit。
+--
 -- 使用前提见 [ADR 0025](../../../docs/adr/0025-引入-yudao-ERP-作为采购与库存底座.md)：
 -- 一期只启用 stock 域（product / purchase 排除，采购履约链建在 icbc 模块），sale、finance、statistics 不分配菜单。
 -- 即使不启用，表也一并建出来（避免后续加域时再改导入流程）。

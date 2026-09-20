@@ -6,6 +6,7 @@
 
 1. `ruoyi-vue-pro.sql` —— yudao 全量建表 + 演示数据（管理员、菜单、租户等）。**ERP 的菜单（id 2563–2702）与 `erp:*` 权限也在其中**
 2. `erp.sql` —— ERP 建表（33 张表，来自上游导出，已删演示数据）。没建这几张表时，放开 `yudao-module-erp` 后任何 ERP 页面一查库就报错
+2b. `erp-stock-goods-config.sql` —— T04（#42）：12 张表 `product_id`/`product_unit_id` → `goods_config_id`、`erp_warehouse.station_id`、`erp_stock` 唯一约束，并删除 `erp_product*` 三张表。必须在 `erp.sql` 之后
 3. `quartz.sql` —— Quartz 调度表
 4. `02-initial-data.sql`、`yudao-module-enterprise-auth-flow.sql`、`member-2024-01-18.sql` —— 模块补充
 5. `icbc_*.sql` —— 反向开票（工行）业务表
@@ -36,7 +37,7 @@
 cd backend/sql/mysql
 MYSQL="mysql -h 127.0.0.1 -P 13308 -uroot -p --default-character-set=utf8mb4"
 $MYSQL -e "CREATE DATABASE IF NOT EXISTS \`ruoyi-vue-pro\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-for f in ruoyi-vue-pro erp quartz 02-initial-data yudao-module-enterprise-auth-flow member-2024-01-18 \
+for f in ruoyi-vue-pro erp erp-stock-goods-config quartz 02-initial-data yudao-module-enterprise-auth-flow member-2024-01-18 \
          icbc_payee_info icbc_payer_info icbc_invoice_tables icbc_payment_order \
          icbc_invoice_download icbc_api_log_callback enterprise icbc-readiness icbc-evidence icbc-public-token icbc-jobs icbc-seller-onboarding icbc-acquisition icbc-invoice-application icbc-payment icbc-invoice-issuance icbc-red-invoice icbc-quota icbc-tax-declaration icbc-billing icbc-natural-person icbc-settlement icbc-station icbc-seller-portal icbc-appointment icbc-seller-notify icbc-bank-card-change icbc-menu; do
   $MYSQL ruoyi-vue-pro < "$f.sql"

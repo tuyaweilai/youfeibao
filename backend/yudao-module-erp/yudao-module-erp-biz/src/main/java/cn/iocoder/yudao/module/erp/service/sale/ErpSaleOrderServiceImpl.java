@@ -7,7 +7,6 @@ import cn.iocoder.yudao.framework.common.util.number.MoneyUtils;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.erp.controller.admin.sale.vo.order.ErpSaleOrderPageReqVO;
 import cn.iocoder.yudao.module.erp.controller.admin.sale.vo.order.ErpSaleOrderSaveReqVO;
-import cn.iocoder.yudao.module.erp.dal.dataobject.product.ErpProductDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.sale.ErpSaleOrderDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.sale.ErpSaleOrderItemDO;
 import cn.iocoder.yudao.module.erp.dal.mysql.sale.ErpSaleOrderItemMapper;
@@ -15,7 +14,6 @@ import cn.iocoder.yudao.module.erp.dal.mysql.sale.ErpSaleOrderMapper;
 import cn.iocoder.yudao.module.erp.dal.redis.no.ErpNoRedisDAO;
 import cn.iocoder.yudao.module.erp.enums.ErpAuditStatus;
 import cn.iocoder.yudao.module.erp.service.finance.ErpAccountService;
-import cn.iocoder.yudao.module.erp.service.product.ErpProductService;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,8 +49,6 @@ public class ErpSaleOrderServiceImpl implements ErpSaleOrderService {
     @Resource
     private ErpNoRedisDAO noRedisDAO;
 
-    @Resource
-    private ErpProductService productService;
     @Resource
     private ErpCustomerService customerService;
     @Resource
@@ -163,13 +159,8 @@ public class ErpSaleOrderServiceImpl implements ErpSaleOrderService {
     }
 
     private List<ErpSaleOrderItemDO> validateSaleOrderItems(List<ErpSaleOrderSaveReqVO.Item> list) {
-        // 1. 校验产品存在
-        List<ErpProductDO> productList = productService.validProductList(
-                convertSet(list, ErpSaleOrderSaveReqVO.Item::getProductId));
-        Map<Long, ErpProductDO> productMap = convertMap(productList, ErpProductDO::getId);
         // 2. 转化为 ErpSaleOrderItemDO 列表
         return convertList(list, o -> BeanUtils.toBean(o, ErpSaleOrderItemDO.class, item -> {
-            item.setProductUnitId(productMap.get(item.getProductId()).getUnitId());
             item.setTotalPrice(MoneyUtils.priceMultiply(item.getProductPrice(), item.getCount()));
             if (item.getTotalPrice() == null) {
                 return;
@@ -210,7 +201,7 @@ public class ErpSaleOrderServiceImpl implements ErpSaleOrderService {
             }
             if (outCount.compareTo(item.getCount()) > 0) {
                 throw exception(SALE_ORDER_ITEM_OUT_FAIL_PRODUCT_EXCEED,
-                        productService.getProduct(item.getProductId()).getName(), item.getCount());
+                        String.valueOf(item.getGoodsConfigId()), item.getCount());
             }
             saleOrderItemMapper.updateById(new ErpSaleOrderItemDO().setId(item.getId()).setOutCount(outCount));
         });
@@ -230,7 +221,7 @@ public class ErpSaleOrderServiceImpl implements ErpSaleOrderService {
             }
             if (returnCount.compareTo(item.getOutCount()) > 0) {
                 throw exception(SALE_ORDER_ITEM_RETURN_FAIL_OUT_EXCEED,
-                        productService.getProduct(item.getProductId()).getName(), item.getOutCount());
+                        String.valueOf(item.getGoodsConfigId()), item.getOutCount());
             }
             saleOrderItemMapper.updateById(new ErpSaleOrderItemDO().setId(item.getId()).setReturnCount(returnCount));
         });

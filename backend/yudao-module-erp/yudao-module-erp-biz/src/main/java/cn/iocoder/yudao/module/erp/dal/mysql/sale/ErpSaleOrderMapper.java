@@ -56,9 +56,9 @@ public interface ErpSaleOrderMapper extends BaseMapperX<ErpSaleOrderDO> {
             query.eq(ErpSaleOrderDO::getStatus, ErpAuditStatus.APPROVE.getStatus())
                     .apply("t.return_count < t.out_count");
         }
-        if (reqVO.getProductId() != null) {
+        if (reqVO.getGoodsConfigId() != null) {
             query.leftJoin(ErpSaleOrderItemDO.class, ErpSaleOrderItemDO::getOrderId, ErpSaleOrderDO::getId)
-                    .eq(reqVO.getProductId() != null, ErpSaleOrderItemDO::getProductId, reqVO.getProductId())
+                    .eq(reqVO.getGoodsConfigId() != null, ErpSaleOrderItemDO::getGoodsConfigId, reqVO.getGoodsConfigId())
                     .groupBy(ErpSaleOrderDO::getId); // 避免 1 对多查询，产生相同的 1
         }
         return selectJoinPage(reqVO, ErpSaleOrderDO.class, query);

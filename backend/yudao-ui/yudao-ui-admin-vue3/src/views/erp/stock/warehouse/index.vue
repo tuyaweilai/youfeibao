@@ -77,6 +77,7 @@
         :formatter="erpPriceTableColumnFormatter"
       />
       <el-table-column label="负责人" align="center" prop="principal" />
+      <el-table-column label="归属场站" align="center" prop="stationId" />
       <el-table-column label="备注" align="center" prop="remark" />
       <el-table-column label="排序" align="center" prop="sort" />
       <el-table-column label="状态" align="center" prop="status">

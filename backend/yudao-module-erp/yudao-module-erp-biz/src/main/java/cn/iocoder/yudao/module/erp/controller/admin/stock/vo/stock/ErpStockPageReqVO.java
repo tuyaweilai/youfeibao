@@ -12,8 +12,8 @@ import lombok.ToString;
 @ToString(callSuper = true)
 public class ErpStockPageReqVO extends PageParam {
 
-    @Schema(description = "产品编号", example = "19614")
-    private Long productId;
+    @Schema(description = "品类编号", example = "19614")
+    private Long goodsConfigId;
 
     @Schema(description = "仓库编号", example = "2802")
     private Long warehouseId;

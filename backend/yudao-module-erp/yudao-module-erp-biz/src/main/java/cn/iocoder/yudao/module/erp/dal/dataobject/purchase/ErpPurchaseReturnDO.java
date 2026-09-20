@@ -88,7 +88,7 @@ public class ErpPurchaseReturnDO extends BaseDO {
     private BigDecimal refundPrice;
 
     /**
-     * 合计产品价格，单位：元
+     * 合计品类价格，单位：元
      */
     private BigDecimal totalProductPrice;
     /**

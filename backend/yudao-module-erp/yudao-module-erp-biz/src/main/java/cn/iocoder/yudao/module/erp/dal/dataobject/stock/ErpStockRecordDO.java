@@ -1,7 +1,6 @@
 package cn.iocoder.yudao.module.erp.dal.dataobject.stock;
 
 import cn.iocoder.yudao.framework.mybatis.core.dataobject.BaseDO;
-import cn.iocoder.yudao.module.erp.dal.dataobject.product.ErpProductDO;
 import cn.iocoder.yudao.module.erp.enums.stock.ErpStockRecordBizTypeEnum;
 import com.baomidou.mybatisplus.annotation.KeySequence;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -11,7 +10,7 @@ import lombok.*;
 import java.math.BigDecimal;
 
 /**
- * ERP 产品库存明细 DO
+ * ERP 品类库存明细 DO
  *
  * @author 芋道源码
  */
@@ -31,11 +30,11 @@ public class ErpStockRecordDO extends BaseDO {
     @TableId
     private Long id;
     /**
-     * 产品编号
+     * 品类编号
      *
-     * 关联 {@link ErpProductDO#getId()}
+     * 关联 icbc_goods_config.id
      */
-    private Long productId;
+    private Long goodsConfigId;
     /**
      * 仓库编号
      *

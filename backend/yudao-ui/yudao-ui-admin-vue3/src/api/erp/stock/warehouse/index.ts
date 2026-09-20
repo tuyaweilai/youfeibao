@@ -7,6 +7,7 @@ export interface WarehouseVO {
   address: string // 仓库地址
   sort: number // 排序
   remark: string // 备注
+  stationId: number // 归属场站编号（icbc_station.id）
   principal: string // 负责人
   warehousePrice: number // 仓储费，单位：元
   truckagePrice: number // 搬运费，单位：元

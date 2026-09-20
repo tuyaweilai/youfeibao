@@ -69,7 +69,7 @@ public class ErpPurchaseOrderDO extends BaseDO {
     private BigDecimal totalPrice;
 
     /**
-     * 合计产品价格，单位：元
+     * 合计品类价格，单位：元
      */
     private BigDecimal totalProductPrice;
     /**

@@ -25,10 +25,10 @@ public interface ErpStockCheckMapper extends BaseMapperX<ErpStockCheckDO> {
                 .likeIfPresent(ErpStockCheckDO::getRemark, reqVO.getRemark())
                 .eqIfPresent(ErpStockCheckDO::getCreator, reqVO.getCreator())
                 .orderByDesc(ErpStockCheckDO::getId);
-        if (reqVO.getWarehouseId() != null || reqVO.getProductId() != null) {
+        if (reqVO.getWarehouseId() != null || reqVO.getGoodsConfigId() != null) {
             query.leftJoin(ErpStockCheckItemDO.class, ErpStockCheckItemDO::getCheckId, ErpStockCheckDO::getId)
                     .eq(reqVO.getWarehouseId() != null, ErpStockCheckItemDO::getWarehouseId, reqVO.getWarehouseId())
-                    .eq(reqVO.getProductId() != null, ErpStockCheckItemDO::getProductId, reqVO.getProductId())
+                    .eq(reqVO.getGoodsConfigId() != null, ErpStockCheckItemDO::getGoodsConfigId, reqVO.getGoodsConfigId())
                     .groupBy(ErpStockCheckDO::getId); // 避免 1 对多查询，产生相同的 1
         }
         return selectJoinPage(reqVO, ErpStockCheckDO.class, query);

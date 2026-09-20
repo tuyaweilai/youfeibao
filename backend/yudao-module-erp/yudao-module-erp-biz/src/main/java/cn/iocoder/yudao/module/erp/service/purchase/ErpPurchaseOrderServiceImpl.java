@@ -7,7 +7,6 @@ import cn.iocoder.yudao.framework.common.util.number.MoneyUtils;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.erp.controller.admin.purchase.vo.order.ErpPurchaseOrderPageReqVO;
 import cn.iocoder.yudao.module.erp.controller.admin.purchase.vo.order.ErpPurchaseOrderSaveReqVO;
-import cn.iocoder.yudao.module.erp.dal.dataobject.product.ErpProductDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.purchase.ErpPurchaseOrderDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.purchase.ErpPurchaseOrderItemDO;
 import cn.iocoder.yudao.module.erp.dal.mysql.purchase.ErpPurchaseOrderItemMapper;
@@ -15,7 +14,6 @@ import cn.iocoder.yudao.module.erp.dal.mysql.purchase.ErpPurchaseOrderMapper;
 import cn.iocoder.yudao.module.erp.dal.redis.no.ErpNoRedisDAO;
 import cn.iocoder.yudao.module.erp.enums.ErpAuditStatus;
 import cn.iocoder.yudao.module.erp.service.finance.ErpAccountService;
-import cn.iocoder.yudao.module.erp.service.product.ErpProductService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
@@ -50,8 +48,6 @@ public class ErpPurchaseOrderServiceImpl implements ErpPurchaseOrderService {
     @Resource
     private ErpNoRedisDAO noRedisDAO;
 
-    @Resource
-    private ErpProductService productService;
     @Resource
     private ErpSupplierService supplierService;
     @Resource
@@ -151,13 +147,8 @@ public class ErpPurchaseOrderServiceImpl implements ErpPurchaseOrderService {
     }
 
     private List<ErpPurchaseOrderItemDO> validatePurchaseOrderItems(List<ErpPurchaseOrderSaveReqVO.Item> list) {
-        // 1. 校验产品存在
-        List<ErpProductDO> productList = productService.validProductList(
-                convertSet(list, ErpPurchaseOrderSaveReqVO.Item::getProductId));
-        Map<Long, ErpProductDO> productMap = convertMap(productList, ErpProductDO::getId);
         // 2. 转化为 ErpPurchaseOrderItemDO 列表
         return convertList(list, o -> BeanUtils.toBean(o, ErpPurchaseOrderItemDO.class, item -> {
-            item.setProductUnitId(productMap.get(item.getProductId()).getUnitId());
             item.setTotalPrice(MoneyUtils.priceMultiply(item.getProductPrice(), item.getCount()));
             if (item.getTotalPrice() == null) {
                 return;
@@ -198,7 +189,7 @@ public class ErpPurchaseOrderServiceImpl implements ErpPurchaseOrderService {
             }
             if (inCount.compareTo(item.getCount()) > 0) {
                 throw exception(PURCHASE_ORDER_ITEM_IN_FAIL_PRODUCT_EXCEED,
-                        productService.getProduct(item.getProductId()).getName(), item.getCount());
+                        String.valueOf(item.getGoodsConfigId()), item.getCount());
             }
             purchaseOrderItemMapper.updateById(new ErpPurchaseOrderItemDO().setId(item.getId()).setInCount(inCount));
         });
@@ -218,7 +209,7 @@ public class ErpPurchaseOrderServiceImpl implements ErpPurchaseOrderService {
             }
             if (returnCount.compareTo(item.getInCount()) > 0) {
                 throw exception(PURCHASE_ORDER_ITEM_RETURN_FAIL_IN_EXCEED,
-                        productService.getProduct(item.getProductId()).getName(), item.getInCount());
+                        String.valueOf(item.getGoodsConfigId()), item.getInCount());
             }
             purchaseOrderItemMapper.updateById(new ErpPurchaseOrderItemDO().setId(item.getId()).setReturnCount(returnCount));
         });

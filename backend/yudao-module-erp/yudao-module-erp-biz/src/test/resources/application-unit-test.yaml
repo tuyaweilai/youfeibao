@@ -1,0 +1,32 @@
+spring:
+  main:
+    lazy-initialization: true # 开启懒加载，加快速度
+    banner-mode: off # 关闭 Banner
+
+# MyBatis Plus 的配置项
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true # 虽然默认为 true ，但是还是显示去指定下。
+  global-config:
+    db-config:
+      id-type: AUTO # 自增 ID
+      logic-delete-value: true # 逻辑已删除值(默认为 1)
+      logic-not-delete-value: false # 逻辑未删除值(默认为 0)
+  mapper-locations: classpath*:mapper/*.xml
+  type-aliases-package: ${yudao.info.base-package}.module.*.dal.dataobject
+
+# yudao 配置项
+yudao:
+  info:
+    base-package: cn.iocoder.yudao
+
+# 数据源配置
+spring.datasource:
+  name: ruoyi-vue-pro
+  url: jdbc:h2:mem:testdb;MODE=MYSQL;DATABASE_TO_UPPER=false;NON_KEYWORDS=VALUE; # MODE 使用 MySQL 模式；DATABASE_TO_UPPER 配置表和字段使用小写
+  driver-class-name: org.h2.Driver
+  username: sa
+  password:
+  schema: classpath:sql/create_tables.sql
+  druid:
+    test-while-idle: false # 关闭测试，避免影响启动速度

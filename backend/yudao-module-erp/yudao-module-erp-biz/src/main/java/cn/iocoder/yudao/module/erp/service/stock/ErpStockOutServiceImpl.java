@@ -6,7 +6,6 @@ import cn.iocoder.yudao.framework.common.util.number.MoneyUtils;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.out.ErpStockOutPageReqVO;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.out.ErpStockOutSaveReqVO;
-import cn.iocoder.yudao.module.erp.dal.dataobject.product.ErpProductDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockOutDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockOutItemDO;
 import cn.iocoder.yudao.module.erp.dal.mysql.stock.ErpStockOutItemMapper;
@@ -14,7 +13,6 @@ import cn.iocoder.yudao.module.erp.dal.mysql.stock.ErpStockOutMapper;
 import cn.iocoder.yudao.module.erp.dal.redis.no.ErpNoRedisDAO;
 import cn.iocoder.yudao.module.erp.enums.ErpAuditStatus;
 import cn.iocoder.yudao.module.erp.enums.stock.ErpStockRecordBizTypeEnum;
-import cn.iocoder.yudao.module.erp.service.product.ErpProductService;
 import cn.iocoder.yudao.module.erp.service.sale.ErpCustomerService;
 import cn.iocoder.yudao.module.erp.service.stock.bo.ErpStockRecordCreateReqBO;
 import org.springframework.stereotype.Service;
@@ -51,8 +49,6 @@ public class ErpStockOutServiceImpl implements ErpStockOutService {
     @Resource
     private ErpNoRedisDAO noRedisDAO;
 
-    @Resource
-    private ErpProductService productService;
     @Resource
     private ErpWarehouseService warehouseService;
     @Resource
@@ -132,21 +128,16 @@ public class ErpStockOutServiceImpl implements ErpStockOutService {
         stockOutItems.forEach(stockOutItem -> {
             BigDecimal count = approve ? stockOutItem.getCount().negate() : stockOutItem.getCount();
             stockRecordService.createStockRecord(new ErpStockRecordCreateReqBO(
-                    stockOutItem.getProductId(), stockOutItem.getWarehouseId(), count,
+                    stockOutItem.getGoodsConfigId(), stockOutItem.getWarehouseId(), count,
                     bizType, stockOutItem.getOutId(), stockOutItem.getId(), stockOut.getNo()));
         });
     }
 
     private List<ErpStockOutItemDO> validateStockOutItems(List<ErpStockOutSaveReqVO.Item> list) {
-        // 1.1 校验产品存在
-        List<ErpProductDO> productList = productService.validProductList(
-                convertSet(list, ErpStockOutSaveReqVO.Item::getProductId));
-        Map<Long, ErpProductDO> productMap = convertMap(productList, ErpProductDO::getId);
         // 1.2 校验仓库存在
         warehouseService.validWarehouseList(convertSet(list, ErpStockOutSaveReqVO.Item::getWarehouseId));
         // 2. 转化为 ErpStockOutItemDO 列表
         return convertList(list, o -> BeanUtils.toBean(o, ErpStockOutItemDO.class, item -> item
-                .setProductUnitId(productMap.get(item.getProductId()).getUnitId())
                 .setTotalPrice(MoneyUtils.priceMultiply(item.getProductPrice(), item.getCount()))));
     }
 

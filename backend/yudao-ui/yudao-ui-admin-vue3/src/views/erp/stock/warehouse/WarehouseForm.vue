@@ -43,6 +43,15 @@
           class="!w-1/1"
         />
       </el-form-item>
+      <el-form-item label="归属场站" prop="stationId">
+        <el-input-number
+          v-model="formData.stationId"
+          placeholder="请输入归属场站编号（icbc_station.id）"
+          :min="1"
+          :precision="0"
+          class="!w-1/1"
+        />
+      </el-form-item>
       <el-form-item label="负责人" prop="principal">
         <el-input v-model="formData.principal" placeholder="请输入负责人" />
       </el-form-item>
@@ -85,6 +94,7 @@ const formData = ref({
   address: undefined,
   sort: undefined,
   remark: undefined,
+  stationId: undefined,
   principal: undefined,
   warehousePrice: undefined,
   truckagePrice: undefined,
@@ -147,6 +157,7 @@ const resetForm = () => {
     address: undefined,
     sort: undefined,
     remark: undefined,
+    stationId: undefined,
     principal: undefined,
     warehousePrice: undefined,
     truckagePrice: undefined,

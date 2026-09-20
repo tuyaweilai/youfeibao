@@ -6,7 +6,6 @@ import cn.iocoder.yudao.framework.common.util.number.MoneyUtils;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.move.ErpStockMovePageReqVO;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.move.ErpStockMoveSaveReqVO;
-import cn.iocoder.yudao.module.erp.dal.dataobject.product.ErpProductDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockMoveDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockMoveItemDO;
 import cn.iocoder.yudao.module.erp.dal.mysql.stock.ErpStockMoveItemMapper;
@@ -14,7 +13,6 @@ import cn.iocoder.yudao.module.erp.dal.mysql.stock.ErpStockMoveMapper;
 import cn.iocoder.yudao.module.erp.dal.redis.no.ErpNoRedisDAO;
 import cn.iocoder.yudao.module.erp.enums.ErpAuditStatus;
 import cn.iocoder.yudao.module.erp.enums.stock.ErpStockRecordBizTypeEnum;
-import cn.iocoder.yudao.module.erp.service.product.ErpProductService;
 import cn.iocoder.yudao.module.erp.service.stock.bo.ErpStockRecordCreateReqBO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,8 +49,6 @@ public class ErpStockMoveServiceImpl implements ErpStockMoveService {
     @Resource
     private ErpNoRedisDAO noRedisDAO;
 
-    @Resource
-    private ErpProductService productService;
     @Resource
     private ErpWarehouseService warehouseService;
     @Resource
@@ -129,25 +125,20 @@ public class ErpStockMoveServiceImpl implements ErpStockMoveService {
             BigDecimal fromCount = approve ? stockMoveItem.getCount().negate() : stockMoveItem.getCount();
             BigDecimal toCount = approve ? stockMoveItem.getCount() : stockMoveItem.getCount().negate();
             stockRecordService.createStockRecord(new ErpStockRecordCreateReqBO(
-                    stockMoveItem.getProductId(), stockMoveItem.getFromWarehouseId(), fromCount,
+                    stockMoveItem.getGoodsConfigId(), stockMoveItem.getFromWarehouseId(), fromCount,
                     fromBizType, stockMoveItem.getMoveId(), stockMoveItem.getId(), stockMove.getNo()));
             stockRecordService.createStockRecord(new ErpStockRecordCreateReqBO(
-                    stockMoveItem.getProductId(), stockMoveItem.getToWarehouseId(), toCount,
+                    stockMoveItem.getGoodsConfigId(), stockMoveItem.getToWarehouseId(), toCount,
                     toBizType, stockMoveItem.getMoveId(), stockMoveItem.getId(), stockMove.getNo()));
         });
     }
 
     private List<ErpStockMoveItemDO> validateStockMoveItems(List<ErpStockMoveSaveReqVO.Item> list) {
-        // 1.1 校验产品存在
-        List<ErpProductDO> productList = productService.validProductList(
-                convertSet(list, ErpStockMoveSaveReqVO.Item::getProductId));
-        Map<Long, ErpProductDO> productMap = convertMap(productList, ErpProductDO::getId);
         // 1.2 校验仓库存在
         warehouseService.validWarehouseList(convertSetByFlatMap(list,
                 item -> Stream.of(item.getFromWarehouseId(),  item.getToWarehouseId())));
         // 2. 转化为 ErpStockMoveItemDO 列表
         return convertList(list, o -> BeanUtils.toBean(o, ErpStockMoveItemDO.class, item -> item
-                .setProductUnitId(productMap.get(item.getProductId()).getUnitId())
                 .setTotalPrice(MoneyUtils.priceMultiply(item.getProductPrice(), item.getCount()))));
     }
 

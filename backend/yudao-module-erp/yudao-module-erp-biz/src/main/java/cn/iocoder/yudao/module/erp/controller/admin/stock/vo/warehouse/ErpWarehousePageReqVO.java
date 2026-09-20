@@ -21,4 +21,7 @@ public class ErpWarehousePageReqVO extends PageParam {
     @InEnum(CommonStatusEnum.class)
     private Integer status;
 
+    @Schema(description = "归属场站编号", example = "1024")
+    private Long stationId;
+
 }

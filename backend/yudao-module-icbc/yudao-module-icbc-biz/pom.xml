@@ -44,6 +44,13 @@
             <artifactId>yudao-module-system-api</artifactId>
             <version>${revision}</version>
         </dependency>
+
+        <!-- 库存域：回收业务把库存写入 ERP，依赖方向恒为 icbc → erp（见 ADR 0025 / #42） -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-module-erp-api</artifactId>
+            <version>${revision}</version>
+        </dependency>
         
         <!-- Web 相关 -->
         <dependency>
