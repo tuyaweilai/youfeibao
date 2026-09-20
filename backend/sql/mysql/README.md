@@ -4,28 +4,29 @@
 
 ## 导入顺序
 
-1. `ruoyi-vue-pro.sql` —— yudao 全量建表 + 演示数据（管理员、菜单、租户等）
-2. `quartz.sql` —— Quartz 调度表
-3. `02-initial-data.sql`、`yudao-module-enterprise-auth-flow.sql`、`member-2024-01-18.sql` —— 模块补充
-4. `icbc_*.sql` —— 反向开票（工行）业务表
-5. `enterprise.sql` —— 企业管理（企业信息 / 资质 / 门店 / 用户关系）表
-6. `icbc-readiness.sql` —— 租户开票就绪：三层资质、编码配置、企业授权表；平台级报废产品编码表；到期预警表
-7. `icbc-evidence.sql` —— 一票一档证据表（人工补录的合同流 / 货物流证据）
-8. `icbc-public-token.sql` —— 公开令牌表与收方入驻失败留联系方式表（自然人免登录端点）
-9. `icbc-jobs.sql` —— icbc 定时任务种子（资质到期提醒）
-10. `icbc-seller-onboarding.sql` —— 出售者建档：框架收购协议、首次授权表（实人认证 / 收方入驻字段已并入 `icbc_payee_info.sql`）
-11. `icbc-acquisition.sql` —— 收购登记单（合同流 / 货物流 / 信息流骨架）
-12. `icbc-invoice-application.sql`、`icbc-payment.sql`、`icbc-invoice-issuance.sql` —— 开票申请、付款、开票 / 缴税 / 上传状态的增量字段
-13. `icbc-red-invoice.sql` —— 红字发票（红冲）表
-14. `icbc-quota.sql` —— 额度风控：开票订单适用征收率、出售者额度超限的经营主体登记引导表
-15. `icbc-billing.sql` —— 平台计费计量台账（成功开具张数 / 红冲扣减 / 应计费用）
-16. `icbc-natural-person.sql` —— 自然人身份层：平台级自然人主体表、自然人主体与登录凭证绑定表、收方档案挂靠与既有数据回填、通知幂等键加宽（#31）
-17. `icbc-settlement.sql` —— 结算单与版本快照（#33）：一次到场批次一张结算单、确认留痕与线下签字、异议与版本留痕
-18. `icbc-station.sql` —— 场站与场站二维码（#34）：一码一场站，码内不带令牌，只编码场站码；公开信息读取限流
-19. `icbc-seller-portal.sql` —— 自然人端（#34）：企业授权自助撤销留痕、收款记录「我收到了」自行确认列
-20. `icbc-appointment.sql` —— 到站预约（#35）：预约不是订单，不占额度、不产生开票、不进五流
-21. `icbc-seller-notify.sql` —— 出售者触达（#36）：短信三条 + 收货员转达；触达记录与租户级短信开关表、短信模板
-22. `icbc-menu.sql` —— 反向开票与租户开票就绪的管理后台菜单（依赖 `system_menu`，最后导）
+1. `ruoyi-vue-pro.sql` —— yudao 全量建表 + 演示数据（管理员、菜单、租户等）。**ERP 的菜单（id 2563–2702）与 `erp:*` 权限也在其中**
+2. `erp.sql` —— ERP 建表（33 张表，来自上游导出，已删演示数据）。没建这几张表时，放开 `yudao-module-erp` 后任何 ERP 页面一查库就报错
+3. `quartz.sql` —— Quartz 调度表
+4. `02-initial-data.sql`、`yudao-module-enterprise-auth-flow.sql`、`member-2024-01-18.sql` —— 模块补充
+5. `icbc_*.sql` —— 反向开票（工行）业务表
+6. `enterprise.sql` —— 企业管理（企业信息 / 资质 / 门店 / 用户关系）表
+7. `icbc-readiness.sql` —— 租户开票就绪：三层资质、编码配置、企业授权表；平台级报废产品编码表；到期预警表
+8. `icbc-evidence.sql` —— 一票一档证据表（人工补录的合同流 / 货物流证据）
+9. `icbc-public-token.sql` —— 公开令牌表与收方入驻失败留联系方式表（自然人免登录端点）
+10. `icbc-jobs.sql` —— icbc 定时任务种子（资质到期提醒）
+11. `icbc-seller-onboarding.sql` —— 出售者建档：框架收购协议、首次授权表（实人认证 / 收方入驻字段已并入 `icbc_payee_info.sql`）
+12. `icbc-acquisition.sql` —— 收购登记单（合同流 / 货物流 / 信息流骨架）
+13. `icbc-invoice-application.sql`、`icbc-payment.sql`、`icbc-invoice-issuance.sql` —— 开票申请、付款、开票 / 缴税 / 上传状态的增量字段
+14. `icbc-red-invoice.sql` —— 红字发票（红冲）表
+15. `icbc-quota.sql` —— 额度风控：开票订单适用征收率、出售者额度超限的经营主体登记引导表
+16. `icbc-billing.sql` —— 平台计费计量台账（成功开具张数 / 红冲扣减 / 应计费用）
+17. `icbc-natural-person.sql` —— 自然人身份层：平台级自然人主体表、自然人主体与登录凭证绑定表、收方档案挂靠与既有数据回填、通知幂等键加宽（#31）
+18. `icbc-settlement.sql` —— 结算单与版本快照（#33）：一次到场批次一张结算单、确认留痕与线下签字、异议与版本留痕
+19. `icbc-station.sql` —— 场站与场站二维码（#34）：一码一场站，码内不带令牌，只编码场站码；公开信息读取限流
+20. `icbc-seller-portal.sql` —— 自然人端（#34）：企业授权自助撤销留痕、收款记录「我收到了」自行确认列
+21. `icbc-appointment.sql` —— 到站预约（#35）：预约不是订单，不占额度、不产生开票、不进五流
+22. `icbc-seller-notify.sql` —— 出售者触达（#36）：短信三条 + 收货员转达；触达记录与租户级短信开关表、短信模板
+23. `icbc-menu.sql` —— 反向开票与租户开票就绪的管理后台菜单（依赖 `system_menu`，最后导）
 
 > enterprise 的菜单与字典已包含在 `ruoyi-vue-pro.sql` 中，不要再单独导入 `enterprise-menu.sql` / `module-enterprise-dict.sql`（会主键冲突）。
 
@@ -35,7 +36,7 @@
 cd backend/sql/mysql
 MYSQL="mysql -h 127.0.0.1 -P 13308 -uroot -p --default-character-set=utf8mb4"
 $MYSQL -e "CREATE DATABASE IF NOT EXISTS \`ruoyi-vue-pro\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-for f in ruoyi-vue-pro quartz 02-initial-data yudao-module-enterprise-auth-flow member-2024-01-18 \
+for f in ruoyi-vue-pro erp quartz 02-initial-data yudao-module-enterprise-auth-flow member-2024-01-18 \
          icbc_payee_info icbc_payer_info icbc_invoice_tables icbc_payment_order \
          icbc_invoice_download icbc_api_log_callback enterprise icbc-readiness icbc-evidence icbc-public-token icbc-jobs icbc-seller-onboarding icbc-acquisition icbc-invoice-application icbc-payment icbc-invoice-issuance icbc-red-invoice icbc-quota icbc-tax-declaration icbc-billing icbc-natural-person icbc-settlement icbc-station icbc-seller-portal icbc-appointment icbc-seller-notify icbc-bank-card-change icbc-menu; do
   $MYSQL ruoyi-vue-pro < "$f.sql"
@@ -71,6 +72,7 @@ $MYSQL ruoyi-vue-pro < repair-mojibake.sql   # 只打印「表 / 列 / 修复行
 
 ## 来源与脱敏
 
-- 来源：`tuyaweilai/tuya-saas-java` 归档的 `ruoyi-vue-pro/sql/mysql`。
+- `erp.sql` 的来源另计：`sql/erp-2026-04-18.sql.zip`（项目外的上游导出），建表语句逐字保留，仅删演示数据。
+- 其余来源：`tuyaweilai/tuya-saas-java` 归档的 `ruoyi-vue-pro/sql/mysql`。
 - 并入时已**脱敏**：阿里云 / 腾讯云示例 AccessKey、短信 `api_secret` 等替换为 `REPLACE_ME`。详见 ADR 0012。
 - icbc 表在本快照里已带 `tenant_id`；`backend/doc/icbc/sql/tenant-scope.sql` 保留，用于进一步把出售者唯一键收敛为「租户内唯一」。
