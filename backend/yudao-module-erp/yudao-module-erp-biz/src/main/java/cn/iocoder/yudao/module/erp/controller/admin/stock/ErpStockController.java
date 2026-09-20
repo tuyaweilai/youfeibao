@@ -11,7 +11,11 @@ import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.stock.ErpStockPageReqVO;
 import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.stock.ErpStockRespVO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockDO;
+import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockBatchDO;
+import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockLocationDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpWarehouseDO;
+import cn.iocoder.yudao.module.erp.service.stock.ErpStockBatchService;
+import cn.iocoder.yudao.module.erp.service.stock.ErpStockLocationService;
 import cn.iocoder.yudao.module.erp.service.stock.ErpStockService;
 import cn.iocoder.yudao.module.erp.service.stock.ErpWarehouseService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,6 +39,7 @@ import java.util.Map;
 
 import static cn.iocoder.yudao.framework.apilog.core.enums.OperateTypeEnum.EXPORT;
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
+import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertMap;
 import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertSet;
 
 @Tag(name = "管理后台 - ERP 品类库存")
@@ -47,19 +52,28 @@ public class ErpStockController {
     private ErpStockService stockService;
     @Resource
     private ErpWarehouseService warehouseService;
+    @Resource
+    private ErpStockLocationService stockLocationService;
+    @Resource
+    private ErpStockBatchService stockBatchService;
 
     @GetMapping("/get")
     @Operation(summary = "获得品类库存")
     @Parameters({
             @Parameter(name = "id", description = "编号", example = "1"), // 方案一：传递 id
-            @Parameter(name = "goodsConfigId", description = "品类编号", example = "10"), // 方案二：传递 goodsConfigId + warehouseId
-            @Parameter(name = "warehouseId", description = "仓库编号", example = "2")
+            @Parameter(name = "goodsConfigId", description = "品类编号", example = "10"), // 方案二：传递 goodsConfigId + warehouseId（+ 可选 locationId + batchId）
+            @Parameter(name = "warehouseId", description = "仓库编号", example = "2"),
+            @Parameter(name = "locationId", description = "库位编号", example = "3"),
+            @Parameter(name = "batchId", description = "批次编号", example = "4")
     })
     @PreAuthorize("@ss.hasPermission('erp:stock:query')")
     public CommonResult<ErpStockRespVO> getStock(@RequestParam(value = "id", required = false) Long id,
                                                  @RequestParam(value = "goodsConfigId", required = false) Long goodsConfigId,
-                                                 @RequestParam(value = "warehouseId", required = false) Long warehouseId) {
-        ErpStockDO stock = id != null ? stockService.getStock(id) : stockService.getStock(goodsConfigId, warehouseId);
+                                                 @RequestParam(value = "warehouseId", required = false) Long warehouseId,
+                                                 @RequestParam(value = "locationId", required = false) Long locationId,
+                                                 @RequestParam(value = "batchId", required = false) Long batchId) {
+        ErpStockDO stock = id != null ? stockService.getStock(id)
+                : stockService.getStock(goodsConfigId, warehouseId, locationId, batchId);
         return success(BeanUtils.toBean(stock, ErpStockRespVO.class));
     }
 
@@ -96,8 +110,16 @@ public class ErpStockController {
         }
         Map<Long, ErpWarehouseDO> warehouseMap = warehouseService.getWarehouseMap(
                 convertSet(pageResult.getList(), ErpStockDO::getWarehouseId));
+        Map<Long, ErpStockLocationDO> locationMap = convertMap(
+                stockLocationService.getStockLocationList(convertSet(pageResult.getList(), ErpStockDO::getLocationId)),
+                ErpStockLocationDO::getId);
+        Map<Long, ErpStockBatchDO> batchMap = convertMap(
+                stockBatchService.getStockBatchList(convertSet(pageResult.getList(), ErpStockDO::getBatchId)),
+                ErpStockBatchDO::getId);
         return BeanUtils.toBean(pageResult, ErpStockRespVO.class, stock -> {
             MapUtils.findAndThen(warehouseMap, stock.getWarehouseId(), warehouse -> stock.setWarehouseName(warehouse.getName()));
+            MapUtils.findAndThen(locationMap, stock.getLocationId(), location -> stock.setLocationName(location.getName()));
+            MapUtils.findAndThen(batchMap, stock.getBatchId(), batch -> stock.setBatchNo(batch.getBatchNo()));
         });
     }
 

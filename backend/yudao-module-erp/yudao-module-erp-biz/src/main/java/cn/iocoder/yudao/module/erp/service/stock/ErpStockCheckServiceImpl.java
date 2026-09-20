@@ -131,9 +131,10 @@ public class ErpStockCheckServiceImpl implements ErpStockCheckService {
                 bizType = count.compareTo(BigDecimal.ZERO) > 0 ? ErpStockRecordBizTypeEnum.CHECK_MORE_IN_CANCEL.getType()
                         : ErpStockRecordBizTypeEnum.CHECK_LESS_OUT_CANCEL.getType();
             }
-            stockRecordService.createStockRecord(new ErpStockRecordCreateReqBO(
-                    stockCheckItem.getGoodsConfigId(), stockCheckItem.getWarehouseId(), count,
-                    bizType, stockCheckItem.getCheckId(), stockCheckItem.getId(), stockCheck.getNo()));
+            stockRecordService.createStockRecord(ErpStockRecordCreateReqBO.builder()
+                    .goodsConfigId(stockCheckItem.getGoodsConfigId()).warehouseId(stockCheckItem.getWarehouseId())
+                    .count(count).bizType(bizType).bizId(stockCheckItem.getCheckId())
+                    .bizItemId(stockCheckItem.getId()).bizNo(stockCheck.getNo()).build());
         });
     }
 

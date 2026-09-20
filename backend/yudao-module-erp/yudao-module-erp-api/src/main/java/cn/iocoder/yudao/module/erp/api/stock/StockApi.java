@@ -43,6 +43,17 @@ public interface StockApi {
     BigDecimal getStockCount(Long goodsConfigId, Long warehouseId);
 
     /**
+     * 查询某品类在某仓库某库位某批次的库存数量。不存在时返回 0。
+     *
+     * @param goodsConfigId 品类编号
+     * @param warehouseId   仓库编号
+     * @param locationId    库位编号（null / 0 表示未指定）
+     * @param batchId       批次编号（null / 0 表示未指定）
+     * @return 库存数量
+     */
+    BigDecimal getStockCount(Long goodsConfigId, Long warehouseId, Long locationId, Long batchId);
+
+    /**
      * 查询某品类在所有仓库的库存数量合计。不存在时返回 0。
      *
      * @param goodsConfigId 品类编号

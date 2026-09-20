@@ -124,12 +124,14 @@ public class ErpStockMoveServiceImpl implements ErpStockMoveService {
         stockMoveItems.forEach(stockMoveItem -> {
             BigDecimal fromCount = approve ? stockMoveItem.getCount().negate() : stockMoveItem.getCount();
             BigDecimal toCount = approve ? stockMoveItem.getCount() : stockMoveItem.getCount().negate();
-            stockRecordService.createStockRecord(new ErpStockRecordCreateReqBO(
-                    stockMoveItem.getGoodsConfigId(), stockMoveItem.getFromWarehouseId(), fromCount,
-                    fromBizType, stockMoveItem.getMoveId(), stockMoveItem.getId(), stockMove.getNo()));
-            stockRecordService.createStockRecord(new ErpStockRecordCreateReqBO(
-                    stockMoveItem.getGoodsConfigId(), stockMoveItem.getToWarehouseId(), toCount,
-                    toBizType, stockMoveItem.getMoveId(), stockMoveItem.getId(), stockMove.getNo()));
+            stockRecordService.createStockRecord(ErpStockRecordCreateReqBO.builder()
+                    .goodsConfigId(stockMoveItem.getGoodsConfigId()).warehouseId(stockMoveItem.getFromWarehouseId())
+                    .count(fromCount).bizType(fromBizType).bizId(stockMoveItem.getMoveId())
+                    .bizItemId(stockMoveItem.getId()).bizNo(stockMove.getNo()).build());
+            stockRecordService.createStockRecord(ErpStockRecordCreateReqBO.builder()
+                    .goodsConfigId(stockMoveItem.getGoodsConfigId()).warehouseId(stockMoveItem.getToWarehouseId())
+                    .count(toCount).bizType(toBizType).bizId(stockMoveItem.getMoveId())
+                    .bizItemId(stockMoveItem.getId()).bizNo(stockMove.getNo()).build());
         });
     }
 

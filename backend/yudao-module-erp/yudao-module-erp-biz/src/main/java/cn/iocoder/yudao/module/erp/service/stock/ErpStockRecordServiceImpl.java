@@ -41,9 +41,10 @@ public class ErpStockRecordServiceImpl implements ErpStockRecordService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void createStockRecord(ErpStockRecordCreateReqBO createReqBO) {
-        // 1. 更新库存
+        // 1. 更新库存（按品类 + 仓库 + 库位 + 批次四个维度）
         BigDecimal totalCount = stockService.updateStockCountIncrement(
-                createReqBO.getGoodsConfigId(), createReqBO.getWarehouseId(), createReqBO.getCount());
+                createReqBO.getGoodsConfigId(), createReqBO.getWarehouseId(),
+                createReqBO.getLocationId(), createReqBO.getBatchId(), createReqBO.getCount());
         // 2. 创建库存明细
         ErpStockRecordDO stockRecord = BeanUtils.toBean(createReqBO, ErpStockRecordDO.class)
                 .setTotalCount(totalCount);
@@ -53,6 +54,13 @@ public class ErpStockRecordServiceImpl implements ErpStockRecordService {
     @Override
     public boolean existsStockRecord(Integer bizType, Long bizId, Long bizItemId) {
         return stockRecordMapper.selectCountByBizTypeAndBizIdAndBizItemId(bizType, bizId, bizItemId) > 0;
+    }
+
+    @Override
+    public BigDecimal getStockRecordSum(Integer bizType, Long bizId, Long goodsConfigId) {
+        return stockRecordMapper.selectListByBizTypeAndBizIdAndGoodsConfigId(bizType, bizId, goodsConfigId).stream()
+                .map(ErpStockRecordDO::getCount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
 }

@@ -127,9 +127,10 @@ public class ErpStockOutServiceImpl implements ErpStockOutService {
                 : ErpStockRecordBizTypeEnum.OTHER_OUT_CANCEL.getType();
         stockOutItems.forEach(stockOutItem -> {
             BigDecimal count = approve ? stockOutItem.getCount().negate() : stockOutItem.getCount();
-            stockRecordService.createStockRecord(new ErpStockRecordCreateReqBO(
-                    stockOutItem.getGoodsConfigId(), stockOutItem.getWarehouseId(), count,
-                    bizType, stockOutItem.getOutId(), stockOutItem.getId(), stockOut.getNo()));
+            stockRecordService.createStockRecord(ErpStockRecordCreateReqBO.builder()
+                    .goodsConfigId(stockOutItem.getGoodsConfigId()).warehouseId(stockOutItem.getWarehouseId())
+                    .count(count).bizType(bizType).bizId(stockOutItem.getOutId())
+                    .bizItemId(stockOutItem.getId()).bizNo(stockOut.getNo()).build());
         });
     }
 

@@ -1,6 +1,8 @@
 -- Clean ERP test tables
 DELETE FROM erp_stock_record;
 DELETE FROM erp_stock;
+DELETE FROM erp_stock_location;
+DELETE FROM erp_stock_batch;
 DELETE FROM erp_stock_in_item;
 DELETE FROM erp_stock_in;
 DELETE FROM erp_stock_out_item;

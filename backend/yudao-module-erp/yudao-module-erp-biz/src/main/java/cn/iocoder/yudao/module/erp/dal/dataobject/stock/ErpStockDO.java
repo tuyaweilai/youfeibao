@@ -41,6 +41,18 @@ public class ErpStockDO extends BaseDO {
      */
     private Long warehouseId;
     /**
+     * 库位编号
+     *
+     * 关联 {@link ErpStockLocationDO#getId()}。0 表示未指定库位。
+     */
+    private Long locationId;
+    /**
+     * 批次编号
+     *
+     * 关联 {@link ErpStockBatchDO#getId()}。0 表示未指定批次。
+     */
+    private Long batchId;
+    /**
      * 库存数量
      */
     private BigDecimal count;

@@ -91,6 +91,17 @@ ErrorCode PURCHASE_ORDER_ITEM_RETURN_FAIL_IN_EXCEED = new ErrorCode(1_030_101_00
     ErrorCode WAREHOUSE_NOT_EXISTS = new ErrorCode(1_030_400_000, "仓库不存在");
     ErrorCode WAREHOUSE_NOT_ENABLE = new ErrorCode(1_030_400_001, "仓库({})未启用");
 
+    // ========== ERP 库位 1-030-400-010 ==========
+    ErrorCode STOCK_LOCATION_NOT_EXISTS = new ErrorCode(1_030_400_010, "库位不存在");
+    ErrorCode STOCK_LOCATION_NOT_ENABLE = new ErrorCode(1_030_400_011, "库位({})未启用");
+    ErrorCode STOCK_LOCATION_NAME_DUPLICATE = new ErrorCode(1_030_400_012, "仓库下已存在同名库位({})");
+    ErrorCode STOCK_LOCATION_HAS_STOCK = new ErrorCode(1_030_400_013, "库位({})还有库存，无法删除");
+
+    // ========== ERP 批次 1-030-400-020 ==========
+    ErrorCode STOCK_BATCH_NOT_EXISTS = new ErrorCode(1_030_400_020, "批次不存在");
+    ErrorCode STOCK_BATCH_NO_DUPLICATE = new ErrorCode(1_030_400_021, "批次号({})已存在");
+    ErrorCode STOCK_BATCH_HAS_STOCK = new ErrorCode(1_030_400_022, "批次({})还有库存，无法删除");
+
     // ========== ERP 其它入库单 1-030-401-000 ==========
     ErrorCode STOCK_IN_NOT_EXISTS = new ErrorCode(1_030_401_000, "其它入库单不存在");
     ErrorCode STOCK_IN_DELETE_FAIL_APPROVE = new ErrorCode(1_030_401_001, "其它入库单({})已审核，无法删除");
@@ -126,6 +137,7 @@ ErrorCode PURCHASE_ORDER_ITEM_RETURN_FAIL_IN_EXCEED = new ErrorCode(1_030_101_00
     // ========== ERP 品类库存 1-030-404-000 ==========
     ErrorCode STOCK_COUNT_NEGATIVE = new ErrorCode(1_030_404_000, "操作失败，品类({})所在仓库({})的库存：{}，小于变更数量：{}");
     ErrorCode STOCK_COUNT_NEGATIVE2 = new ErrorCode(1_030_404_001, "操作失败，品类({})所在仓库({})的库存不足");
+    ErrorCode STOCK_IN_EXCEED_AVAILABLE = new ErrorCode(1_030_404_002, "累计入库将超过可入库量（可入库 {}，已入库 {}，本次 {}）");
 
     // ========== ERP 结算账户 1-030-600-000 ==========
     ErrorCode ACCOUNT_NOT_EXISTS = new ErrorCode(1_030_600_000, "结算账户不存在");

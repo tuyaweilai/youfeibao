@@ -6,6 +6,7 @@ import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockRecordDO;
 import cn.iocoder.yudao.module.erp.service.stock.bo.ErpStockRecordCreateReqBO;
 
 import javax.validation.Valid;
+import java.math.BigDecimal;
 
 /**
  * ERP 品类库存明细 Service 接口
@@ -46,5 +47,15 @@ public interface ErpStockRecordService {
      * @return 是否存在
      */
     boolean existsStockRecord(Integer bizType, Long bizId, Long bizItemId);
+
+    /**
+     * 累计某业务在某品类上的入库流水之和，用于校验「累计入库不得超过可入库量」。
+     *
+     * @param bizType       业务类型
+     * @param bizId         业务编号
+     * @param goodsConfigId 品类编号
+     * @return 流水数量之和
+     */
+    BigDecimal getStockRecordSum(Integer bizType, Long bizId, Long goodsConfigId);
 
 }

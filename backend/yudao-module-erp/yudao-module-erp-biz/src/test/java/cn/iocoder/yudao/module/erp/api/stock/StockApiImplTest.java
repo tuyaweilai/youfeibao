@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 import java.math.BigDecimal;
 
+import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
+import static cn.iocoder.yudao.module.erp.enums.ErrorCodeConstants.STOCK_IN_EXCEED_AVAILABLE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -66,11 +68,42 @@ public class StockApiImplTest extends BaseDbUnitTest {
         assertEquals(1L, stockRecordMapper.selectCount().longValue());
     }
 
+    @Test
+    public void testIn_splitAcrossLocationsWithCap() {
+        // 同一品类的一批货（同一 bizId）拆到两个库位，累计不超过可入库量 10
+        assertEquals(0, new BigDecimal("6").compareTo(
+                stockApi.in(buildReq("6", 90, 1L, 11L, "R1", 1L, 0L, "10"))));
+        assertEquals(0, new BigDecimal("4").compareTo(
+                stockApi.in(buildReq("4", 90, 1L, 12L, "R1", 2L, 0L, "10"))));
+
+        // 两个库位各一行，合计 = 10
+        assertEquals(0, new BigDecimal("6").compareTo(stockApi.getStockCount(1L, 1L, 1L, 0L)));
+        assertEquals(0, new BigDecimal("4").compareTo(stockApi.getStockCount(1L, 1L, 2L, 0L)));
+        assertEquals(0, new BigDecimal("10").compareTo(stockApi.getStockCount(1L, 1L)));
+        assertEquals(0, new BigDecimal("10").compareTo(stockApi.getStockSum(1L)));
+
+        // 再拆第三个库位就超过可入库量，拦住且不产生任何库存与流水
+        assertServiceException(() ->
+                        stockApi.in(buildReq("1", 90, 1L, 13L, "R1", 3L, 0L, "10")),
+                STOCK_IN_EXCEED_AVAILABLE, new BigDecimal("10"), new BigDecimal("10.000000"), new BigDecimal("1"));
+        assertEquals(2L, stockRecordMapper.selectCount().longValue());
+    }
+
     private static StockChangeReqDTO buildReq(String count, Integer bizType, Long bizId, Long bizItemId, String bizNo) {
+        return buildReq(count, bizType, bizId, bizItemId, bizNo, null, null, null);
+    }
+
+    private static StockChangeReqDTO buildReq(String count, Integer bizType, Long bizId, Long bizItemId, String bizNo,
+                                              Long locationId, Long batchId, String maxCount) {
         StockChangeReqDTO req = new StockChangeReqDTO();
         req.setGoodsConfigId(1L);
         req.setWarehouseId(1L);
+        req.setLocationId(locationId);
+        req.setBatchId(batchId);
         req.setCount(new BigDecimal(count));
+        if (maxCount != null) {
+            req.setMaxCount(new BigDecimal(maxCount));
+        }
         req.setBizType(bizType);
         req.setBizId(bizId);
         req.setBizItemId(bizItemId);

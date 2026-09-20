@@ -48,7 +48,7 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - 交易对方：出售者档案 / 出售者建档 / 企业授权 / 触达记录。
 - 回收作业：到站预约 / 收购登记；结算管理：结算单；业务追溯：一票一档。
 - 财务票务：开票申请 / 开票申请（按收购单）/ 付款 / 发票下载与证据 / 代办税费申报 / 额度台账。
-- 采购管理 / 仓储管理 / 经营报表 / 工作台：已有一级菜单与占位页（`views/icbc/{purchase,warehouse,report,workbench}`），子项由后续票（T05 / T07–T09 / T14 / T16 / T18 / T19）落地。
+- 采购管理 / 经营报表 / 工作台：已有一级菜单与占位页（`views/icbc/{purchase,report,workbench}`）。仓储管理由 #43（T05）挂了 库位维护 / 批次维护 / 库存查询（页面在 `views/erp/stock/*`），不再是占位页；其余子项由后续票（#52 / #54 / #57 等）落地。
 - 平台运营：资质核实 / 报废产品编码表 / 通知监控 / 全平台证据与异常票 / 计费计量 / 自然人主体（系统租户专有，不进回收企业套餐）。
 - 已删：报表 / 支付 / 工作流程 / 会员中心 / 商城 / 公众号 / CRM / AI / IoT 的死菜单、三条外链（作者动态 / Boot 文档 / Cloud 文档）与演示菜单（代码生成案例）。
 - ERP 系统那一棵（id 2563–2702）整棵 `status=1` 停用、行保留，等 T01 放开 ERP 后由后续票收敛进采购 / 仓储骨架。
@@ -463,6 +463,20 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 5. **实测**：本地库跑完迁移后 12 张表只有 `goods_config_id`、`erp_stock` 有唯一约束、`erp_product*` 0 张；
    重启后租户 1 建仓库（`stationId=7`）能写能读、`/erp/warehouse/page` 与 `/erp/stock/page` 均空列表；
    迁移重复跑幂等。前端 `erp/stock/warehouse` 表单加「归属场站」字段（#43 会换成场站下拉）。
+
+## #43 T05 库位与批次建模与维护界面（已完成）
+
+在仓库之下补库位与批次，库存从「品类 + 仓库」两维扩成「品类 + 仓库 + 库位 + 批次」四维（ADR 0027）。
+
+1. **新表**：`erp_stock_location`（库位，挂仓库）、`erp_stock_batch`（批次，批次号唯一，可空品类 / 入库时间）。迁移 `backend/sql/mysql/erp-stock-location-batch.sql`（幂等，排在 `erp-stock-goods-config.sql` 之后）；README 导入顺序同步。
+2. **余额与流水加维度**：`erp_stock` / `erp_stock_record` 各加 `location_id` / `batch_id`，用 `NOT NULL DEFAULT 0`（0 = 未指定）而不是 NULL——NULL 在唯一索引里互不相等，会让「未指定」出现多行余额。唯一约束从 `uk_goods_config_warehouse` 换成 `uk_goods_config_warehouse_location_batch`（AC 明确「并保持唯一」）。
+3. **ERP 服务**：`ErpStockService` 新增 4 维的 `getStock` / `getStockCount` / `updateStockCountIncrement`；二维的 `getStock` 仍定位「未指定库位 / 批次」那一行，二维的 `getStockCount` 改成该仓库下全部库位 / 批次之和。`ErpStockLocationService` / `ErpStockBatchService` 提供维护 CRUD；**还有库存余额的库位 / 批次不允许删除**。批次支持 `getOrCreateStockBatch(批次号, 品类, 入库时间)`——收货自动生成时同一批次号复用一条（并发靠 `uk_tenant_batch_no` 兜底）。
+4. **StockApi 支持拆库位与可入库上限**：`StockChangeReqDTO` 加 `locationId` / `batchId` / `maxCount`；同一业务项（业务类型 + 业务编号 + 业务项编号）仍只写一次流水，拆到多个库位时用不同的业务项编号；传了 `maxCount` 时按「业务类型 + 业务编号 + 品类」累计校验，超过报 `STOCK_IN_EXCEED_AVAILABLE`（AC「同一品类的货可拆到两个库位，合计不超过可入库量」；#52 的「分多次入库」把收购单传成 `bizId` 即可跨入库单累计）。
+5. **菜单 / 权限**：`icbc-menu.sql` 在「仓储管理」（5205，改成目录）下挂 5183 库位维护 / 5187 批次维护 / 5191 库存查询（权限 `erp:stock-location:*`、`erp:stock-batch:*`、`erp:stock:query`）。ERP 权限不走 `RecyclingRoleEnum`，靠回收企业套餐递归带上；`RecyclingPermissionAnnotationConsistencyTest` 只扫 icbc 控制器，不受影响。
+6. **前端**：新增 `views/erp/stock/location`、`views/erp/stock/batch` 与对应 `api/erp/stock/*`；`views/erp/stock/stock` 从早已删掉的 `productId` 改成 `goodsConfigId` 并补库位 / 批次筛选（AC4 四个维度都能查）。
+7. **测试**：ERP 侧 19 个（新增 `ErpStockLocationServiceTest`、`ErpStockBatchServiceTest`；`ErpStockServiceTest` 补拆库位 / 拆批次；`StockApiImplTest` 补拆库位 + 上限拦截）；`create_tables.sql` / `clean.sql` 同步。icbc 431 测试不受影响。
+
+> 实测：本地库跑迁移后 `erp_stock` 唯一约束是四维、`erp_stock_location` / `erp_stock_batch` 建好，重跑迁移幂等；48081 起服务后建仓库 / 库位 / 批次、分页筛选、同名库位拦截、删除都通过。
 
 ## 下一步建议
 

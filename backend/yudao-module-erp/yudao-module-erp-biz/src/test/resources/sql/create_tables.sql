@@ -1,5 +1,6 @@
--- ERP 库存域 H2 建表（单元测试用）。列名与 `backend/sql/mysql/erp-stock-goods-config.sql` 之后的状态一致：
--- 库存维度是 goods_config_id，明细表没有 product_unit_id，erp_stock 对 (goods_config_id, warehouse_id) 唯一。
+-- ERP 库存域 H2 建表（单元测试用）。列名与 `backend/sql/mysql/erp-stock-location-batch.sql` 之后的状态一致：
+-- 库存维度是 goods_config_id，明细表没有 product_unit_id，
+-- erp_stock 对 (goods_config_id, warehouse_id, location_id, batch_id) 唯一。
 
 CREATE TABLE IF NOT EXISTS erp_warehouse (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -22,10 +23,45 @@ CREATE TABLE IF NOT EXISTS erp_warehouse (
     PRIMARY KEY (id)
 );
 
+CREATE TABLE IF NOT EXISTS erp_stock_location (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    warehouse_id BIGINT NOT NULL,
+    name VARCHAR(64) NOT NULL,
+    sort BIGINT NOT NULL DEFAULT 0,
+    remark VARCHAR(255),
+    status TINYINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS erp_stock_batch (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    batch_no VARCHAR(64) NOT NULL,
+    goods_config_id BIGINT,
+    in_time DATETIME,
+    remark VARCHAR(255),
+    status TINYINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_tenant_batch_no UNIQUE (tenant_id, batch_no)
+);
+
 CREATE TABLE IF NOT EXISTS erp_stock (
     id BIGINT NOT NULL AUTO_INCREMENT,
     goods_config_id BIGINT NOT NULL,
     warehouse_id BIGINT NOT NULL,
+    location_id BIGINT NOT NULL DEFAULT 0,
+    batch_id BIGINT NOT NULL DEFAULT 0,
     count DECIMAL(24, 6) NOT NULL,
     creator VARCHAR(64) DEFAULT '',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -34,13 +70,15 @@ CREATE TABLE IF NOT EXISTS erp_stock (
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     tenant_id BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    CONSTRAINT uk_goods_config_warehouse UNIQUE (goods_config_id, warehouse_id)
+    CONSTRAINT uk_goods_config_warehouse_location_batch UNIQUE (goods_config_id, warehouse_id, location_id, batch_id)
 );
 
 CREATE TABLE IF NOT EXISTS erp_stock_record (
     id BIGINT NOT NULL AUTO_INCREMENT,
     goods_config_id BIGINT NOT NULL,
     warehouse_id BIGINT NOT NULL,
+    location_id BIGINT NOT NULL DEFAULT 0,
+    batch_id BIGINT NOT NULL DEFAULT 0,
     count DECIMAL(24, 6) NOT NULL,
     total_count DECIMAL(24, 6) NOT NULL,
     biz_type TINYINT NOT NULL,

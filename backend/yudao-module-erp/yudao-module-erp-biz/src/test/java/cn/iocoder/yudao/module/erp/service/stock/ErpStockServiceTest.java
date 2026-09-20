@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.erp.service.stock;
 
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.erp.UnitTestConfiguration;
+import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.stock.ErpStockPageReqVO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockDO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpWarehouseDO;
 import cn.iocoder.yudao.module.erp.dal.mysql.stock.ErpStockMapper;
@@ -49,12 +50,63 @@ public class ErpStockServiceTest extends BaseDbUnitTest {
         assertEquals(0, new BigDecimal("7").compareTo(
                 stockService.updateStockCountIncrement(GOODS_CONFIG_ID, WAREHOUSE_ID, new BigDecimal("-3"))));
 
-        // 断言：同一 (品类, 仓库) 只有一行余额
+        // 断言：同一 (品类, 仓库, 未指定库位, 未指定批次) 只有一行余额
         assertEquals(1L, stockMapper.selectCount().longValue());
         ErpStockDO stock = stockService.getStock(GOODS_CONFIG_ID, WAREHOUSE_ID);
         assertEquals(0, new BigDecimal("7").compareTo(stock.getCount()));
         assertEquals(0, new BigDecimal("7").compareTo(stockService.getStockCount(GOODS_CONFIG_ID, WAREHOUSE_ID)));
         assertEquals(0, new BigDecimal("7").compareTo(stockService.getStockCount(GOODS_CONFIG_ID)));
+    }
+
+    @Test
+    public void testUpdateStockCountIncrement_splitAcrossLocations() {
+        // 同一品类的货拆到两个库位
+        stockService.updateStockCountIncrement(GOODS_CONFIG_ID, WAREHOUSE_ID, 1L, 0L, new BigDecimal("6"));
+        stockService.updateStockCountIncrement(GOODS_CONFIG_ID, WAREHOUSE_ID, 2L, 0L, new BigDecimal("4"));
+
+        // 断言：两个库位各一行，合计等于仓库级库存
+        assertEquals(2L, stockMapper.selectCount().longValue());
+        assertEquals(0, new BigDecimal("6").compareTo(
+                stockService.getStockCount(GOODS_CONFIG_ID, WAREHOUSE_ID, 1L, 0L)));
+        assertEquals(0, new BigDecimal("4").compareTo(
+                stockService.getStockCount(GOODS_CONFIG_ID, WAREHOUSE_ID, 2L, 0L)));
+        assertEquals(0, new BigDecimal("10").compareTo(
+                stockService.getStockCount(GOODS_CONFIG_ID, WAREHOUSE_ID)));
+        assertEquals(0, new BigDecimal("10").compareTo(stockService.getStockCount(GOODS_CONFIG_ID)));
+    }
+
+    @Test
+    public void testUpdateStockCountIncrement_splitAcrossBatches() {
+        // 同一库位上按批次再分一行
+        stockService.updateStockCountIncrement(GOODS_CONFIG_ID, WAREHOUSE_ID, 1L, 1L, new BigDecimal("3"));
+        stockService.updateStockCountIncrement(GOODS_CONFIG_ID, WAREHOUSE_ID, 1L, 2L, new BigDecimal("7"));
+
+        assertEquals(2L, stockMapper.selectCount().longValue());
+        assertEquals(0, new BigDecimal("3").compareTo(
+                stockService.getStockCount(GOODS_CONFIG_ID, WAREHOUSE_ID, 1L, 1L)));
+        assertEquals(0, new BigDecimal("7").compareTo(
+                stockService.getStockCount(GOODS_CONFIG_ID, WAREHOUSE_ID, 1L, 2L)));
+        assertEquals(0, new BigDecimal("10").compareTo(
+                stockService.getStockCount(GOODS_CONFIG_ID, WAREHOUSE_ID)));
+    }
+
+    @Test
+    public void testGetStockPage_filterByFourDimensions() {
+        stockService.updateStockCountIncrement(GOODS_CONFIG_ID, WAREHOUSE_ID, 1L, 0L, new BigDecimal("6"));
+        stockService.updateStockCountIncrement(GOODS_CONFIG_ID, WAREHOUSE_ID, 2L, 0L, new BigDecimal("4"));
+
+        // AC：可按品类 / 仓库 / 库位 / 批次查询库存
+        ErpStockPageReqVO pageReqVO = new ErpStockPageReqVO();
+        pageReqVO.setGoodsConfigId(GOODS_CONFIG_ID);
+        pageReqVO.setWarehouseId(WAREHOUSE_ID);
+        pageReqVO.setLocationId(1L);
+        assertEquals(1L, stockService.getStockPage(pageReqVO).getTotal());
+        assertEquals(0, new BigDecimal("6").compareTo(
+                stockService.getStockPage(pageReqVO).getList().get(0).getCount()));
+
+        pageReqVO.setLocationId(2L);
+        assertEquals(0, new BigDecimal("4").compareTo(
+                stockService.getStockPage(pageReqVO).getList().get(0).getCount()));
     }
 
     @Test

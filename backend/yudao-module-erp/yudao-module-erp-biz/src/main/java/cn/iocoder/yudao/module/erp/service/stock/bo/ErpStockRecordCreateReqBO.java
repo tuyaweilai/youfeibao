@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.erp.service.stock.bo;
 
 import javax.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -13,6 +14,7 @@ import java.math.BigDecimal;
  * @author 芋道源码
  */
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ErpStockRecordCreateReqBO {
@@ -27,6 +29,14 @@ public class ErpStockRecordCreateReqBO {
      */
     @NotNull(message = "仓库编号不能为空")
     private Long warehouseId;
+    /**
+     * 库位编号（null / 0 表示未指定）
+     */
+    private Long locationId;
+    /**
+     * 批次编号（null / 0 表示未指定）
+     */
+    private Long batchId;
     /**
      * 出入库数量
      *

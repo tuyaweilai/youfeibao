@@ -173,9 +173,10 @@ public class ErpPurchaseReturnServiceImpl implements ErpPurchaseReturnService {
                 : ErpStockRecordBizTypeEnum.PURCHASE_RETURN_CANCEL.getType();
         purchaseReturnItems.forEach(purchaseReturnItem -> {
             BigDecimal count = approve ? purchaseReturnItem.getCount().negate() : purchaseReturnItem.getCount();
-            stockRecordService.createStockRecord(new ErpStockRecordCreateReqBO(
-                    purchaseReturnItem.getGoodsConfigId(), purchaseReturnItem.getWarehouseId(), count,
-                    bizType, purchaseReturnItem.getReturnId(), purchaseReturnItem.getId(), purchaseReturn.getNo()));
+            stockRecordService.createStockRecord(ErpStockRecordCreateReqBO.builder()
+                    .goodsConfigId(purchaseReturnItem.getGoodsConfigId()).warehouseId(purchaseReturnItem.getWarehouseId())
+                    .count(count).bizType(bizType).bizId(purchaseReturnItem.getReturnId())
+                    .bizItemId(purchaseReturnItem.getId()).bizNo(purchaseReturn.getNo()).build());
         });
     }
 

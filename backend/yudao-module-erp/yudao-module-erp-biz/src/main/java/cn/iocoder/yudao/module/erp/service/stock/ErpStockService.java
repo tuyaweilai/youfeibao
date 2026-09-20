@@ -22,13 +22,26 @@ public interface ErpStockService {
     ErpStockDO getStock(Long id);
 
     /**
-     * 基于品类 + 仓库，获得品类库存
+     * 基于品类 + 仓库，获得「未指定库位 / 批次」那一行库存（即 {@code location_id=0, batch_id=0}）。
+     *
+     * <p>要看仓库级合计用 {@link #getStockCount(Long, Long)}（跨库位 / 批次求和）。
      *
      * @param goodsConfigId 品类编号
      * @param warehouseId 仓库编号
      * @return 品类库存
      */
     ErpStockDO getStock(Long goodsConfigId, Long warehouseId);
+
+    /**
+     * 基于品类 + 仓库 + 库位 + 批次，获得品类库存
+     *
+     * @param goodsConfigId 品类编号
+     * @param warehouseId   仓库编号
+     * @param locationId    库位编号（null / 0 表示未指定）
+     * @param batchId       批次编号（null / 0 表示未指定）
+     * @return 品类库存
+     */
+    ErpStockDO getStock(Long goodsConfigId, Long warehouseId, Long locationId, Long batchId);
 
     /**
      * 获得品类库存数量
@@ -41,13 +54,24 @@ public interface ErpStockService {
     BigDecimal getStockCount(Long goodsConfigId);
 
     /**
-     * 基于品类 + 仓库，获得库存数量。不存在时返回 0。
+     * 基于品类 + 仓库，获得库存数量（该仓库下全部库位 / 批次的合计）。不存在时返回 0。
      *
      * @param goodsConfigId 品类编号
      * @param warehouseId   仓库编号
      * @return 库存数量
      */
     BigDecimal getStockCount(Long goodsConfigId, Long warehouseId);
+
+    /**
+     * 基于品类 + 仓库 + 库位 + 批次，获得库存数量。不存在时返回 0。
+     *
+     * @param goodsConfigId 品类编号
+     * @param warehouseId   仓库编号
+     * @param locationId    库位编号（null / 0 表示未指定）
+     * @param batchId       批次编号（null / 0 表示未指定）
+     * @return 库存数量
+     */
+    BigDecimal getStockCount(Long goodsConfigId, Long warehouseId, Long locationId, Long batchId);
 
     /**
      * 获得品类库存分页
@@ -66,5 +90,18 @@ public interface ErpStockService {
      * @return 更新后的库存
      */
     BigDecimal updateStockCountIncrement(Long goodsConfigId, Long warehouseId, BigDecimal count);
+
+    /**
+     * 增量更新品类库存数量（按 4 个维度定位余额行）
+     *
+     * @param goodsConfigId 品类编号
+     * @param warehouseId   仓库编号
+     * @param locationId    库位编号（null / 0 表示未指定）
+     * @param batchId       批次编号（null / 0 表示未指定）
+     * @param count         增量数量：正数，表示增加；负数，表示减少
+     * @return 更新后的库存
+     */
+    BigDecimal updateStockCountIncrement(Long goodsConfigId, Long warehouseId, Long locationId, Long batchId,
+                                         BigDecimal count);
 
 }

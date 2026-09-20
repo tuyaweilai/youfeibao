@@ -7,6 +7,8 @@ import cn.iocoder.yudao.module.erp.controller.admin.stock.vo.record.ErpStockReco
 import cn.iocoder.yudao.module.erp.dal.dataobject.stock.ErpStockRecordDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.List;
+
 /**
  * ERP 品类库存明细 Mapper
  *
@@ -19,6 +21,8 @@ public interface ErpStockRecordMapper extends BaseMapperX<ErpStockRecordDO> {
         return selectPage(reqVO, new LambdaQueryWrapperX<ErpStockRecordDO>()
                 .eqIfPresent(ErpStockRecordDO::getGoodsConfigId, reqVO.getGoodsConfigId())
                 .eqIfPresent(ErpStockRecordDO::getWarehouseId, reqVO.getWarehouseId())
+                .eqIfPresent(ErpStockRecordDO::getLocationId, reqVO.getLocationId())
+                .eqIfPresent(ErpStockRecordDO::getBatchId, reqVO.getBatchId())
                 .eqIfPresent(ErpStockRecordDO::getBizType, reqVO.getBizType())
                 .likeIfPresent(ErpStockRecordDO::getBizNo, reqVO.getBizNo())
                 .betweenIfPresent(ErpStockRecordDO::getCreateTime, reqVO.getCreateTime())
@@ -30,6 +34,17 @@ public interface ErpStockRecordMapper extends BaseMapperX<ErpStockRecordDO> {
                 .eq(ErpStockRecordDO::getBizType, bizType)
                 .eq(ErpStockRecordDO::getBizId, bizId)
                 .eq(ErpStockRecordDO::getBizItemId, bizItemId));
+    }
+
+    /**
+     * 查询同一业务的全部流水，用于校验累计入库不超过可入库量。
+     */
+    default List<ErpStockRecordDO> selectListByBizTypeAndBizIdAndGoodsConfigId(Integer bizType, Long bizId,
+                                                                               Long goodsConfigId) {
+        return selectList(new LambdaQueryWrapperX<ErpStockRecordDO>()
+                .eq(ErpStockRecordDO::getBizType, bizType)
+                .eq(ErpStockRecordDO::getBizId, bizId)
+                .eq(ErpStockRecordDO::getGoodsConfigId, goodsConfigId));
     }
 
 }

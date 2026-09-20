@@ -22,6 +22,12 @@ public class ErpStockRespVO {
     @Schema(description = "仓库编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "2802")
     private Long warehouseId;
 
+    @Schema(description = "库位编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "3001")
+    private Long locationId;
+
+    @Schema(description = "批次编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "4001")
+    private Long batchId;
+
     @Schema(description = "库存数量", requiredMode = Schema.RequiredMode.REQUIRED, example = "21935")
     @ExcelProperty("库存数量")
     private BigDecimal count;
@@ -45,5 +51,13 @@ public class ErpStockRespVO {
     @Schema(description = "仓库名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "李四")
     @ExcelProperty("仓库名称")
     private String warehouseName;
+
+    @Schema(description = "库位名称", example = "A 区 1 号堆")
+    @ExcelProperty("库位名称")
+    private String locationName;
+
+    @Schema(description = "批次号", example = "B20260920-01")
+    @ExcelProperty("批次号")
+    private String batchNo;
 
 }

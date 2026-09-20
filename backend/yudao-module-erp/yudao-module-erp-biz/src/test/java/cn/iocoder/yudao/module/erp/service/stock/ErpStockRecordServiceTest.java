@@ -77,8 +77,9 @@ public class ErpStockRecordServiceTest extends BaseDbUnitTest {
 
     private void createRecord(Long goodsConfigId, Long warehouseId, String count, Integer bizType,
                               Long bizId, Long bizItemId, String bizNo) {
-        stockRecordService.createStockRecord(new ErpStockRecordCreateReqBO(
-                goodsConfigId, warehouseId, new BigDecimal(count), bizType, bizId, bizItemId, bizNo));
+        stockRecordService.createStockRecord(ErpStockRecordCreateReqBO.builder()
+                .goodsConfigId(goodsConfigId).warehouseId(warehouseId).count(new BigDecimal(count))
+                .bizType(bizType).bizId(bizId).bizItemId(bizItemId).bizNo(bizNo).build());
     }
 
 }

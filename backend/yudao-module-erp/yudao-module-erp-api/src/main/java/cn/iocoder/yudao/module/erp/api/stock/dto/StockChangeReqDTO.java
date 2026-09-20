@@ -30,6 +30,28 @@ public class StockChangeReqDTO {
     private Long warehouseId;
 
     /**
+     * 库位编号（erp_stock_location.id）
+     *
+     * 为空或 0 表示未指定库位。
+     */
+    private Long locationId;
+
+    /**
+     * 批次编号（erp_stock_batch.id）
+     *
+     * 为空或 0 表示未指定批次。
+     */
+    private Long batchId;
+
+    /**
+     * 可入库量上限（可选）
+     *
+     * 传入时，本业务（业务类型 + 业务编号 + 品类）累计入库不得超过该值；
+     * 用于「同一品类的货拆到两个库位，合计不超过可入库量」。为空表示不校验上限。
+     */
+    private BigDecimal maxCount;
+
+    /**
      * 变更数量（正数）
      */
     @NotNull(message = "数量不能为空")

@@ -18,6 +18,8 @@ import static cn.iocoder.yudao.module.erp.enums.ErrorCodeConstants.STOCK_COUNT_N
 /**
  * ERP 品类库存 Service 实现类
  *
+ * <p>余额行按「品类 + 仓库 + 库位 + 批次」四个维度唯一；库位 / 批次用 0 表示未指定。
+ *
  * @author 芋道源码
  */
 @Service
@@ -44,7 +46,13 @@ public class ErpStockServiceImpl implements ErpStockService {
 
     @Override
     public ErpStockDO getStock(Long goodsConfigId, Long warehouseId) {
-        return stockMapper.selectByGoodsConfigIdAndWarehouseId(goodsConfigId, warehouseId);
+        return getStock(goodsConfigId, warehouseId, 0L, 0L);
+    }
+
+    @Override
+    public ErpStockDO getStock(Long goodsConfigId, Long warehouseId, Long locationId, Long batchId) {
+        return stockMapper.selectByGoodsConfigIdAndWarehouseIdAndLocationIdAndBatchId(
+                goodsConfigId, warehouseId, normalizeZero(locationId), normalizeZero(batchId));
     }
 
     @Override
@@ -55,7 +63,14 @@ public class ErpStockServiceImpl implements ErpStockService {
 
     @Override
     public BigDecimal getStockCount(Long goodsConfigId, Long warehouseId) {
-        ErpStockDO stock = stockMapper.selectByGoodsConfigIdAndWarehouseId(goodsConfigId, warehouseId);
+        // 仓库级库存 = 该仓库下全部库位 / 批次余额行之和
+        BigDecimal count = stockMapper.selectSumByGoodsConfigIdAndWarehouseId(goodsConfigId, warehouseId);
+        return count != null ? count : BigDecimal.ZERO;
+    }
+
+    @Override
+    public BigDecimal getStockCount(Long goodsConfigId, Long warehouseId, Long locationId, Long batchId) {
+        ErpStockDO stock = getStock(goodsConfigId, warehouseId, locationId, batchId);
         return stock != null ? stock.getCount() : BigDecimal.ZERO;
     }
 
@@ -66,15 +81,26 @@ public class ErpStockServiceImpl implements ErpStockService {
 
     @Override
     public BigDecimal updateStockCountIncrement(Long goodsConfigId, Long warehouseId, BigDecimal count) {
+        return updateStockCountIncrement(goodsConfigId, warehouseId, 0L, 0L, count);
+    }
+
+    @Override
+    public BigDecimal updateStockCountIncrement(Long goodsConfigId, Long warehouseId, Long locationId, Long batchId,
+                                                BigDecimal count) {
+        long location = normalizeZero(locationId);
+        long batch = normalizeZero(batchId);
         // 1.1 查询当前库存
-        ErpStockDO stock = stockMapper.selectByGoodsConfigIdAndWarehouseId(goodsConfigId, warehouseId);
+        ErpStockDO stock = stockMapper.selectByGoodsConfigIdAndWarehouseIdAndLocationIdAndBatchId(
+                goodsConfigId, warehouseId, location, batch);
         if (stock == null) {
-            stock = new ErpStockDO().setGoodsConfigId(goodsConfigId).setWarehouseId(warehouseId).setCount(BigDecimal.ZERO);
+            stock = new ErpStockDO().setGoodsConfigId(goodsConfigId).setWarehouseId(warehouseId)
+                    .setLocationId(location).setBatchId(batch).setCount(BigDecimal.ZERO);
             try {
                 stockMapper.insert(stock);
             } catch (DuplicateKeyException ex) {
                 // 并发下另一个请求已经插入：唯一约束兜底，回读既有余额行
-                stock = stockMapper.selectByGoodsConfigIdAndWarehouseId(goodsConfigId, warehouseId);
+                stock = stockMapper.selectByGoodsConfigIdAndWarehouseIdAndLocationIdAndBatchId(
+                        goodsConfigId, warehouseId, location, batch);
             }
         }
         // 1.2 校验库存是否充足
@@ -93,6 +119,13 @@ public class ErpStockServiceImpl implements ErpStockService {
 
         // 3. 返回最新库存
         return stock.getCount().add(count);
+    }
+
+    /**
+     * 库位 / 批次编号用 0 表示未指定；null 归一为 0，保证唯一约束下不会出现多行「未指定」余额。
+     */
+    private static long normalizeZero(Long id) {
+        return id != null ? id : 0L;
     }
 
 }

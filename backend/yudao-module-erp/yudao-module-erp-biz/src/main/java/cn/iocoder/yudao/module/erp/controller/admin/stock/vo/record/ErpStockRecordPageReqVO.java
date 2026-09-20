@@ -23,6 +23,12 @@ public class ErpStockRecordPageReqVO extends PageParam {
     @Schema(description = "仓库编号", example = "32407")
     private Long warehouseId;
 
+    @Schema(description = "库位编号", example = "3001")
+    private Long locationId;
+
+    @Schema(description = "批次编号", example = "4001")
+    private Long batchId;
+
     @Schema(description = "业务类型", example = "10")
     private Integer bizType;
 

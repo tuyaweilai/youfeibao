@@ -74,7 +74,7 @@ VALUES
 (5202, '交易对方', '', 1, 40, 0, '/counterparty', 'ep:user', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5203, '采购管理', '', 2, 50, 0, '/purchase', 'ep:shopping-cart', 'icbc/purchase/index', 'IcbcPurchase', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5204, '回收作业', '', 1, 60, 0, '/recycling', 'ep:van', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5205, '仓储管理', '', 2, 70, 0, '/warehouse', 'ep:box', 'icbc/warehouse/index', 'IcbcWarehouse', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5205, '仓储管理', '', 1, 70, 0, '/warehouse', 'ep:box', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5206, '结算管理', '', 1, 80, 0, '/settlement', 'ep:money', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5207, '财务票务', '', 1, 90, 0, '/finance', 'ep:tickets', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5208, '业务追溯', '', 1, 100, 0, '/trace', 'ep:connection', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
@@ -123,6 +123,20 @@ VALUES
 (5137, '登记收购', 'icbc:acquisition:create', 3, 1, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5138, '修正识别结果', 'icbc:acquisition:update', 3, 2, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5139, '导出收购确认书', 'icbc:acquisition:export', 3, 3, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+
+-- ===== 仓储管理 =====
+-- 库位 / 批次 / 库存查询落 ERP 的 stock 域（ADR 0027）：权限字符串是 erp:*，页面在 views/erp/stock 下；
+-- 菜单挂到回收企业骨架「仓储管理」（5205），随套餐递归进回收企业套餐。
+(5183, '库位维护', 'erp:stock-location:query', 2, 1, 5205, 'location', '', 'erp/stock/location/index', 'ErpStockLocation', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5184, '库位新增', 'erp:stock-location:create', 3, 1, 5183, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5185, '库位修改', 'erp:stock-location:update', 3, 2, 5183, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5186, '库位删除', 'erp:stock-location:delete', 3, 3, 5183, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5187, '批次维护', 'erp:stock-batch:query', 2, 2, 5205, 'batch', '', 'erp/stock/batch/index', 'ErpStockBatch', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5188, '批次新增', 'erp:stock-batch:create', 3, 1, 5187, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5189, '批次修改', 'erp:stock-batch:update', 3, 2, 5187, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5190, '批次删除', 'erp:stock-batch:delete', 3, 3, 5187, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5191, '库存查询', 'erp:stock:query', 2, 3, 5205, 'inventory', '', 'erp/stock/stock/index', 'ErpStock', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5192, '库存导出', 'erp:stock:export', 3, 1, 5191, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 结算管理 =====
 (5175, '结算单', 'icbc:settlement-confirm:query', 2, 1, 5206, 'list', '', 'icbc/settlement/index', 'IcbcSettlement', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),

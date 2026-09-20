@@ -42,6 +42,18 @@ public class ErpStockRecordDO extends BaseDO {
      */
     private Long warehouseId;
     /**
+     * 库位编号
+     *
+     * 关联 {@link ErpStockLocationDO#getId()}。0 表示未指定库位。
+     */
+    private Long locationId;
+    /**
+     * 批次编号
+     *
+     * 关联 {@link ErpStockBatchDO#getId()}。0 表示未指定批次。
+     */
+    private Long batchId;
+    /**
      * 出入库数量
      *
      * 正数，表示入库；负数，表示出库
