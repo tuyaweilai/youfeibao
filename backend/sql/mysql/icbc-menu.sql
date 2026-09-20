@@ -72,7 +72,7 @@ VALUES
 (5200, '工作台', '', 2, 5, 0, '/workbench', 'ep:home-filled', 'icbc/workbench/index', 'IcbcWorkbench', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5201, '基础资料', '', 1, 30, 0, '/basedata', 'ep:notebook', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5202, '交易对方', '', 1, 40, 0, '/counterparty', 'ep:user', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5203, '采购管理', '', 2, 50, 0, '/purchase', 'ep:shopping-cart', 'icbc/purchase/index', 'IcbcPurchase', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5203, '采购管理', '', 1, 50, 0, '/purchase', 'ep:shopping-cart', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5204, '回收作业', '', 1, 60, 0, '/recycling', 'ep:van', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5205, '仓储管理', '', 1, 70, 0, '/warehouse', 'ep:box', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5206, '结算管理', '', 1, 80, 0, '/settlement', 'ep:money', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
@@ -122,6 +122,18 @@ VALUES
 (5195, '单位供货方修改', 'erp:supplier:update', 3, 2, 5193, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5196, '单位供货方删除', 'erp:supplier:delete', 3, 3, 5193, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5197, '单位供货方导出', 'erp:supplier:export', 3, 4, 5193, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+
+-- ===== 采购管理 =====
+-- 采购合同（#45 T07，ADR 0027）：一个合同 → 多个采购订单 → 多次收货。
+-- 合同是采购条款，**审核通过前不得作为有效采购依据**；与自然人出售者的「框架收购协议」
+-- （开票前置）是两件事，不合并。采购订单（T08）与执行进度（T09）落在同一目录下。
+(5220, '采购合同', 'icbc:purchase-contract:query', 2, 1, 5203, 'contract', '', 'icbc/purchaseContract/index', 'IcbcPurchaseContract', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5221, '新增采购合同', 'icbc:purchase-contract:manage', 3, 1, 5220, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5222, '修改采购合同', 'icbc:purchase-contract:manage', 3, 2, 5220, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5223, '送审采购合同', 'icbc:purchase-contract:manage', 3, 3, 5220, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5224, '关闭采购合同', 'icbc:purchase-contract:manage', 3, 4, 5220, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5225, '审核采购合同', 'icbc:purchase-contract:audit', 3, 5, 5220, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5226, '删除采购合同', 'icbc:purchase-contract:manage', 3, 6, 5220, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 回收作业 =====
 (5179, '到站预约', 'icbc:appointment:query', 2, 1, 5204, 'appointment', '', 'icbc/appointment/index', 'IcbcAppointment', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),

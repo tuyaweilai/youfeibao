@@ -494,6 +494,19 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 > **AC1 的口径**：六态是枚举本身；单位供货方档案只收其中「自然人以外」的五类——这正是「判定规则是是否属于自然人」的落地，不是把自然人塞进供应商表。
 
+## #45 T07 采购合同（已完成）
+
+采购条款的对象：一个合同 → 多个采购订单 → 多次收货。**与自然人出售者的「框架收购协议」是两件事**——后者是开票前置（开票与代办税费授权），前者是采购条款，不合并。
+
+1. **落点落在 `icbc` 侧**（`icbc_purchase_contract` / `_category` / `_version` 三张租户表）：规格 #38 把采购履约链建在 `icbc` 模块（修订 ADR 0025），因为合同要同时承载自然人出售者（`icbc_payee_info`）与单位供货方（`erp_supplier`）两种对手方，而 `erp` 看不到 `icbc_payee_info`、依赖方向恒为 `icbc → erp`。ADR 0027 已同步加修订注（原写 `erp_purchase_contract`）。迁移 `backend/sql/mysql/icbc-purchase-contract.sql`（幂等），README 导入顺序同步。
+2. **对手方用「主体类型六态 + 双可空 id」承载**：`counterparty_type`（复用 `erp-api` 的 `SellerSubjectTypeEnum`）+ `payee_id` / `supplier_id`，恰好一个非空（Service 校验 + MySQL `chk_purchase_contract_counterparty` CHECK 兜底）。`payee_id` / `supplier_id` 加了 `@TableField(updateStrategy = ALWAYS)`——换对手方时要把另一个 id 真正清成 NULL，MyBatis-Plus 默认 NOT_NULL 策略会跳过 null 清不掉；所有更新路径都传整份 DO，故安全。**单位供货方只存 id + 名称快照，不做 ERP 侧存在性校验**（icbc 只有 `erp-api`，`erp_supplier` 没有对外 API；`erp_supplier` 本身没有 `subject_type` 之外的变化，这一条留给 #46 的双外键收口时一起考虑）。
+3. **状态机一条主线**：草稿 →（送审）/ 待审核 →（通过）生效 →（关闭）关闭；驳回退回草稿。**每次送审落一版快照**（`icbc_purchase_contract_version`，含适用品类、SHA-256 哈希、审核结论）。**改已生效合同 = 提新版**：新版本 + 回到待审核，变更原因必填，重新审核通过前整份合同不再是有效采购依据。**过期不落库**，由「已生效 + `end_date` 早于今天」推导（与 #13 的「逾期」同一做法）。
+4. **唯一门禁 `PurchaseContractService#assertUsableAsPurchaseBasis(contractId)`**：要求已生效且未过期。采购订单（#46）等后续单据调它，不要各自复制判断。
+5. **权限 / 菜单**：新增 `icbc:purchase-contract:query|manage|audit`（管理员全量；收货员与财务只读，现场要选「有效采购安排」）；菜单 5220–5226 挂在「采购管理」（5203 由占位页改为目录）。前端 `views/icbc/purchaseContract/index.vue`（列表 / 编辑 / 送审 / 审核 / 关闭 / 明细含版本留痕）与 `api/icbc/purchaseContract`。
+6. **测试**：`PurchaseContractServiceTest` 15 例（未审核不得作为依据、送审 → 审核 → 生效、驳回退回、改已生效合同提新版并重新送审、关闭、过期推导、双方恰好一个非空且可切换、有效期、品类必填且属本租户、只删草稿、分页筛选）与 `RecyclingRoleEnumTest#testPurchaseContractPermissions`；icbc 侧 447 测试全绿，前端 `pnpm ts:check` 无新增错误类别（仅全库既有的 auto-import d.ts 缺失噪声）、`pnpm build:local` 通过。
+
+> **未做的**：单位供货方存在性校验（见第 2 条，待 #46 的双外键一起收）；合同列表 `categories` 为逐行查询（与结算单列表同一做法，分页小，未优化）。
+
 ## 下一步建议
 
 - **A.** #13 代办税费申报——**已完成**；

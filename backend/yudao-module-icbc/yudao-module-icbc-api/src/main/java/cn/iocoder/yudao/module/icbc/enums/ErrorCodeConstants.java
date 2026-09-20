@@ -260,4 +260,27 @@ public interface ErrorCodeConstants {
             "只有「银行审核中」的变更可以取消，当前状态：{}");
     ErrorCode PAYEE_BANK_CARD_CHANGE_NOT_ONBOARDED = new ErrorCode(1_030_027_004,
             "该出售者尚未完成首次收方入驻，请先完成建档再变更银行卡");
+
+    // ========== 采购合同（#45 T07，ADR 0027） 1-030-028-000 ==========
+    ErrorCode PURCHASE_CONTRACT_NOT_EXISTS = new ErrorCode(1_030_028_000, "采购合同不存在");
+    ErrorCode PURCHASE_CONTRACT_STATUS_NOT_ALLOW = new ErrorCode(1_030_028_001,
+            "采购合同当前状态不允许该操作：{}");
+    ErrorCode PURCHASE_CONTRACT_COUNTERPARTY_REQUIRED = new ErrorCode(1_030_028_002,
+            "请选择交易对方，且自然人出售者与单位供货方只能二选一");
+    ErrorCode PURCHASE_CONTRACT_PAYEE_NOT_EXISTS = new ErrorCode(1_030_028_003,
+            "出售者档案不存在或不属于本租户，不能作为合同对手方");
+    ErrorCode PURCHASE_CONTRACT_SUPPLIER_NAME_REQUIRED = new ErrorCode(1_030_028_004,
+            "单位供货方合同的对手方名称不能为空");
+    ErrorCode PURCHASE_CONTRACT_DATE_INVALID = new ErrorCode(1_030_028_005,
+            "采购合同的有效期止不能早于有效期起");
+    ErrorCode PURCHASE_CONTRACT_CATEGORY_REQUIRED = new ErrorCode(1_030_028_006,
+            "采购合同至少需要一个适用品类");
+    ErrorCode PURCHASE_CONTRACT_CATEGORY_NOT_EXISTS = new ErrorCode(1_030_028_007,
+            "适用品类不存在或不属于本租户：{}");
+    ErrorCode PURCHASE_CONTRACT_CHANGE_REASON_REQUIRED = new ErrorCode(1_030_028_008,
+            "变更已生效的采购合同必须填写变更原因");
+    ErrorCode PURCHASE_CONTRACT_AUDIT_REMARK_REQUIRED = new ErrorCode(1_030_028_009,
+            "驳回采购合同必须填写审核意见");
+    ErrorCode PURCHASE_CONTRACT_NOT_EFFECTIVE = new ErrorCode(1_030_028_010,
+            "采购合同未审核生效或已过期，不能作为采购依据：{}");
 }

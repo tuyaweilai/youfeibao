@@ -64,7 +64,9 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SETTLEMENT_CONFIRM_QUERY, RecyclingPermission.SETTLEMENT_CONFIRM_MANAGE,
             RecyclingPermission.STATION_QUERY, RecyclingPermission.STATION_MANAGE,
             RecyclingPermission.APPOINTMENT_QUERY, RecyclingPermission.APPOINTMENT_MANAGE,
-            RecyclingPermission.SELLER_NOTIFY_QUERY, RecyclingPermission.SELLER_NOTIFY_MANAGE)),
+            RecyclingPermission.SELLER_NOTIFY_QUERY, RecyclingPermission.SELLER_NOTIFY_MANAGE,
+            RecyclingPermission.PURCHASE_CONTRACT_QUERY, RecyclingPermission.PURCHASE_CONTRACT_MANAGE,
+            RecyclingPermission.PURCHASE_CONTRACT_AUDIT)),
 
     /**
      * 收货员：收购现场登记，维护出售者档案与收购单。
@@ -84,7 +86,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.STATION_QUERY,
             RecyclingPermission.SETTLEMENT_CONFIRM_QUERY, RecyclingPermission.SETTLEMENT_CONFIRM_MANAGE,
             RecyclingPermission.SELLER_NOTIFY_QUERY, RecyclingPermission.SELLER_NOTIFY_MANAGE,
-            RecyclingPermission.APPOINTMENT_QUERY, RecyclingPermission.APPOINTMENT_MANAGE)),
+            RecyclingPermission.APPOINTMENT_QUERY, RecyclingPermission.APPOINTMENT_MANAGE,
+            RecyclingPermission.PURCHASE_CONTRACT_QUERY)),
 
     /**
      * 开票员：发起反向开票与付款，下载发票原件。
@@ -126,6 +129,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SETTLEMENT_QUERY, RecyclingPermission.SETTLEMENT_REMIND,
             RecyclingPermission.SETTLEMENT_CONFIRM_QUERY,
             RecyclingPermission.SELLER_NOTIFY_QUERY,
+            RecyclingPermission.PURCHASE_CONTRACT_QUERY,
             RecyclingPermission.PUBLIC_TOKEN_CREATE)),
 
     /**
