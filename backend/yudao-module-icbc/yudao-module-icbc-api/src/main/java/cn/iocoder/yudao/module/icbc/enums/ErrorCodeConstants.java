@@ -283,4 +283,8 @@ public interface ErrorCodeConstants {
             "驳回采购合同必须填写审核意见");
     ErrorCode PURCHASE_CONTRACT_NOT_EFFECTIVE = new ErrorCode(1_030_028_010,
             "采购合同未审核生效或已过期，不能作为采购依据：{}");
+
+    // ========== 卖方主体准入（#48，ADR 0029：反向开票只对自然人） 1-030-029-000 ==========
+    ErrorCode SELLER_SUBJECT_TYPE_NOT_NATURAL = new ErrorCode(1_030_029_000,
+            "{}不是自然人，不能反向开票；请由对方自行开具增值税发票，并在「进项收票」登记与勾稽");
 }

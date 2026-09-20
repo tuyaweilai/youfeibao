@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.service.invoice;
 import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
+import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceApplicationApplyReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceApplicationBatchReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceApplicationResultVO;
@@ -225,6 +226,65 @@ public class InvoiceApplicationServiceTest extends BaseDbUnitTest {
         assertTrue(failures.stream().anyMatch(item -> "TAX_METHOD_INVOICE_TYPE".equals(item.getCode())));
         assertTrue(failures.stream().anyMatch(item -> "GOODS_CODE_CONFIGURED".equals(item.getCode())));
         assertTrue(failures.stream().anyMatch(item -> "ACQUISITION_ELEMENTS".equals(item.getCode())));
+    }
+
+    // ==================== 卖方主体准入（#48，ADR 0029） ====================
+
+    @Test
+    public void testPreCheck_sellerSubjectTypeSixStates() {
+        for (SellerSubjectTypeEnum subjectType : SellerSubjectTypeEnum.values()) {
+            IcbcAcquisitionDO acquisition = stubAcquisition(300L + subjectType.getType(),
+                    "ACQ_SUBJECT_" + subjectType.getType(), "GENERAL", "1090101010000000000");
+            acquisition.setSellerSubjectType(subjectType.getType());
+            when(acquisitionService.getAcquisition(acquisition.getId())).thenReturn(acquisition);
+
+            InvoicePreCheckRespVO resp = invoiceApplicationService.preCheck(acquisition.getId(), "02");
+
+            InvoicePreCheckItemVO item = resp.getItems().stream()
+                    .filter(check -> "SELLER_SUBJECT_TYPE".equals(check.getCode())).findFirst().orElseThrow();
+            if (subjectType.isNatural()) {
+                assertTrue(item.getPassed(), subjectType.getName() + " 是自然人，应放行");
+                assertNull(item.getRemedy());
+            } else {
+                assertFalse(item.getPassed(), subjectType.getName() + " 不是自然人，应拦下");
+                assertTrue(item.getMessage().contains(subjectType.getName()), "实际：" + item.getMessage());
+                assertTrue(item.getRemedy().contains("进项收票"), "实际：" + item.getRemedy());
+            }
+        }
+    }
+
+    /**
+     * AC4：两层门禁互不推断——卖方准入看「主体是不是自然人」，租户资格看三层资质。
+     * 卖方是自然人时，即使租户资质未就绪，卖方主体类型项也应通过（失败只在租户资质项）。
+     * 反向的「个体工商户可以作为回收企业去反向开票」由租户资格那条线管，与卖方主体无关。
+     */
+    @Test
+    public void testPreCheck_sellerAdmissionIsSeparateFromTenantQualification() {
+        when(qualificationService.isTenantReady()).thenReturn(false);
+        IcbcAcquisitionDO acquisition = stubAcquisition(370L, "ACQ370", "GENERAL", "1090101010000000000");
+        acquisition.setSellerSubjectType(SellerSubjectTypeEnum.NATURAL.getType());
+        when(acquisitionService.getAcquisition(370L)).thenReturn(acquisition);
+
+        InvoicePreCheckRespVO resp = invoiceApplicationService.preCheck(370L, "02");
+
+        assertFalse(resp.getItems().stream().filter(item -> "TENANT_QUALIFICATION".equals(item.getCode()))
+                .findFirst().orElseThrow().getPassed());
+        assertTrue(resp.getItems().stream().filter(item -> "SELLER_SUBJECT_TYPE".equals(item.getCode()))
+                .findFirst().orElseThrow().getPassed());
+    }
+
+    @Test
+    public void testApply_nonNaturalSellerNeverReachesIcbc() {
+        IcbcAcquisitionDO acquisition = stubAcquisition(360L, "ACQ360", "GENERAL", "1090101010000000000");
+        acquisition.setSellerSubjectType(SellerSubjectTypeEnum.FARMER_COOPERATIVE.getType());
+        when(acquisitionService.getAcquisition(360L)).thenReturn(acquisition);
+
+        InvoiceApplicationResultVO result = invoiceApplicationService.apply(buildApply(360L, "02"));
+
+        assertFalse(result.getSuccess());
+        assertTrue(result.getFailures().stream().anyMatch(item -> "SELLER_SUBJECT_TYPE".equals(item.getCode())));
+        assertEquals(0L, fakeIcbcGateway.countOperation(FakeIcbcGateway.OP_SUBMIT_PRE_ORDER));
+        verify(acquisitionService, never()).linkInvoice(anyLong(), anyString());
     }
 
     @Test

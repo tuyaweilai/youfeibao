@@ -515,6 +515,7 @@ CREATE TABLE IF NOT EXISTS icbc_acquisition (
     acquisition_no VARCHAR(64) NOT NULL,
     client_request_id VARCHAR(64),
     payee_id BIGINT NOT NULL,
+    seller_subject_type TINYINT DEFAULT 1,
     partner_payee_id VARCHAR(64),
     seller_name VARCHAR(100),
     seller_mobile VARCHAR(32),

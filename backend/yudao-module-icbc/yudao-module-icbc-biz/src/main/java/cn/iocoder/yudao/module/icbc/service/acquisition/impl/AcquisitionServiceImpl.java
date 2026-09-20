@@ -14,10 +14,12 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.goodscfg.IcbcGoodsConfigMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
+import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.DeductionMethodEnum;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.acquisition.recognition.AcquisitionRecognitionPort;
+import cn.iocoder.yudao.module.icbc.service.admission.SellerAdmissionService;
 import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -65,6 +67,8 @@ public class AcquisitionServiceImpl implements AcquisitionService {
     private AcquisitionRecognitionPort recognitionPort;
     @Resource
     private NaturalPersonQuotaService naturalPersonQuotaService;
+    @Resource
+    private SellerAdmissionService sellerAdmissionService;
 
     // ==================== 登记 ====================
 
@@ -92,6 +96,7 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         // 3. 计价模型（ADR 0019）：结算重量 = 毛重 − 皮重 − 扣杂；金额 = 结算重量 × 单价 + 调整项
         IcbcAcquisitionDO acquisition = BeanUtils.toBean(reqVO, IcbcAcquisitionDO.class);
         acquisition.setId(null);
+        applySellerSubjectType(acquisition);
         applyPricing(acquisition);
 
         // 4. 必须要件校验：缺哪样说哪样，不做一个笼统的「参数错误」
@@ -272,6 +277,19 @@ public class AcquisitionServiceImpl implements AcquisitionService {
             if (recognition != null) {
                 reqVO.setVehiclePlateNo(recognition.getPlateNo());
             }
+        }
+    }
+
+    /**
+     * 卖方主体准入（ADR 0029）：反向开票通道（收购单）只收自然人。
+     *
+     * <p>个体工商户 / 个人独资企业 / 合伙企业 / 企业法人 / 农民专业合作社一律拦下，错误信息指向
+     * 「由对方开票 + 进项收票」；未传时默认自然人（收购单的出售者来自自然人收方档案）。
+     */
+    private void applySellerSubjectType(IcbcAcquisitionDO acquisition) {
+        sellerAdmissionService.assertReverseInvoiceAllowed(acquisition.getSellerSubjectType());
+        if (acquisition.getSellerSubjectType() == null) {
+            acquisition.setSellerSubjectType(SellerSubjectTypeEnum.NATURAL.getType());
         }
     }
 

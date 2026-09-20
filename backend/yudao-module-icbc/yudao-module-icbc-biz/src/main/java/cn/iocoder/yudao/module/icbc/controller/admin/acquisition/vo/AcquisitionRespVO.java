@@ -25,6 +25,12 @@ public class AcquisitionRespVO {
     @Schema(description = "出售者档案编号", example = "1024")
     private Long payeeId;
 
+    @Schema(description = "卖方主体类型：1-自然人出售者，2-个体工商户，3-个人独资企业，4-合伙企业，5-企业法人，6-农民专业合作社", example = "1")
+    private Integer sellerSubjectType;
+
+    @Schema(description = "卖方主体类型名称", example = "自然人出售者")
+    private String sellerSubjectTypeName;
+
     @Schema(description = "场站编号（一次到场批次按「出售者 + 场站」聚合）", example = "3072")
     private Long stationId;
 

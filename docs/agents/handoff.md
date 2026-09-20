@@ -631,3 +631,32 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 1. **ADR 0025 的域取舍在规格里被修订**：`purchase` 域不启用（采购履约链建在 `icbc` 模块，因为采购订单必须与收购单在同一模块内做关联追溯；`erp` 侧反向依赖 icbc 是错的）。实际只启用 `stock` 域。**#39 已把 ADR 0025 同步改掉**。
 2. **`yudao-module-erp-biz/src/test/` 是空的**，没有 `create_tables.sql` / `clean.sql`。凡涉及 ERP 库存能力的测试，先把这两份 H2 资源建起来（`#42` 起需要）。
+
+## #48 T10 卖方主体准入硬约束与非自然人取票路径（已完成）
+
+把「反向开票只对自然人」从操作员判断变成系统级硬约束（ADR 0029），非自然人卖方一律拦下并指向进项收票路径。
+
+1. **准入只有一条规则、一个家**：新增 `SellerAdmissionService`（`service/admission`）。判定唯一依据是
+   `SellerSubjectTypeEnum.isNaturalType()`（主体是不是自然人，不是「有没有营业执照」）。非自然人抛
+   `SELLER_SUBJECT_TYPE_NOT_NATURAL`（`1_030_028_000`），错误信息给出主体名 + 「由对方自行开具增值税发票，
+   并在「进项收票」登记与勾稽」。`null` 按自然人放行（历史单据没有该字段，否则老单开不出票）；未知类型拒绝。
+2. **采购单据留六态快照**：`icbc_acquisition.seller_subject_type`（`icbc-acquisition.sql` 幂等 ALTER，默认 1），
+   进 `AcquisitionRespVO`（含 `sellerSubjectTypeName`），PC 收购单列表与现场端收购详情可见。收购单只收自然人：
+   登记时传非自然人直接拒（错误同上），未传默认自然人。
+3. **反向开票通道三处一起拦**：`InvoiceApplicationServiceImpl` 新增前置校验项 `SELLER_SUBJECT_TYPE`
+   （消息 + 补齐方式都指向由对方开票）；`InvoicePreOrderReqVO` 带 `sellerSubjectType`（平台侧字段、不上送工行），
+   `InvoiceOrderServiceImpl.createPreOrder` 在下发工行前再硬校验一次——预下单是真正的闸门，单靠 UI 前置校验不算硬约束。
+4. **AC4「两件事别混」在结构上分开**：卖方准入是 `SellerAdmissionService`（只看卖方主体），租户资格是
+   `IcbcQualificationService.isTenantReady()`（三层资质），两层互不推断。个体户**能**作为回收企业去反向开票
+   （5 号公告第二条），那是租户维度，不在本门禁内。
+5. **测试**：`SellerAdmissionServiceTest`（六态逐一：自然人放行、其余五类拒且消息指向进项收票、null 兼容历史、
+   未知类型拒）；`InvoiceApplicationServiceTest` 补六态前置校验、非自然人不下发工行、卖方准入与租户资格两条线
+   独立；`InvoiceOrderServiceTest` 补预下单闸门对五类非自然人拒、自然人放行；`AcquisitionServiceImplTest` 补
+   自然人快照与非自然人拒收。icbc 442 测试全绿；PC `pnpm build:local`、现场端 `pnpm build:h5` 均通过。
+
+> **口径留档**：本票把「采购单据」落在 `icbc_acquisition`（收购单）上。#46（T08 采购订单）会给
+> `erp_purchase_order` 加 `counterparty_type + payee_id + supplier_id` 双外键，那时单位供货方的采购单据
+> 才真正承载非自然人主体类型；本票的 `SellerAdmissionService` 已按「主体是否自然人」做成通用门禁，可直接复用。
+
+> **未做（不属本票）**：进项收票登记与勾稽是 #49（T11）；`createPreOrder` 直接调用时若 `sellerSubjectType`
+> 为空按自然人放行（兼容历史），收购单/开票申请这条主路径恒会带上该字段。

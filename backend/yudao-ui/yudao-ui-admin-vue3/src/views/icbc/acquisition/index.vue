@@ -29,6 +29,7 @@
     <el-table v-loading="loading" :data="list" :stripe="true">
       <el-table-column label="收购单号" prop="acquisitionNo" min-width="200" />
       <el-table-column label="出售者" prop="sellerName" min-width="100" />
+      <el-table-column label="主体类型" prop="sellerSubjectTypeName" width="130" />
       <el-table-column label="联系方式" prop="sellerMobile" width="130" />
       <el-table-column label="品类" prop="categoryName" min-width="100" />
       <el-table-column label="数量" align="right" width="140">

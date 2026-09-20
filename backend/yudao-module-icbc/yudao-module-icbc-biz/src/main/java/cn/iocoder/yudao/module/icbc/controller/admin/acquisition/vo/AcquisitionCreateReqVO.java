@@ -1,5 +1,7 @@
 package cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo;
 
+import cn.iocoder.yudao.framework.common.validation.InEnum;
+import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -23,6 +25,10 @@ public class AcquisitionCreateReqVO {
     @Schema(description = "出售者（收方）档案编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
     @NotNull(message = "出售者不能为空")
     private Long payeeId;
+
+    @Schema(description = "卖方主体类型：1-自然人出售者（默认，走反向开票），2~6-个体工商户等非自然人（非自然人一律拒收，走单位供货方与进项收票）", example = "1")
+    @InEnum(value = SellerSubjectTypeEnum.class, message = "卖方主体类型不合法")
+    private Integer sellerSubjectType;
 
     @Schema(description = "场站编号（ADR 0018：一次到场批次按「出售者 + 场站」聚合；历史数据可空）", example = "3072")
     private Long stationId;

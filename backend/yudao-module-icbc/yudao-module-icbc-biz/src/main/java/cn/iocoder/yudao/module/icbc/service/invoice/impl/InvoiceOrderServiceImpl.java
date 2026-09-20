@@ -31,6 +31,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceInfo;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceQueryReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderGoods;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderReq;
+import cn.iocoder.yudao.module.icbc.service.admission.SellerAdmissionService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.util.AmountUtils;
 import cn.iocoder.yudao.module.icbc.util.IcbcTimeUtils;
@@ -82,6 +83,9 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
     private SellerOnboardingService sellerOnboardingService;
 
     @Resource
+    private SellerAdmissionService sellerAdmissionService;
+
+    @Resource
     private SellerNotifyService sellerNotifyService;
 
     @Override
@@ -94,6 +98,9 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
 
         // 1.1 出售者建档门禁：审核未通过 / 未完成建档的出售者不能用于开票
         sellerOnboardingService.assertReadyForInvoiceByOutUserId(createReqVO.getOutUserId());
+
+        // 1.2 卖方主体准入硬约束：反向开票只对自然人（ADR 0029），非自然人一律不下发工行
+        sellerAdmissionService.assertReverseInvoiceAllowed(createReqVO.getSellerSubjectType());
 
         // 2. 参数校验
         validatePreOrderRequest(createReqVO);
