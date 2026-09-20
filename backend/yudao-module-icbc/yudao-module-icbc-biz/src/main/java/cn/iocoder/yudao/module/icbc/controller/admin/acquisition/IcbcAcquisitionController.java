@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -109,6 +110,39 @@ public class IcbcAcquisitionController {
     public CommonResult<List<PurchaseArrangementRespVO>> listPurchaseArrangements(
             @RequestParam("payeeId") Long payeeId) {
         return success(purchaseOrderService.getUsableArrangements(payeeId));
+    }
+
+    @PostMapping("/acceptance")
+    @Operation(summary = "记录接收结论（接收 / 部分接收 / 拒收；拒收部分不进应付、不进库存）")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.ACQUISITION_ACCEPTANCE + "')")
+    public CommonResult<Boolean> recordAcceptance(@Valid @RequestBody AcquisitionAcceptanceReqVO reqVO) {
+        acquisitionService.recordAcceptance(reqVO);
+        return success(true);
+    }
+
+    @GetMapping("/weight-diff/page")
+    @Operation(summary = "分页获得称量差异清单（结算重量 vs 实物量，只读）")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.ACQUISITION_WEIGHT_DIFF_QUERY + "')")
+    public CommonResult<PageResult<AcquisitionWeightDiffRespVO>> getWeightDiffPage(
+            @Valid AcquisitionWeightDiffPageReqVO pageReqVO) {
+        PageResult<IcbcAcquisitionDO> page = acquisitionService.getWeightDiffPage(pageReqVO);
+        return success(new PageResult<>(page.getList().stream()
+                .map(this::toWeightDiffRespVO).collect(Collectors.toList()), page.getTotal()));
+    }
+
+    private AcquisitionWeightDiffRespVO toWeightDiffRespVO(IcbcAcquisitionDO acquisition) {
+        AcquisitionWeightDiffRespVO vo = BeanUtils.toBean(acquisition, AcquisitionWeightDiffRespVO.class);
+        BigDecimal physical = acquisition.resolvePhysicalWeight();
+        vo.setPhysicalWeight(physical);
+        if (physical != null && acquisition.getSettlementWeight() != null
+                && acquisition.getWeightDiff() != null) {
+            vo.setDifferenceNote(String.format("实物量 %s − 结算重量 %s = %s（%s）",
+                    physical.stripTrailingZeros().toPlainString(),
+                    acquisition.getSettlementWeight().stripTrailingZeros().toPlainString(),
+                    acquisition.getWeightDiff().stripTrailingZeros().toPlainString(),
+                    acquisition.getWeightDiff().signum() >= 0 ? "实物多于计价" : "计价多于实物"));
+        }
+        return vo;
     }
 
     private AcquisitionRespVO toRespVO(IcbcAcquisitionDO acquisition) {

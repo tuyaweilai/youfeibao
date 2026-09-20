@@ -39,6 +39,21 @@ public interface AcquisitionService {
      */
     void correctRecognition(@Valid AcquisitionCorrectionReqVO reqVO);
 
+    // ==================== 接收结论与称量差异（#53 T15，ADR 0028） ====================
+
+    /**
+     * 记录接收结论（接收 / 部分接收 / 拒收）：接收量、退回量、余货出场量与拒收原因。
+     *
+     * <p>拒收部分（退回量 + 余货出场量）不进应付、不进库存；结算重量与实物量的差落
+     * {@code weight_diff}，不被静默抹平。
+     */
+    void recordAcceptance(@Valid AcquisitionAcceptanceReqVO reqVO);
+
+    /**
+     * 称量差异清单（只读）：结算重量 vs 实物量（接收量优先，无则净重），供异常表（#57）消费。
+     */
+    PageResult<IcbcAcquisitionDO> getWeightDiffPage(AcquisitionWeightDiffPageReqVO reqVO);
+
     /**
      * 按编号取收购单
      */

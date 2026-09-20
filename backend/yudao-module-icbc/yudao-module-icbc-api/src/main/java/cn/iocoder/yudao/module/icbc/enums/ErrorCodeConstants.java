@@ -427,4 +427,16 @@ public interface ErrorCodeConstants {
             "作废入库单必须说明原因（已过账的会同时冲销库存）");
     ErrorCode STOCK_IN_ACQUISITION_NOT_ACCEPTED = new ErrorCode(1_030_035_008,
             "收购单尚未验收（未归入结算单），不能入库：先在现场「结束本次收货」");
+
+    // ========== 收购接收结论与称量差异（#53 T15，ADR 0028：两个重量口径，差额进异常表） 1_030_036_000 ==========
+    ErrorCode ACQUISITION_ACCEPTANCE_WEIGHT_INVALID = new ErrorCode(1_030_036_000,
+            "接收结论的重量不合法：接收量 / 退回量 / 余货出场量都不能为负");
+    ErrorCode ACQUISITION_REJECT_REASON_REQUIRED = new ErrorCode(1_030_036_001,
+            "有退回量时必须填写拒收原因（差异要有人解释，不能静默抹平）");
+    ErrorCode ACQUISITION_ACCEPTANCE_EXCEED_NET_WEIGHT = new ErrorCode(1_030_036_002,
+            "接收量 + 退回量 + 余货出场量（{}）超过过磅净重（{}），不能把同一车货重复分配");
+    ErrorCode ACQUISITION_ACCEPTANCE_AFTER_INVOICE_LINKED = new ErrorCode(1_030_036_003,
+            "该收购单已挂开票申请，金额口径已固定，不能再改接收结论；如需修正请先红冲发票或作废重开");
+    ErrorCode ACQUISITION_ACCEPTANCE_AFTER_SETTLEMENT = new ErrorCode(1_030_036_004,
+            "该收购单已归入结算单，接收结论请在「结束本次收货」前记录（已确认的结算金额不能靠改接收结论静默变化）；如需修正请走结算异议");
 }

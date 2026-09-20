@@ -1022,3 +1022,41 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 > **未做（不属本票）**：结算重量与入库重量的差异清单 / 异常表（#53 / #57）；
 > 采购订单履约的入库口径（#47 预留）；`InputInvoiceBizTypeEnum.STOCK_IN` 的勾稽接入
 > （入库单无金额，暂不接）。
+
+## #53 T15 拒收 / 部分接收与余货出场（已完成）
+
+验收结论可以是**接收 / 部分接收 / 拒收**：接收量留下、退回量与余货出场量离场。拒收部分
+**不形成采购应付、不进正常库存**，但仍在收购单上可追溯（ADR 0028：结算重量只作计价基准，
+实物在库量是另一个数字）。分支 `t15-partial-receipt`，菜单段 5320–5379（用了 5320 / 5321），
+错误码段 `1_030_036_xxx`（用了 000–004）。
+
+1. **`icbc_acquisition` 五个新列（全可空，历史数据行为不变）**：`accepted_weight`（接收量）、
+   `rejected_weight`（退回量）、`residual_weight`（余货出场量）、`reject_reason`（拒收原因）、
+   `weight_diff`（称量差异）。迁移 `backend/sql/mysql/icbc-acquisition-acceptance.sql`（幂等，
+   必须在 `icbc-acquisition.sql` 之后，已进 README 导入顺序）；测试建表同步（H2 `ADD COLUMN IF NOT EXISTS`）。
+   **没有新表，`clean.sql` 未动。**
+2. **接收结论只有一个入口**：`POST /icbc/acquisition/acceptance`（`icbc:acquisition:acceptance`，
+   管理员 / 收货员）。校验：三个重量都不为负；退回量 > 0 必须有拒收原因；三者之和不超过过磅净重
+   （只校验「不超过」不强制「等于」——少掉的那部分正是要靠差异暴露的）。**不静默抹平**。
+3. **拒收部分不进应付**：金额按 `（结算重量 − 退回量 − 余货出场量）× 单价 + 调整项` 重算（应付量不小于 0），
+   在 `applyAcceptancePricing` 一处；拒收部分也不进库存——实物量取 `accepted_weight`（有值优先于 `net_weight`）。
+4. **实物量的唯一取数点是 `IcbcAcquisitionDO#resolvePhysicalWeight()`**（接收量优先，无则净重）。
+   > **给 #52（T14）的接线**：入库的「可入库实物量」请调这个方法，不要在入库侧另写一遍
+   > 「用 net 还是 accepted」；#53 已落 `accepted_weight`，有值即优先。
+5. **称量差异落字段 + 只读清单**：`weight_diff` = 实物量 − 结算重量（未做接收结论时实物量取净重，
+   所以有扣杂的单也会看到差额），只要两侧都算得出就落库；`GET /icbc/acquisition/weight-diff/page`
+   （`icbc:acquisition:weight-diff:query`，只读）按 `hasDifference` / `onlyAccepted` / 出售者 / 时间过滤，
+   带 `physicalWeight` 与 `differenceNote` 供 **#57 的异常表直接消费**。
+6. **两道时序门禁（防止口径静默变化）**：已挂开票申请（金额已固定）或已归入结算单（#33 版本已快照）后，
+   不允许再改接收结论，分别报 `ACQUISITION_ACCEPTANCE_AFTER_INVOICE_LINKED` /
+   `ACQUISITION_ACCEPTANCE_AFTER_SETTLEMENT`。接收结论应在「结束本次收货」前记录。
+7. **权限 / 菜单**：`RecyclingPermission` 追加 `ACQUISITION_ACCEPTANCE`、`ACQUISITION_WEIGHT_DIFF_QUERY`
+   （只追加，未重排）；`RecyclingRoleEnum` 挂到管理员 / 收货员（可记录）与开票员 / 财务（差异只读）；
+   `icbc-menu.sql` 追加 5320「接收结论与称量差异」（回收作业 5204 下）+ 5321「记录接收结论」。
+8. **前端**：`views/icbc/acquisition/AcceptanceForm.vue`（弹窗：带出净重 / 结算重量 / 单价，
+   实时算应付与差异，拒收必填原因）；`views/icbc/acquisition/index.vue` 操作列加「接收结论」；
+   新增只读页 `views/icbc/acquisition/weightDiff.vue`（差异清单 + 记录入口）。
+9. **测试**：`AcquisitionServiceImplTest` 新增 9 例（部分接收重算应付与差异、全拒收应付为 0 仍可追溯、
+   退回无原因拒、超净重拒、负重量拒、已挂开票拒、已归结算拒、扣杂差异不抹平、差异清单过滤、
+   修正识别重算差异）；`RecyclingRoleEnumTest` 新增接收结论 / 差异清单权限一例。
+   **icbc 572 测试全绿**；PC `pnpm build:local` 通过。

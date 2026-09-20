@@ -36,6 +36,7 @@
 22f. `icbc-purchase-order-progress.sql` —— 采购订单履约五口径与执行进度（#47 T09，ADRs 0027/0028）：`icbc_purchase_setting`（租户级单行：完成比例采用哪个口径、超量 / 过期 / 跨场站交货按拦截还是提交授权审核）+ `icbc_purchase_exception`（履约异常授权单：提交 → 审核 → 已通过的授权成为交货门禁的放行依据，只放宽被授权的那一件事）。五口径的取数在 `PurchaseOrderService#getProgress` 一处；入库口径等 #52 的入库单落地后接入，现在标「待接入」不出数字
 22g. `icbc-acquisition-purchase-link.sql` —— 收购单关联采购安排与「直接收购」（#51 T13，ADR 0027）：`icbc_acquisition` 加 `purchase_order_id` / `purchase_order_item_id`（`NOT NULL DEFAULT 0`，0 = 未关联即「直接收购」）。必须在 `icbc-acquisition.sql` 与 `icbc-purchase-order.sql` 之后
 22h. `icbc-stock-in.sql` —— 待入库 → 入库单 → 库存流水（#52 T14，ADR 0027）：`icbc_stock_in`（入库单：待过账 / 已过账 / 已作废；只有过账才经 `StockApi` 写 `RECEIPT_IN(90)`）与 `icbc_stock_in_item`（明细：仓库 / 库位 / 批次 + 数量，一张收购单可拆多个库位、分多次入库）。icbc 不直接碰 `erp_stock*`；可入库实物量的唯一取数点在 `StockInService#resolveAvailableQuantity`
+22i. `icbc-acquisition-acceptance.sql` —— 收购接收结论与称量差异（#53 T15，ADR 0028）：`icbc_acquisition` 加 `accepted_weight`（接收量）/ `rejected_weight`（退回量）/ `residual_weight`（余货出场量）/ `reject_reason`（拒收原因）/ `weight_diff`（称量差异 = 实物量 − 结算重量，不静默抹平）。拒收部分不进应付、不进正常库存。必须在 `icbc-acquisition.sql` 之后
 23. `icbc-menu.sql` —— 菜单清场与租户套餐骨架（#41）：删掉已禁用模块 / 外链 / 演示菜单，停用待启用的 ERP 菜单树，落 工作台 / 基础资料 / 交易对方 / 采购管理 / 回收作业 / 仓储管理 / 结算管理 / 财务票务 / 业务追溯 / 经营报表 一级骨架并把既有 icbc 页面挂进去，再落「回收企业套餐」（`system_tenant_package.id = 200`）。幂等，**必须最后导**（依赖前面所有 `system_menu` / `system_tenant_package` 种子）
 
 > enterprise 的菜单与字典已包含在 `ruoyi-vue-pro.sql` 中，不要再单独导入 `enterprise-menu.sql` / `module-enterprise-dict.sql`（会主键冲突）。
@@ -48,7 +49,7 @@ MYSQL="mysql -h 127.0.0.1 -P 13308 -uroot -p --default-character-set=utf8mb4"
 $MYSQL -e "CREATE DATABASE IF NOT EXISTS \`ruoyi-vue-pro\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 for f in ruoyi-vue-pro erp erp-stock-goods-config erp-stock-location-batch erp-supplier quartz 02-initial-data yudao-module-enterprise-auth-flow member-2024-01-18 \
          icbc_payee_info icbc_payer_info icbc_invoice_tables icbc_payment_order \
-         icbc_invoice_download icbc_api_log_callback enterprise icbc-readiness icbc-evidence icbc-public-token icbc-jobs icbc-seller-onboarding icbc-acquisition icbc-invoice-application icbc-payment icbc-invoice-issuance icbc-red-invoice icbc-quota icbc-tax-declaration icbc-billing icbc-natural-person icbc-settlement icbc-station icbc-seller-portal icbc-appointment icbc-seller-notify icbc-handover-batch icbc-purchase-contract icbc-purchase-order icbc-input-invoice icbc-purchase-order-progress icbc-acquisition-purchase-link icbc-stock-in icbc-bank-card-change icbc-menu; do
+         icbc_invoice_download icbc_api_log_callback enterprise icbc-readiness icbc-evidence icbc-public-token icbc-jobs icbc-seller-onboarding icbc-acquisition icbc-invoice-application icbc-payment icbc-invoice-issuance icbc-red-invoice icbc-quota icbc-tax-declaration icbc-billing icbc-natural-person icbc-settlement icbc-station icbc-seller-portal icbc-appointment icbc-seller-notify icbc-handover-batch icbc-purchase-contract icbc-purchase-order icbc-input-invoice icbc-purchase-order-progress icbc-acquisition-purchase-link icbc-stock-in icbc-acquisition-acceptance icbc-bank-card-change icbc-menu; do
   $MYSQL ruoyi-vue-pro < "$f.sql"
 done
 ```

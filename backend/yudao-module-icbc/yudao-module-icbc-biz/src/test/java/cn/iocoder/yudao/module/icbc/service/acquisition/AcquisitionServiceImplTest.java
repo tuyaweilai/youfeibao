@@ -978,6 +978,196 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
 
     // ==================== 造数 ====================
 
+    // ==================== 接收结论与称量差异（#53 T15，ADR 0028） ====================
+
+    /**
+     * 造一张带扣杂的收购单：毛 18000 − 皮 5500 = 净 12500，扣杂 500 → 结算 12000，单价 2 → 应付 24000。
+     */
+    private Long createAcquisitionForAcceptance(PayeeInfoDO payee, IcbcGoodsConfigDO config) {
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("5"));
+        reqVO.setGrossWeight(new BigDecimal("18000.00"));
+        reqVO.setTareWeight(new BigDecimal("5500.00"));
+        reqVO.setDeduction(new BigDecimal("500.00"));
+        reqVO.setDeductionMethod("WEIGHT");
+        reqVO.setUnitPrice(new BigDecimal("2.00"));
+        return acquisitionService.createAcquisition(reqVO).getId();
+    }
+
+    private AcquisitionAcceptanceReqVO acceptanceReq(Long id, String accepted, String rejected, String residual) {
+        AcquisitionAcceptanceReqVO reqVO = new AcquisitionAcceptanceReqVO();
+        reqVO.setId(id);
+        reqVO.setAcceptedWeight(accepted == null ? null : new BigDecimal(accepted));
+        reqVO.setRejectedWeight(rejected == null ? null : new BigDecimal(rejected));
+        reqVO.setResidualWeight(residual == null ? null : new BigDecimal(residual));
+        return reqVO;
+    }
+
+    @Test
+    public void testRecordAcceptance_partialReceipt_recomputesPayableAndDiff() {
+        PayeeInfoDO payee = insertPayee("乙一", "13800138200");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        Long id = createAcquisitionForAcceptance(payee, config);
+        assertEquals(0, new BigDecimal("24000.00").compareTo(acquisitionMapper.selectById(id).getAmount()));
+
+        // 部分接收：接收 11500，退回 500（质量），余货出场 500，三者合计 = 净重 12500
+        AcquisitionAcceptanceReqVO reqVO = acceptanceReq(id, "11500", "500", "500");
+        reqVO.setRejectReason("含水率超标，杂质过多");
+        acquisitionService.recordAcceptance(reqVO);
+
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
+        assertEquals(0, new BigDecimal("11500").compareTo(saved.getAcceptedWeight()));
+        assertEquals(0, new BigDecimal("500").compareTo(saved.getRejectedWeight()));
+        assertEquals(0, new BigDecimal("500").compareTo(saved.getResidualWeight()));
+        assertEquals("含水率超标，杂质过多", saved.getRejectReason());
+        // 拒收部分不进应付：应付量 = 12000 − 500 − 500 = 11000，金额 = 11000 × 2 = 22000
+        assertEquals(0, new BigDecimal("22000.00").compareTo(saved.getAmount()));
+        // 称量差异 = 实物量（接收量优先）− 结算重量 = 11500 − 12000 = -500
+        assertEquals(0, new BigDecimal("-500").compareTo(saved.getWeightDiff()));
+    }
+
+    @Test
+    public void testRecordAcceptance_fullReject_payableZeroButStillTraceable() {
+        PayeeInfoDO payee = insertPayee("乙二", "13800138201");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        Long id = createAcquisitionForAcceptance(payee, config);
+
+        AcquisitionAcceptanceReqVO reqVO = acceptanceReq(id, "0", "12500", null);
+        reqVO.setRejectReason("整车不合格，全部拒收");
+        acquisitionService.recordAcceptance(reqVO);
+
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
+        // 全部拒收：应付为 0（不进应付），但单据、接收量与拒收原因仍在（可追溯，不进库存）
+        assertEquals(0, BigDecimal.ZERO.compareTo(saved.getAmount()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(saved.getAcceptedWeight()));
+        assertEquals(0, new BigDecimal("12500").compareTo(saved.getRejectedWeight()));
+        assertEquals("整车不合格，全部拒收", saved.getRejectReason());
+        assertEquals(0, new BigDecimal("-12000").compareTo(saved.getWeightDiff()));
+    }
+
+    @Test
+    public void testRecordAcceptance_rejectWithoutReasonRejected() {
+        PayeeInfoDO payee = insertPayee("乙三", "13800138202");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        Long id = createAcquisitionForAcceptance(payee, config);
+
+        assertServiceException(() -> acquisitionService.recordAcceptance(acceptanceReq(id, "12000", "500", null)),
+                ACQUISITION_REJECT_REASON_REQUIRED);
+    }
+
+    @Test
+    public void testRecordAcceptance_exceedNetWeightRejected() {
+        PayeeInfoDO payee = insertPayee("乙四", "13800138203");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        Long id = createAcquisitionForAcceptance(payee, config);
+
+        // 接收 12500 + 退回 500 = 13000 > 净重 12500：同一车货不能重复分配
+        AcquisitionAcceptanceReqVO reqVO = acceptanceReq(id, "12500", "500", null);
+        reqVO.setRejectReason("部分不合格");
+        assertServiceException(() -> acquisitionService.recordAcceptance(reqVO),
+                ACQUISITION_ACCEPTANCE_EXCEED_NET_WEIGHT, "13000", "12500");
+    }
+
+    @Test
+    public void testRecordAcceptance_negativeWeightRejected() {
+        PayeeInfoDO payee = insertPayee("乙五", "13800138204");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        Long id = createAcquisitionForAcceptance(payee, config);
+
+        AcquisitionAcceptanceReqVO reqVO = acceptanceReq(id, "12000", "-100", null);
+        reqVO.setRejectReason("手误");
+        assertServiceException(() -> acquisitionService.recordAcceptance(reqVO),
+                ACQUISITION_ACCEPTANCE_WEIGHT_INVALID);
+    }
+
+    @Test
+    public void testRecordAcceptance_afterInvoiceLinkedRejected() {
+        PayeeInfoDO payee = insertPayee("乙六", "13800138205");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        Long id = createAcquisitionForAcceptance(payee, config);
+        // 已挂开票申请：金额口径已固定，不能再改接收结论
+        acquisitionService.linkInvoice(id, "ORDER_ACCEPT_1");
+
+        assertServiceException(() -> acquisitionService.recordAcceptance(acceptanceReq(id, "12000", "500", null)),
+                ACQUISITION_ACCEPTANCE_AFTER_INVOICE_LINKED);
+    }
+
+    @Test
+    public void testRecordAcceptance_afterSettlementGroupedRejected() {
+        PayeeInfoDO payee = insertPayee("乙十", "13800138209");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        Long id = createAcquisitionForAcceptance(payee, config);
+        // 已归入结算单：结算版本已快照，不能让接收结论再静默改金额（#33）
+        IcbcAcquisitionDO grouped = new IcbcAcquisitionDO();
+        grouped.setId(id);
+        grouped.setSettlementId(9001L);
+        acquisitionMapper.updateById(grouped);
+
+        assertServiceException(() -> acquisitionService.recordAcceptance(acceptanceReq(id, "12000", null, null)),
+                ACQUISITION_ACCEPTANCE_AFTER_SETTLEMENT);
+    }
+
+    @Test
+    public void testWeightDiff_registeredByDeduction_notSilentlyZeroed() {
+        PayeeInfoDO payee = insertPayee("乙七", "13800138206");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        Long id = createAcquisitionForAcceptance(payee, config);
+
+        // 未做接收结论时实物量取净重：差异 = 12500 − 12000 = 500（扣杂），不静默抹平成 0
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
+        assertEquals(0, new BigDecimal("500").compareTo(saved.getWeightDiff()));
+        assertNull(saved.getAcceptedWeight());
+    }
+
+    @Test
+    public void testCorrectRecognition_recomputesWeightDiff() {
+        PayeeInfoDO payee = insertPayee("乙八", "13800138207");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("5"));
+        reqVO.setGrossWeight(new BigDecimal("18000.00"));
+        reqVO.setTareWeight(new BigDecimal("5500.00"));
+        reqVO.setUnitPrice(new BigDecimal("2.00"));
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
+        // 无扣杂：结算 = 净重，差异为 0
+        assertEquals(0, BigDecimal.ZERO.compareTo(acquisitionMapper.selectById(id).getWeightDiff()));
+
+        AcquisitionCorrectionReqVO correction = new AcquisitionCorrectionReqVO();
+        correction.setId(id);
+        correction.setDeduction(new BigDecimal("500.00"));
+        correction.setDeductionMethod("WEIGHT");
+        acquisitionService.correctRecognition(correction);
+
+        assertEquals(0, new BigDecimal("500").compareTo(acquisitionMapper.selectById(id).getWeightDiff()));
+    }
+
+    @Test
+    public void testGetWeightDiffPage_filtersHasDifferenceAndAccepted() {
+        PayeeInfoDO payee = insertPayee("乙九", "13800138208");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        Long id = createAcquisitionForAcceptance(payee, config);
+
+        // 未做接收结论时也能按差异看到（差异 500）
+        AcquisitionWeightDiffPageReqVO hasDiff = new AcquisitionWeightDiffPageReqVO();
+        hasDiff.setPayeeId(payee.getId());
+        hasDiff.setHasDifference(true);
+        assertEquals(1, acquisitionService.getWeightDiffPage(hasDiff).getTotal());
+
+        // onlyAccepted 只看已做接收结论的：现在还没有
+        AcquisitionWeightDiffPageReqVO onlyAccepted = new AcquisitionWeightDiffPageReqVO();
+        onlyAccepted.setPayeeId(payee.getId());
+        onlyAccepted.setOnlyAccepted(true);
+        assertEquals(0, acquisitionService.getWeightDiffPage(onlyAccepted).getTotal());
+
+        // 做接收结论（实物量 = 结算重量，差异归零）后：onlyAccepted 看得到，hasDifference 看不到
+        AcquisitionAcceptanceReqVO acceptance = acceptanceReq(id, "12000", null, null);
+        acquisitionService.recordAcceptance(acceptance);
+        assertEquals(1, acquisitionService.getWeightDiffPage(onlyAccepted).getTotal());
+        assertEquals(0, acquisitionService.getWeightDiffPage(hasDiff).getTotal());
+    }
+
+    // ==================== 测试辅助 ====================
+
     /**
      * 造一张可作采购依据的采购订单（执行中、未过期），返回订单编号。
      */

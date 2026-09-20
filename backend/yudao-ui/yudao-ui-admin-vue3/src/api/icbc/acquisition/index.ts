@@ -54,6 +54,57 @@ export interface AcquisitionVO {
   remark?: string
   createTime?: Date
   updateTime?: Date
+  // ==================== 接收结论与称量差异（#53 T15） ====================
+  /** 扣杂原始值 */
+  deduction?: number
+  /** 扣杂录法：WEIGHT / RATIO */
+  deductionMethod?: string
+  /** 结算重量（唯一计价基准） */
+  settlementWeight?: number
+  /** 接收量（实际留下 / 进库的重量）；为空表示未做接收结论 */
+  acceptedWeight?: number
+  /** 退回量（拒收部分不进应付、不进库存） */
+  rejectedWeight?: number
+  /** 余货出场量（未接收、带离场站的余货） */
+  residualWeight?: number
+  /** 拒收原因 */
+  rejectReason?: string
+  /** 称量差异 = 实物量 − 结算重量（不静默抹平） */
+  weightDiff?: number
+}
+
+/** 称量差异清单行（#53 T15，只读） */
+export interface AcquisitionWeightDiffVO {
+  id?: number
+  acquisitionNo?: string
+  payeeId?: number
+  sellerName?: string
+  categoryName?: string
+  unit?: string
+  netWeight?: number
+  deduction?: number
+  settlementWeight?: number
+  physicalWeight?: number
+  acceptedWeight?: number
+  rejectedWeight?: number
+  residualWeight?: number
+  rejectReason?: string
+  weightDiff?: number
+  differenceNote?: string
+  amount?: number
+  status?: number
+  tradeTime?: number
+  createTime?: Date
+}
+
+/** 记录接收结论（#53 T15） */
+export interface AcquisitionAcceptanceReqVO {
+  id: number
+  acceptedWeight: number
+  rejectedWeight?: number
+  residualWeight?: number
+  rejectReason?: string
+  remark?: string
 }
 
 export interface AcquisitionSyncResultVO {
@@ -91,6 +142,12 @@ export const AcquisitionApi = {
     await request.post({ url: `/icbc/acquisition/sync-offline`, data: { items } }),
   correctRecognition: async (data: AcquisitionVO) =>
     await request.post({ url: `/icbc/acquisition/correct`, data }),
+  /** 记录接收结论：接收 / 部分接收 / 拒收（#53 T15） */
+  recordAcceptance: async (data: AcquisitionAcceptanceReqVO) =>
+    await request.post({ url: `/icbc/acquisition/acceptance`, data }),
+  /** 称量差异清单（只读，供异常表消费） */
+  getWeightDiffPage: async (params: any) =>
+    await request.get({ url: `/icbc/acquisition/weight-diff/page`, params }),
   exportConfirmation: async (id: number) =>
     await request.download({ url: `/icbc/acquisition/confirmation/export`, params: { id } })
 }

@@ -1171,6 +1171,14 @@ ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS purchase_order_item_id BIG
 CREATE INDEX IF NOT EXISTS idx_acquisition_purchase_order ON icbc_acquisition(tenant_id, purchase_order_id);
 CREATE INDEX IF NOT EXISTS idx_acquisition_purchase_order_item ON icbc_acquisition(tenant_id, purchase_order_item_id);
 
+-- 收购接收结论与称量差异（#53 T15）：追加列，不改上面的建表块。全部可空，未做接收结论时为空
+ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS accepted_weight DECIMAL(14,4);
+ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS rejected_weight DECIMAL(14,4);
+ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS residual_weight DECIMAL(14,4);
+ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS reject_reason VARCHAR(500);
+ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS weight_diff DECIMAL(14,4);
+CREATE INDEX IF NOT EXISTS idx_acquisition_weight_diff ON icbc_acquisition(tenant_id, weight_diff);
+
 -- ===== 采购订单（#46 T08）=====
 
 -- icbc_purchase_order table（采购订单；租户表）

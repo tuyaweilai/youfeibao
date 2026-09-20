@@ -62,8 +62,11 @@
           <el-tag :type="statusTagType(row.status)">{{ row.statusName || '-' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" width="200" fixed="right">
+      <el-table-column label="操作" align="center" width="280" fixed="right">
         <template #default="{ row }">
+          <el-button link type="primary" @click="openAcceptance(row.id!)" v-hasPermi="['icbc:acquisition:acceptance']">
+            接收结论
+          </el-button>
           <el-button link type="primary" @click="openForm('correct', row.id)" v-hasPermi="['icbc:acquisition:update']">
             修正识别结果
           </el-button>
@@ -77,11 +80,13 @@
   </ContentWrap>
 
   <AcquisitionForm ref="formRef" @success="getList" />
+  <AcceptanceForm ref="acceptanceRef" @success="getList" />
 </template>
 
 <script setup lang="ts">
 import { AcquisitionApi, AcquisitionVO } from '@/api/icbc/acquisition'
 import AcquisitionForm from './AcquisitionForm.vue'
+import AcceptanceForm from './AcceptanceForm.vue'
 import download from '@/utils/download'
 import { dateFormatter } from '@/utils/formatTime'
 
@@ -139,6 +144,9 @@ const resetQuery = () => {
 
 const formRef = ref()
 const openForm = (type: string, id?: number) => formRef.value.open(type, id)
+
+const acceptanceRef = ref()
+const openAcceptance = (id: number) => acceptanceRef.value.open(id)
 
 const handleExport = async (id: number) => {
   try {
