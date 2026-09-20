@@ -41,7 +41,8 @@
 22j. `icbc-stock-ops.sql` —— 非销售出库 / 跨仓调拨 / 盘点调整 / 期初导入（#54 T16，ADR 0025 / 0027）：`icbc_stock_out`（报损 / 退货出库 / 内部领用，不挂客户）+ `icbc_stock_move`（源减目标加）+ `icbc_stock_check`（把余额对齐到实盘数）+ `icbc_stock_opening`（一个维度一行，导入即过账）各带明细。四类都只经 `StockApi` 写 `erp_stock*`，icbc 不直接碰库存表；「当前库存」的前提是四项能力齐备**且已导期初**
 23. `icbc-menu.sql` —— 菜单清场与租户套餐骨架（#41）：删掉已禁用模块 / 外链 / 演示菜单，停用待启用的 ERP 菜单树，落 工作台 / 基础资料 / 交易对方 / 采购管理 / 回收作业 / 仓储管理 / 结算管理 / 财务票务 / 业务追溯 / 经营报表 一级骨架并把既有 icbc 页面挂进去，再落「回收企业套餐」（`system_tenant_package.id = 200`）。幂等，**必须最后导**（依赖前面所有 `system_menu` / `system_tenant_package` 种子）
 24. `logistics-vehicle-driver.sql` —— 物流域：车辆与司机的最小档案（#77 V2a，ADR 0032）：`logistics_vehicle` + `logistics_driver`。两张都带 `tenant_id`、逻辑删除。车牌与司机关联用户的**唯一性只在 Service 层校验**（建了 DB 唯一键就「删掉的车牌再也建不回来」——软删的行占着键值），理由写在文件头
-25. `logistics-menu.sql` —— 物流域菜单（#77 V2a）：一级「物流管理」及其页面菜单，并并进「回收企业套餐」（菜单集合用 JSON 去重后整体写回）。**必须在 `icbc-menu.sql` 之后导**（依赖套餐 200 已存在）。按钮型权限行不在这里——由 `LogisticsPermissionSyncService` 依据角色枚举幂等生成（ADR 0026 的物流侧实现）。**不用固定 ID 段**：`system_menu` 里还有大量自增 id 的权限行，固定段会与自增撞号（实测 `MAX(id)=5328` 而 `AUTO_INCREMENT=5210`）
+25. `logistics-transport-task.sql` —— 物流域：运输任务与运输节点（#78 V2b，ADR 0032）：`logistics_transport_task`（一车 + 一司机 + 一次执行，含状态机、采购安排快照、车牌与司机快照）+ `logistics_transport_node`（过程事实与货物流凭证：发生时间与上报时间分开记、位置、照片、幂等键）。节点的 `client_request_id` **建**了唯一键（弱网重复补传的并发兜底），与车辆车牌**不建**唯一键的理由正好相反，两个文件的头注互相引用
+26. `logistics-menu.sql` —— 物流域菜单（#77 V2a）：一级「物流管理」及其页面菜单，并并进「回收企业套餐」（菜单集合用 JSON 去重后整体写回）。**必须在 `icbc-menu.sql` 之后导**（依赖套餐 200 已存在）。按钮型权限行不在这里——由 `LogisticsPermissionSyncService` 依据角色枚举幂等生成（ADR 0026 的物流侧实现）。**不用固定 ID 段**：`system_menu` 里还有大量自增 id 的权限行，固定段会与自增撞号（实测 `MAX(id)=5328` 而 `AUTO_INCREMENT=5210`）
 
 > enterprise 的菜单与字典已包含在 `ruoyi-vue-pro.sql` 中，不要再单独导入 `enterprise-menu.sql` / `module-enterprise-dict.sql`（会主键冲突）。
 
@@ -53,7 +54,7 @@ MYSQL="mysql -h 127.0.0.1 -P 13308 -uroot -p --default-character-set=utf8mb4"
 $MYSQL -e "CREATE DATABASE IF NOT EXISTS \`ruoyi-vue-pro\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 for f in ruoyi-vue-pro erp erp-stock-goods-config erp-stock-location-batch erp-supplier quartz 02-initial-data yudao-module-enterprise-auth-flow member-2024-01-18 \
          icbc_payee_info icbc_payer_info icbc_invoice_tables icbc_payment_order \
-         icbc_invoice_download icbc_api_log_callback enterprise icbc-readiness icbc-evidence icbc-public-token icbc-jobs icbc-seller-onboarding icbc-acquisition icbc-invoice-application icbc-payment icbc-invoice-issuance icbc-red-invoice icbc-quota icbc-tax-declaration icbc-billing icbc-natural-person icbc-settlement icbc-station icbc-seller-portal icbc-appointment icbc-seller-notify icbc-handover-batch icbc-purchase-contract icbc-purchase-order icbc-input-invoice icbc-purchase-order-progress icbc-deal-accepted-quantity icbc-acquisition-purchase-link icbc-stock-in icbc-acquisition-acceptance icbc-stock-ops icbc-bank-card-change icbc-menu logistics-vehicle-driver logistics-menu; do
+         icbc_invoice_download icbc_api_log_callback enterprise icbc-readiness icbc-evidence icbc-public-token icbc-jobs icbc-seller-onboarding icbc-acquisition icbc-invoice-application icbc-payment icbc-invoice-issuance icbc-red-invoice icbc-quota icbc-tax-declaration icbc-billing icbc-natural-person icbc-settlement icbc-station icbc-seller-portal icbc-appointment icbc-seller-notify icbc-handover-batch icbc-purchase-contract icbc-purchase-order icbc-input-invoice icbc-purchase-order-progress icbc-deal-accepted-quantity icbc-acquisition-purchase-link icbc-stock-in icbc-acquisition-acceptance icbc-stock-ops icbc-bank-card-change icbc-menu logistics-vehicle-driver logistics-transport-task logistics-menu; do
   $MYSQL ruoyi-vue-pro < "$f.sql"
 done
 ```

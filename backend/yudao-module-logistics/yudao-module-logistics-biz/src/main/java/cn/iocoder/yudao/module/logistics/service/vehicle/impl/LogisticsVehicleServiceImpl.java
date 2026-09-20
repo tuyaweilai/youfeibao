@@ -61,6 +61,45 @@ public class LogisticsVehicleServiceImpl implements LogisticsVehicleService {
     }
 
     @Override
+    public void occupyByTask(Long vehicleId) {
+        LogisticsVehicleDO vehicle = logisticsVehicleMapper.selectById(vehicleId);
+        if (vehicle == null) {
+            throw exception(VEHICLE_NOT_EXISTS);
+        }
+        LogisticsVehicleDO update = new LogisticsVehicleDO();
+        update.setId(vehicleId);
+        update.setStatus(LogisticsVehicleStatusEnum.IN_TRANSIT.getStatus());
+        logisticsVehicleMapper.updateById(update);
+    }
+
+    @Override
+    public void releaseByTask(Long vehicleId) {
+        if (vehicleId == null) {
+            return;
+        }
+        LogisticsVehicleDO vehicle = logisticsVehicleMapper.selectById(vehicleId);
+        if (vehicle == null) {
+            return; // 车被删了就不管：任务已经结束，不该因此报错
+        }
+        if (LogisticsVehicleStatusEnum.MAINTENANCE.getStatus().equals(vehicle.getStatus())) {
+            return; // 维修中的车不因为跑完一趟就变回可用
+        }
+        LogisticsVehicleDO update = new LogisticsVehicleDO();
+        update.setId(vehicleId);
+        update.setStatus(LogisticsVehicleStatusEnum.AVAILABLE.getStatus());
+        logisticsVehicleMapper.updateById(update);
+    }
+
+    @Override
+    public LogisticsVehicleDO getAssignableVehicle(Long vehicleId) {
+        LogisticsVehicleDO vehicle = getVehicle(vehicleId);
+        if (LogisticsVehicleStatusEnum.MAINTENANCE.getStatus().equals(vehicle.getStatus())) {
+            throw exception(TRANSPORT_TASK_VEHICLE_NOT_AVAILABLE);
+        }
+        return vehicle;
+    }
+
+    @Override
     public PageResult<LogisticsVehicleDO> getVehiclePage(LogisticsVehiclePageReqVO pageReqVO) {
         return logisticsVehicleMapper.selectPage(pageReqVO);
     }

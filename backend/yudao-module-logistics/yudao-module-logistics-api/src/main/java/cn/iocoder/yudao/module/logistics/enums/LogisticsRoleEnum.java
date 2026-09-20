@@ -35,21 +35,29 @@ public enum LogisticsRoleEnum {
             LogisticsPermission.DRIVER_CREATE, LogisticsPermission.DRIVER_UPDATE,
             LogisticsPermission.DRIVER_DELETE, LogisticsPermission.DRIVER_QUERY,
             LogisticsPermission.DRIVER_EXPORT,
+            LogisticsPermission.TRANSPORT_TASK_CREATE, LogisticsPermission.TRANSPORT_TASK_UPDATE,
+            LogisticsPermission.TRANSPORT_TASK_QUERY, LogisticsPermission.TRANSPORT_TASK_ASSIGN,
+            LogisticsPermission.TRANSPORT_TASK_CANCEL,
+            LogisticsPermission.TRANSPORT_NODE_REPORT, LogisticsPermission.TRANSPORT_NODE_QUERY,
             LogisticsPermission.TENANT_ROLE_INIT)),
 
     /**
      * 调度：安排车辆与运输任务的人。派车要能从档案里选到车与人，因此有车辆与司机的查询权；
-     * 建档与删档归管理员。
+     * 建档与删档归管理员。运输任务与节点的全部动作归调度——他就是在 PC 上派车、代录节点的人。
      */
     DISPATCHER("logistics_dispatcher", "调度", Set.of(
             LogisticsPermission.VEHICLE_QUERY,
-            LogisticsPermission.DRIVER_QUERY)),
+            LogisticsPermission.DRIVER_QUERY,
+            LogisticsPermission.TRANSPORT_TASK_CREATE, LogisticsPermission.TRANSPORT_TASK_UPDATE,
+            LogisticsPermission.TRANSPORT_TASK_QUERY, LogisticsPermission.TRANSPORT_TASK_ASSIGN,
+            LogisticsPermission.TRANSPORT_TASK_CANCEL,
+            LogisticsPermission.TRANSPORT_NODE_REPORT, LogisticsPermission.TRANSPORT_NODE_QUERY)),
 
     /**
      * 司机：把货从提货点运到场站并上报运输节点的人（自有司机与承运商司机同构）。
      *
-     * <p>本票（V2a）还没有运输任务，所以这里**暂时没有权限**——司机角色先被建出来（租户初始化时
-     * 就会拿到它），他的任务读取与节点上报权限随运输任务票（V2b #78）登记进来。
+     * <p>他的任务读取与节点上报权限归 V2c（#79）——那张票才建司机端。V2b（本票）里现场动作
+     * 由调度在 PC 上代录，所以节点上报权限暂时只挂在调度与管理员上。
      */
     DRIVER("logistics_driver", "司机", Set.of());
 

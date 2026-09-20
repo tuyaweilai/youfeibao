@@ -43,6 +43,23 @@ public interface LogisticsPermission {
     /** 导出司机 */
     String DRIVER_EXPORT = "logistics:driver:export";
 
+    // ========== 运输任务与节点（V2b #78） ==========
+
+    /** 新建运输任务（派车） */
+    String TRANSPORT_TASK_CREATE = "logistics:transport-task:create";
+    /** 修改运输任务（改派、改时间窗等） */
+    String TRANSPORT_TASK_UPDATE = "logistics:transport-task:update";
+    /** 查询运输任务与时间线 */
+    String TRANSPORT_TASK_QUERY = "logistics:transport-task:query";
+    /** 派车（给待分配的任务安排车与司机） */
+    String TRANSPORT_TASK_ASSIGN = "logistics:transport-task:assign";
+    /** 取消运输任务（必填原因） */
+    String TRANSPORT_TASK_CANCEL = "logistics:transport-task:cancel";
+    /** 上报运输节点（司机端，也用于调度在 PC 上代录） */
+    String TRANSPORT_NODE_REPORT = "logistics:transport-node:report";
+    /** 查询运输节点与凭证 */
+    String TRANSPORT_NODE_QUERY = "logistics:transport-node:query";
+
     // ========== 本租户的物流域角色与权限初始化 ==========
 
     /**

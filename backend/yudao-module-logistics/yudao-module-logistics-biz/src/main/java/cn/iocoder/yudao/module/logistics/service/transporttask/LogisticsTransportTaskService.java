@@ -1,0 +1,82 @@
+package cn.iocoder.yudao.module.logistics.service.transporttask;
+
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskAssignReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
+import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
+import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportTaskStatusEnum;
+
+import javax.validation.Valid;
+
+/**
+ * 运输任务 Service（V2b #78）。
+ *
+ * <p>落地 ADR 0032 的取舍：**一任务 = 一车 + 一司机 + 一次执行**（含一个出发地、一个提货点、
+ * 一个时间窗），一期不建独立「车次」；任务可挂采购安排，也可什么都不挂。
+ *
+ * <p>状态推进统一走 {@link #transitStatus}：状态机在 {@link LogisticsTransportTaskStatusEnum#canTransitTo}
+ * 一处定义，非法推进一律拒绝（不是静默忽略）。派车会把车辆置为「运输中」，完成或取消时放回车队。
+ */
+public interface LogisticsTransportTaskService {
+
+    /**
+     * 建任务。带车与司机即等于派车（直接到「已分配」）；都不带则停在「待分配」。
+     */
+    Long createTask(@Valid LogisticsTransportTaskSaveReqVO createReqVO);
+
+    /**
+     * 改任务的基本信息（地址、时间窗、联系人、备注）。**不改状态、不改车与人**——
+     * 改派走 {@link #assignTask}，状态推进走各自的动作。
+     */
+    void updateTask(@Valid LogisticsTransportTaskSaveReqVO updateReqVO);
+
+    /**
+     * 派车：给待分配的任务安排车与司机。
+     */
+    void assignTask(@Valid LogisticsTransportTaskAssignReqVO assignReqVO);
+
+    /**
+     * 接单（V2c 由司机端点；本票由调度在 PC 上代记）。
+     */
+    void acceptTask(Long id);
+
+    /**
+     * 调度确认完成。一期「一次执行」的完成由调度确认，而不是由最后一个节点自动推出——
+     * 多停靠点场景下「哪个节点算整趟完成」要等 V5（#72）定义。
+     */
+    void completeTask(Long id);
+
+    /**
+     * 取消（必填原因）。
+     */
+    void cancelTask(@Valid LogisticsTransportTaskCancelReqVO cancelReqVO);
+
+    /**
+     * 把任务推进到目标状态（内部动作与节点上报都走这里）。非法推进抛业务异常。
+     */
+    void transitStatus(LogisticsTransportTaskDO task, LogisticsTransportTaskStatusEnum target);
+
+    /**
+     * 同上，并顺带写入本次动作附带的字段（如起运时间）。
+     *
+     * <p>节点上报用：上报「起运」既要推状态，又要把 {@code startTime} 落在**发生时间**上
+     *（不是上报时间——补录时两者相差可能很久）。
+     */
+    void transitStatusAndFill(LogisticsTransportTaskDO task, LogisticsTransportTaskStatusEnum target,
+                              LogisticsTransportTaskDO extraUpdate);
+
+    /**
+     * 获得任务；不存在时抛业务异常。
+     */
+    LogisticsTransportTaskDO getTask(Long id);
+
+    /**
+     * 按任务单号获得任务；不存在返回 {@code null}（读取面用）。
+     */
+    LogisticsTransportTaskDO getTaskByTaskNo(String taskNo);
+
+    PageResult<LogisticsTransportTaskDO> getTaskPage(LogisticsTransportTaskPageReqVO pageReqVO);
+
+}

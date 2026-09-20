@@ -47,7 +47,8 @@ DROP TEMPORARY TABLE `tmp_logistics_menu`;
 
 -- ---------------------------------------------------------------------
 -- 2. 一级「物流管理」与页面菜单
---    排序放在「回收作业」(60) 与「仓储管理」(70) 之间：派车是收货之前的事
+--    排序放在「回收作业」(60) 与「仓储管理」(70) 之间：派车是收货之前的事。
+--    子菜单排序：运输任务(5) 在前——它是这一块的日常入口，档案是它的支撑数据
 -- ---------------------------------------------------------------------
 INSERT INTO `system_menu`
 (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`,
@@ -61,6 +62,8 @@ INSERT INTO `system_menu`
 (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`,
  `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
 VALUES
+('运输任务', '', 2, 5, @logistics_root_id, 'task', 'ep:list', 'logistics/task/index', 'LogisticsTask',
+ 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 ('车辆档案', '', 2, 10, @logistics_root_id, 'vehicle', 'ep:truck', 'logistics/vehicle/index', 'LogisticsVehicle',
  0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 ('司机档案', '', 2, 20, @logistics_root_id, 'driver', 'ep:user', 'logistics/driver/index', 'LogisticsDriver',

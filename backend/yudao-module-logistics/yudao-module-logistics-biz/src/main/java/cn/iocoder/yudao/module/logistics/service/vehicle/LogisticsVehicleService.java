@@ -29,6 +29,33 @@ public interface LogisticsVehicleService {
      */
     LogisticsVehicleDO getVehicle(Long id);
 
+    /**
+     * 运输任务占用车辆：置为「运输中」。
+     *
+     * <p><b>这是「运输中」唯一的合法来源</b>：档案 CRUD（{@link #createVehicle} / {@link #updateVehicle}）
+     * 一律拒绝手工设置该状态，因为手工置成「运输中」会让派车看到一辆在跑却实际没跑的车。
+     *
+     * @param vehicleId 车辆编号
+     */
+    void occupyByTask(Long vehicleId);
+
+    /**
+     * 任务结束（完成或取消）释放车辆：放回「可用」。
+     *
+     * <p>车辆若已被置为「维护中」则保持不动——维修中的车不该因为跑完一趟就变回可用。
+     *
+     * @param vehicleId 车辆编号，可为 null（还没派车就取消的任务）
+     */
+    void releaseByTask(Long vehicleId);
+
+    /**
+     * 获得可派的车（状态不是维护中）。派车时用。
+     *
+     * @param vehicleId 车辆编号
+     * @return 车辆
+     */
+    LogisticsVehicleDO getAssignableVehicle(Long vehicleId);
+
     PageResult<LogisticsVehicleDO> getVehiclePage(LogisticsVehiclePageReqVO pageReqVO);
 
 }
