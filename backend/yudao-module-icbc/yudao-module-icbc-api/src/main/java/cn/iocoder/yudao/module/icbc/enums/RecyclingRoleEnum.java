@@ -75,7 +75,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.WORKBENCH_QUERY,
             RecyclingPermission.PURCHASE_SETTING_QUERY, RecyclingPermission.PURCHASE_SETTING_MANAGE,
             RecyclingPermission.PURCHASE_EXCEPTION_QUERY, RecyclingPermission.PURCHASE_EXCEPTION_REQUEST,
-            RecyclingPermission.PURCHASE_EXCEPTION_AUDIT)),
+            RecyclingPermission.PURCHASE_EXCEPTION_AUDIT,
+            RecyclingPermission.REPORT_QUERY)),
 
     /**
      * 收货员：收购现场登记，维护出售者档案与收购单。
@@ -161,7 +162,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PURCHASE_SETTING_QUERY,
             RecyclingPermission.PURCHASE_EXCEPTION_QUERY,
             RecyclingPermission.PUBLIC_TOKEN_CREATE,
-            RecyclingPermission.WORKBENCH_QUERY)),
+            RecyclingPermission.WORKBENCH_QUERY,
+            RecyclingPermission.REPORT_QUERY)),
 
     /**
      * 平台运营：平台方角色，可跨租户查看工行日志、通知与全平台发票。

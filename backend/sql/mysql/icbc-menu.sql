@@ -259,7 +259,12 @@ VALUES
 (5255, '待入库与入库单', 'icbc:stock-in:query', 2, 4, 5205, 'stock-in', '', 'icbc/stockIn/index', 'IcbcStockIn', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5256, '确认入库', 'icbc:stock-in:manage', 3, 1, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5257, '过账入库单', 'icbc:stock-in:manage', 3, 2, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5258, '作废入库单', 'icbc:stock-in:manage', 3, 3, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5258, '作废入库单', 'icbc:stock-in:manage', 3, 3, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+
+-- ===== 经营报表（#57 T19）=====
+-- 经营报表页（5209）的查询权限行。四张表（采购履约 / 收购台账 / 库存 / 结算付款）与异常表同属一个页面，
+-- 共用一个查询权限；所有指标都能下钻到来源明细，下钻到别的模块时仍走各模块自己的权限。
+(5322, '经营报表查询', 'icbc:report:query', 3, 1, 5209, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
 
 -- =====================================================================
 -- 3. 回收企业租户套餐

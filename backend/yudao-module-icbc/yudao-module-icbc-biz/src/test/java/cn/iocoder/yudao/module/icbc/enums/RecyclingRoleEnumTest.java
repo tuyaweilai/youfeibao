@@ -345,6 +345,18 @@ public class RecyclingRoleEnumTest {
     }
 
     @Test
+    public void testReportPermissions() {
+        // 经营报表面向管理与财务：管理员 / 财务可看
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.REPORT_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.REPORT_QUERY));
+        // 报表只读，平台运营不参与租户内的经营数据
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.REPORT_QUERY));
+    }
+
+    @Test
     public void testOfCode() {
         assertEquals(RecyclingRoleEnum.ADMIN,
                 RecyclingRoleEnum.ofCode(RecyclingRoleEnum.ADMIN.getCode()).orElseThrow());

@@ -260,4 +260,9 @@ public interface RecyclingPermission {
     /** 查看称量差异清单（结算重量 vs 实物量，只读，供异常表消费） */
     String ACQUISITION_WEIGHT_DIFF_QUERY = "icbc:acquisition:weight-diff:query";
 
+    // ========== 经营报表与异常表（#57 T19：只读聚合，口径不混） ==========
+
+    /** 查看采购履约 / 收购台账 / 库存 / 结算付款四张经营报表与异常表（所有指标可下钻到来源明细） */
+    String REPORT_QUERY = "icbc:report:query";
+
 }

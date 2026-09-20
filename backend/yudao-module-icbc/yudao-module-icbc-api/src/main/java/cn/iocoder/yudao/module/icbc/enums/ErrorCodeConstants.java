@@ -439,4 +439,8 @@ public interface ErrorCodeConstants {
             "该收购单已挂开票申请，金额口径已固定，不能再改接收结论；如需修正请先红冲发票或作废重开");
     ErrorCode ACQUISITION_ACCEPTANCE_AFTER_SETTLEMENT = new ErrorCode(1_030_036_004,
             "该收购单已归入结算单，接收结论请在「结束本次收货」前记录（已确认的结算金额不能靠改接收结论静默变化）；如需修正请走结算异议");
+
+    // ========== 经营报表与异常表（#57 T19：只读聚合，口径不混） 1_030_039_000 ==========
+    ErrorCode REPORT_ANOMALY_TYPE_UNKNOWN = new ErrorCode(1_030_039_000,
+            "未知的异常类型：{}（可选值见异常表口径，磅差 / 超采购量 / 超入库量 / 重复关联 / 长期未确认 / 资料缺失）");
 }
