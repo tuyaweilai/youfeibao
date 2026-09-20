@@ -5,8 +5,10 @@ import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
+import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseArrangementRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderItemReqVO;
@@ -313,6 +315,52 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         dto.setUsableAsPurchaseBasis(
                 PurchaseOrderStatusEnum.EXECUTING.getStatus().equals(order.getStatus()) && !isExpired(order));
         return dto;
+    }
+
+    @Override
+    public List<PurchaseArrangementRespVO> getUsableArrangements(Long payeeId) {
+        if (payeeId == null) {
+            return Collections.emptyList();
+        }
+        // 只列自然人交易对方、执行中的订单；过期（end_date 早于今天）在内存里剔掉，
+        // 与 assertUsableAsPurchaseBasis 共用同一个 isExpired 判定，不另写一套。
+        return orderMapper.selectList(new LambdaQueryWrapperX<IcbcPurchaseOrderDO>()
+                        .eq(IcbcPurchaseOrderDO::getCounterpartyType, SellerSubjectTypeEnum.NATURAL.getType())
+                        .eq(IcbcPurchaseOrderDO::getPayeeId, payeeId)
+                        .eq(IcbcPurchaseOrderDO::getStatus, PurchaseOrderStatusEnum.EXECUTING.getStatus())
+                        .orderByDesc(IcbcPurchaseOrderDO::getId))
+                .stream()
+                .filter(order -> !isExpired(order))
+                .map(this::toArrangement)
+                .toList();
+    }
+
+    @Override
+    public IcbcPurchaseOrderItemDO getOrderItem(Long orderId, Long itemId) {
+        return getItem(orderId, itemId);
+    }
+
+    private PurchaseArrangementRespVO toArrangement(IcbcPurchaseOrderDO order) {
+        PurchaseArrangementRespVO resp = new PurchaseArrangementRespVO();
+        resp.setOrderId(order.getId());
+        resp.setOrderNo(order.getOrderNo());
+        resp.setContractNo(order.getContractNo());
+        resp.setCounterpartyName(order.getCounterpartyName());
+        resp.setStationId(order.getStationId());
+        resp.setStationName(order.getStationName());
+        resp.setStartDate(order.getStartDate());
+        resp.setEndDate(order.getEndDate());
+        resp.setItems(itemMapper.selectListByOrderId(order.getId()).stream().map(item -> {
+            PurchaseArrangementRespVO.Item itemResp = new PurchaseArrangementRespVO.Item();
+            itemResp.setItemId(item.getId());
+            itemResp.setGoodsConfigId(item.getGoodsConfigId());
+            itemResp.setCategoryName(item.getCategoryName());
+            itemResp.setUnit(item.getUnit());
+            itemResp.setPlanQuantity(item.getQuantity());
+            itemResp.setUnitPrice(item.getUnitPrice());
+            return itemResp;
+        }).toList());
+        return resp;
     }
 
     // ==================== 内部：对手方 / 合同 / 场站 ====================

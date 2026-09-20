@@ -15,6 +15,12 @@
           <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
       </el-form-item>
+      <el-form-item label="采购安排" prop="directAcquisition">
+        <el-select v-model="queryParams.directAcquisition" placeholder="请选择" clearable class="!w-160px">
+          <el-option label="直接收购" :value="true" />
+          <el-option label="关联采购订单" :value="false" />
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-button @click="handleQuery"><Icon icon="ep:search" class="mr-5px" /> 搜索</el-button>
         <el-button @click="resetQuery"><Icon icon="ep:refresh" class="mr-5px" /> 重置</el-button>
@@ -36,6 +42,13 @@
         <template #default="{ row }">{{ row.quantity }} {{ row.unit }}</template>
       </el-table-column>
       <el-table-column label="金额(元)" align="right" prop="amount" width="120" />
+      <el-table-column label="采购安排" align="center" width="120">
+        <template #default="{ row }">
+          <el-tag :type="row.directAcquisition ? 'info' : 'primary'" size="small">
+            {{ row.purchaseArrangementText || (row.directAcquisition ? '直接收购' : '采购订单') }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="车牌" align="center" width="130">
         <template #default="{ row }">
           <span>{{ row.vehiclePlateNo || '-' }}</span>
@@ -86,7 +99,8 @@ const queryParams = reactive({
   acquisitionNo: undefined,
   sellerName: undefined,
   vehiclePlateNo: undefined,
-  status: undefined
+  status: undefined,
+  directAcquisition: undefined as boolean | undefined
 })
 const queryFormRef = ref()
 

@@ -369,4 +369,12 @@ public interface ErrorCodeConstants {
             "勾稽金额 {} 超过单据可勾稽额度（单据金额 {}，已勾稽 {}）");
     ErrorCode INPUT_INVOICE_LINK_EXCEED_INVOICE_AMOUNT = new ErrorCode(1_030_032_010,
             "勾稽金额 {} 超过发票可勾稽金额（价税合计 {}，已勾稽 {}）");
+
+    // ========== 收购单关联采购安排与「直接收购」（#51 T13，ADR 0027） 1-030-034-000 ==========
+    ErrorCode ACQUISITION_PURCHASE_ARRANGEMENT_INCOMPLETE = new ErrorCode(1_030_034_000,
+            "关联采购安排时必须同时选择采购订单与订单明细；不关联就是「直接收购」，不必虚造订单");
+    ErrorCode ACQUISITION_PURCHASE_ITEM_CATEGORY_MISMATCH = new ErrorCode(1_030_034_001,
+            "采购订单明细的品类（{}）与本次收购的品类不一致，不能关联");
+    ErrorCode ACQUISITION_PURCHASE_ORDER_COUNTERPARTY_MISMATCH = new ErrorCode(1_030_034_002,
+            "采购订单的交易对方（{}）与本次收购的出售者不是同一个主体，不能关联");
 }

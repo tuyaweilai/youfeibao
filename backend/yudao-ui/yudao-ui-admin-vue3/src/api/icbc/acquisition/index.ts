@@ -15,6 +15,13 @@ export interface AcquisitionVO {
   weighingId?: number
   /** 有效磅次是第几次 */
   weighingSeqNo?: number
+  /** 采购安排关联（#51）：0 表示未关联（直接收购） */
+  purchaseOrderId?: number
+  purchaseOrderItemId?: number
+  /** 是否为「直接收购」：报表 / 列表口径，不是失败态 */
+  directAcquisition?: boolean
+  /** 采购安排口径文案：直接收购 / 采购订单 */
+  purchaseArrangementText?: string
   sellerName?: string
   sellerMobile?: string
   goodsConfigId?: number

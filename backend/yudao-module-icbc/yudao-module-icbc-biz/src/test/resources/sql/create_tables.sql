@@ -1165,6 +1165,12 @@ ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS weighing_id BIGINT;
 ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS weighing_seq_no INT;
 CREATE INDEX IF NOT EXISTS idx_acquisition_handover_batch ON icbc_acquisition(handover_batch_id);
 
+-- 收购单关联采购安排（#51）：追加列，不改上面的建表块。NOT NULL DEFAULT 0，0 = 未关联（直接收购）
+ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS purchase_order_id BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS purchase_order_item_id BIGINT NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_acquisition_purchase_order ON icbc_acquisition(tenant_id, purchase_order_id);
+CREATE INDEX IF NOT EXISTS idx_acquisition_purchase_order_item ON icbc_acquisition(tenant_id, purchase_order_item_id);
+
 -- ===== 采购订单（#46 T08）=====
 
 -- icbc_purchase_order table（采购订单；租户表）

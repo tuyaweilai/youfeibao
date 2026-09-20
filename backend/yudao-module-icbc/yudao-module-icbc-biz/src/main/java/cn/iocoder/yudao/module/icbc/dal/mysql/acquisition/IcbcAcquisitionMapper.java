@@ -58,14 +58,20 @@ public interface IcbcAcquisitionMapper extends BaseMapperX<IcbcAcquisitionDO> {
     }
 
     default PageResult<IcbcAcquisitionDO> selectPage(AcquisitionPageReqVO reqVO) {
-        return selectPage(reqVO, new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+        LambdaQueryWrapperX<IcbcAcquisitionDO> wrapper = new LambdaQueryWrapperX<IcbcAcquisitionDO>()
                 .eqIfPresent(IcbcAcquisitionDO::getPayeeId, reqVO.getPayeeId())
                 .eqIfPresent(IcbcAcquisitionDO::getStatus, reqVO.getStatus())
                 .likeIfPresent(IcbcAcquisitionDO::getAcquisitionNo, reqVO.getAcquisitionNo())
                 .likeIfPresent(IcbcAcquisitionDO::getSellerName, reqVO.getSellerName())
                 .eqIfPresent(IcbcAcquisitionDO::getVehiclePlateNo, reqVO.getVehiclePlateNo())
-                .betweenIfPresent(IcbcAcquisitionDO::getTradeTime, reqVO.getTradeTime())
-                .orderByDesc(IcbcAcquisitionDO::getId));
+                .betweenIfPresent(IcbcAcquisitionDO::getTradeTime, reqVO.getTradeTime());
+        // 「直接收购」是报表 / 列表口径，不是失败态：未关联订单（purchase_order_id = 0）即直接收购
+        if (Boolean.TRUE.equals(reqVO.getDirectAcquisition())) {
+            wrapper.eq(IcbcAcquisitionDO::getPurchaseOrderId, 0L);
+        } else if (Boolean.FALSE.equals(reqVO.getDirectAcquisition())) {
+            wrapper.ne(IcbcAcquisitionDO::getPurchaseOrderId, 0L);
+        }
+        return selectPage(reqVO, wrapper.orderByDesc(IcbcAcquisitionDO::getId));
     }
 
     // ==================== 结算单（#33，ADR 0018） ====================

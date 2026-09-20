@@ -37,6 +37,18 @@ public class AcquisitionRespVO {
     @Schema(description = "交接批次编号（#50）；为空表示这笔收购没有经过批次登记", example = "2048")
     private Long handoverBatchId;
 
+    @Schema(description = "关联的采购订单编号（#51）；0 表示未关联", example = "5120")
+    private Long purchaseOrderId;
+
+    @Schema(description = "关联的采购订单明细编号（#51）；0 表示未关联", example = "6144")
+    private Long purchaseOrderItemId;
+
+    @Schema(description = "是否为「直接收购」：未关联任何采购安排的收购，报表 / 列表按此口径标注，不是失败也不是缺失", example = "true")
+    private Boolean directAcquisition;
+
+    @Schema(description = "采购安排口径文案：直接收购 / 采购订单", example = "直接收购")
+    private String purchaseArrangementText;
+
     @Schema(description = "有效磅次编号（计量结果引用的就是它）", example = "4096")
     private Long weighingId;
 

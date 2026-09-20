@@ -34,4 +34,7 @@ public class AcquisitionPageReqVO extends PageParam {
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime[] tradeTime;
 
+    @Schema(description = "采购安排口径筛选：true-只看直接收购（未关联订单），false-只看已关联订单，null-不限", example = "false")
+    private Boolean directAcquisition;
+
 }

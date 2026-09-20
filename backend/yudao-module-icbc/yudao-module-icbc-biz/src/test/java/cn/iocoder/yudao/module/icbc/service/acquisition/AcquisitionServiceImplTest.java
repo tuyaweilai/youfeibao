@@ -7,24 +7,32 @@ import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchCreateReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingAddReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingEffectiveReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderItemReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderSaveReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderStatusUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcWeighingDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.station.IcbcStationDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.goodscfg.IcbcGoodsConfigMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.handover.IcbcWeighingMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.station.IcbcStationMapper;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.HandoverSourceTypeEnum;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PurchaseOrderPriceModeEnum;
+import cn.iocoder.yudao.module.icbc.enums.PurchaseOrderStatusEnum;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
 import cn.iocoder.yudao.module.icbc.service.acquisition.impl.AcquisitionServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.acquisition.recognition.AcquisitionRecognitionPort;
 import cn.iocoder.yudao.module.icbc.service.handover.HandoverBatchService;
+import cn.iocoder.yudao.module.icbc.service.purchaseorder.PurchaseOrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
@@ -34,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -68,6 +77,10 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
     private HandoverBatchService handoverBatchService;
     @Resource
     private IcbcWeighingMapper weighingMapper;
+    @Resource
+    private PurchaseOrderService purchaseOrderService;
+    @Resource
+    private IcbcStationMapper stationMapper;
 
     @MockBean
     private AcquisitionRecognitionPort recognitionPort;
@@ -757,7 +770,255 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
                 acquisitionMapper.selectById(id).getGrossWeight()));
     }
 
+    // ==================== 采购安排关联与「直接收购」（#51 T13） ====================
+
+    @Test
+    public void testCreateAcquisition_linksUsablePurchaseArrangement() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138200");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long orderId = createPurchaseOrder(payee.getId(), config.getId(), "100", "2000");
+        Long itemId = purchaseOrderService.getDetail(orderId).getItems().get(0).getId();
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("2000.00"));
+        reqVO.setPurchaseOrderId(orderId);
+        reqVO.setPurchaseOrderItemId(itemId);
+
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
+
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
+        assertEquals(orderId, saved.getPurchaseOrderId());
+        assertEquals(itemId, saved.getPurchaseOrderItemId());
+    }
+
+    @Test
+    public void testCreateAcquisition_withoutArrangementIsDirectAcquisition() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138201");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("5"));
+        reqVO.setAmount(new BigDecimal("500.00"));
+
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
+
+        // 不关联不是失败：落 0，报表 / 列表据此标「直接收购」
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
+        assertEquals(0L, saved.getPurchaseOrderId());
+        assertEquals(0L, saved.getPurchaseOrderItemId());
+    }
+
+    @Test
+    public void testCreateAcquisition_draftOrderRejected() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138202");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long orderId = createPurchaseOrder(payee.getId(), config.getId(), "100", "2000", false);
+        Long itemId = purchaseOrderService.getDetail(orderId).getItems().get(0).getId();
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("2000.00"));
+        reqVO.setPurchaseOrderId(orderId);
+        reqVO.setPurchaseOrderItemId(itemId);
+
+        assertServiceException(() -> acquisitionService.createAcquisition(reqVO),
+                PURCHASE_ORDER_NOT_EFFECTIVE, purchaseOrderService.getOrder(orderId).getOrderNo());
+        assertEquals(0, acquisitionMapper.selectList().size());
+    }
+
+    @Test
+    public void testCreateAcquisition_expiredOrderRejected() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138203");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long orderId = createPurchaseOrder(payee.getId(), config.getId(), "100", "2000",
+                LocalDate.now().minusDays(10), LocalDate.now().minusDays(1));
+        Long itemId = purchaseOrderService.getDetail(orderId).getItems().get(0).getId();
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("2000.00"));
+        reqVO.setPurchaseOrderId(orderId);
+        reqVO.setPurchaseOrderItemId(itemId);
+
+        assertServiceException(() -> acquisitionService.createAcquisition(reqVO),
+                PURCHASE_ORDER_NOT_EFFECTIVE, purchaseOrderService.getOrder(orderId).getOrderNo());
+    }
+
+    @Test
+    public void testCreateAcquisition_itemNotInOrderRejected() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138204");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long firstOrder = createPurchaseOrder(payee.getId(), config.getId(), "100", "2000");
+        Long secondOrder = createPurchaseOrder(payee.getId(), config.getId(), "50", "2000");
+        Long secondItem = purchaseOrderService.getDetail(secondOrder).getItems().get(0).getId();
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("2000.00"));
+        // 把第二张订单的明细挂到第一张订单上：明细不属于该订单，拒
+        reqVO.setPurchaseOrderId(firstOrder);
+        reqVO.setPurchaseOrderItemId(secondItem);
+
+        assertServiceException(() -> acquisitionService.createAcquisition(reqVO),
+                PURCHASE_ORDER_ITEM_NOT_EXISTS, secondItem);
+    }
+
+    @Test
+    public void testCreateAcquisition_itemCategoryMismatchRejected() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138205");
+        IcbcGoodsConfigDO steel = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        IcbcGoodsConfigDO paper = insertGoodsConfig("废纸", "吨", "0.01", "GENERAL");
+        Long orderId = createPurchaseOrder(payee.getId(), steel.getId(), "100", "2000");
+        Long itemId = purchaseOrderService.getDetail(orderId).getItems().get(0).getId();
+
+        // 采购的是废钢，本次收购是废纸：关联会让履约进度串品类，拒
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), paper.getId());
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("2000.00"));
+        reqVO.setPurchaseOrderId(orderId);
+        reqVO.setPurchaseOrderItemId(itemId);
+
+        assertServiceException(() -> acquisitionService.createAcquisition(reqVO),
+                ACQUISITION_PURCHASE_ITEM_CATEGORY_MISMATCH, "废钢");
+    }
+
+    @Test
+    public void testCreateAcquisition_orderCounterpartyMismatchRejected() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138209");
+        PayeeInfoDO other = insertPayee("李四", "13800138210");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long otherOrder = createPurchaseOrder(other.getId(), config.getId(), "100", "2000");
+        Long itemId = purchaseOrderService.getDetail(otherOrder).getItems().get(0).getId();
+
+        // 拿别人的订单来挂自己的收购：交易对方不是同一主体，拒
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("2000.00"));
+        reqVO.setPurchaseOrderId(otherOrder);
+        reqVO.setPurchaseOrderItemId(itemId);
+
+        assertServiceException(() -> acquisitionService.createAcquisition(reqVO),
+                ACQUISITION_PURCHASE_ORDER_COUNTERPARTY_MISMATCH, "李四");
+    }
+
+    @Test
+    public void testCreateAcquisition_itemWithoutOrderRejected() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138206");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("2000.00"));
+        // 只给明细不给订单：成对约束破了
+        reqVO.setPurchaseOrderItemId(999L);
+
+        assertServiceException(() -> acquisitionService.createAcquisition(reqVO),
+                ACQUISITION_PURCHASE_ARRANGEMENT_INCOMPLETE);
+    }
+
+    @Test
+    public void testCreateAcquisition_sameBatchSameSellerAndStation() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138207");
+        IcbcGoodsConfigDO steel = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        IcbcGoodsConfigDO paper = insertGoodsConfig("废纸", "吨", "0.01", "GENERAL");
+        IcbcStationDO station = insertStation("朝阳回收站");
+        Long batchId = createBatchAtStation(payee.getId(), station.getId(), "京A12345");
+        addWeighing(batchId, "18000", "5500", "WD-AM");
+
+        // AC1 + AC5：同一交接批次下多张收购单，同出售者 + 同场站（一次混装按品类拆）
+        Long first = acquisitionService.createAcquisition(
+                fromBatch(baseReq(payee.getId(), steel.getId()), batchId)).getId();
+        Long second = acquisitionService.createAcquisition(
+                fromBatch(baseReq(payee.getId(), paper.getId()), batchId)).getId();
+
+        IcbcAcquisitionDO firstSaved = acquisitionMapper.selectById(first);
+        IcbcAcquisitionDO secondSaved = acquisitionMapper.selectById(second);
+        assertEquals(batchId, firstSaved.getHandoverBatchId());
+        assertEquals(batchId, secondSaved.getHandoverBatchId());
+        assertEquals(payee.getId(), firstSaved.getPayeeId());
+        assertEquals(payee.getId(), secondSaved.getPayeeId());
+        assertEquals(station.getId(), firstSaved.getStationId());
+        assertEquals(station.getId(), secondSaved.getStationId());
+        assertEquals(2L, handoverBatchService.countAcquisitions(batchId));
+    }
+
+    @Test
+    public void testGetAcquisitionPage_filterByDirectAcquisition() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138208");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long orderId = createPurchaseOrder(payee.getId(), config.getId(), "100", "2000");
+        Long itemId = purchaseOrderService.getDetail(orderId).getItems().get(0).getId();
+
+        // 一张挂了采购安排、一张不挂
+        AcquisitionCreateReqVO linked = baseReq(payee.getId(), config.getId());
+        linked.setQuantity(new BigDecimal("10"));
+        linked.setUnitPrice(new BigDecimal("2000.00"));
+        linked.setPurchaseOrderId(orderId);
+        linked.setPurchaseOrderItemId(itemId);
+        acquisitionService.createAcquisition(linked);
+
+        AcquisitionCreateReqVO direct = baseReq(payee.getId(), config.getId());
+        direct.setQuantity(new BigDecimal("5"));
+        direct.setAmount(new BigDecimal("500.00"));
+        acquisitionService.createAcquisition(direct);
+
+        AcquisitionPageReqVO directQuery = new AcquisitionPageReqVO();
+        directQuery.setPageNo(1);
+        directQuery.setPageSize(10);
+        directQuery.setDirectAcquisition(true);
+        assertEquals(1, acquisitionService.getAcquisitionPage(directQuery).getTotal());
+
+        AcquisitionPageReqVO linkedQuery = new AcquisitionPageReqVO();
+        linkedQuery.setPageNo(1);
+        linkedQuery.setPageSize(10);
+        linkedQuery.setDirectAcquisition(false);
+        assertEquals(1, acquisitionService.getAcquisitionPage(linkedQuery).getTotal());
+    }
+
     // ==================== 造数 ====================
+
+    /**
+     * 造一张可作采购依据的采购订单（执行中、未过期），返回订单编号。
+     */
+    private Long createPurchaseOrder(Long payeeId, Long goodsConfigId, String quantity, String unitPrice) {
+        return createPurchaseOrder(payeeId, goodsConfigId, quantity, unitPrice,
+                LocalDate.now().minusDays(1), LocalDate.now().plusDays(30), true);
+    }
+
+    private Long createPurchaseOrder(Long payeeId, Long goodsConfigId, String quantity, String unitPrice,
+                                     boolean executing) {
+        return createPurchaseOrder(payeeId, goodsConfigId, quantity, unitPrice,
+                LocalDate.now().minusDays(1), LocalDate.now().plusDays(30), executing);
+    }
+
+    private Long createPurchaseOrder(Long payeeId, Long goodsConfigId, String quantity, String unitPrice,
+                                     LocalDate startDate, LocalDate endDate) {
+        return createPurchaseOrder(payeeId, goodsConfigId, quantity, unitPrice, startDate, endDate, true);
+    }
+
+    private Long createPurchaseOrder(Long payeeId, Long goodsConfigId, String quantity, String unitPrice,
+                                     LocalDate startDate, LocalDate endDate, boolean executing) {
+        PurchaseOrderSaveReqVO reqVO = new PurchaseOrderSaveReqVO();
+        reqVO.setCounterpartyType(SellerSubjectTypeEnum.NATURAL.getType());
+        reqVO.setPayeeId(payeeId);
+        reqVO.setStartDate(startDate);
+        reqVO.setEndDate(endDate);
+        PurchaseOrderItemReqVO item = new PurchaseOrderItemReqVO();
+        item.setGoodsConfigId(goodsConfigId);
+        item.setQuantity(new BigDecimal(quantity));
+        item.setPriceMode(PurchaseOrderPriceModeEnum.FIXED.getMode());
+        item.setUnitPrice(new BigDecimal(unitPrice));
+        reqVO.setItems(List.of(item));
+        Long orderId = purchaseOrderService.createOrder(reqVO);
+        if (executing) {
+            PurchaseOrderStatusUpdateReqVO status = new PurchaseOrderStatusUpdateReqVO();
+            status.setId(orderId);
+            status.setStatus(PurchaseOrderStatusEnum.EXECUTING.getStatus());
+            purchaseOrderService.updateStatus(status);
+        }
+        return orderId;
+    }
 
     private PayeeInfoDO insertPayee(String name, String mobile) {
         PayeeInfoDO payee = PayeeInfoDO.builder()
@@ -827,6 +1088,26 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         reqVO.setSourceType(HandoverSourceTypeEnum.WALK_IN.getType());
         reqVO.setDriverName("李师傅");
         return handoverBatchService.createBatch(reqVO);
+    }
+
+    /** 到场收货：批次挂场站，收购单因此带上同场站（#51 AC1）。 */
+    private Long createBatchAtStation(Long payeeId, Long stationId, String plateNo) {
+        HandoverBatchCreateReqVO reqVO = new HandoverBatchCreateReqVO();
+        reqVO.setPayeeId(payeeId);
+        reqVO.setStationId(stationId);
+        reqVO.setPlateNo(plateNo);
+        reqVO.setSourceType(HandoverSourceTypeEnum.WALK_IN.getType());
+        return handoverBatchService.createBatch(reqVO);
+    }
+
+    private IcbcStationDO insertStation(String name) {
+        IcbcStationDO station = IcbcStationDO.builder()
+                .stationCode("ST_" + name)
+                .name(name)
+                .openStatus(1)
+                .build();
+        stationMapper.insert(station);
+        return station;
     }
 
     private Long addWeighing(Long batchId, String gross, String tare, String ticketNo) {

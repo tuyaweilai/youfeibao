@@ -37,6 +37,8 @@ export interface HandoverBatchVO {
   driverName?: string
   driverMobile?: string
   plateNo?: string
+  /** 关联的采购订单编号（#50 预留；#51 在收购登记时带出） */
+  purchaseOrderId?: number
   acquisitionCount?: number
   weighingChangeLocked?: boolean
   effectiveWeighingId?: number
