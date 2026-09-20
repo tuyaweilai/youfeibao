@@ -24,6 +24,26 @@ public class ErpSupplierRespVO {
     @ExcelProperty("供应商名称")
     private String name;
 
+    @Schema(description = "主体类型", requiredMode = Schema.RequiredMode.REQUIRED, example = "2")
+    @ExcelProperty("主体类型")
+    private Integer subjectType;
+
+    @Schema(description = "主体类型名", example = "个体工商户")
+    @ExcelProperty("主体类型名")
+    private String subjectTypeName;
+
+    @Schema(description = "纳税人资格", example = "1")
+    @ExcelProperty("纳税人资格")
+    private Integer taxpayerQualification;
+
+    @Schema(description = "纳税人资格名", example = "一般纳税人")
+    @ExcelProperty("纳税人资格名")
+    private String taxpayerQualificationName;
+
+    @Schema(description = "地址", example = "上海市浦东新区张江镇 1 号")
+    @ExcelProperty("地址")
+    private String address;
+
     @Schema(description = "联系人", example = "芋艿")
     @ExcelProperty("联系人")
     private String contact;

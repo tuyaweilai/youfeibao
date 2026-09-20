@@ -14,6 +14,35 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
+          <el-form-item label="主体类型" prop="subjectType">
+            <el-select v-model="formData.subjectType" placeholder="请选择主体类型" class="!w-1/1">
+              <el-option
+                v-for="item in SUPPLIER_SUBJECT_TYPE_OPTIONS"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="纳税人资格" prop="taxpayerQualification">
+            <el-select
+              v-model="formData.taxpayerQualification"
+              placeholder="请选择纳税人资格"
+              clearable
+              class="!w-1/1"
+            >
+              <el-option
+                v-for="item in TAXPAYER_QUALIFICATION_OPTIONS"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
           <el-form-item label="联系人" prop="contact">
             <el-input v-model="formData.contact" placeholder="请输入联系人" />
           </el-form-item>
@@ -66,6 +95,11 @@
             <el-input v-model="formData.taxNo" placeholder="请输入纳税人识别号" />
           </el-form-item>
         </el-col>
+        <el-col :span="24">
+          <el-form-item label="地址" prop="address">
+            <el-input v-model="formData.address" placeholder="请输入地址" />
+          </el-form-item>
+        </el-col>
         <el-col :span="12">
           <el-form-item label="税率(%)" prop="taxPercent">
             <el-input-number
@@ -107,7 +141,12 @@
 </template>
 <script setup lang="ts">
 import { getIntDictOptions, DICT_TYPE } from '@/utils/dict'
-import { SupplierApi, SupplierVO } from '@/api/erp/purchase/supplier'
+import {
+  SupplierApi,
+  SupplierVO,
+  SUPPLIER_SUBJECT_TYPE_OPTIONS,
+  TAXPAYER_QUALIFICATION_OPTIONS
+} from '@/api/erp/purchase/supplier'
 import { CommonStatusEnum } from '@/utils/constants'
 
 /** ERP  表单 */
@@ -120,9 +159,12 @@ const dialogVisible = ref(false) // 弹窗的是否展示
 const dialogTitle = ref('') // 弹窗的标题
 const formLoading = ref(false) // 表单的加载中：1）修改时的数据加载；2）提交的按钮禁用
 const formType = ref('') // 表单的类型：create - 新增；update - 修改
-const formData = ref({
+const formData = ref<Partial<SupplierVO>>({
   id: undefined,
   name: undefined,
+  subjectType: undefined,
+  taxpayerQualification: undefined,
+  address: undefined,
   contact: undefined,
   mobile: undefined,
   telephone: undefined,
@@ -139,6 +181,7 @@ const formData = ref({
 })
 const formRules = reactive({
   name: [{ required: true, message: '名称不能为空', trigger: 'blur' }],
+  subjectType: [{ required: true, message: '主体类型不能为空', trigger: 'change' }],
   status: [{ required: true, message: '开启状态不能为空', trigger: 'blur' }],
   sort: [{ required: true, message: '排序不能为空', trigger: 'blur' }]
 })
@@ -191,6 +234,9 @@ const resetForm = () => {
   formData.value = {
     id: undefined,
     name: undefined,
+    subjectType: undefined,
+    taxpayerQualification: undefined,
+    address: undefined,
     contact: undefined,
     mobile: undefined,
     telephone: undefined,

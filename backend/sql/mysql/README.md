@@ -8,6 +8,7 @@
 2. `erp.sql` —— ERP 建表（33 张表，来自上游导出，已删演示数据）。没建这几张表时，放开 `yudao-module-erp` 后任何 ERP 页面一查库就报错
 2b. `erp-stock-goods-config.sql` —— T04（#42）：12 张表 `product_id`/`product_unit_id` → `goods_config_id`、`erp_warehouse.station_id`、`erp_stock` 唯一约束，并删除 `erp_product*` 三张表。必须在 `erp.sql` 之后
 2c. `erp-stock-location-batch.sql` —— T05（#43）：库位（`erp_stock_location`）与批次（`erp_stock_batch`）两张表；`erp_stock` / `erp_stock_record` 加 `location_id` / `batch_id`，`erp_stock` 唯一约束扩成 `(goods_config_id, warehouse_id, location_id, batch_id)`。必须在 `erp-stock-goods-config.sql` 之后
+2d. `erp-supplier.sql` —— T06（#44）：单位供货方档案，给 `erp_supplier` 补 `subject_type`（主体类型六态）/ `taxpayer_qualification`（纳税人资格）/ `address`。必须在 `erp.sql` 之后
 3. `quartz.sql` —— Quartz 调度表
 4. `02-initial-data.sql`、`yudao-module-enterprise-auth-flow.sql`、`member-2024-01-18.sql` —— 模块补充
 5. `icbc_*.sql` —— 反向开票（工行）业务表
@@ -38,7 +39,7 @@
 cd backend/sql/mysql
 MYSQL="mysql -h 127.0.0.1 -P 13308 -uroot -p --default-character-set=utf8mb4"
 $MYSQL -e "CREATE DATABASE IF NOT EXISTS \`ruoyi-vue-pro\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-for f in ruoyi-vue-pro erp erp-stock-goods-config erp-stock-location-batch quartz 02-initial-data yudao-module-enterprise-auth-flow member-2024-01-18 \
+for f in ruoyi-vue-pro erp erp-stock-goods-config erp-stock-location-batch erp-supplier quartz 02-initial-data yudao-module-enterprise-auth-flow member-2024-01-18 \
          icbc_payee_info icbc_payer_info icbc_invoice_tables icbc_payment_order \
          icbc_invoice_download icbc_api_log_callback enterprise icbc-readiness icbc-evidence icbc-public-token icbc-jobs icbc-seller-onboarding icbc-acquisition icbc-invoice-application icbc-payment icbc-invoice-issuance icbc-red-invoice icbc-quota icbc-tax-declaration icbc-billing icbc-natural-person icbc-settlement icbc-station icbc-seller-portal icbc-appointment icbc-seller-notify icbc-bank-card-change icbc-menu; do
   $MYSQL ruoyi-vue-pro < "$f.sql"

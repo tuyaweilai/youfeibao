@@ -14,3 +14,6 @@ DELETE FROM erp_stock_check;
 DELETE FROM erp_warehouse;
 DELETE FROM erp_supplier;
 DELETE FROM erp_customer;
+DELETE FROM erp_purchase_order;
+DELETE FROM erp_purchase_in;
+DELETE FROM erp_purchase_return;

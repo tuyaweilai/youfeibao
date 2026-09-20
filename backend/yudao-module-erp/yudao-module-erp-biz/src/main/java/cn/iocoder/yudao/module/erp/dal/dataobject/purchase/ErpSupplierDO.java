@@ -67,6 +67,22 @@ public class ErpSupplierDO extends BaseDO {
      */
     private Integer sort;
     /**
+     * 主体类型
+     *
+     * 枚举 {@link cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum}
+     */
+    private Integer subjectType;
+    /**
+     * 纳税人资格
+     *
+     * 枚举 {@link cn.iocoder.yudao.module.erp.enums.purchase.TaxpayerQualificationEnum}
+     */
+    private Integer taxpayerQualification;
+    /**
+     * 地址
+     */
+    private String address;
+    /**
      * 纳税人识别号
      */
     private String taxNo;

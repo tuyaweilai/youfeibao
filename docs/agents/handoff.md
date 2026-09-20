@@ -45,7 +45,7 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 - 一级菜单（租户 1 的 `admin` 实测，通过 `/admin-api/system/auth/get-permission-info`）：工作台 / 系统管理 / 基础设施 / 基础资料 / 交易对方 / 采购管理 / 回收作业 / 仓储管理 / 结算管理 / 财务票务 / 业务追溯 / 经营报表 / 平台运营（共 13 个）。
 - 基础资料：企业信息 / 企业资质 / 三层资质 / 编码配置 / 开票就绪自检 / 场站 / 付方档案。
-- 交易对方：出售者档案 / 出售者建档 / 企业授权 / 触达记录。
+- 交易对方：出售者档案 / 出售者建档 / 企业授权 / 触达记录 / 单位供货方。
 - 回收作业：到站预约 / 收购登记；结算管理：结算单；业务追溯：一票一档。
 - 财务票务：开票申请 / 开票申请（按收购单）/ 付款 / 发票下载与证据 / 代办税费申报 / 额度台账。
 - 采购管理 / 经营报表 / 工作台：已有一级菜单与占位页（`views/icbc/{purchase,report,workbench}`）。仓储管理由 #43（T05）挂了 库位维护 / 批次维护 / 库存查询（页面在 `views/erp/stock/*`），不再是占位页；其余子项由后续票（#52 / #54 / #57 等）落地。
@@ -477,6 +477,22 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 7. **测试**：ERP 侧 19 个（新增 `ErpStockLocationServiceTest`、`ErpStockBatchServiceTest`；`ErpStockServiceTest` 补拆库位 / 拆批次；`StockApiImplTest` 补拆库位 + 上限拦截）；`create_tables.sql` / `clean.sql` 同步。icbc 431 测试不受影响。
 
 > 实测：本地库跑迁移后 `erp_stock` 唯一约束是四维、`erp_stock_location` / `erp_stock_batch` 建好，重跑迁移幂等；48081 起服务后建仓库 / 库位 / 批次、分页筛选、同名库位拦截、删除都通过。
+
+## #44 T06 单位供货方档案（已完成）
+
+与自然人出售者并列的第二种交易对方。按 [ADR 0027](docs/adr/0027-采购与仓储的对象模型.md) / [ADR 0029](docs/adr/0029-卖方主体分六类与反向开票准入.md)，单位供货方的档案落在 ERP 供应商表上（不新建 icbc 表，不把自然人复制一份）。
+
+1. **主体类型六态**：新增 `SellerSubjectTypeEnum`（自然人出售者 / 个体工商户 / 个人独资企业 / 合伙企业 / 企业法人 / 农民专业合作社，带 `natural` 判定位）与 `TaxpayerQualificationEnum`（一般纳税人 / 小规模纳税人），都放在 **`yudao-module-erp-api`**——`erp_supplier` 在 ERP 侧，而依赖方向恒为 icbc → erp（icbc 只能看到 `erp-api`）。
+2. **字段**：`erp_supplier` 加 `subject_type` / `taxpayer_qualification` / `address`；税号 / 开户行 / 开户账号 / 联系人 / 联系电话沿用上游已有列。迁移 `backend/sql/mysql/erp-supplier.sql`（幂等，排在 `erp.sql` 之后），README 导入顺序同步。
+3. **服务层门禁**（门禁只在 `ErpSupplierServiceImpl` 一处）：主体类型必填；**拒收自然人**（`SUPPLIER_SUBJECT_TYPE_NATURAL_NOT_ALLOWED`，指向「出售者档案」），自然人档案在 `icbc_payee_info`，复制进 `erp_supplier` 会造出第二个事实源。
+4. **停用而非删除**：`status` 沿用上游；`deleteSupplier` 在 `erp_purchase_order` / `erp_purchase_in` / `erp_purchase_return` 里查引用，有引用报 `SUPPLIER_DELETE_FAIL_REFERENCED` 并提示改为停用。
+5. **菜单 / 权限**：`icbc-menu.sql` 在「交易对方」（5202）下挂 5193 单位供货方 + 5194–5197 增删改导出（权限 `erp:supplier:*`，页面 `views/erp/purchase/supplier`）；随套餐递归进回收企业套餐，不进 `RecyclingRoleEnum`（与 #43 的 `erp:stock-*` 同一做法）。
+6. **前端**：`api/erp/purchase/supplier` 加主体类型 / 纳税人资格 / 地址与选项常量；列表加主体类型筛选与两列（主体类型 / 纳税人资格）；表单加主体类型（必填）与纳税人资格下拉、地址输入。顺带修掉列表里未使用的 `dateFormatter` 导入与表单 `formData` 的类型报错。
+7. **测试**：新增 `ErpSupplierServiceTest` 7 例（六态中的五类可建档、自然人拒收（建 / 改）、主体类型必填、增改查与按主体类型分页、无引用可删、被采购订单引用不可删）；ERP 侧 27 测试全绿，`mvn -pl yudao-server -am -DskipTests install` 通过；`create_tables.sql` / `clean.sql` 同步。
+
+> **AC4「采购单据的对手方位置能选到单位供货方」**：上游 `erp_purchase_order` / `erp_purchase_in` / `erp_purchase_return` 已有 `supplier_id`，表单已用 `SupplierApi.getSupplierSimpleList()` 选供货方，故本票结构上满足；双外键 `counterparty_type + payee_id + supplier_id` 与「恰好一个非空」的 CHECK 约束属 #46（T08）采购订单。
+
+> **AC1 的口径**：六态是枚举本身；单位供货方档案只收其中「自然人以外」的五类——这正是「判定规则是是否属于自然人」的落地，不是把自然人塞进供应商表。
 
 ## 下一步建议
 

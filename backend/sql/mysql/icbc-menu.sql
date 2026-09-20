@@ -115,6 +115,13 @@ VALUES
 (5132, '回填授权结果', 'icbc:enterprise-auth:update', 3, 2, 5130, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5181, '触达记录', 'icbc:seller-notify:query', 2, 4, 5202, 'seller-notify', '', 'icbc/sellerNotify/index', 'IcbcSellerNotify', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5182, '转达与短信开关', 'icbc:seller-notify:manage', 3, 1, 5181, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 单位供货方（#44 T06）：与自然人出售者并列的第二种交易对方，档案落 ERP 供应商表，
+-- 权限字符串是 erp:supplier:*，页面在 views/erp/purchase/supplier 下。
+(5193, '单位供货方', 'erp:supplier:query', 2, 5, 5202, 'supplier', '', 'erp/purchase/supplier/index', 'ErpSupplier', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5194, '单位供货方新增', 'erp:supplier:create', 3, 1, 5193, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5195, '单位供货方修改', 'erp:supplier:update', 3, 2, 5193, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5196, '单位供货方删除', 'erp:supplier:delete', 3, 3, 5193, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5197, '单位供货方导出', 'erp:supplier:export', 3, 4, 5193, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 回收作业 =====
 (5179, '到站预约', 'icbc:appointment:query', 2, 1, 5204, 'appointment', '', 'icbc/appointment/index', 'IcbcAppointment', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),

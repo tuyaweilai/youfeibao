@@ -19,6 +19,21 @@
           class="!w-240px"
         />
       </el-form-item>
+      <el-form-item label="主体类型" prop="subjectType">
+        <el-select
+          v-model="queryParams.subjectType"
+          placeholder="请选择主体类型"
+          clearable
+          class="!w-240px"
+        >
+          <el-option
+            v-for="item in SUPPLIER_SUBJECT_TYPE_OPTIONS"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="手机号码" prop="mobile">
         <el-input
           v-model="queryParams.mobile"
@@ -65,6 +80,8 @@
   <ContentWrap>
     <el-table v-loading="loading" :data="list" :stripe="true" :show-overflow-tooltip="true">
       <el-table-column label="名称" align="center" prop="name" />
+      <el-table-column label="主体类型" align="center" prop="subjectTypeName" />
+      <el-table-column label="纳税人资格" align="center" prop="taxpayerQualificationName" />
       <el-table-column label="联系人" align="center" prop="contact" />
       <el-table-column label="手机号码" align="center" prop="mobile" />
       <el-table-column label="联系电话" align="center" prop="telephone" />
@@ -112,9 +129,8 @@
 
 <script setup lang="ts">
 import { DICT_TYPE } from '@/utils/dict'
-import { dateFormatter } from '@/utils/formatTime'
 import download from '@/utils/download'
-import { SupplierApi, SupplierVO } from '@/api/erp/purchase/supplier'
+import { SupplierApi, SupplierVO, SUPPLIER_SUBJECT_TYPE_OPTIONS } from '@/api/erp/purchase/supplier'
 import SupplierForm from './SupplierForm.vue'
 
 /** ERP 供应商 列表 */
@@ -130,6 +146,7 @@ const queryParams = reactive({
   pageNo: 1,
   pageSize: 10,
   name: undefined,
+  subjectType: undefined,
   mobile: undefined,
   telephone: undefined
 })

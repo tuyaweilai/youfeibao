@@ -12,6 +12,10 @@ public interface ErrorCodeConstants {
     // ========== ERP 供应商（1-030-100-000） ==========
     ErrorCode SUPPLIER_NOT_EXISTS = new ErrorCode(1_030_100_000, "供应商不存在");
     ErrorCode SUPPLIER_NOT_ENABLE = new ErrorCode(1_030_100_000, "供应商({})未启用");
+    ErrorCode SUPPLIER_SUBJECT_TYPE_REQUIRED = new ErrorCode(1_030_100_001, "单位供货方的主体类型不能为空");
+    ErrorCode SUPPLIER_SUBJECT_TYPE_NATURAL_NOT_ALLOWED = new ErrorCode(1_030_100_002, "自然人出售者不属于单位供货方，请到「出售者档案」维护");
+    ErrorCode SUPPLIER_SUBJECT_TYPE_INVALID = new ErrorCode(1_030_100_003, "单位供货方的主体类型({})不合法");
+    ErrorCode SUPPLIER_DELETE_FAIL_REFERENCED = new ErrorCode(1_030_100_004, "供应商({})已被采购单据引用，无法删除，请改为停用");
 
     // ========== ERP 采购订单（1-030-101-000） ==========
     ErrorCode PURCHASE_ORDER_NOT_EXISTS = new ErrorCode(1_030_101_000, "采购订单不存在");

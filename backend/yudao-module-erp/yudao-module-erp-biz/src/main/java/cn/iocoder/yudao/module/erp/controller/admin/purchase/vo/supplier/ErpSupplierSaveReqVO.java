@@ -4,6 +4,8 @@ import cn.iocoder.yudao.framework.common.enums.CommonStatusEnum;
 import cn.iocoder.yudao.framework.common.validation.InEnum;
 import cn.iocoder.yudao.framework.common.validation.Mobile;
 import cn.iocoder.yudao.framework.common.validation.Telephone;
+import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
+import cn.iocoder.yudao.module.erp.enums.purchase.TaxpayerQualificationEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -22,6 +24,18 @@ public class ErpSupplierSaveReqVO {
     @Schema(description = "供应商名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "芋道源码")
     @NotEmpty(message = "供应商名称不能为空")
     private String name;
+
+    @Schema(description = "主体类型", requiredMode = Schema.RequiredMode.REQUIRED, example = "2")
+    @NotNull(message = "主体类型不能为空")
+    @InEnum(value = SellerSubjectTypeEnum.class)
+    private Integer subjectType;
+
+    @Schema(description = "纳税人资格", example = "1")
+    @InEnum(value = TaxpayerQualificationEnum.class)
+    private Integer taxpayerQualification;
+
+    @Schema(description = "地址", example = "上海市浦东新区张江镇 1 号")
+    private String address;
 
     @Schema(description = "联系人", example = "芋艿")
     private String contact;

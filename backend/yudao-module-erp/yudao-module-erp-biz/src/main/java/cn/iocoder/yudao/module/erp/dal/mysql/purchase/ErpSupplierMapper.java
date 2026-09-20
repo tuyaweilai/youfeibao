@@ -22,6 +22,7 @@ public interface ErpSupplierMapper extends BaseMapperX<ErpSupplierDO> {
                 .likeIfPresent(ErpSupplierDO::getName, reqVO.getName())
                 .likeIfPresent(ErpSupplierDO::getMobile, reqVO.getMobile())
                 .likeIfPresent(ErpSupplierDO::getTelephone, reqVO.getTelephone())
+                .eqIfPresent(ErpSupplierDO::getSubjectType, reqVO.getSubjectType())
                 .orderByDesc(ErpSupplierDO::getId));
     }
 

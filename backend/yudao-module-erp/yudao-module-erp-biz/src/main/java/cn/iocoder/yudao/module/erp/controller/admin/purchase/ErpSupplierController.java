@@ -11,6 +11,8 @@ import cn.iocoder.yudao.module.erp.controller.admin.purchase.vo.supplier.ErpSupp
 import cn.iocoder.yudao.module.erp.controller.admin.purchase.vo.supplier.ErpSupplierRespVO;
 import cn.iocoder.yudao.module.erp.controller.admin.purchase.vo.supplier.ErpSupplierSaveReqVO;
 import cn.iocoder.yudao.module.erp.dal.dataobject.purchase.ErpSupplierDO;
+import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
+import cn.iocoder.yudao.module.erp.enums.purchase.TaxpayerQualificationEnum;
 import cn.iocoder.yudao.module.erp.service.purchase.ErpSupplierService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -68,7 +70,7 @@ public class ErpSupplierController {
     @PreAuthorize("@ss.hasPermission('erp:supplier:query')")
     public CommonResult<ErpSupplierRespVO> getSupplier(@RequestParam("id") Long id) {
         ErpSupplierDO supplier = supplierService.getSupplier(id);
-        return success(BeanUtils.toBean(supplier, ErpSupplierRespVO.class));
+        return success(convertSupplier(supplier));
     }
 
     @GetMapping("/page")
@@ -76,14 +78,15 @@ public class ErpSupplierController {
     @PreAuthorize("@ss.hasPermission('erp:supplier:query')")
     public CommonResult<PageResult<ErpSupplierRespVO>> getSupplierPage(@Valid ErpSupplierPageReqVO pageReqVO) {
         PageResult<ErpSupplierDO> pageResult = supplierService.getSupplierPage(pageReqVO);
-        return success(BeanUtils.toBean(pageResult, ErpSupplierRespVO.class));
+        return success(BeanUtils.toBean(pageResult, ErpSupplierRespVO.class, this::fillSubjectTypeName));
     }
 
     @GetMapping("/simple-list")
     @Operation(summary = "获得供应商精简列表", description = "只包含被开启的供应商，主要用于前端的下拉选项")
     public CommonResult<List<ErpSupplierRespVO>> getSupplierSimpleList() {
         List<ErpSupplierDO> list = supplierService.getSupplierListByStatus(CommonStatusEnum.ENABLE.getStatus());
-        return success(convertList(list, supplier -> new ErpSupplierRespVO().setId(supplier.getId()).setName(supplier.getName())));
+        return success(convertList(list, supplier -> new ErpSupplierRespVO().setId(supplier.getId()).setName(supplier.getName())
+                .setSubjectType(supplier.getSubjectType()).setSubjectTypeName(SellerSubjectTypeEnum.nameOf(supplier.getSubjectType()))));
     }
 
     @GetMapping("/export-excel")
@@ -96,7 +99,17 @@ public class ErpSupplierController {
         List<ErpSupplierDO> list = supplierService.getSupplierPage(pageReqVO).getList();
         // 导出 Excel
         ExcelUtils.write(response, "供应商.xls", "数据", ErpSupplierRespVO.class,
-                        BeanUtils.toBean(list, ErpSupplierRespVO.class));
+                        convertList(list, this::convertSupplier));
+    }
+
+    private ErpSupplierRespVO convertSupplier(ErpSupplierDO supplier) {
+        return fillSubjectTypeName(BeanUtils.toBean(supplier, ErpSupplierRespVO.class));
+    }
+
+    private ErpSupplierRespVO fillSubjectTypeName(ErpSupplierRespVO respVO) {
+        respVO.setSubjectTypeName(SellerSubjectTypeEnum.nameOf(respVO.getSubjectType()));
+        respVO.setTaxpayerQualificationName(TaxpayerQualificationEnum.nameOf(respVO.getTaxpayerQualification()));
+        return respVO;
     }
 
 }
