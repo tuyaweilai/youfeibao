@@ -907,3 +907,43 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 > **与 #51 的约定已遵守**：本票没有动 `icbc_acquisition` 的任何列，也没有碰采购合同。
 > 合并时若 #51 先合，仍需人工确认它的成交记录写入与 `recordDeal` 的门禁一致（超量 / 过期 / 跨场站）。
+
+## #51 T13 收购单关联采购安排与「直接收购」（已完成）
+
+一张收购单可以挂到一条**有效采购安排**（执行中且未过期的采购订单 + 品类明细），也可以什么都不挂。
+不挂的收购在报表 / 列表标为「直接收购」——**它不是失败也不是缺失**，零散散户不必虚造订单。
+
+1. **数据**：`icbc_acquisition` 加 `purchase_order_id` / `purchase_order_item_id`，`NOT NULL DEFAULT 0`
+   （0 = 未关联，即直接收购）。迁移 `backend/sql/mysql/icbc-acquisition-purchase-link.sql`（幂等，
+   必须在 `icbc-acquisition.sql` 与 `icbc-purchase-order.sql` 之后），已进 README 导入顺序；
+   测试建表同步（H2 `ADD COLUMN IF NOT EXISTS`）。**没有新表，`clean.sql` 未动。**
+2. **门禁只有一处**：`AcquisitionServiceImpl.applyPurchaseArrangement` 调 #46 已有的
+   `PurchaseOrderService#assertUsableAsPurchaseBasis`（执行中 + 未过期），不复制判断；明细必须属于该订单
+   （`getOrderItem`），订单交易对方必须是本次收购的出售者，且明细品类必须与本次收购品类一致
+   （否则履约进度会串主体 / 串品类）。订单 / 明细缺一即拒
+   （`ACQUISITION_PURCHASE_ARRANGEMENT_INCOMPLETE`，错误码 `1_030_034_xxx`）。
+3. **可选采购安排查询**：`PurchaseOrderService#getUsableArrangements(payeeId)` 返回该自然人出售者
+   「执行中且未过期」的订单 + 品类明细（`PurchaseArrangementRespVO`），与 `assertUsableAsPurchaseBasis`
+   共用同一个 `isExpired` 判定。端点 `GET /icbc/acquisition/purchase-arrangement/list`（权限复用
+   `icbc:purchase-order:query`，收货员已有）。#47 拥有的 `PurchaseOrderProgressRespVO` 未改。
+4. **报表 / 列表口径**：`AcquisitionRespVO` 增 `directAcquisition`（是否直接收购）与
+   `purchaseArrangementText`（直接收购 / 采购订单）；分页增 `directAcquisition` 筛选。PC 收购单列表加
+   「采购安排」列（直接收购用中性 `info` 标签，**不是 danger**）与筛选。
+5. **现场端（AC4）**：`pages/acquisition` 新增「有效采购安排（可选）」卡片——先选订单、再选品类明细，
+   第 0 项是「不关联（直接收购）」；不选就是直接收购，选了必须选到明细且明细品类与上面的品类一致。
+   从交接批次进来时，若批次上挂了采购订单（#50 预留的字段）会替现场预选订单，明细仍由现场挑。
+6. **AC 覆盖**：同一交接批次下多张收购单、同出售者 + 同场站（新增测试，缺磅次 / 场站用真实交接批次服务造）；
+   一车两种品类生成两张收购单与一份批次记录（#50 已有测试继续有效）。
+7. **测试**：`AcquisitionServiceImplTest` 新增 10 例（关联可用订单、未关联落 0、草稿 / 过期订单拒、
+   明细不属订单拒、交易对方不符拒、品类不符拒、只给明细拒、同批次同出售者同场站、分页按直接收购筛选）；
+   `PurchaseOrderServiceTest` 新增 3 例（只列执行中未过期且属该出售者的订单、payeeId 空返回空、明细不属订单拒）。
+   不新增权限 / 菜单（复用既有 `icbc:acquisition:*` 与 `icbc:purchase-order:query`），
+   `RecyclingPermission` / `RecyclingRoleEnum` 未动。icbc 全量 **545 测试全绿**；现场端 `pnpm ts:check` 与
+   `pnpm build:h5`、PC `pnpm build:local` 均通过。
+
+> **与 #47 的分工**：本票只落「收购单 → 采购订单 / 明细」的关联与「直接收购」口径，不碰执行进度的五口径
+> 与超量 / 过期 / 跨场站的业务拦截（那是 #47）。`recordDeal` 未被本票调用——成交价格快照仍由采购订单侧
+> 手工登记，进度归集留给 #47。
+
+> **未做**：批次级采购订单的 UI 选择（`icbc_handover_batch.purchase_order_id` 只做带出，不在交接批次页选）；
+> 收购单创建后改挂 / 解绑采购安排（登记后即固定）。

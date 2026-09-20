@@ -13,6 +13,8 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcHandoverBatchDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcWeighingDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderItemDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.goodscfg.IcbcGoodsConfigMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
@@ -23,6 +25,7 @@ import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.acquisition.recognition.AcquisitionRecognitionPort;
 import cn.iocoder.yudao.module.icbc.service.admission.SellerAdmissionService;
 import cn.iocoder.yudao.module.icbc.service.handover.HandoverBatchService;
+import cn.iocoder.yudao.module.icbc.service.purchaseorder.PurchaseOrderService;
 import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -74,6 +77,8 @@ public class AcquisitionServiceImpl implements AcquisitionService {
     private SellerAdmissionService sellerAdmissionService;
     @Resource
     private HandoverBatchService handoverBatchService;
+    @Resource
+    private PurchaseOrderService purchaseOrderService;
 
     // ==================== 登记 ====================
 
@@ -120,7 +125,10 @@ public class AcquisitionServiceImpl implements AcquisitionService {
             throw exception(ACQUISITION_GOODS_CONFIG_NOT_EXISTS);
         }
 
-        // 7. 组装快照并落库
+        // 7. 可选关联采购安排（#51）：品类确定后再校验明细品类，报错才准确
+        applyPurchaseArrangement(reqVO, acquisition);
+
+        // 8. 组装快照并落库
         applySnapshots(acquisition, payee, config);
         try {
             acquisitionMapper.insert(acquisition);
@@ -218,6 +226,43 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         if (acquisition.getTradeTime() == null && batch.getOccurTime() != null) {
             acquisition.setTradeTime(batch.getOccurTime());
         }
+    }
+
+    /**
+     * 可选关联采购安排（#51 T13）：收购单可以挂到一个**有效**的采购订单明细，也可以什么都不挂。
+     *
+     * <p>「有效」的唯一门禁是 {@code PurchaseOrderService#assertUsableAsPurchaseBasis}（执行中 + 未过期），
+     * 这里不复制判断；订单交易对方必须是本次收购的出售者，明细必须属于该订单，且明细品类与本次收购
+     * 品类一致——否则归集到的履约进度会串主体 / 串品类。
+     *
+     * <p>不关联时落 {@code 0}（而不是 NULL）：报表 / 列表据此标为「直接收购」，不是失败或缺失；
+     * {@code 0} 在后续唯一索引里也不会像 NULL 那样互不相等（ADR 0027）。
+     */
+    private void applyPurchaseArrangement(AcquisitionCreateReqVO reqVO, IcbcAcquisitionDO acquisition) {
+        boolean hasOrder = isPresentId(reqVO.getPurchaseOrderId());
+        boolean hasItem = isPresentId(reqVO.getPurchaseOrderItemId());
+        if (!hasOrder && !hasItem) {
+            acquisition.setPurchaseOrderId(0L);
+            acquisition.setPurchaseOrderItemId(0L);
+            return;
+        }
+        if (!hasOrder || !hasItem) {
+            throw exception(ACQUISITION_PURCHASE_ARRANGEMENT_INCOMPLETE);
+        }
+        IcbcPurchaseOrderDO order = purchaseOrderService.assertUsableAsPurchaseBasis(reqVO.getPurchaseOrderId());
+        if (!Objects.equals(order.getPayeeId(), acquisition.getPayeeId())) {
+            throw exception(ACQUISITION_PURCHASE_ORDER_COUNTERPARTY_MISMATCH, order.getCounterpartyName());
+        }
+        IcbcPurchaseOrderItemDO item = purchaseOrderService.getOrderItem(order.getId(), reqVO.getPurchaseOrderItemId());
+        if (!Objects.equals(item.getGoodsConfigId(), acquisition.getGoodsConfigId())) {
+            throw exception(ACQUISITION_PURCHASE_ITEM_CATEGORY_MISMATCH, item.getCategoryName());
+        }
+        acquisition.setPurchaseOrderId(order.getId());
+        acquisition.setPurchaseOrderItemId(item.getId());
+    }
+
+    private static boolean isPresentId(Long id) {
+        return id != null && id != 0L;
     }
 
     /**

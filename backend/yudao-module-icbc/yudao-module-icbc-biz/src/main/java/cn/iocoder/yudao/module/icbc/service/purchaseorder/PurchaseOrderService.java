@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.icbc.service.purchaseorder;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseArrangementRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDeliveryCheckReqVO;
@@ -13,6 +14,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOr
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderSettingSaveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderStatusUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderItemDO;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -158,6 +160,26 @@ public interface PurchaseOrderService {
      * @return 成交记录
      */
     List<PurchaseOrderDealRespVO> getDealList(Long orderId);
+
+    /**
+     * 获得某交易对方的**可选采购安排**（#51 T13）：执行中且未过期的采购订单，连同其品类明细。
+     *
+     * <p>收购登记现场据此选出一个有效采购安排，也可以什么都不选（不选即「直接收购」）。
+     * 「有效」的判定与 {@link #assertUsableAsPurchaseBasis(Long)} 共用同一套规则（执行中 + 未过期）。
+     *
+     * @param payeeId 自然人出售者档案编号；为空返回空列表（现场先带出售者再选安排）
+     * @return 可选采购安排
+     */
+    List<PurchaseArrangementRespVO> getUsableArrangements(Long payeeId);
+
+    /**
+     * 取订单明细，并校验它确实属于该订单（收购单关联采购安排时调用）。
+     *
+     * @param orderId 订单编号
+     * @param itemId  明细编号
+     * @return 采购订单明细
+     */
+    IcbcPurchaseOrderItemDO getOrderItem(Long orderId, Long itemId);
 
     /**
      * 按明细与交货日算参考价：固定单价直接用明细单价；按交货日价格表取「不晚于交货日的最新一条」，

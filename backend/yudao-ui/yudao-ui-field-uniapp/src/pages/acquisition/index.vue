@@ -100,6 +100,30 @@
         </view>
       </view>
 
+      <!-- 有效采购安排（#51）：可选；不选就是「直接收购」，报表照常统计 -->
+      <view class="card">
+        <view class="card__title">有效采购安排（可选）</view>
+        <picker
+          :range="arrangementNames"
+          :value="arrangementIndex"
+          @change="onArrangementChange"
+        >
+          <view class="picker">{{ arrangementPickerText }}</view>
+        </picker>
+        <picker
+          v-if="selectedArrangement"
+          :range="arrangementItemNames"
+          :value="arrangementItemIndex < 0 ? 0 : arrangementItemIndex"
+          @change="onArrangementItemChange"
+        >
+          <view class="picker arrangement__item">{{ arrangementItemPickerText }}</view>
+        </picker>
+        <view class="hint">
+          有效 = 执行中且未过期的采购订单。不选就是「直接收购」，报表照常统计，不是缺失；
+          选了就要选到品类明细，且明细品类要与上面的品类一致。
+        </view>
+      </view>
+
       <!-- 数量与计价 -->
       <view class="card">
         <view class="card__title">数量与计价</view>
@@ -228,7 +252,13 @@ import { onLoad } from '@dcloudio/uni-app'
 import { getEnabledGoodsList, GoodsConfigVO } from '@/api/goodsConfig'
 import { findReturningCustomer, PayeeVO } from '@/api/payee'
 import { getStationPage, StationVO } from '@/api/station'
-import { createAcquisition, AcquisitionCreateReq, AcquisitionCreateResp } from '@/api/acquisition'
+import {
+  createAcquisition,
+  getUsablePurchaseArrangements,
+  AcquisitionCreateReq,
+  AcquisitionCreateResp,
+  PurchaseArrangementVO
+} from '@/api/acquisition'
 import { getHandoverBatch, getWeighings, HandoverBatchVO } from '@/api/handover'
 import {
   AppointmentVO,
@@ -268,6 +298,10 @@ const prefilledQuantityText = ref('')
 /** 交接批次（#50）：填了就按该批次的有效磅次计量 */
 const handoverBatch = ref<HandoverBatchVO | null>(null)
 const effectiveWeighingText = ref('')
+/** 有效采购安排（#51）：执行中且未过期的采购订单，指数 0 = 不关联（直接收购） */
+const arrangements = ref<PurchaseArrangementVO[]>([])
+const arrangementIndex = ref(0)
+const arrangementItemIndex = ref(-1)
 
 const uploading = reactive<Record<PhotoKey, boolean>>({
   weightTicketImageUrl: false,
@@ -292,6 +326,8 @@ const form = reactive({
   payeeId: undefined as number | undefined,
   stationId: undefined as number | undefined,
   goodsConfigId: undefined as number | undefined,
+  purchaseOrderId: undefined as number | undefined,
+  purchaseOrderItemId: undefined as number | undefined,
   specification: '',
   quantity: '',
   unitPrice: '',
@@ -321,6 +357,27 @@ function onDeductionMethodChange(event: any) {
 }
 
 const goodsNames = computed(() => goodsList.value.map((item) => item.name || ''))
+// 采购安排选择器：第 0 项是「不关联（直接收购）」，其余按下标对应 arrangements
+const arrangementNames = computed(() => [
+  '不关联（直接收购）',
+  ...arrangements.value.map((item) => item.orderNo || `订单 ${item.orderId}`)
+])
+const selectedArrangement = computed(() =>
+  arrangementIndex.value >= 1 ? arrangements.value[arrangementIndex.value - 1] : undefined
+)
+const arrangementItems = computed(() => selectedArrangement.value?.items || [])
+const arrangementItemNames = computed(() =>
+  arrangementItems.value.map((item) => `${item.categoryName || '品类'}${item.unit ? `（${item.unit}）` : ''}`)
+)
+const selectedArrangementItem = computed(() =>
+  arrangementItemIndex.value >= 0 ? arrangementItems.value[arrangementItemIndex.value] : undefined
+)
+const arrangementPickerText = computed(() =>
+  selectedArrangement.value ? (selectedArrangement.value.orderNo || '已选采购订单') : '不关联（直接收购）'
+)
+const arrangementItemPickerText = computed(
+  () => selectedArrangementItem.value?.categoryName || '请选择品类明细'
+)
 const stationNames = computed(() => stations.value.map((item) => item.name || item.stationCode || ''))
 const selectedStation = computed(() => (stationIndex.value >= 0 ? stations.value[stationIndex.value] : undefined))
 
@@ -369,6 +426,11 @@ async function applyHandoverBatch(batchId: number) {
       seller.value = { id: detail.payeeId, name: detail.sellerName || '', mobile: detail.sellerMobile || '' }
       lookedUp.value = true
       form.payeeId = detail.payeeId
+      await loadArrangements(detail.payeeId)
+      // 批次上若已挂采购订单（#50 预留的字段），在这里替现场选好订单，明细仍由现场挑
+      if (detail.purchaseOrderId) {
+        selectArrangementByOrderId(detail.purchaseOrderId)
+      }
     }
     if (detail.stationId) {
       form.stationId = detail.stationId
@@ -529,6 +591,9 @@ async function onLookup() {
     } else {
       appointments.value = []
     }
+    if (found?.id) {
+      loadArrangements(found.id)
+    }
   } catch (e) {
     showError(e)
   } finally {
@@ -545,6 +610,7 @@ function clearSeller() {
   prefilledQuantityText.value = ''
   handoverBatch.value = null
   effectiveWeighingText.value = ''
+  loadArrangements()
 }
 
 async function loadAppointments(payeeId: number) {
@@ -553,6 +619,58 @@ async function loadAppointments(payeeId: number) {
   } catch {
     // 预约是锦上添花：拉不到不影响正常登记
     appointments.value = []
+  }
+}
+
+/**
+ * 拉取该出售者的有效采购安排（执行中且未过期的采购订单 + 品类明细）。
+ * 拉不到不阻断登记：不选采购安排就是「直接收购」，照常落单。
+ */
+async function loadArrangements(payeeId?: number) {
+  arrangements.value = []
+  arrangementIndex.value = 0
+  arrangementItemIndex.value = -1
+  form.purchaseOrderId = undefined
+  form.purchaseOrderItemId = undefined
+  if (!payeeId) return
+  try {
+    arrangements.value = await getUsablePurchaseArrangements(payeeId)
+  } catch {
+    arrangements.value = []
+  }
+}
+
+/** 选择采购订单：第 0 项是不关联；选了订单后清空明细，只有一条明细时自动选上。 */
+function onArrangementChange(event: any) {
+  const index = Number(event.detail.value)
+  arrangementIndex.value = index
+  arrangementItemIndex.value = -1
+  form.purchaseOrderItemId = undefined
+  const arrangement = index >= 1 ? arrangements.value[index - 1] : undefined
+  form.purchaseOrderId = arrangement?.orderId
+  if (arrangement?.items?.length === 1) {
+    arrangementItemIndex.value = 0
+    form.purchaseOrderItemId = arrangement.items[0].itemId
+  }
+}
+
+function onArrangementItemChange(event: any) {
+  arrangementItemIndex.value = Number(event.detail.value)
+  form.purchaseOrderItemId = selectedArrangementItem.value?.itemId
+}
+
+/** 按订单编号预选（批次上挂了采购订单时用）。 */
+function selectArrangementByOrderId(orderId: number) {
+  const index = arrangements.value.findIndex((item) => item.orderId === orderId)
+  if (index < 0) return
+  arrangementIndex.value = index + 1
+  arrangementItemIndex.value = -1
+  form.purchaseOrderId = orderId
+  form.purchaseOrderItemId = undefined
+  const items = arrangements.value[index].items || []
+  if (items.length === 1) {
+    arrangementItemIndex.value = 0
+    form.purchaseOrderItemId = items[0].itemId
   }
 }
 
@@ -639,6 +757,8 @@ function buildPayload(): AcquisitionCreateReq {
     payeeId: form.payeeId!,
     stationId: form.stationId,
     handoverBatchId: handoverBatch.value?.id,
+    purchaseOrderId: form.purchaseOrderId,
+    purchaseOrderItemId: form.purchaseOrderItemId,
     goodsConfigId: form.goodsConfigId!,
     specification: form.specification || undefined,
     quantity: toNum(form.quantity) ?? undefined,
@@ -762,6 +882,8 @@ function resetAll() {
   Object.assign(form, {
     payeeId: undefined,
     goodsConfigId: undefined,
+    purchaseOrderId: undefined,
+    purchaseOrderItemId: undefined,
     specification: '',
     quantity: '',
     unitPrice: '',
@@ -994,6 +1116,10 @@ function showError(e: unknown) {
     gap: 32rpx;
     margin-top: 10rpx;
   }
+}
+
+.arrangement__item {
+  margin-top: 12rpx;
 }
 
 .hint {

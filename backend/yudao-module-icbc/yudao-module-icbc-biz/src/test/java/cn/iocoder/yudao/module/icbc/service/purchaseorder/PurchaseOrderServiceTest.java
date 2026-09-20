@@ -6,6 +6,7 @@ import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchasecontract.vo.PurchaseContractAuditReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchasecontract.vo.PurchaseContractSaveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchasecontract.vo.PurchaseContractSubmitReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseArrangementRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDeliveryCheckReqVO;
@@ -333,6 +334,70 @@ public class PurchaseOrderServiceTest extends BaseDbUnitTest {
         assertFalse(detail.getUsableAsPurchaseBasis());
         assertServiceException(() -> purchaseOrderService.assertUsableAsPurchaseBasis(orderId),
                 PURCHASE_ORDER_NOT_EFFECTIVE, detail.getOrderNo());
+    }
+
+    // ==================== 可选采购安排（#51 T13） ====================
+
+    @Test
+    public void testGetUsableArrangements_onlyExecutingNotExpiredForThatPayee() {
+        PayeeInfoDO payee = insertPayee("张三");
+        PayeeInfoDO other = insertPayee("李四");
+        Long goodsId = insertGoodsConfig("废钢", "吨");
+
+        // 可用：执行中且未过期
+        Long usable = purchaseOrderService.createOrder(naturalReq(payee.getId(),
+                List.of(fixedItem(goodsId, "100", "2000"))));
+        purchaseOrderService.updateStatus(statusReq(usable, PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
+        // 不可用：草稿
+        purchaseOrderService.createOrder(naturalReq(payee.getId(), List.of(fixedItem(goodsId, "1", "10"))));
+        // 不可用：执行中但已过期
+        PurchaseOrderSaveReqVO expired = naturalReq(payee.getId(), List.of(fixedItem(goodsId, "1", "10")));
+        expired.setStartDate(LocalDate.now().minusDays(10));
+        expired.setEndDate(LocalDate.now().minusDays(1));
+        Long expiredId = purchaseOrderService.createOrder(expired);
+        purchaseOrderService.updateStatus(statusReq(expiredId, PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
+        // 不可用：别的交易对方
+        Long otherOrder = purchaseOrderService.createOrder(naturalReq(other.getId(),
+                List.of(fixedItem(goodsId, "1", "10"))));
+        purchaseOrderService.updateStatus(statusReq(otherOrder, PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
+
+        List<PurchaseArrangementRespVO> arrangements = purchaseOrderService.getUsableArrangements(payee.getId());
+
+        assertEquals(1, arrangements.size());
+        PurchaseArrangementRespVO arrangement = arrangements.get(0);
+        assertEquals(usable, arrangement.getOrderId());
+        assertEquals(purchaseOrderService.getOrder(usable).getOrderNo(), arrangement.getOrderNo());
+        assertEquals("张三", arrangement.getCounterpartyName());
+        assertEquals(1, arrangement.getItems().size());
+        assertEquals(goodsId, arrangement.getItems().get(0).getGoodsConfigId());
+        assertEquals("废钢", arrangement.getItems().get(0).getCategoryName());
+        assertEquals(0, new BigDecimal("2000").compareTo(arrangement.getItems().get(0).getUnitPrice()));
+    }
+
+    @Test
+    public void testGetUsableArrangements_withoutPayeeIsEmpty() {
+        Long goodsId = insertGoodsConfig("废钢", "吨");
+        PayeeInfoDO payee = insertPayee("张三");
+        Long orderId = purchaseOrderService.createOrder(naturalReq(payee.getId(),
+                List.of(fixedItem(goodsId, "1", "10"))));
+        purchaseOrderService.updateStatus(statusReq(orderId, PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
+
+        assertTrue(purchaseOrderService.getUsableArrangements(null).isEmpty());
+    }
+
+    @Test
+    public void testGetOrderItem_rejectsItemOfAnotherOrder() {
+        PayeeInfoDO payee = insertPayee("张三");
+        Long goodsId = insertGoodsConfig("废钢", "吨");
+        Long first = purchaseOrderService.createOrder(naturalReq(payee.getId(),
+                List.of(fixedItem(goodsId, "1", "10"))));
+        Long second = purchaseOrderService.createOrder(naturalReq(payee.getId(),
+                List.of(fixedItem(goodsId, "2", "20"))));
+        Long firstItem = purchaseOrderService.getDetail(first).getItems().get(0).getId();
+
+        assertEquals(firstItem, purchaseOrderService.getOrderItem(first, firstItem).getId());
+        assertServiceException(() -> purchaseOrderService.getOrderItem(second, firstItem),
+                PURCHASE_ORDER_ITEM_NOT_EXISTS, firstItem);
     }
 
     // ==================== 分次收货与价格快照 ====================

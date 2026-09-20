@@ -400,4 +400,12 @@ public interface ErrorCodeConstants {
             "完成比例采用的履约口径不合法（只接受已能取到数的口径）：{}");
     ErrorCode PURCHASE_SETTING_RULE_INVALID = new ErrorCode(1_030_033_014,
             "履约异常的处理方式不合法（只接受拦截 / 提交授权审核）：{}");
+
+    // ========== 收购单关联采购安排与「直接收购」（#51 T13，ADR 0027） 1-030-034-000 ==========
+    ErrorCode ACQUISITION_PURCHASE_ARRANGEMENT_INCOMPLETE = new ErrorCode(1_030_034_000,
+            "关联采购安排时必须同时选择采购订单与订单明细；不关联就是「直接收购」，不必虚造订单");
+    ErrorCode ACQUISITION_PURCHASE_ITEM_CATEGORY_MISMATCH = new ErrorCode(1_030_034_001,
+            "采购订单明细的品类（{}）与本次收购的品类不一致，不能关联");
+    ErrorCode ACQUISITION_PURCHASE_ORDER_COUNTERPARTY_MISMATCH = new ErrorCode(1_030_034_002,
+            "采购订单的交易对方（{}）与本次收购的出售者不是同一个主体，不能关联");
 }

@@ -7,6 +7,10 @@ export interface AcquisitionCreateReq {
   stationId?: number
   /** 交接批次编号（#50）：填了就按该批次的有效磅次计量，手填重量不采用 */
   handoverBatchId?: number
+  /** 可选关联的采购订单编号（#51）：不填即「直接收购」；填了必须同时给订单明细 */
+  purchaseOrderId?: number
+  /** 可选关联的采购订单明细编号（#51）：明细品类须与本次收购品类一致 */
+  purchaseOrderItemId?: number
   goodsConfigId: number
   specification?: string
   quantity?: number
@@ -78,6 +82,13 @@ export interface AcquisitionVO {
   handoverBatchId?: number
   weighingId?: number
   weighingSeqNo?: number
+  /** 采购安排关联（#51）：0 表示未关联（直接收购） */
+  purchaseOrderId?: number
+  purchaseOrderItemId?: number
+  /** 是否为「直接收购」：报表 / 列表口径，不是失败态 */
+  directAcquisition?: boolean
+  /** 采购安排口径文案：直接收购 / 采购订单 */
+  purchaseArrangementText?: string
   deduction?: number
   deductionMethod?: string
   /** 结算重量 = 毛重 − 皮重 − 扣杂（唯一计价基准） */
@@ -124,6 +135,32 @@ export interface AcquisitionCorrectionReq {
   vehiclePlateNo?: string
   remark?: string
 }
+
+/** 可选采购安排（#51）：执行中且未过期的采购订单 + 品类明细，现场按品类选到具体明细 */
+export interface PurchaseArrangementItemVO {
+  itemId?: number
+  goodsConfigId?: number
+  categoryName?: string
+  unit?: string
+  planQuantity?: number
+  unitPrice?: number
+}
+
+export interface PurchaseArrangementVO {
+  orderId?: number
+  orderNo?: string
+  contractNo?: string
+  counterpartyName?: string
+  stationId?: number
+  stationName?: string
+  startDate?: string
+  endDate?: string
+  items?: PurchaseArrangementItemVO[]
+}
+
+/** 有效采购安排（执行中且未过期的采购订单 + 品类明细）；没有就返回空列表，不阻断登记。 */
+export const getUsablePurchaseArrangements = (payeeId: number) =>
+  get<PurchaseArrangementVO[]>('/icbc/acquisition/purchase-arrangement/list', { payeeId })
 
 export const createAcquisition = (data: AcquisitionCreateReq) =>
   post<AcquisitionCreateResp>('/icbc/acquisition/create', data)

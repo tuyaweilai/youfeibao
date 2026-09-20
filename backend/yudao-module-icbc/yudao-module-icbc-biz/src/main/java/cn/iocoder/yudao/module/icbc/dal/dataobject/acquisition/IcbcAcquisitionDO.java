@@ -137,6 +137,19 @@ public class IcbcAcquisitionDO extends TenantBaseDO {
     /** 所属结算单编号；为空表示尚未归入结算单（可被「结束本次收货」归组） */
     private Long settlementId;
 
+    // ==================== 采购安排关联（#51 T13） ====================
+
+    /**
+     * 关联的采购订单编号；{@code 0} 表示未关联，即「直接收购」（零散散户不虚造订单，报表照常统计）。
+     *
+     * <p>与 {@link #purchaseOrderItemId} 成对：关联时必须同时给出，且该订单必须「执行中且未过期」
+     * （门禁在 {@code PurchaseOrderService#assertUsableAsPurchaseBasis}）。
+     */
+    private Long purchaseOrderId;
+
+    /** 关联的采购订单明细编号；{@code 0} 表示未关联。一条明细可分多次收货，多张收购单可挂同一明细 */
+    private Long purchaseOrderItemId;
+
     // ==================== 交接批次与有效磅次（#50 T12） ====================
 
     /** 交接批次编号；为空表示这笔收购没有经过批次登记（历史数据与直接登记） */

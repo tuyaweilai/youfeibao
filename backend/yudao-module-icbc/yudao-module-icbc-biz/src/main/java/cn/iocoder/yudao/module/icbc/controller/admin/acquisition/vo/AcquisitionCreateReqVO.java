@@ -36,6 +36,12 @@ public class AcquisitionCreateReqVO {
     @Schema(description = "交接批次编号（#50）：填了就从该批次的**有效磅次**取重量与磅单，手填的毛重 / 皮重 / 净重不采用", example = "2048")
     private Long handoverBatchId;
 
+    @Schema(description = "可选关联的采购订单编号（#51）：不填即「直接收购」；填了就必须同时给采购订单明细且订单执行中、未过期", example = "5120")
+    private Long purchaseOrderId;
+
+    @Schema(description = "可选关联的采购订单明细编号（#51）：与采购订单成对，明细品类须与本次收购品类一致", example = "6144")
+    private Long purchaseOrderItemId;
+
     @Schema(description = "品类配置编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "2048")
     private Long goodsConfigId;
 

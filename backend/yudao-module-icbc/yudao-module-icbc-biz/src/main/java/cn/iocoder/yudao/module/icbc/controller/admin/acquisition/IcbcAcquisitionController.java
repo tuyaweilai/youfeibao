@@ -5,10 +5,12 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.*;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseArrangementRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
+import cn.iocoder.yudao.module.icbc.service.purchaseorder.PurchaseOrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,6 +40,8 @@ public class IcbcAcquisitionController {
 
     @Resource
     private AcquisitionService acquisitionService;
+    @Resource
+    private PurchaseOrderService purchaseOrderService;
 
     @PostMapping("/create")
     @Operation(summary = "登记一笔收购")
@@ -98,11 +102,25 @@ public class IcbcAcquisitionController {
         acquisitionService.exportConfirmation(id, response);
     }
 
+    @GetMapping("/purchase-arrangement/list")
+    @Operation(summary = "获得可用于本次收购的有效采购安排（执行中且未过期的采购订单 + 品类明细）")
+    @Parameter(name = "payeeId", description = "出售者（交易对方）档案编号", required = true, example = "1024")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PURCHASE_ORDER_QUERY + "')")
+    public CommonResult<List<PurchaseArrangementRespVO>> listPurchaseArrangements(
+            @RequestParam("payeeId") Long payeeId) {
+        return success(purchaseOrderService.getUsableArrangements(payeeId));
+    }
+
     private AcquisitionRespVO toRespVO(IcbcAcquisitionDO acquisition) {
         AcquisitionRespVO vo = BeanUtils.toBean(acquisition, AcquisitionRespVO.class);
         AcquisitionStatusEnum.ofStatus(acquisition.getStatus())
                 .ifPresent(status -> vo.setStatusName(status.getName()));
         vo.setSellerSubjectTypeName(SellerSubjectTypeEnum.nameOf(acquisition.getSellerSubjectType()));
+        // 「直接收购」是报表 / 列表口径，不是失败态：未关联采购安排（0 / 空）即直接收购（#51）
+        boolean direct = acquisition.getPurchaseOrderId() == null
+                || acquisition.getPurchaseOrderId() == 0L;
+        vo.setDirectAcquisition(direct);
+        vo.setPurchaseArrangementText(direct ? "直接收购" : "采购订单");
         return vo;
     }
 
