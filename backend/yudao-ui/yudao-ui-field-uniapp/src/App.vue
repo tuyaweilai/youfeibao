@@ -12,9 +12,10 @@ onLaunch(() => {
 
 <style lang="scss">
 page {
-  background-color: #f5f6f8;
-  color: #1f2329;
+  background-color: #f3f7f5;
+  color: #17221d;
   font-size: 28rpx;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .placeholder {
