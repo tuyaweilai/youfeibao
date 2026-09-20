@@ -585,9 +585,23 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 - **规格**：[#38](https://github.com/tuyaweilai/youfeibao/issues/38)（`ready-for-agent`），56 条 user story、12 条实现决策、测试决策、out of scope、further notes。
 - **19 张票**：`#39`–`#57`，边用 GitHub 原生 issue dependencies 连（21 条）。
-- **frontier（现在就能 grab）**：`#52` T14 待入库 → 入库单 → 库存流水 / `#53` T15 拒收 / 部分接收与余货出场。第一轮（`#45`/`#48`/`#50`/`#56`）、第二轮（`#46`/`#49`）、第三轮（`#47`/`#51`）都已合并进 `main`。
+- **frontier（现在就能 grab）**：`#52` T14 待入库 → 入库单 → 库存流水 / `#53` T15 拒收 / 部分接收与余货出场。
 - 依赖链（已完成票已删）：`#52→#54/#55`；`#47/#52→#57`。
 - **待决策的跟进票**：`#58`（关联采购订单的收购单进履约口径与交货门禁）——卡在 `net_weight` vs `settlement_weight` 的口径选择上，定完再接。
+
+### 第四轮并行约定（#52 / #53）
+
+| 票 | 分支 | 菜单 ID 段 | 错误码段 |
+|---|---|---|---|
+| #52 T14 待入库 → 入库单 → 库存流水 | `t14-stock-in` | 5255–5319 | `1_030_035_xxx` |
+| #53 T15 拒收 / 部分接收与余货出场 | `t15-partial-receipt` | 5320–5379 | `1_030_036_xxx` |
+
+菜单 ID 清理区间已从 5100–5299 扩到 **5100–5399**（5100 段不够用了；5300–5399 在种子里为空，无碰撞）。脊柱文件规则同前三轮。额外约定（避免又出现跨票缺口）：
+
+- **`#53` 拥有收购单的「接收结论」字段**：`accepted_weight`（接收量）、`rejected_weight`（退回量）、`residual_weight`（余货出场）与拒收原因；拒收部分不进应付、不进库存。称量差异（结算重量 vs 入库重量）落字段 + 只读差异清单，#57 的异常表直接消费。
+- **`#52` 拥有入库单与库存**：`icbc_stock_in` + 明细 + 走 #43 的 `StockApi`（业务类型 | `RECEIPT_IN(90)` / `RECEIPT_IN_CANCEL(91)`），不要直接碰 `erp_stock*`。
+- **可入库实物量只有一个取数点**：`#52` 把它抽成一个方法（先取 `net_weight`，实物口径）；`#53` 的 `accepted_weight` 落地后由人工改该方法优先取 `accepted_weight`（有值优先）。两票**不要**互相 `import` 对方新增的类。
+- **`#52` 落地后还要接一处**：`#56` 工作台的 `WorkbenchTodoCodeEnum.PENDING_STOCK_IN` 现在标了「待接入」，把 `unavailableReason` 清掉并在 `WorkbenchServiceImpl` 加一个分支（人工接线）。
 
 ### 第三轮并行约定（#47 / #51）
 

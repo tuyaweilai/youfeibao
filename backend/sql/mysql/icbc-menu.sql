@@ -15,7 +15,7 @@ SET NAMES utf8mb4;
 --      既有 icbc 页面挂到对应骨架下；「租户开票就绪」一级菜单取消，配置项落「基础资料」。
 --   3. 套餐：落一个「回收企业套餐」（system_tenant_package.id = 200），菜单集合覆盖骨架。
 --
--- 幂等：先删所有 icbc 自有菜单（permission / component 前缀）与固定的 5100–5299 区间，再插入；
+-- 幂等：先删所有 icbc 自有菜单（permission / component 前缀）与固定的 5100–5399 区间，再插入；
 -- 死亡菜单用递归 CTE 找齐后删除；套餐先按 id 删再插入。组件路径对应前端
 -- backend/yudao-ui/yudao-ui-admin-vue3/src/views/icbc/* 与 views/enterprise/*。
 
@@ -62,8 +62,8 @@ UPDATE `system_menu` SET `status` = 1, `updater` = 'admin', `update_time` = NOW(
 -- 里的行），再按固定 id 重建，避免重复。父级目录没有 permission，用 component 前缀兵底。
 DELETE FROM `system_role_menu` WHERE `menu_id` IN (SELECT `id` FROM `system_menu` WHERE `permission` LIKE 'icbc:%' OR `component` LIKE 'icbc/%');
 DELETE FROM `system_menu` WHERE `permission` LIKE 'icbc:%' OR `component` LIKE 'icbc/%';
-DELETE FROM `system_role_menu` WHERE `menu_id` BETWEEN 5100 AND 5299;
-DELETE FROM `system_menu` WHERE `id` BETWEEN 5100 AND 5299;
+DELETE FROM `system_role_menu` WHERE `menu_id` BETWEEN 5100 AND 5399;
+DELETE FROM `system_menu` WHERE `id` BETWEEN 5100 AND 5399;
 
 INSERT INTO `system_menu`
 (`id`, `name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
