@@ -5,6 +5,7 @@ import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderItemDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -20,6 +21,18 @@ public interface IcbcPurchaseOrderItemMapper extends BaseMapperX<IcbcPurchaseOrd
         }
         return selectList(new LambdaQueryWrapperX<IcbcPurchaseOrderItemDO>()
                 .eq(IcbcPurchaseOrderItemDO::getOrderId, orderId)
+                .orderByAsc(IcbcPurchaseOrderItemDO::getId));
+    }
+
+    /**
+     * 按多张采购订单批量查询订单明细（#55 T17 关联单据查询用，避免逐行查询）。
+     */
+    default List<IcbcPurchaseOrderItemDO> selectListByOrderIds(Collection<Long> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<IcbcPurchaseOrderItemDO>()
+                .in(IcbcPurchaseOrderItemDO::getOrderId, orderIds)
                 .orderByAsc(IcbcPurchaseOrderItemDO::getId));
     }
 

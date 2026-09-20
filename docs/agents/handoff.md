@@ -1084,3 +1084,50 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
    退回无原因拒、超净重拒、负重量拒、已挂开票拒、已归结算拒、扣杂差异不抹平、差异清单过滤、
    修正识别重算差异）；`RecyclingRoleEnumTest` 新增接收结论 / 差异清单权限一例。
    **icbc 572 测试全绿**；PC `pnpm build:local` 通过。
+
+## #55 T17 关联单据查询（已完成）
+
+在一张详情页里回答「这批货经历了什么」：采购订单—现场收货—仓储入库—结算确认**四栏**，后接付款与发票；
+按单号 / 车牌 / 主体反查。只读聚合，**不新建业务表**，聚合放在 `service/trace`，不 import #57 的报表类
+（「异常」的权威判定归 #57）。分支 `t17-trace`，菜单段 5300–5319（用了 5300–5302），错误码段 `1_030_038_xxx`。
+
+1. **聚合锚点是「收购单」**：一行 = 一次物理交接里的一个品类（一张收购单），六栏按固定顺序铺开
+   （`TraceStageCodeEnum.ordered()`：采购订单 / 现场收货 / 仓储入库 / 结算确认 / 付款 / 发票）。
+   一对多（多次磅次 / 多张入库单与库位明细 / 多个结算版本 / 多次付款 / 多张发票与红冲）在阶段内
+   `nodes[].children[]` **全部展开**（AC1）。
+2. **状态五态**（`TraceStageStatusEnum`）：未开始 / 处理中 / 已完成 / 异常 / **无需该环节**。
+   「**直接收购**」（`purchase_order_id = 0`）在采购订单栏显示为「无需该环节」，不是缺失、不虚造订单（AC2）。
+3. **AC4 差异不默认一对一**：`buildDifferences` 把 **已过账入库量 vs 结算重量** 逐条比出来——
+   两者不等 → `STOCK_IN_VS_SETTLEMENT`（例：入库 14.74 / 结算 28.33，差额 −13.59 并写明「结算重量只是计价基准、
+   实物在库另有口径，需人工核实」）；已结算却查不到入库 → `MISSING_STOCK_IN_LINK`；已入库未结算 →
+   `MISSING_SETTLEMENT_LINK`；另有实物量 vs 结算重量的 `WEIGHT_DIFF_VS_SETTLEMENT`（直接读 #53 的 `weight_diff`）。
+   只说明、不抹平，也不用库存反推金额。
+4. **AC5 汇总不重复计数**：合计口径是「每张收购单各计一次」，不把同一结算单 / 采购订单再加一遍；
+   响应带 `scopeNote`（本次筛选覆盖了什么）与 `hiddenDetailCount`（命中未在本页展示的明细数）。
+5. **反查六入口**（`TraceKeywordTypeEnum`）：`AUTO` 按「收购单号 → 交接批次号 → 采购订单号 → 入库单号 →
+   结算单号 → 发票号 → 支付单号 → 车牌 → 出售者」逐个试；也可显式指定。车牌同时匹配收购单上的
+   磅单 / 车辆车牌与**交接批次上的车牌**（`IcbcHandoverBatchMapper.selectListByPlateNo`）。
+   至少给一个条件，否则报 `TRACE_QUERY_CONDITION_REQUIRED`（无条件全表翻页是 #57 的事）。
+6. **AC3 原单 / 附件 / 操作历史 / 上下游**：每个节点带 `detailPath`（跳到既有原单页），附件从
+   收购单（磅单 / 车头车尾）、磅次、押金单回单、发票原件、结算线下签字件汇总；操作历史按**业务单据自身的时点**
+   重建（登记 / 磅次 / 入库过账 / 结算生成与确认 / 付款 / 开票），不伪造系统操作日志；上下游由四栏顺序表达。
+7. **AC6 脱敏与导出**：`MaskUtils` 追加 `maskBankCard` / `maskTaxNo`；税号 / 身份证 / 手机号 / 银行卡默认脱敏，
+   有 `icbc:trace:sensitive:view` 才返原值（管理员 / 财务）。导出 `GET /icbc/trace/export` 需
+   `icbc:trace:export`（管理员 / 财务），走同一套脱敏判断，并调 `OperateLogApi` **留一条导出操作记录**；
+   命中超过 500 条报 `TRACE_EXPORT_LIMIT_EXCEEDED` 提示缩小范围。
+8. **权限 / 菜单**：`RecyclingPermission` 追加 `TRACE_QUERY` / `TRACE_SENSITIVE_VIEW` / `TRACE_EXPORT`
+   （只追加）；`RecyclingRoleEnum` 四个租户内角色都能查，未脱敏与导出只给管理员 / 财务；
+   `icbc-menu.sql` 在「业务追溯」5208 下追加 5300 关联单据查询 + 5301 查看未脱敏字段 + 5302 导出关联单据。
+9. **落地**：新增 `service/trace/TraceQueryService(+Impl)`、`controller/admin/trace/TraceController` 与 12 个 VO、
+   4 个枚举；只给既有 Mapper **追加**查询方法（`selectListByTraceSearch` / `selectListByPlateNo` /
+   `selectListBySellerKeyword` / `selectListByPlateNo` / `selectListByAcquisitionIds` / `selectListByOrderIds`），
+   不建表、不动 `create_tables.sql` / `clean.sql`；前端 `api/icbc/trace` + `views/icbc/trace/index.vue`
+   （搜索 + 汇总 + 四栏表格 + 详情抽屉）。
+10. **测试**：`TraceQueryServiceTest` 23 例（六栏固定顺序、直接收购「无需该环节」、入库 vs 结算差异、
+    缺失入库 / 缺失结算、称量差异、脱敏与岗位放开、车牌 / 结算单号 / 发票号 / 主体反查、汇总不重复、
+    分页与未展示明细、只看差异、附件与操作历史、开票异常态、导出留记录、导出超限）；
+    `RecyclingRoleEnumTest` 追加 trace 权限一例。**icbc 614 测试全绿（1 skipped 为既有）**；PC `pnpm build:local` 通过。
+
+> **与 #57 的边界**：本票只展示链路自身的状态与差异，不做异常汇总表、不做按期间报表；
+> 「磅差 / 超采购量 / 超入库量 / 重复关联 / 长期未确认 / 资料缺失」的权威判定仍在 #57（T19）。
+> **未做**：节点级显式的「上下游」字段（由四栏顺序表达）；导出只出当前筛选结果，不做按期间批量。

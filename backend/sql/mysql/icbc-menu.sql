@@ -259,7 +259,14 @@ VALUES
 (5255, '待入库与入库单', 'icbc:stock-in:query', 2, 4, 5205, 'stock-in', '', 'icbc/stockIn/index', 'IcbcStockIn', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5256, '确认入库', 'icbc:stock-in:manage', 3, 1, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5257, '过账入库单', 'icbc:stock-in:manage', 3, 2, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5258, '作废入库单', 'icbc:stock-in:manage', 3, 3, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5258, '作废入库单', 'icbc:stock-in:manage', 3, 3, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+
+-- ===== 业务追溯：关联单据查询（#55 T17）=====
+-- 一批货经历了什么的单链路追溯：采购订单—现场收货—仓储入库—结算确认四栏 + 付款 / 发票，
+-- 按单号 / 车牌 / 主体反查。只读聚合，不新建表；默认脱敏。
+(5300, '关联单据查询', 'icbc:trace:query', 2, 2, 5208, 'linked', '', 'icbc/trace/index', 'IcbcTrace', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5301, '查看未脱敏字段', 'icbc:trace:sensitive:view', 3, 1, 5300, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5302, '导出关联单据', 'icbc:trace:export', 3, 2, 5300, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
 
 -- =====================================================================
 -- 3. 回收企业租户套餐
