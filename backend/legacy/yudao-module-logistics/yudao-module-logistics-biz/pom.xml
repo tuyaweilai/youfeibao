@@ -13,10 +13,7 @@
 
     <name>${project.artifactId}</name>
     <description>
-        物流模块业务实现：车辆、司机、承运商与承运合同、运输任务与节点、运费对账。
-
-        注意：本模块**不依赖 icbc**（见 ADR 0032）。它只在单据上存 icbc 侧的编号
-        （场站、交接批次、采购订单），因此这里不出现任何反向开票或工行的概念。
+        物流模块业务实现
     </description>
 
     <dependencies>
@@ -25,7 +22,7 @@
             <artifactId>yudao-module-logistics-api</artifactId>
             <version>${revision}</version>
         </dependency>
-
+        
         <!-- 业务组件 -->
         <dependency>
             <groupId>cn.iocoder.boot</groupId>
@@ -35,7 +32,7 @@
             <groupId>cn.iocoder.boot</groupId>
             <artifactId>yudao-spring-boot-starter-biz-tenant</artifactId>
         </dependency>
-
+        
         <!-- Web 相关 -->
         <dependency>
             <groupId>cn.iocoder.boot</groupId>
@@ -45,18 +42,40 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
-
+        
         <!-- DB 相关 -->
         <dependency>
             <groupId>cn.iocoder.boot</groupId>
             <artifactId>yudao-spring-boot-starter-mybatis</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-spring-boot-starter-redis</artifactId>
+        </dependency>
+        
+        <!-- Job 定时任务相关 -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-spring-boot-starter-job</artifactId>
+        </dependency>
+        
+        <!-- 消息队列相关 -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-spring-boot-starter-mq</artifactId>
+        </dependency>
+        
         <!-- Test 测试相关 -->
         <dependency>
             <groupId>cn.iocoder.boot</groupId>
             <artifactId>yudao-spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        
+        <!-- 工具类相关 -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-spring-boot-starter-excel</artifactId>
+        </dependency>
     </dependencies>
-</project>
+</project> 

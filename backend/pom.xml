@@ -18,7 +18,6 @@
         <module>yudao-module-member</module>
         <module>yudao-module-enterprise</module>
         <module>yudao-module-bpm</module>
-        <module>yudao-module-waste</module>
         <module>yudao-module-logistics</module>
         <module>yudao-module-contract</module>
         <module>yudao-module-pay</module>

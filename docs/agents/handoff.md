@@ -1271,9 +1271,9 @@ icbc 不直接碰 `erp_stock*`（ADR 0027 / 0028）。分支 `t16-stock-ops`，�
 
 **顺带**：跑着的后端 jar 旧了也会让人误判成前端问题——`GET /admin-api/icbc/purchase-contract/page` 在旧进程里是 404，而菜单接口是**读库**的、照样正常，于是「菜单里有、页面打不开」看起来像前端缓存。**改完 icbc/erp 等模块，必须 `mvn -pl yudao-server -am -DskipTests install` 再 `spring-boot:run`**（`AGENTS.md` 已有，但这次又踩了）。
 
-## 物流与司机端：设计已对齐，**尚未实施**（2026-09-20）
+## 物流与司机端：设计已对齐（2026-09-20）
 
-回收企业自营车队 + 第三方承运商的运力作业（车辆、司机、派单接单、运输过程、上门提货、运费）已完成一轮设计对齐，决策落 **ADR 0030 / 0031 / 0032**，词表补了「物流与运力」一节（车辆 / 司机 / 调度 / 承运商 / 承运合同 / 运输任务 / 停靠点 / 运输节点 / 交接确认 / 交接登记 / 轨迹 / 运费），并修订了「收购单」「场站」「交接批次」与「货物流」（「物流」现在指**承运业务**，与**货物流**是作业与证据两件事）。**代码一行没写。**
+回收企业自营车队 + 第三方承运商的运力作业（车辆、司机、派单接单、运输过程、上门提货、运费）已完成一轮设计对齐，决策落 **ADR 0030 / 0031 / 0032**，词表补了「物流与运力」一节（车辆 / 司机 / 调度 / 承运商 / 承运合同 / 运输任务 / 停靠点 / 运输节点 / 交接确认 / 交接登记 / 轨迹 / 运费），并修订了「收购单」「场站」「交接批次」与「货物流」（「物流」现在指**承运业务**，与**货物流**是作业与证据两件事）。本节记的是**设计**；实施进度见下一节 V1 起。
 
 要点：
 
@@ -1287,6 +1287,24 @@ icbc 不直接碰 `erp_stock*`（ADR 0027 / 0028）。分支 `t16-stock-ops`，�
 8. **运费**是另一笔账（对承运商），一期到「承运合同 + 对账 + 外部付款凭证登记」，**不做**对公付款通道（ADR 0006）；不改变收购单金额。
 9. **不做**司机现场现金收购与现金代付（原 vendored 的 `TemporaryOrder` / `CashAdvance`），不因没带卡而丢货、也不垫资（ADR 0006 / 0010）。
 
-票据：**#59** 规格票（父）+ 垂直切片 **#68–#76**（V1 模块骨架与依赖方向 / V2 一趟活跑通 / V3 档案与派车门禁 / V4 运输过程做全 / V5 多停靠点集货 / V6 交接登记→回场复磅→收购单 / V7 司机端现场准入四步 / V8 承运合同与运费对账 / V9 轨迹演示件）。原生 sub-issue 与 `blocked_by` 已挂，**frontier 是 #68**。
+票据：**#59** 规格票（父）+ 垂直切片 **#68–#76**（V1 模块骨架与依赖方向 / V2 一趟活跑通 / V3 档案与派车门禁 / V4 运输过程做全 / V5 多停靠点集货 / V6 交接登记→回场复磅→收购单 / V7 司机端现场准入四步 / V8 承运合同与运费对账 / V9 轨迹演示件）。原生 sub-issue 与 `blocked_by` 已挂。
 
 > 先发的横切版子票 #59 下的 #60–#67（T20–T27）**已关闭**，各自在关闭评论里注明替代票：后端一票、前端一票、权限一票、纯接线一票不符合 tracer bullet 要求。映射是 #60→#68、#61→#69+#70、#62→#69+#71+#72、#63→#69+#74、#64→#73、#65→#75、#66→#69、#67→#76。#59 正文的子票清单因此已过期，以原生 sub-issue 链接为准（已在 #59 留评论说明）。
+### V1 #68 物流模块骨架与依赖方向（已完成，分支 `v1-module-skeleton`）
+
+纯 prefactor，交付的是地基而非功能：
+
+1. **新模块就位**：`backend/yudao-module-logistics/`（`-api` + `-biz`），artifactId 与停编前同名，所以 `backend/pom.xml` 的 `<module>yudao-module-logistics</module>` 与 `yudao-server/pom.xml` 的依赖行**都不用动**，只是指向了新代码。错误码段取 **`1_030_200_xxx`**（icbc 占 001~050、erp 占 100~1xx）。
+2. **读面定死**：`LogisticsTransportApi` 只有两个查询轴——按任务编号取节点、按交接批次编号取凭证；契约是「查不到（含入参为 null）返回**空列表**，不返回 null、不抛异常」，因为缺凭证是业务状态而不是错误（自送的货本来就可能没有运输节点，ADR 0031 也不因缺轨迹拒收）。实现是**有意留空的骨架**，真实查询由 #69 / #73 补。
+3. **停编 + 留库**：vendored 的 `yudao-module-waste` 与快照版 `yudao-module-logistics` 移到 **`backend/legacy/`**（新增 `legacy/README.md` 写清为什么不能加回 reactor），从两个 pom 摘掉。移走而不是原地保留，是因为新模块要用同一个目录名与 artifactId。
+4. **测试底座**：`UnitTestConfiguration`（H2 + `generateUniqueName(true)`）+ `application-unit-test.yaml` + `sql/{create_tables,clean,init_data}.sql`，另有 `LogisticsBoundaryTest` 用源码扫描把 ADR 0032 锁住（物流不得出现 icbc 的类、工行 SDK/网关地址/客户端痕迹，pom 不得依赖 icbc 工件）——手法同 icbc 的 `IcbcSeamBoundaryTest`。
+
+**验收实测**（在 worktree 里跑）：物流模块 9 个测试全绿；icbc **682 个测试全绿**（1 skip 是 live 测试）；`mvn -pl yudao-server -am -DskipTests install` 通过；`spring-boot:run`（48081，避开占用的 48080）启动成功，`/actuator/beans` 里能看到 `logisticsTransportApiImpl`，登录接口正常；`dependency:tree` 里**没有** `waste`，只有 `logistics-biz → logistics-api`。
+
+**这一票踩到的三个坑（下一票照做）**：
+
+1. **`-pl yudao-module-logistics -am` 只构建父 pom**，子模块根本没装进 m2——这正是 `AGENTS.md` 记过的坑，我又踩了一次。装子模块要用全路径：`-pl yudao-module-logistics/yudao-module-logistics-api,yudao-module-logistics/yudao-module-logistics-biz -am`。
+2. **`~/.m2` 里早就躺着 vendored 版的两个 artifact**（`yudao-module-logistics-api` 是 1.9KB 的空壳 jar、`-biz` 是 308KB，都是 9 月 18 装的）。停编并不会把它们从 m2 清掉：**如果不先把新模块 install 一遍就 `spring-boot:run`，Maven 会静默解析到旧的 vendored jar**，表现是「物流模块像不存在」或类找不到。改完新模块必须 `install` 再起服务（与 icbc/erp 同一条纪律）。`yudao-module-waste-biz` 的旧 jar 也还留在 m2，但没有模块再声明它，不会被拉进来。
+3. **Spring 拒绝「只含注释」的 SQL 脚本**（`'script' must not be null or empty`）。V1 还没有业务表，`create_tables.sql` / `clean.sql` 里各留了一条 `SELECT 1;` 占位（文件里已写明首次真实建表时删掉）。新增表的票别忘了给 `clean.sql` 补 `DELETE`。
+
+frontier 随之推进到 **#69（V2 一趟活跑通）**。

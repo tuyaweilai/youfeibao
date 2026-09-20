@@ -13,9 +13,7 @@
 
     <name>${project.artifactId}</name>
     <description>
-        物流模块 API：暴露给其它模块调用的读取面（按任务编号取运输节点、按交接批次编号取运输凭证）。
-
-        只读：写入面留在 yudao-module-logistics-biz，其它模块不直接读写物流的表。
+        物流模块 API，暴露给其它模块调用
     </description>
 
     <dependencies>
@@ -24,10 +22,11 @@
             <artifactId>yudao-common</artifactId>
         </dependency>
 
+        <!-- 参数校验 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
             <optional>true</optional>
         </dependency>
     </dependencies>
-</project>
+</project> 

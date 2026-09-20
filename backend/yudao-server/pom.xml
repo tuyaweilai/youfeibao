@@ -39,14 +39,8 @@
             <version>${revision}</version>
         </dependency>
 
-        <!-- 废弃物相关模块。默认注释，保证编译速度 -->
-        <dependency>
-            <groupId>cn.iocoder.boot</groupId>
-            <artifactId>yudao-module-waste-biz</artifactId>
-            <version>${revision}</version>
-        </dependency>
-
-        <!-- 物流相关模块。默认注释，保证编译速度 -->
+        <!-- 物流模块：回收企业的自营运力与第三方承运作业（ADR 0032）。
+             危废模块（yudao-module-waste）已停编，代码留在 backend/legacy/ -->
         <dependency>
             <groupId>cn.iocoder.boot</groupId>
             <artifactId>yudao-module-logistics-biz</artifactId>
