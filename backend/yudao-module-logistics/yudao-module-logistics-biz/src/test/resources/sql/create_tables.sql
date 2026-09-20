@@ -236,3 +236,87 @@ CREATE TABLE IF NOT EXISTS logistics_transport_handover (
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id)
 );
+
+-- 承运合同（V8 #75）：运价与计费方式，是运费对账的依据
+CREATE TABLE IF NOT EXISTS logistics_carrier_contract (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    contract_no VARCHAR(64) NOT NULL,
+    carrier_id BIGINT NOT NULL,
+    carrier_name VARCHAR(100),
+    effective_from DATE NOT NULL,
+    effective_to DATE,
+    route VARCHAR(255),
+    goods_config_id BIGINT,
+    category_name VARCHAR(64),
+    billing_mode TINYINT NOT NULL,
+    unit_price DECIMAL(16,4) NOT NULL,
+    surcharges TEXT,
+    status TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- 承运商运费单（V8 #75）：一趟一张，运价快照自合同；差异不抹平
+CREATE TABLE IF NOT EXISTS logistics_freight_order (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    freight_no VARCHAR(64) NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_no VARCHAR(64),
+    carrier_id BIGINT NOT NULL,
+    carrier_name VARCHAR(100),
+    contract_id BIGINT NOT NULL,
+    contract_no VARCHAR(64),
+    billing_mode TINYINT NOT NULL,
+    bill_quantity DECIMAL(16,4) NOT NULL,
+    bill_unit_price DECIMAL(16,4),
+    base_amount DECIMAL(16,2),
+    surcharge_amount DECIMAL(16,2),
+    expected_amount DECIMAL(16,2),
+    actual_amount DECIMAL(16,2),
+    variance_amount DECIMAL(16,2),
+    variance_reason VARCHAR(500),
+    status TINYINT NOT NULL DEFAULT 0,
+    confirm_by BIGINT,
+    confirm_by_name VARCHAR(64),
+    confirm_time DATETIME,
+    confirm_remark VARCHAR(500),
+    payment_voucher_no VARCHAR(64),
+    payment_voucher_url VARCHAR(500),
+    payment_amount DECIMAL(16,2),
+    paid_at DATETIME,
+    payment_remark VARCHAR(500),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- 运输费用（内部成本，V8 #75）：自有车的路桥 / 燃油等，按实际承担方记
+CREATE TABLE IF NOT EXISTS logistics_transport_cost (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    task_id BIGINT NOT NULL,
+    task_no VARCHAR(64),
+    cost_type TINYINT NOT NULL,
+    name VARCHAR(100),
+    amount DECIMAL(16,2) NOT NULL,
+    bearer TINYINT NOT NULL,
+    occur_date DATE,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);

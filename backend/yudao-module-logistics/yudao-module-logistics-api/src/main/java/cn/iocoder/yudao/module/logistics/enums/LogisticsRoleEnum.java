@@ -47,6 +47,14 @@ public enum LogisticsRoleEnum {
             LogisticsPermission.CARRIER_CREATE, LogisticsPermission.CARRIER_UPDATE,
             LogisticsPermission.CARRIER_DELETE, LogisticsPermission.CARRIER_QUERY,
             LogisticsPermission.CARRIER_EXPORT,
+            LogisticsPermission.CARRIER_CONTRACT_CREATE, LogisticsPermission.CARRIER_CONTRACT_UPDATE,
+            LogisticsPermission.CARRIER_CONTRACT_DELETE, LogisticsPermission.CARRIER_CONTRACT_QUERY,
+            LogisticsPermission.CARRIER_CONTRACT_EXPORT,
+            LogisticsPermission.FREIGHT_CREATE, LogisticsPermission.FREIGHT_UPDATE,
+            LogisticsPermission.FREIGHT_QUERY, LogisticsPermission.FREIGHT_CONFIRM,
+            LogisticsPermission.FREIGHT_PAY, LogisticsPermission.FREIGHT_EXPORT,
+            LogisticsPermission.TRANSPORT_COST_CREATE, LogisticsPermission.TRANSPORT_COST_UPDATE,
+            LogisticsPermission.TRANSPORT_COST_DELETE, LogisticsPermission.TRANSPORT_COST_QUERY,
             LogisticsPermission.TRANSPORT_TASK_OVERRIDE, LogisticsPermission.EXPIRY_WARNING_QUERY,
             LogisticsPermission.DEMO_TRACK_QUERY,
             LogisticsPermission.TENANT_ROLE_INIT)),
@@ -64,8 +72,28 @@ public enum LogisticsRoleEnum {
             LogisticsPermission.TRANSPORT_NODE_REPORT, LogisticsPermission.TRANSPORT_NODE_QUERY,
             LogisticsPermission.TRANSPORT_TASK_REASSIGN, LogisticsPermission.TRANSPORT_NODE_ABNORMAL_RESOLVE,
             LogisticsPermission.TRANSPORT_HANDOVER_QUERY, LogisticsPermission.TRANSPORT_HANDOVER_MANAGE,
-            LogisticsPermission.CARRIER_QUERY, LogisticsPermission.EXPIRY_WARNING_QUERY,
+            LogisticsPermission.CARRIER_QUERY,
+            LogisticsPermission.CARRIER_CONTRACT_QUERY,
+            LogisticsPermission.FREIGHT_CREATE, LogisticsPermission.FREIGHT_UPDATE,
+            LogisticsPermission.FREIGHT_QUERY,
+            LogisticsPermission.TRANSPORT_COST_CREATE, LogisticsPermission.TRANSPORT_COST_UPDATE,
+            LogisticsPermission.TRANSPORT_COST_DELETE, LogisticsPermission.TRANSPORT_COST_QUERY,
+            LogisticsPermission.EXPIRY_WARNING_QUERY,
             LogisticsPermission.DEMO_TRACK_QUERY)),
+
+    /**
+     * 财务：对承运商的应付（运费对账、确认应付、登记外部付款凭证）。
+     *
+     * <p>与调度分开：调度负责「这趟活跑了、运费按合同是多少」，财务负责「确认欠多少、付了没有」。
+     * 财务不派车、不建车辆与司机档案；运费**不改变收购单金额与发票金额**（CONTEXT.md「运费」），
+     * 所以财务在这里看不到也不需要收购单。
+     */
+    FINANCE("logistics_finance", "财务", Set.of(
+            LogisticsPermission.CARRIER_QUERY,
+            LogisticsPermission.CARRIER_CONTRACT_QUERY,
+            LogisticsPermission.FREIGHT_QUERY, LogisticsPermission.FREIGHT_CONFIRM,
+            LogisticsPermission.FREIGHT_PAY, LogisticsPermission.FREIGHT_EXPORT,
+            LogisticsPermission.TRANSPORT_COST_QUERY)),
 
     /**
      * 司机：把货从提货点运到场站并上报运输节点的人（自有司机与承运商司机同构）。

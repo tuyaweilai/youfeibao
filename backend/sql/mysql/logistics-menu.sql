@@ -69,6 +69,10 @@ VALUES
 ('司机档案', '', 2, 20, @logistics_root_id, 'driver', 'ep:user', 'logistics/driver/index', 'LogisticsDriver',
  0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 ('承运商档案', '', 2, 30, @logistics_root_id, 'carrier', 'ep:office-building', 'logistics/carrier/index', 'LogisticsCarrier',
+ 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+('承运合同', '', 2, 35, @logistics_root_id, 'carrier-contract', 'ep:document', 'logistics/carrierContract/index', 'LogisticsCarrierContract',
+ 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+('运费对账', '', 2, 40, @logistics_root_id, 'freight', 'ep:money', 'logistics/freight/index', 'LogisticsFreight',
  0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
 
 -- ---------------------------------------------------------------------

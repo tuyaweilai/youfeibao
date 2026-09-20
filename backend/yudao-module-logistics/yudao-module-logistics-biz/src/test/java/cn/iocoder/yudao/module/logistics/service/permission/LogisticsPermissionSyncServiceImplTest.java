@@ -113,6 +113,7 @@ public class LogisticsPermissionSyncServiceImplTest extends BaseMockitoUnitTest 
         roleIds.put(LogisticsRoleEnum.ADMIN.getCode(), 10L);
         roleIds.put(LogisticsRoleEnum.DISPATCHER.getCode(), 11L);
         roleIds.put(LogisticsRoleEnum.DRIVER.getCode(), 12L);
+        roleIds.put(LogisticsRoleEnum.FINANCE.getCode(), 13L);
         return roleIds;
     }
 

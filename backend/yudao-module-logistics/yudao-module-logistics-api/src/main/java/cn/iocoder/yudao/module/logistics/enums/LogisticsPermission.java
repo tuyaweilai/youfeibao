@@ -91,6 +91,53 @@ public interface LogisticsPermission {
     /** 导出承运商 */
     String CARRIER_EXPORT = "logistics:carrier:export";
 
+    // ========== 承运合同（V8 #75） ==========
+
+    /** 新增承运合同 */
+    String CARRIER_CONTRACT_CREATE = "logistics:carrier-contract:create";
+    /** 修改承运合同 */
+    String CARRIER_CONTRACT_UPDATE = "logistics:carrier-contract:update";
+    /** 删除承运合同 */
+    String CARRIER_CONTRACT_DELETE = "logistics:carrier-contract:delete";
+    /** 查询承运合同（汇集运费选合同也要这个权限） */
+    String CARRIER_CONTRACT_QUERY = "logistics:carrier-contract:query";
+    /** 导出承运合同 */
+    String CARRIER_CONTRACT_EXPORT = "logistics:carrier-contract:export";
+
+    // ========== 承运商运费与对账（V8 #75） ==========
+
+    /**
+     * 汇集运费（按趟次建运费单）。
+     *
+     * <p>**自有车不产生承运商运费**：这一趟不是承运商的车就建不出运费单，这是硬校验不是提示。
+     */
+    String FREIGHT_CREATE = "logistics:freight:create";
+    /** 修改运费单（改计费量 / 实际应付 / 差异原因） */
+    String FREIGHT_UPDATE = "logistics:freight:update";
+    /** 查询运费单与对账汇总 */
+    String FREIGHT_QUERY = "logistics:freight:query";
+    /** 确认应付（把应有的应付确认为实际应付，差异必须留原因） */
+    String FREIGHT_CONFIRM = "logistics:freight:confirm";
+    /**
+     * 登记外部付款凭证（**不接对公付款通道**，ADR 0006）。
+     *
+     * <p>与确认应付分开一条权限：确认应付是「欠多少」，登记凭证是「付了、凭什么是这笔」。
+     */
+    String FREIGHT_PAY = "logistics:freight:pay";
+    /** 导出运费对账 */
+    String FREIGHT_EXPORT = "logistics:freight:export";
+
+    // ========== 运输费用：自有车的路桥 / 燃油等内部成本（V8 #75） ==========
+
+    /** 登记运输费用 */
+    String TRANSPORT_COST_CREATE = "logistics:transport-cost:create";
+    /** 修改运输费用 */
+    String TRANSPORT_COST_UPDATE = "logistics:transport-cost:update";
+    /** 删除运输费用 */
+    String TRANSPORT_COST_DELETE = "logistics:transport-cost:delete";
+    /** 查询运输费用 */
+    String TRANSPORT_COST_QUERY = "logistics:transport-cost:query";
+
     // ========== 派车门禁的授权放行（V3 #70） ==========
 
     /**

@@ -1604,6 +1604,49 @@ frontier：V5 #72 **完成**。波次 A + 串行链 #71 → #72 已收口；剩�
 
 frontier：**#73（V6）完成**。物流这条线只剩 **#75（V8 承运合同与运费对账，就绪）**。
 
+### V8 #75 承运合同与运费对账（已完成）
+
+运力吃紧时找第三方的那笔账：**承运合同定运价与计费方式 → 按趟次汇集运费 → 确认应付 → 登记外部付款凭证**。
+运费是**另一笔账**，不改变收购单金额与发票金额（CONTEXT.md「运费」）。
+
+1. **承运合同**（`logistics_carrier_contract`）：有效期、适用线路或**品类**（至少一个，否则运价无从适用）、
+   计费方式（按车 / 按吨 / 按公里）、运价、**附加费与其承担方**（JSON：名称 / 金额 / `bearer` 1-承运商 2-本企业）。
+   停用而不是删除。品类用 icbc 侧 `goods_config_id` + 名称快照（ADR 0032：物流不引用 icbc 的类）。
+2. **承运商运费单**（`logistics_freight_order`，**一趟一张**）：运价与计费方式从**有效期内**的合同快照下来。
+   两个数加一条原因表达差异、**不抹平**：`expectedAmount`（基础运费 = 计费量 × 运价，
+   `surchargeAmount` = 本企业承担 − 承运商承担）、`actualAmount`（对账确认）、`varianceAmount`（实际 − 应有）与
+   `varianceReason`（非零差异必填）。状态机 `待确认应付 → 已确认应付 → 已登记付款凭证`。
+3. **自有车不虚造承运商运费**：建运费单时从任务上的司机档案取来源（`driver.source` + `carrierId`），
+   不是承运商的车直接报 `1030208003`。路桥 / 燃油等**内部成本**另走 `logistics_transport_cost`
+   （`cost_type` 路桥 / 燃油 / 其他 + `bearer` 实际承担方），它不是运费、不进运费单。
+4. **付款只登记外部付款凭证**（ADR 0006：不接对公付款通道）：`PUT /logistics/freight/pay` 记凭证号 / 附件 / 实付 / 时间，
+   必须先确认应付（`1030208011`），凭证号与附件至少一个（`1030208010`）。
+5. **对账汇总**（`GET /logistics/freight/reconciliation`）：按**承运商 + 合同**汇集趟次 / 应有 / 实际 / 差异 / 待确认 / 已登记凭证；
+   未对账的趟次按应有计入实际合计（不能因为「还没确认」少算欠款）。口径在服务层一处，不写第二套 SQL。
+6. **账本隔离的两道锁**（`LogisticsFreightLedgerBoundaryTest` + `LogisticsFreightServiceImplTest`）：
+   `logistics-api` 读取面**不含任何运费类型**（icbc 拿不到），icbc 源码不出现 `logistics.freight` / `LogisticsFreight`，
+   运费 DO 不出现收购 / 发票金额字段名；并有单测钉死「运费确认 + 登记凭证后，现场参考价一个字不变」
+   （收购单金额 = 结算重量 × 单价 + 调整项，单价正是现场参考价）。
+7. **权限与角色**：新增 `logistics:carrier-contract:create|update|delete|query|export`、
+   `logistics:freight:create|update|query|confirm|pay|export`、`logistics:transport-cost:create|update|delete|query`；
+   `LogisticsRoleEnum` 新增 **财务**（`logistics_finance`：运费查询 / 确认应付 / 登记付款凭证 / 导出），
+   调度拿到合同的查询与运费的汇集，管理员全量。菜单加「承运合同」「运费对账」两页。
+8. **落地**：`backend/sql/mysql/logistics-freight.sql`（三张表）+ `logistics-menu.sql` 新增两页 + 进 `README.md` 导入顺序；
+   测试建表与 `clean.sql` 同步。前端 `api/logistics/{carrierContract,freight,transportCost}` 与
+   `views/logistics/{carrierContract,freight}`（运费单 / 对账汇总 / 运输费用三个页签）。
+
+**验收实测**：物流 **156 个测试全绿**（V6 的 135 + 本票 21）；`mvn -pl yudao-server -am -DskipTests install` 通过；
+PC `vue-tsc` 新增文件**零错误**（仓库既有基线 1255 条，都是 vendored 视图）。
+
+> **未做（如实记下）**：① 承运合同**没有「按线路 / 品类自动匹配」**——汇集运费时由人显式选合同，
+> 选完校验「合同属于这一趟的承运商 + 在有效期内」；自动匹配等真实运价表更全时再做。
+> ② 对账汇总是**服务层聚合**（取全量再分组），没有分页；趟次量级大了要改成分页或 SQL 聚合。
+> ③ 内部成本（`logistics_transport_cost`）只做了登记 / 改 / 删 / 查，**没有与承运商运费合并成「这趟的成本」报表**。
+> ④ 一次集货（一车多家）目前按**整趟一张运费单**汇集（运价按车 / 吨 / 公里本就按趟谈），
+> 若要按停靠点拆运费，需要引入停靠点级的计费量。
+
+frontier：**#75（V8）完成**。物流 EPIC #59 的垂直切片 #68–#79 全部落地；父票 #59 可收。
+
 ## ⚠️ 一处需要知情的历史问题：`d98f31b` 混进了别人的 WIP
 
 提交 `d98f31b`（消息是「第六轮并行约定 + ADR 0033」，只该含文档）**同时带进了现场端 4 个文件的未提交改动**：

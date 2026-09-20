@@ -109,4 +109,50 @@ public interface ErrorCodeConstants {
     ErrorCode TRANSPORT_HANDOVER_STOP_ALREADY_REGISTERED =
             new ErrorCode(1_030_207_009, "该停靠点已经登记过交接，不要重复登记（补录请改这一条）");
 
+    // ========== 承运合同 1-030-206-000（V8 #75） ==========
+    ErrorCode CARRIER_CONTRACT_NOT_EXISTS = new ErrorCode(1_030_206_000, "承运合同不存在");
+    ErrorCode CARRIER_CONTRACT_NO_DUPLICATE = new ErrorCode(1_030_206_001, "承运合同编号已存在");
+    ErrorCode CARRIER_CONTRACT_EFFECTIVE_RANGE_INVALID =
+            new ErrorCode(1_030_206_002, "承运合同生效日期不能晚于失效日期");
+    ErrorCode CARRIER_CONTRACT_SCOPE_REQUIRED =
+            new ErrorCode(1_030_206_003, "承运合同必须至少限定适用线路或适用品类之一（否则运价无从适用）");
+    ErrorCode CARRIER_CONTRACT_PRICE_INVALID =
+            new ErrorCode(1_030_206_004, "承运合同运价不能为负");
+    ErrorCode CARRIER_CONTRACT_SURCHARGE_INVALID =
+            new ErrorCode(1_030_206_005, "附加费必须写清名称、金额与承担方");
+    ErrorCode CARRIER_CONTRACT_NOT_EFFECTIVE =
+            new ErrorCode(1_030_206_006, "承运合同已停用或不在有效期内，不能据它汇集运费");
+    ErrorCode CARRIER_CONTRACT_CARRIER_MISMATCH =
+            new ErrorCode(1_030_206_007, "该承运合同不属于这一趟的承运商");
+
+    // ========== 承运商运费与对账 1-030-208-000（V8 #75） ==========
+    ErrorCode FREIGHT_NOT_EXISTS = new ErrorCode(1_030_208_000, "运费单不存在");
+    ErrorCode FREIGHT_CARRIER_REQUIRED =
+            new ErrorCode(1_030_208_003, "自有车不产生承运商运费：这一趟不是承运商的车，不能建承运商运费单");
+    ErrorCode FREIGHT_CONTRACT_REQUIRED =
+            new ErrorCode(1_030_208_004, "承运商运费必须指明按哪份承运合同汇集（运价来自合同）");
+    ErrorCode FREIGHT_BILL_QUANTITY_INVALID =
+            new ErrorCode(1_030_208_005, "计费量必须大于 0（按车填趟数、按吨填吨数、按公里填公里数）");
+    ErrorCode FREIGHT_STATUS_NOT_ALLOW_UPDATE =
+            new ErrorCode(1_030_208_006, "当前状态不允许修改运费单（已确认应付后只能登记付款凭证）");
+    ErrorCode FREIGHT_ACTUAL_AMOUNT_REQUIRED =
+            new ErrorCode(1_030_208_007, "确认应付前必须填实际应付金额");
+    ErrorCode FREIGHT_VARIANCE_REASON_REQUIRED =
+            new ErrorCode(1_030_208_008, "实际应付与应有应付有差异时必须填差异原因（差异不抹平）");
+    ErrorCode FREIGHT_STATUS_NOT_ALLOW_CONFIRM =
+            new ErrorCode(1_030_208_009, "当前状态不允许确认应付（只有待确认应付能确认）");
+    ErrorCode FREIGHT_VOUCHER_REQUIRED =
+            new ErrorCode(1_030_208_010, "登记付款凭证必须填凭证号或凭证附件");
+    ErrorCode FREIGHT_STATUS_NOT_ALLOW_PAY =
+            new ErrorCode(1_030_208_011, "当前状态不允许登记付款凭证（先确认应付）");
+    ErrorCode FREIGHT_CARRIER_NOT_ACTIVE = new ErrorCode(1_030_208_012, "承运商已停用，不能据它汇集运费");
+    ErrorCode FREIGHT_TASK_ALREADY_GATHERED =
+            new ErrorCode(1_030_208_013, "该趟次已经汇集过运费，要改请改那一条（一趟一张）");
+
+    // ========== 运输费用：自有车的路桥 / 燃油等内部成本 1-030-209-000（V8 #75） ==========
+    ErrorCode TRANSPORT_COST_NOT_EXISTS = new ErrorCode(1_030_209_000, "运输费用记录不存在");
+    ErrorCode TRANSPORT_COST_AMOUNT_INVALID = new ErrorCode(1_030_209_002, "运输费用金额不能为负");
+    ErrorCode TRANSPORT_COST_TYPE_UNKNOWN = new ErrorCode(1_030_209_003, "未知的运输费用类型");
+    ErrorCode TRANSPORT_COST_BEARER_UNKNOWN = new ErrorCode(1_030_209_004, "未知的费用承担方");
+
 }
