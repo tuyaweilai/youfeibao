@@ -44,6 +44,15 @@ public class LogisticsTransportTaskSaveReqVO {
     @Schema(description = "采购订单号快照", example = "PO202609201200001234")
     private String purchaseOrderNo;
 
+    @Schema(description = "货物名称（计划提示，不是品类权威：权威品类在交接登记与收购单上）", example = "废钢")
+    private String cargoName;
+
+    @Schema(description = "约量（计划提示）", example = "5.5")
+    private java.math.BigDecimal estimatedQuantity;
+
+    @Schema(description = "约量单位", example = "吨")
+    private String quantityUnit;
+
     @Schema(description = "备注")
     private String remark;
 

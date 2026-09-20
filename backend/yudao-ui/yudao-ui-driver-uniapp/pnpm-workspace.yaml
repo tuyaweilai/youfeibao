@@ -1,0 +1,19 @@
+# 放行 uni-app 构建期需要的原生依赖脚本（与 PC 后台同一套策略）
+allowBuilds:
+  '@dcloudio/uni-h5': true
+  '@parcel/watcher': true
+  '@swc/core': true
+  core-js: true
+  core-js-pure: true
+  es5-ext: true
+  esbuild: true
+  vue-demi: true
+onlyBuiltDependencies:
+  - '@dcloudio/uni-h5'
+  - '@parcel/watcher'
+  - '@swc/core'
+  - core-js
+  - core-js-pure
+  - es5-ext
+  - esbuild
+  - vue-demi

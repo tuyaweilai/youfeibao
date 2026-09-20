@@ -60,6 +60,18 @@ public interface LogisticsPermission {
     /** 查询运输节点与凭证 */
     String TRANSPORT_NODE_QUERY = "logistics:transport-node:query";
 
+    // ========== 司机端（V2c #79） ==========
+    //
+    // 司机在用司机端时只拿这三个权限，且**只看得到派给自己的任务**——「是谁的任务」这层归属校验
+    // 在 LogisticsDriverAppService 里按登录账号对应的司机档案强制加条件，不是靠权限位。
+
+    /** 司机端：查看派给自己的任务与时间线 */
+    String DRIVER_APP_TASK_QUERY = "logistics:driver-app:task:query";
+    /** 司机端：接单 */
+    String DRIVER_APP_TASK_ACCEPT = "logistics:driver-app:task:accept";
+    /** 司机端：上报运输节点（含位置快照与照片） */
+    String DRIVER_APP_NODE_REPORT = "logistics:driver-app:node:report";
+
     // ========== 本租户的物流域角色与权限初始化 ==========
 
     /**

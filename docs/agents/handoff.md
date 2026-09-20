@@ -1355,3 +1355,24 @@ frontier 推进到 **#78（V2b 运输任务与节点）**。
 3. **测试抓到的设计确认**：没派车就上报「起运」会被状态机拦住（待分配不能到执行中）。这是对的——半套流程不该被写进事实里；当时是测试建的任务没派车，改的是测试而不是状态机。
 
 frontier 推进到 **#79（V2c 司机端工程与接单）**。
+
+### V2c #79 司机端工程与接单（已完成）
+
+司机第一次有了自己的端：**在自己手机上看到派给自己的活、接单、上报起运**。
+
+1. **独立 uni-app 工程** `backend/yudao-ui/yudao-ui-driver-uniapp`（端口 5174，本地存储键前缀 `driver_`），与收货员现场端**各自构建、各自发布**（ADR 0032 的取舍）。共享基建（request / upload / auth / main.ts / tsconfig）是**复制**过来的；**要抽共享包时放 `backend/yudao-ui/packages/field-shared/`**（README 写明了位置与代价），本票不做这次抽取。
+2. **司机端接口** `/logistics/driver-app/*`（profile / task page / task get / task accept / node report），走 `/admin-api` + token，与现场端同一套鉴权（ADR 0016）。**没有金额入口**。
+3. **归属校验只有一个落点**：`LogisticsDriverAppService` 先按登录账号找司机档案，再强制把范围限到「派给我的任务」——权限位只回答「他能不能用司机端」，「这是不是他的任务」由这里回答；入参里的 `driverId` 一律不信。他的入参里塞别人的 driverId 也翻不到别人的活。
+4. **权限补齐**：`LogisticsRoleEnum.DRIVER` 拿到 `logistics:driver-app:task:query|accept` 与 `node:report` 三条，**不进 PC 菜单**；后台接口对司机一律 403。
+5. **弱网**：上报失败时把请求体与照片（base64）一起暂存本机，任务列表顶部出现「待补传」入口，补传按 `clientRequestId` 幂等（可放心重试）。
+6. 任务表加 **`cargo_name` / `estimated_quantity` / `quantity_unit`** 三个字段（增量 SQL `logistics-transport-cargo.sql`）：给司机看的「这趟去拉什么」。**是计划提示，不是品类权威**——权威品类在交接登记与收购单上（ADR 0028），物流不引用 icbc 的品类配置（ADR 0032），所以只能是文本 + 约量，页面与接口文案都写明了。
+
+**验收实测**：物流模块 **60 个测试全绿**（V2b 的 53 + 司机端归属校验 7）；icbc **682 全绿**；install + 启动通过；`pnpm ts:check` **零错误**、`pnpm build:h5` 构建通过；接口链路用**真司机登录态**实测（建了 `driver01` 用户 + 分配司机角色）——profile 认得出司机、任务列表只列自己的、取别人的任务回 `1030200007`、司机调后台派车接口 403、接单、上报起运（位置快照 + 照片 + 报人=司机张三）后任务变「执行中」且时间线正确。
+
+**这一票踩到的坑**：
+
+1. **`--` 后必须跟空格才是 MySQL 注释**。我写了一行 `--（与 …` （中文全角括号紧跟 `--`），MySQL 当成语句直接报 1064。文件里现在留了注释说明；所有 `logistics-*.sql` 都不该再出现 `^--[^ ]` 的行。
+2. **手工造验收夹具时别忘 `tenant_id`**：我用 SQL 直接插 `system_user_role` 给司机分配角色，漏了 `tenant_id`（默认 0），框架按租户过滤 → 司机成了「没有角色」，表现为 `get-permission-info` 里 roles 为空、司机端全部 403。**产品路径（后台分配角色）没这个问题**，是夹具的坑；排查时先看 roles 有没有，别急着怀疑权限注解。
+3. **`pages.json` 里的 `enablePullDownRefresh` 要与页面里的 `onPullDownRefresh` 配套**：少一个，下拉刷新就是句空话（页面提示写了「下拉刷新」但拉不动）。
+
+frontier 推进：司机端这条线只剩 **#74（V7 现场引导自然人准入四步）**，它被 #79 解锁。另有 #70 / #71 / #72 / #76 原本就绪，#73 需 #71，#75 需 #70。

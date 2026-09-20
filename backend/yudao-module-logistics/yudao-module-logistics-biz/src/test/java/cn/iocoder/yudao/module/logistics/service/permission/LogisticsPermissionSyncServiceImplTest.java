@@ -75,9 +75,9 @@ public class LogisticsPermissionSyncServiceImplTest extends BaseMockitoUnitTest 
         // 调度拿到的菜单数量 = 它在枚举里登记的权限数量（本票是车辆 + 司机查询两条）
         verify(permissionApi).addRoleMenus(eq(roleIds.get(LogisticsRoleEnum.DISPATCHER.getCode())),
                 argThat(menuIds -> menuIds.size() == LogisticsRoleEnum.DISPATCHER.getPermissions().size()));
-        // 司机本票还没有权限：拿到的菜单数为 0，不报错
+        // 司机只拿司机端的三个动作（V2c #79）：数量要对得上枚举里登记的条数
         verify(permissionApi).addRoleMenus(eq(roleIds.get(LogisticsRoleEnum.DRIVER.getCode())),
-                argThat(menuIds -> menuIds.isEmpty()));
+                argThat(menuIds -> menuIds.size() == LogisticsRoleEnum.DRIVER.getPermissions().size()));
     }
 
     @Test

@@ -89,6 +89,21 @@ public class LogisticsTransportTaskDO extends TenantBaseDO {
     /** 取消原因（取消必填） */
     private String cancelReason;
 
+    /**
+     * 货物名称（**计划提示**，不是品类权威）
+     *
+     * <p>给司机看的「这趟去拉什么」：文本，由调度在派车时随手写。**品类权威在交接登记与收购单上**
+     * （`goods_config_id`，ADR 0028）；物流模块不引用 icbc 的品类配置（ADR 0032），所以这里只能是提示。
+     * 页面文案要说清这一点，避免有人拿它当台账口径。
+     */
+    private String cargoName;
+
+    /** 约量（计划提示，单位见 quantityUnit） */
+    private java.math.BigDecimal estimatedQuantity;
+
+    /** 约量单位（如 吨 / 公斤 / 个） */
+    private String quantityUnit;
+
     /** 备注 */
     private String remark;
 

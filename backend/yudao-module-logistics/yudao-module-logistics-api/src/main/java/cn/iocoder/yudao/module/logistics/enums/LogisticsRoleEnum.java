@@ -39,6 +39,8 @@ public enum LogisticsRoleEnum {
             LogisticsPermission.TRANSPORT_TASK_QUERY, LogisticsPermission.TRANSPORT_TASK_ASSIGN,
             LogisticsPermission.TRANSPORT_TASK_CANCEL,
             LogisticsPermission.TRANSPORT_NODE_REPORT, LogisticsPermission.TRANSPORT_NODE_QUERY,
+            LogisticsPermission.DRIVER_APP_TASK_QUERY, LogisticsPermission.DRIVER_APP_TASK_ACCEPT,
+            LogisticsPermission.DRIVER_APP_NODE_REPORT,
             LogisticsPermission.TENANT_ROLE_INIT)),
 
     /**
@@ -56,10 +58,14 @@ public enum LogisticsRoleEnum {
     /**
      * 司机：把货从提货点运到场站并上报运输节点的人（自有司机与承运商司机同构）。
      *
-     * <p>他的任务读取与节点上报权限归 V2c（#79）——那张票才建司机端。V2b（本票）里现场动作
-     * 由调度在 PC 上代录，所以节点上报权限暂时只挂在调度与管理员上。
+     * <p>他只用司机端（V2c #79），**不进 PC 菜单**（ADR 0032）：权限面就是司机端的三个动作，
+     * 且每个动作都会按登录账号对应的司机档案再校验一次归属（见 LogisticsDriverAppService）。
+     * 收购定稿、结算确认、付款开票一概不给他。
      */
-    DRIVER("logistics_driver", "司机", Set.of());
+    DRIVER("logistics_driver", "司机", Set.of(
+            LogisticsPermission.DRIVER_APP_TASK_QUERY,
+            LogisticsPermission.DRIVER_APP_TASK_ACCEPT,
+            LogisticsPermission.DRIVER_APP_NODE_REPORT));
 
     private final String code;
     private final String name;

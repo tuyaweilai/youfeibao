@@ -20,6 +20,7 @@ public interface ErrorCodeConstants {
     ErrorCode TRANSPORT_TASK_ASSIGN_REQUIRED = new ErrorCode(1_030_200_004, "派车必须同时指定车辆与司机");
     ErrorCode TRANSPORT_TASK_VEHICLE_NOT_AVAILABLE = new ErrorCode(1_030_200_005, "车辆当前不可派（维护中或已在其它任务上）");
     ErrorCode TRANSPORT_TASK_DRIVER_NOT_ACTIVE = new ErrorCode(1_030_200_006, "司机不在职，不能派车");
+    ErrorCode TRANSPORT_TASK_NOT_BELONG_TO_DRIVER = new ErrorCode(1_030_200_007, "这不是派给你的任务");
 
     // ========== 车辆 1-030-201-000 ==========
     ErrorCode VEHICLE_NOT_EXISTS = new ErrorCode(1_030_201_000, "车辆不存在");
@@ -29,6 +30,7 @@ public interface ErrorCodeConstants {
     // ========== 司机 1-030-202-000 ==========
     ErrorCode DRIVER_NOT_EXISTS = new ErrorCode(1_030_202_000, "司机不存在");
     ErrorCode DRIVER_USER_DUPLICATE = new ErrorCode(1_030_202_001, "该用户已建过司机档案");
+    ErrorCode DRIVER_PROFILE_NOT_FOUND = new ErrorCode(1_030_202_002, "当前登录账号还不是司机，请让管理员建司机档案");
 
     // ========== 运输节点 1-030-203-000 ==========
     ErrorCode TRANSPORT_NODE_TYPE_NOT_SUPPORTED_YET =
