@@ -112,6 +112,9 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         // 4. 计价模型（ADR 0019）：结算重量 = 毛重 − 皮重 − 扣杂；金额 = 结算重量 × 单价 + 调整项
         applyPricing(acquisition);
 
+        // 4.1 称量差异（#53）：实物量（接收量优先，无则净重）− 结算重量；两侧都算得出就落库
+        applyWeightDiff(acquisition);
+
         // 5. 必须要件校验：缺哪样说哪样，不做一个笼统的「参数错误」
         assertRequiredElementsPresent(acquisition);
 
@@ -542,6 +545,8 @@ public class AcquisitionServiceImpl implements AcquisitionService {
             // applyPricing 会在能算出结果时覆盖结算重量与金额；没单价时保留原金额，不丢数据
             applyPricing(acquisition);
         }
+        // 重量（毛 / 皮 / 净）或计价变了，称量差异跟着重算（已经做过接收结论的按接收量口径）
+        applyWeightDiff(acquisition);
         if (StrUtil.isNotBlank(reqVO.getWeightTicketNo())) {
             acquisition.setWeightTicketNo(reqVO.getWeightTicketNo());
         }
@@ -557,6 +562,110 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         acquisition.setPlateMatched(comparePlate(
                 acquisition.getWeightTicketPlateNo(), acquisition.getVehiclePlateNo()));
         acquisitionMapper.updateById(acquisition);
+    }
+
+    // ==================== 接收结论与称量差异（#53 T15，ADR 0028） ====================
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void recordAcceptance(@Valid AcquisitionAcceptanceReqVO reqVO) {
+        IcbcAcquisitionDO acquisition = getAcquisition(reqVO.getId());
+        if (Objects.equals(acquisition.getStatus(), AcquisitionStatusEnum.CANCELLED.getStatus())) {
+            throw exception(ACQUISITION_STATUS_NOT_ALLOW_UPDATE);
+        }
+        // 已挂开票申请的收购单金额口径已固定：再改接收结论会让票、款与单据对不上，先红冲 / 作废
+        if (StrUtil.isNotBlank(acquisition.getInvoicePartnerOrderId())) {
+            throw exception(ACQUISITION_ACCEPTANCE_AFTER_INVOICE_LINKED);
+        }
+        // 已归入结算单的：结算版本已快照（#33），接收结论必须在此之前记录，否则会出现
+        // 「出售者确认过的金额」与单据金额静默不一致
+        if (acquisition.getSettlementId() != null) {
+            throw exception(ACQUISITION_ACCEPTANCE_AFTER_SETTLEMENT);
+        }
+        BigDecimal accepted = reqVO.getAcceptedWeight();
+        BigDecimal rejected = nullToZero(reqVO.getRejectedWeight());
+        BigDecimal residual = nullToZero(reqVO.getResidualWeight());
+        assertAcceptanceValid(accepted, rejected, residual, reqVO.getRejectReason(), acquisition.getNetWeight());
+
+        acquisition.setAcceptedWeight(accepted);
+        acquisition.setRejectedWeight(rejected);
+        acquisition.setResidualWeight(residual);
+        acquisition.setRejectReason(reqVO.getRejectReason());
+        if (reqVO.getRemark() != null) {
+            acquisition.setRemark(reqVO.getRemark());
+        }
+        // 拒收部分不进应付：金额按「结算重量 − 退回量 − 余货出场量」重算（不小于 0）
+        applyAcceptancePricing(acquisition);
+        applyWeightDiff(acquisition);
+        acquisitionMapper.updateById(acquisition);
+    }
+
+    @Override
+    public PageResult<IcbcAcquisitionDO> getWeightDiffPage(AcquisitionWeightDiffPageReqVO reqVO) {
+        return acquisitionMapper.selectWeightDiffPage(reqVO);
+    }
+
+    /**
+     * 接收结论的合法性与「不重复分配」校验：三个重量都不能为负，加起来不能超过过磅净重。
+     *
+     * <p>只校验「不超过」不强制「等于」：少掉的那部分（运输损耗、记错等）正是要靠称量差异
+     * 暴露出来的异常，不能在这里被静默抹平（ADR 0028）。
+     */
+    private void assertAcceptanceValid(BigDecimal accepted, BigDecimal rejected, BigDecimal residual,
+                                       String rejectReason, BigDecimal netWeight) {
+        if (accepted.signum() < 0 || rejected.signum() < 0 || residual.signum() < 0) {
+            throw exception(ACQUISITION_ACCEPTANCE_WEIGHT_INVALID);
+        }
+        if (rejected.signum() > 0 && StrUtil.isBlank(rejectReason)) {
+            throw exception(ACQUISITION_REJECT_REASON_REQUIRED);
+        }
+        if (netWeight != null) {
+            BigDecimal allocated = accepted.add(rejected).add(residual);
+            if (allocated.compareTo(netWeight) > 0) {
+                throw exception(ACQUISITION_ACCEPTANCE_EXCEED_NET_WEIGHT,
+                        allocated.stripTrailingZeros().toPlainString(),
+                        netWeight.stripTrailingZeros().toPlainString());
+            }
+        }
+    }
+
+    /**
+     * 拒收部分不形成采购应付：应付量 = 结算重量 − 退回量 − 余货出场量（不小于 0），
+     * 金额 = 应付量 × 单价 + 调整项。
+     *
+     * <p>没有结算重量或单价（历史数据）时保留原金额，不硬造口径。
+     */
+    private void applyAcceptancePricing(IcbcAcquisitionDO acquisition) {
+        BigDecimal settlement = acquisition.getSettlementWeight();
+        if (settlement == null || acquisition.getUnitPrice() == null) {
+            return;
+        }
+        BigDecimal payableWeight = settlement
+                .subtract(nullToZero(acquisition.getRejectedWeight()))
+                .subtract(nullToZero(acquisition.getResidualWeight()));
+        if (payableWeight.signum() < 0) {
+            payableWeight = BigDecimal.ZERO;
+        }
+        BigDecimal adjustment = acquisition.getAdjustmentAmount() == null
+                ? BigDecimal.ZERO : acquisition.getAdjustmentAmount();
+        acquisition.setAmount(payableWeight.multiply(acquisition.getUnitPrice())
+                .add(adjustment).setScale(2, RoundingMode.HALF_UP));
+    }
+
+    /**
+     * 落称量差异 = 实物量（{@link IcbcAcquisitionDO#resolvePhysicalWeight()}）− 结算重量。
+     *
+     * <p>只要两侧都算得出来就落库，**不静默抹平**；任一侧为空则为空（未知），不拿 0 冒充。
+     */
+    private void applyWeightDiff(IcbcAcquisitionDO acquisition) {
+        BigDecimal physical = acquisition.resolvePhysicalWeight();
+        BigDecimal settlement = acquisition.getSettlementWeight();
+        acquisition.setWeightDiff(physical == null || settlement == null
+                ? null : physical.subtract(settlement));
+    }
+
+    private static BigDecimal nullToZero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     // ==================== 查询 ====================

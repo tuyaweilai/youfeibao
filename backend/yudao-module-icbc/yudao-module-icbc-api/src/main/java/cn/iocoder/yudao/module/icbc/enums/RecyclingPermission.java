@@ -246,4 +246,11 @@ public interface RecyclingPermission {
     /** 审核履约异常授权单（通过 / 拒绝） */
     String PURCHASE_EXCEPTION_AUDIT = "icbc:purchase-exception:audit";
 
+    // ========== 收购接收结论与称量差异（#53 T15，ADR 0028：实物在库量是另一个数字） ==========
+
+    /** 记录接收结论：接收量 / 退回量 / 余货出场量与拒收原因（拒收部分不进应付、不进库存） */
+    String ACQUISITION_ACCEPTANCE = "icbc:acquisition:acceptance";
+    /** 查看称量差异清单（结算重量 vs 实物量，只读，供异常表消费） */
+    String ACQUISITION_WEIGHT_DIFF_QUERY = "icbc:acquisition:weight-diff:query";
+
 }

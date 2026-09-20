@@ -4,10 +4,12 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.AcquisitionPageReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.AcquisitionWeightDiffPageReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 
@@ -176,6 +178,31 @@ public interface IcbcAcquisitionMapper extends BaseMapperX<IcbcAcquisitionDO> {
                 .isNull(IcbcAcquisitionDO::getSettlementId)
                 .orderByAsc(IcbcAcquisitionDO::getId)
                 .last("LIMIT " + limit));
+    }
+
+    // ==================== 称量差异清单（#53 T15，只读） ====================
+
+    /**
+     * 称量差异清单：结算重量 vs 实物量（接收量优先，无则净重）。
+     *
+     * <p>只读，供异常表（#57）消费；已作废的不列（计量不再成立）。
+     * {@code hasDifference=true} 只看差异 ≠ 0 的，{@code onlyAccepted=true} 只看已做接收结论的。
+     */
+    default PageResult<IcbcAcquisitionDO> selectWeightDiffPage(AcquisitionWeightDiffPageReqVO reqVO) {
+        LambdaQueryWrapperX<IcbcAcquisitionDO> wrapper = new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .eqIfPresent(IcbcAcquisitionDO::getPayeeId, reqVO.getPayeeId())
+                .likeIfPresent(IcbcAcquisitionDO::getAcquisitionNo, reqVO.getAcquisitionNo())
+                .likeIfPresent(IcbcAcquisitionDO::getSellerName, reqVO.getSellerName())
+                .betweenIfPresent(IcbcAcquisitionDO::getTradeTime, reqVO.getTradeTime());
+        wrapper.ne(IcbcAcquisitionDO::getStatus, AcquisitionStatusEnum.CANCELLED.getStatus());
+        if (Boolean.TRUE.equals(reqVO.getOnlyAccepted())) {
+            wrapper.isNotNull(IcbcAcquisitionDO::getAcceptedWeight);
+        }
+        if (Boolean.TRUE.equals(reqVO.getHasDifference())) {
+            wrapper.isNotNull(IcbcAcquisitionDO::getWeightDiff);
+            wrapper.ne(IcbcAcquisitionDO::getWeightDiff, BigDecimal.ZERO);
+        }
+        return selectPage(reqVO, wrapper.orderByDesc(IcbcAcquisitionDO::getId));
     }
 
 }

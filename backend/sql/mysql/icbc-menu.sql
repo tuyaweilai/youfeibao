@@ -168,6 +168,10 @@ VALUES
 (5241, '登记交接批次', 'icbc:handover-batch:manage', 3, 1, 5240, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5242, '新增磅次', 'icbc:handover-batch:manage', 3, 2, 5240, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5243, '指定有效磅次', 'icbc:handover-batch:manage', 3, 3, 5240, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 接收结论与称量差异（#53 T15，ADR 0028）：验收可以是接收 / 部分接收 / 拒收；
+-- 拒收部分（退回 + 余货出场）不进应付、不进库存；差异 = 实物量 − 结算重量，不静默抹平。
+(5320, '接收结论与称量差异', 'icbc:acquisition:weight-diff:query', 2, 4, 5204, 'weight-diff', '', 'icbc/acquisition/weightDiff', 'IcbcAcquisitionWeightDiff', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5321, '记录接收结论', 'icbc:acquisition:acceptance', 3, 1, 5320, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 仓储管理 =====
 -- 库位 / 批次 / 库存查询落 ERP 的 stock 域（ADR 0027）：权限字符串是 erp:*，页面在 views/erp/stock 下；

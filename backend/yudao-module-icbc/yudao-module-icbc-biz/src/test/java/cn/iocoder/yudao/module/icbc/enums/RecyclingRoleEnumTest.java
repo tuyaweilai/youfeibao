@@ -296,10 +296,35 @@ public class RecyclingRoleEnumTest {
     }
 
     @Test
+    public void testAcceptanceAndWeightDiffPermissions() {
+        // 接收结论是现场动作：管理员 / 收货员可记录
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.ACQUISITION_ACCEPTANCE));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.ACQUISITION_ACCEPTANCE));
+        // 差异清单是只读的：四个租户内角色都能看（财务对账、开票员开票前核）
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.ACQUISITION_WEIGHT_DIFF_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.INVOICER.getCode(),
+                RecyclingPermission.ACQUISITION_WEIGHT_DIFF_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.ACQUISITION_WEIGHT_DIFF_QUERY));
+        // 开票员 / 财务不记录接收结论（现场结论由收货员出）
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.INVOICER.getCode(),
+                RecyclingPermission.ACQUISITION_ACCEPTANCE));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.ACQUISITION_ACCEPTANCE));
+        // 平台运营不参与租户内的接收结论与差异清单
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.ACQUISITION_ACCEPTANCE));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.ACQUISITION_WEIGHT_DIFF_QUERY));
+    }
+
+    @Test
     public void testOfCode() {
         assertEquals(RecyclingRoleEnum.ADMIN,
                 RecyclingRoleEnum.ofCode(RecyclingRoleEnum.ADMIN.getCode()).orElseThrow());
         assertTrue(RecyclingRoleEnum.ofCode("nobody").isEmpty());
     }
-
 }

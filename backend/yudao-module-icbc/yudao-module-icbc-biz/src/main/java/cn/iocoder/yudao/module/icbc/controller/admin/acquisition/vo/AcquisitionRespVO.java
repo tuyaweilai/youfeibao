@@ -118,6 +118,21 @@ public class AcquisitionRespVO {
     @Schema(description = "数量口径说明")
     private String quantityNote;
 
+    @Schema(description = "接收量（实际留下 / 进库的重量）；为空表示未做接收结论", example = "11500.00")
+    private BigDecimal acceptedWeight;
+
+    @Schema(description = "退回量（拒收部分不进应付、不进库存）", example = "500.00")
+    private BigDecimal rejectedWeight;
+
+    @Schema(description = "余货出场量（未接收、带离场站的余货）", example = "500.00")
+    private BigDecimal residualWeight;
+
+    @Schema(description = "拒收原因", example = "含水率超标，杂质过多")
+    private String rejectReason;
+
+    @Schema(description = "称量差异 = 实物量 − 结算重量（不静默抹平）", example = "-500.00")
+    private BigDecimal weightDiff;
+
     @Schema(description = "司机姓名（运输信息）", example = "李师傅")
     private String driverName;
 

@@ -132,6 +132,32 @@ public class IcbcAcquisitionDO extends TenantBaseDO {
     /** 数量口径说明：数量与磅单净重不再相等时的解释（如「结算重量计价，含扣杂」） */
     private String quantityNote;
 
+    // ==================== 接收结论与称量差异（#53 T15，ADR 0028） ====================
+
+    /**
+     * 接收量：本次实际接收（留场 / 进库存）的重量；为空表示尚未做接收结论（验收）。
+     *
+     * <p>实物在库量按此字段取值（有值时优先于 {@link #netWeight}），扣杂只扣价款、不扣库存（ADR 0028）。
+     */
+    private BigDecimal acceptedWeight;
+
+    /** 退回量：因质量 / 规格不合格退回出售者的重量；拒收部分不进应付、不进库存 */
+    private BigDecimal rejectedWeight;
+
+    /** 余货出场量：本次未接收、随车（或随后）带离场站的余货重量 */
+    private BigDecimal residualWeight;
+
+    /** 拒收原因；退回量大于 0 时必填（差异要有人解释） */
+    private String rejectReason;
+
+    /**
+     * 称量差异 = 实物量 − 结算重量（实物量取 {@link #acceptedWeight}，未做接收结论时取 {@link #netWeight}）。
+     *
+     * <p>正数表示实物多于计价（多收 / 未计价），负数表示计价多于实物（短缺 / 含扣杂）。
+     * 只要两侧都算得出来就落库，**不许静默抹平**——ADR 0028 要求差额进异常表可见。
+     */
+    private BigDecimal weightDiff;
+
     // ==================== 结算单归属（#33，ADR 0018） ====================
 
     /** 所属结算单编号；为空表示尚未归入结算单（可被「结束本次收货」归组） */
@@ -226,5 +252,15 @@ public class IcbcAcquisitionDO extends TenantBaseDO {
 
     /** 备注 */
     private String remark;
+
+    /**
+     * 可入库实物量（唯一取数点，ADR 0028）：接收量有值优先（#53），否则取净重（过磅实物口径）。
+     *
+     * <p>结算重量只作计价基准，不直接等于实物量；库存（#52）与差异清单都用这个口径，
+     * 不要在调用方各自判断「用哪个重量」。
+     */
+    public BigDecimal resolvePhysicalWeight() {
+        return acceptedWeight != null ? acceptedWeight : netWeight;
+    }
 
 }

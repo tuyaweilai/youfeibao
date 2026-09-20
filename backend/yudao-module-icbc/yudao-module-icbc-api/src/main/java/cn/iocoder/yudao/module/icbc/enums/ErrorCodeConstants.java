@@ -408,4 +408,16 @@ public interface ErrorCodeConstants {
             "采购订单明细的品类（{}）与本次收购的品类不一致，不能关联");
     ErrorCode ACQUISITION_PURCHASE_ORDER_COUNTERPARTY_MISMATCH = new ErrorCode(1_030_034_002,
             "采购订单的交易对方（{}）与本次收购的出售者不是同一个主体，不能关联");
+
+    // ========== 收购接收结论与称量差异（#53 T15，ADR 0028：两个重量口径，差额进异常表） 1_030_036_000 ==========
+    ErrorCode ACQUISITION_ACCEPTANCE_WEIGHT_INVALID = new ErrorCode(1_030_036_000,
+            "接收结论的重量不合法：接收量 / 退回量 / 余货出场量都不能为负");
+    ErrorCode ACQUISITION_REJECT_REASON_REQUIRED = new ErrorCode(1_030_036_001,
+            "有退回量时必须填写拒收原因（差异要有人解释，不能静默抹平）");
+    ErrorCode ACQUISITION_ACCEPTANCE_EXCEED_NET_WEIGHT = new ErrorCode(1_030_036_002,
+            "接收量 + 退回量 + 余货出场量（{}）超过过磅净重（{}），不能把同一车货重复分配");
+    ErrorCode ACQUISITION_ACCEPTANCE_AFTER_INVOICE_LINKED = new ErrorCode(1_030_036_003,
+            "该收购单已挂开票申请，金额口径已固定，不能再改接收结论；如需修正请先红冲发票或作废重开");
+    ErrorCode ACQUISITION_ACCEPTANCE_AFTER_SETTLEMENT = new ErrorCode(1_030_036_004,
+            "该收购单已归入结算单，接收结论请在「结束本次收货」前记录（已确认的结算金额不能靠改接收结论静默变化）；如需修正请走结算异议");
 }
