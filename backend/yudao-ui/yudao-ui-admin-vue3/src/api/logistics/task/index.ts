@@ -44,6 +44,9 @@ export interface LogisticsTransportTaskVO {
   cancelTime?: Date
   cancelReason?: string
   remark?: string
+  overrideReason?: string // 授权放行原因（证件过期时管理员带着原因放行，正常派车为空）
+  overrideBy?: number
+  overrideTime?: Date
   createTime?: Date
   nodes?: LogisticsTransportNodeVO[]
   missingNodeNames?: string[]
@@ -60,6 +63,16 @@ export const LogisticsTransportTaskApi = {
     await request.put({ url: `/logistics/transport-task/update`, data }),
   assignTask: async (data: { id: number; vehicleId: number; driverId: number }) =>
     await request.put({ url: `/logistics/transport-task/assign`, data }),
+  /**
+   * 授权放行派车：证件过期时由管理员带着原因放行（留痕原因/授权人/时间）。
+   * 车辆维修中、司机离职这类硬门禁不可绕过——后端会明确回「不能授权放行」。
+   */
+  assignTaskWithOverride: async (data: {
+    id: number
+    vehicleId: number
+    driverId: number
+    overrideReason: string
+  }) => await request.put({ url: `/logistics/transport-task/assign-override`, data }),
   acceptTask: async (id: number) =>
     await request.put({ url: `/logistics/transport-task/accept?id=` + id }),
   completeTask: async (id: number) =>

@@ -32,6 +32,9 @@
         <el-button type="primary" plain @click="openForm('create')" v-hasPermi="['logistics:driver:create']">
           <Icon icon="ep:plus" class="mr-5px" /> 新增司机
         </el-button>
+        <el-button type="success" plain @click="handleExport" :loading="exportLoading" v-hasPermi="['logistics:driver:export']">
+          <Icon icon="ep:download" class="mr-5px" /> 导出
+        </el-button>
       </el-form-item>
     </el-form>
   </ContentWrap>
@@ -45,6 +48,20 @@
       <el-table-column label="来源" align="center" prop="source" width="100">
         <template #default="{ row }">
           <el-tag :type="row.source === 2 ? 'warning' : 'info'">{{ SOURCE_NAME[row.source] || '未知' }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="驾驶证到期" align="center" prop="drivingLicenseExpiryDate" width="130">
+        <template #default="{ row }">
+          <span :class="{ 'expiry--warn': isExpired(row.drivingLicenseExpiryDate) }">
+            {{ row.drivingLicenseExpiryDate || '未登记' }}
+          </span>
+        </template>
+      </el-table-column>
+      <el-table-column label="资格证到期" align="center" prop="qualificationCertExpiryDate" width="130">
+        <template #default="{ row }">
+          <span :class="{ 'expiry--warn': isExpired(row.qualificationCertExpiryDate) }">
+            {{ row.qualificationCertExpiryDate || '未登记' }}
+          </span>
         </template>
       </el-table-column>
       <el-table-column label="状态" align="center" prop="status" width="100">
@@ -81,6 +98,38 @@
           <el-option label="承运商" :value="2" />
         </el-select>
       </el-form-item>
+      <el-form-item v-if="formData.source === 2" label="所属承运商" prop="carrierId">
+        <el-select v-model="formData.carrierId" placeholder="必填：来源为承运商时必须选" filterable class="!w-200px">
+          <el-option v-for="c in carrierOptions" :key="c.id" :label="c.name" :value="c.id!" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="驾驶证号码" prop="drivingLicenseNo">
+        <el-input v-model="formData.drivingLicenseNo" placeholder="选填" />
+      </el-form-item>
+      <el-form-item label="准驾车型" prop="drivingLicenseType">
+        <el-input v-model="formData.drivingLicenseType" placeholder="如 A2 / B2" class="!w-200px" />
+      </el-form-item>
+      <el-form-item label="驾驶证到期" prop="drivingLicenseExpiryDate">
+        <el-date-picker
+          v-model="formData.drivingLicenseExpiryDate"
+          type="date"
+          value-format="YYYY-MM-DD"
+          placeholder="选填；过期将不能派车"
+          class="!w-200px"
+        />
+      </el-form-item>
+      <el-form-item label="资格证号码" prop="qualificationCertNo">
+        <el-input v-model="formData.qualificationCertNo" placeholder="选填" />
+      </el-form-item>
+      <el-form-item label="资格证到期" prop="qualificationCertExpiryDate">
+        <el-date-picker
+          v-model="formData.qualificationCertExpiryDate"
+          type="date"
+          value-format="YYYY-MM-DD"
+          placeholder="选填；过期将不能派车"
+          class="!w-200px"
+        />
+      </el-form-item>
       <el-form-item label="状态" prop="status">
         <el-select v-model="formData.status" class="!w-200px">
           <el-option label="在职" :value="0" />
@@ -101,7 +150,9 @@
 
 <script setup lang="ts">
 import { LogisticsDriverApi, LogisticsDriverVO } from '@/api/logistics/driver'
+import { LogisticsCarrierApi, LogisticsCarrierVO } from '@/api/logistics/carrier'
 import { dateFormatter } from '@/utils/formatTime'
+import download from '@/utils/download'
 
 defineOptions({ name: 'LogisticsDriver' })
 
@@ -113,7 +164,20 @@ const { t } = useI18n()
 const message = useMessage()
 
 const loading = ref(true)
+const exportLoading = ref(false)
 const list = ref<LogisticsDriverVO[]>([])
+const carrierOptions = ref<LogisticsCarrierVO[]>([])
+
+/** 到期日早于今天即过期——与后端门禁同一口径（当天到期仍有效） */
+function isExpired(date?: string) {
+  if (!date) return false
+  return new Date(date).getTime() < new Date(new Date().toDateString()).getTime()
+}
+
+async function loadCarriers() {
+  const page = await LogisticsCarrierApi.getCarrierPage({ pageNo: 1, pageSize: 100, status: 0 })
+  carrierOptions.value = page.list
+}
 const total = ref(0)
 const queryParams = reactive({
   pageNo: 1,
@@ -153,7 +217,20 @@ const formRef = ref()
 const formData = ref<LogisticsDriverVO>(buildEmpty())
 
 function buildEmpty(): LogisticsDriverVO {
-  return { userId: undefined, name: undefined, mobile: undefined, source: 1, status: 0, remark: undefined }
+  return {
+    userId: undefined,
+    name: undefined,
+    mobile: undefined,
+    source: 1,
+    carrierId: undefined,
+    drivingLicenseNo: undefined,
+    drivingLicenseType: undefined,
+    drivingLicenseExpiryDate: undefined,
+    qualificationCertNo: undefined,
+    qualificationCertExpiryDate: undefined,
+    status: 0,
+    remark: undefined
+  }
 }
 
 const formRules = reactive({
@@ -163,8 +240,20 @@ const formRules = reactive({
   status: [{ required: true, message: '状态不能为空', trigger: 'change' }]
 })
 
+const handleExport = async () => {
+  try {
+    await message.exportConfirm()
+    exportLoading.value = true
+    const data = await LogisticsDriverApi.exportDriver(queryParams)
+    download.excel(data, '司机.xls')
+  } finally {
+    exportLoading.value = false
+  }
+}
+
 const openForm = async (type: string, id?: number) => {
   dialogVisible.value = true
+  await loadCarriers()
   formType.value = type
   dialogTitle.value = t('action.' + type)
   formData.value = buildEmpty()
@@ -211,6 +300,11 @@ getList()
 </script>
 
 <style scoped lang="scss">
+.expiry--warn {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+
 .tip {
   color: var(--el-text-color-secondary);
   font-size: 12px;

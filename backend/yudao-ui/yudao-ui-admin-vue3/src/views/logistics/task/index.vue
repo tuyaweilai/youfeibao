@@ -170,6 +170,17 @@
           />
         </el-select>
       </el-form-item>
+      <el-form-item label="授权放行">
+        <el-checkbox v-model="assignForm.override">
+          证件已过期，带原因授权放行（只挂管理员）
+        </el-checkbox>
+      </el-form-item>
+      <el-form-item v-if="assignForm.override" label="放行原因">
+        <el-input v-model="assignForm.overrideReason" type="textarea" :rows="2" placeholder="必填：为什么要带着过期证件出车" />
+        <div class="tip">
+          留痕：原因、授权人、时间都会记到这趟任务上。车辆维修中、司机离职这类**硬门禁不可绕过**。
+        </div>
+      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="submitAssign" type="primary" :disabled="formLoading">确 定</el-button>
@@ -210,6 +221,10 @@
           {{ formatTime(detail.expectedStartTime) }} ~ {{ formatTime(detail.expectedEndTime) }}
         </el-descriptions-item>
         <el-descriptions-item label="采购安排" :span="2">{{ detail.purchaseOrderNo || '未关联（直接上门收购）' }}</el-descriptions-item>
+        <el-descriptions-item v-if="detail.overrideReason" label="授权放行" :span="2">
+          <el-tag type="warning" class="mr-5px">证件过期放行</el-tag>
+          {{ detail.overrideReason }}（{{ formatTime(detail.overrideTime) }}）
+        </el-descriptions-item>
         <el-descriptions-item v-if="detail.cancelReason" label="取消原因" :span="2">{{ detail.cancelReason }}</el-descriptions-item>
       </el-descriptions>
 
@@ -411,12 +426,20 @@ const submitForm = async () => {
 }
 
 const assignVisible = ref(false)
-const assignForm = reactive<{ id?: number; vehicleId?: number; driverId?: number }>({})
+const assignForm = reactive<{
+  id?: number
+  vehicleId?: number
+  driverId?: number
+  override?: boolean
+  overrideReason?: string
+}>({})
 const openAssign = async (row: LogisticsTransportTaskVO) => {
   assignVisible.value = true
   assignForm.id = row.id
   assignForm.vehicleId = undefined
   assignForm.driverId = undefined
+  assignForm.override = false
+  assignForm.overrideReason = undefined
   await loadOptions()
 }
 const submitAssign = async () => {
@@ -424,14 +447,29 @@ const submitAssign = async () => {
     message.warning('车辆与司机都要选')
     return
   }
+  if (assignForm.override && !assignForm.overrideReason) {
+    message.warning('授权放行必须填原因')
+    return
+  }
   formLoading.value = true
   try {
-    await LogisticsTransportTaskApi.assignTask({
-      id: assignForm.id!,
-      vehicleId: assignForm.vehicleId,
-      driverId: assignForm.driverId
-    })
-    message.success('已派车')
+    if (assignForm.override) {
+      // 走授权放行：证件过期时的逃生门，留痕原因/授权人/时间
+      await LogisticsTransportTaskApi.assignTaskWithOverride({
+        id: assignForm.id!,
+        vehicleId: assignForm.vehicleId,
+        driverId: assignForm.driverId,
+        overrideReason: assignForm.overrideReason!
+      })
+      message.success('已带原因授权放行')
+    } else {
+      await LogisticsTransportTaskApi.assignTask({
+        id: assignForm.id!,
+        vehicleId: assignForm.vehicleId,
+        driverId: assignForm.driverId
+      })
+      message.success('已派车')
+    }
     assignVisible.value = false
     await getList()
   } finally {

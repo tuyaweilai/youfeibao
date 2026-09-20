@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.logistics.controller.admin.driver.vo;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -39,13 +40,15 @@ public class LogisticsDriverSaveReqVO {
     @Schema(description = "准驾车型", example = "A2")
     private String drivingLicenseType;
 
-    @Schema(description = "驾驶证到期日（过期不得派出；可由管理员带原因授权放行）")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    @Schema(description = "驾驶证到期日（过期不得派出；可由管理员带原因授权放行）", example = "2030-12-31")
     private LocalDate drivingLicenseExpiryDate;
 
     @Schema(description = "从业资格证号码")
     private String qualificationCertNo;
 
-    @Schema(description = "从业资格证到期日（同上）")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    @Schema(description = "从业资格证到期日（同上）", example = "2030-12-31")
     private LocalDate qualificationCertExpiryDate;
 
     @Schema(description = "司机状态：0-在职，1-离职，2-请假", requiredMode = Schema.RequiredMode.REQUIRED, example = "0")

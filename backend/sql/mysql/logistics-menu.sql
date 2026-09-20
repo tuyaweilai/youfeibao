@@ -67,6 +67,8 @@ VALUES
 ('车辆档案', '', 2, 10, @logistics_root_id, 'vehicle', 'ep:truck', 'logistics/vehicle/index', 'LogisticsVehicle',
  0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 ('司机档案', '', 2, 20, @logistics_root_id, 'driver', 'ep:user', 'logistics/driver/index', 'LogisticsDriver',
+ 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+('承运商档案', '', 2, 30, @logistics_root_id, 'carrier', 'ep:office-building', 'logistics/carrier/index', 'LogisticsCarrier',
  0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
 
 -- ---------------------------------------------------------------------

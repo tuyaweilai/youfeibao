@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.logistics.controller.admin.expiry.vo;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -27,7 +28,8 @@ public class LogisticsExpiryWarningItemVO {
     @Schema(description = "对象名称（车牌号或司机姓名）", example = "浙A12345")
     private String subjectName;
 
-    @Schema(description = "到期日")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    @Schema(description = "到期日", example = "2030-12-31")
     private LocalDate expiryDate;
 
     @Schema(description = "剩余天数（负数表示已过期）", example = "-3")

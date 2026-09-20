@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.logistics.controller.admin.vehicle.vo;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -26,10 +27,14 @@ public class LogisticsVehicleSaveReqVO {
     @Schema(description = "载重能力（吨）", example = "10.5")
     private BigDecimal capacityTon;
 
-    @Schema(description = "行驶证到期日（过期不得派出；可由管理员带原因授权放行）")
+    // 日期在协议上统一用 ISO 字符串（yyyy-MM-dd）：本项目第一次把 LocalDate 放到接口上，
+    // 不写 @JsonFormat 的话 Jackson 会序列化成 [2026,9,17] 这种数组，前端的日期列与比较全得跟着变形。
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    @Schema(description = "行驶证到期日（过期不得派出；可由管理员带原因授权放行）", example = "2030-12-31")
     private LocalDate drivingLicenseExpiryDate;
 
-    @Schema(description = "保险到期日（同上）")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    @Schema(description = "保险到期日（同上）", example = "2030-12-31")
     private LocalDate insuranceExpiryDate;
 
     @Schema(description = "车辆照片 URL 列表")

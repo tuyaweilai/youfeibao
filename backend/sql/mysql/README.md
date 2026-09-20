@@ -43,7 +43,8 @@
 24. `logistics-vehicle-driver.sql` —— 物流域：车辆与司机的最小档案（#77 V2a，ADR 0032）：`logistics_vehicle` + `logistics_driver`。两张都带 `tenant_id`、逻辑删除。车牌与司机关联用户的**唯一性只在 Service 层校验**（建了 DB 唯一键就「删掉的车牌再也建不回来」——软删的行占着键值），理由写在文件头
 25. `logistics-transport-task.sql` —— 物流域：运输任务与运输节点（#78 V2b，ADR 0032）：`logistics_transport_task`（一车 + 一司机 + 一次执行，含状态机、采购安排快照、车牌与司机快照）+ `logistics_transport_node`（过程事实与货物流凭证：发生时间与上报时间分开记、位置、照片、幂等键）。节点的 `client_request_id` **建**了唯一键（弱网重复补传的并发兜底），与车辆车牌**不建**唯一键的理由正好相反，两个文件的头注互相引用
 26. `logistics-transport-cargo.sql` —— 运输任务加「货物计划提示」三个字段（#79 V2c）：`cargo_name` / `estimated_quantity` / `quantity_unit`。**计划提示，不是品类权威**（权威品类在交接登记与收购单上，ADR 0028）；给司机看「这趟去拉什么」。必须在 `logistics-transport-task.sql` 之后
-27. `logistics-menu.sql` —— 物流域菜单（#77 V2a）：一级「物流管理」及其页面菜单，并并进「回收企业套餐」（菜单集合用 JSON 去重后整体写回）。**必须在 `icbc-menu.sql` 之后导**（依赖套餐 200 已存在）。按钮型权限行不在这里——由 `LogisticsPermissionSyncService` 依据角色枚举幂等生成（ADR 0026 的物流侧实现）。**不用固定 ID 段**：`system_menu` 里还有大量自增 id 的权限行，固定段会与自增撞号（实测 `MAX(id)=5328` 而 `AUTO_INCREMENT=5210`）
+27. `logistics-archive-gate.sql` —— 档案做全与派车门禁（#70 V3，ADR 0030）：车辆补行驶证 / 保险到期日、照片、GPS 设备号；司机补驾驶证与从业资格证号码 / 类型 / 到期日、所属承运商；新建承运商表 `logistics_carrier`；运输任务补授权放行留痕（`override_reason` / `override_by` / `override_time`）。**门禁分硬软**：证件过期（软）可授权放行且必须留原因，车辆维修中 / 司机离职（硬）不可绕过。必须在 `logistics-transport-cargo.sql` 之后
+28. `logistics-menu.sql` —— 物流域菜单（#77 V2a）：一级「物流管理」及其页面菜单，并并进「回收企业套餐」（菜单集合用 JSON 去重后整体写回）。**必须在 `icbc-menu.sql` 之后导**（依赖套餐 200 已存在）。按钮型权限行不在这里——由 `LogisticsPermissionSyncService` 依据角色枚举幂等生成（ADR 0026 的物流侧实现）。**不用固定 ID 段**：`system_menu` 里还有大量自增 id 的权限行，固定段会与自增撞号（实测 `MAX(id)=5328` 而 `AUTO_INCREMENT=5210`）
 
 > enterprise 的菜单与字典已包含在 `ruoyi-vue-pro.sql` 中，不要再单独导入 `enterprise-menu.sql` / `module-enterprise-dict.sql`（会主键冲突）。
 
@@ -55,7 +56,7 @@ MYSQL="mysql -h 127.0.0.1 -P 13308 -uroot -p --default-character-set=utf8mb4"
 $MYSQL -e "CREATE DATABASE IF NOT EXISTS \`ruoyi-vue-pro\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 for f in ruoyi-vue-pro erp erp-stock-goods-config erp-stock-location-batch erp-supplier quartz 02-initial-data yudao-module-enterprise-auth-flow member-2024-01-18 \
          icbc_payee_info icbc_payer_info icbc_invoice_tables icbc_payment_order \
-         icbc_invoice_download icbc_api_log_callback enterprise icbc-readiness icbc-evidence icbc-public-token icbc-jobs icbc-seller-onboarding icbc-acquisition icbc-invoice-application icbc-payment icbc-invoice-issuance icbc-red-invoice icbc-quota icbc-tax-declaration icbc-billing icbc-natural-person icbc-settlement icbc-station icbc-seller-portal icbc-appointment icbc-seller-notify icbc-handover-batch icbc-purchase-contract icbc-purchase-order icbc-input-invoice icbc-purchase-order-progress icbc-deal-accepted-quantity icbc-acquisition-purchase-link icbc-stock-in icbc-acquisition-acceptance icbc-stock-ops icbc-bank-card-change icbc-menu logistics-vehicle-driver logistics-transport-task logistics-transport-cargo logistics-menu; do
+         icbc_invoice_download icbc_api_log_callback enterprise icbc-readiness icbc-evidence icbc-public-token icbc-jobs icbc-seller-onboarding icbc-acquisition icbc-invoice-application icbc-payment icbc-invoice-issuance icbc-red-invoice icbc-quota icbc-tax-declaration icbc-billing icbc-natural-person icbc-settlement icbc-station icbc-seller-portal icbc-appointment icbc-seller-notify icbc-handover-batch icbc-purchase-contract icbc-purchase-order icbc-input-invoice icbc-purchase-order-progress icbc-deal-accepted-quantity icbc-acquisition-purchase-link icbc-stock-in icbc-acquisition-acceptance icbc-stock-ops icbc-bank-card-change icbc-menu logistics-vehicle-driver logistics-transport-task logistics-transport-cargo logistics-archive-gate logistics-menu; do
   $MYSQL ruoyi-vue-pro < "$f.sql"
 done
 ```
@@ -117,3 +118,18 @@ $MYSQL ruoyi-vue-pro < repair-mojibake.sql   # 只打印「表 / 列 / 修复行
 - 其余来源：`tuyaweilai/tuya-saas-java` 归档的 `ruoyi-vue-pro/sql/mysql`。
 - 并入时已**脱敏**：阿里云 / 腾讯云示例 AccessKey、短信 `api_secret` 等替换为 `REPLACE_ME`。详见 ADR 0012。
 - icbc 表在本快照里已带 `tenant_id`；`backend/doc/icbc/sql/tenant-scope.sql` 保留，用于进一步把出售者唯一键收敛为「租户内唯一」。
+
+## 重导菜单后的必做一步（物流域）
+
+`logistics-menu.sql` 是「按标记删再重建」的写法，它会连带删掉同步服务建的**按钮权限行**
+（`permission LIKE 'logistics:%'`）——icbc-menu.sql 对 `icbc:%` 是同一手法。
+
+因此**重导菜单之后必须补一次权限同步**，否则各角色会短暂失去物流域的授权（表现是司机端与
+物流页面 403）：
+
+```bash
+# 开机时 runner 会自动重建权限行；角色授权要调一次：
+curl -X POST "$BASE/logistics/permission/init" -H "tenant-id: 1" -H "Authorization: Bearer $TOKEN"
+```
+
+生产上建议把这一步并在部署脚本里，紧跟在导菜单之后。

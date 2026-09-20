@@ -26,6 +26,9 @@
         <el-button type="primary" plain @click="openForm('create')" v-hasPermi="['logistics:vehicle:create']">
           <Icon icon="ep:plus" class="mr-5px" /> 新增车辆
         </el-button>
+        <el-button type="success" plain @click="handleExport" :loading="exportLoading" v-hasPermi="['logistics:vehicle:export']">
+          <Icon icon="ep:download" class="mr-5px" /> 导出
+        </el-button>
       </el-form-item>
     </el-form>
   </ContentWrap>
@@ -36,6 +39,20 @@
       <el-table-column label="车牌号" prop="plateNo" min-width="120" />
       <el-table-column label="车辆类型" prop="vehicleType" min-width="120" />
       <el-table-column label="载重（吨）" align="right" prop="capacityTon" min-width="110" />
+      <el-table-column label="行驶证到期" align="center" prop="drivingLicenseExpiryDate" width="130">
+        <template #default="{ row }">
+          <span :class="{ 'expiry--warn': isExpired(row.drivingLicenseExpiryDate) }">
+            {{ row.drivingLicenseExpiryDate || '未登记' }}
+          </span>
+        </template>
+      </el-table-column>
+      <el-table-column label="保险到期" align="center" prop="insuranceExpiryDate" width="130">
+        <template #default="{ row }">
+          <span :class="{ 'expiry--warn': isExpired(row.insuranceExpiryDate) }">
+            {{ row.insuranceExpiryDate || '未登记' }}
+          </span>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" align="center" prop="status" width="100">
         <template #default="{ row }">
           <el-tag :type="STATUS_TAG[row.status] || 'info'">{{ STATUS_NAME[row.status] || '未知' }}</el-tag>
@@ -64,6 +81,30 @@
       <el-form-item label="载重（吨）" prop="capacityTon">
         <el-input-number v-model="formData.capacityTon" :precision="3" :min="0" :controls="false" class="!w-200px" />
       </el-form-item>
+      <el-form-item label="行驶证到期" prop="drivingLicenseExpiryDate">
+        <el-date-picker
+          v-model="formData.drivingLicenseExpiryDate"
+          type="date"
+          value-format="YYYY-MM-DD"
+          placeholder="选填；过期将不能派车"
+          class="!w-200px"
+        />
+      </el-form-item>
+      <el-form-item label="保险到期" prop="insuranceExpiryDate">
+        <el-date-picker
+          v-model="formData.insuranceExpiryDate"
+          type="date"
+          value-format="YYYY-MM-DD"
+          placeholder="选填；过期将不能派车"
+          class="!w-200px"
+        />
+      </el-form-item>
+      <el-form-item label="车辆照片" prop="photos">
+        <UploadFile v-model="vehiclePhotos" :limit="5" />
+      </el-form-item>
+      <el-form-item label="GPS 设备号" prop="gpsDeviceId">
+        <el-input v-model="formData.gpsDeviceId" placeholder="选填；一期只登记，轨迹接入另行立项" />
+      </el-form-item>
       <el-form-item label="状态" prop="status">
         <el-select v-model="formData.status" class="!w-200px">
           <el-option label="可用" :value="0" />
@@ -85,6 +126,7 @@
 <script setup lang="ts">
 import { LogisticsVehicleApi, LogisticsVehicleVO } from '@/api/logistics/vehicle'
 import { dateFormatter } from '@/utils/formatTime'
+import download from '@/utils/download'
 
 defineOptions({ name: 'LogisticsVehicle' })
 
@@ -95,7 +137,14 @@ const { t } = useI18n()
 const message = useMessage()
 
 const loading = ref(true)
+const exportLoading = ref(false)
 const list = ref<LogisticsVehicleVO[]>([])
+
+/** 到期日早于今天即过期——与后端门禁同一口径（当天到期仍有效） */
+function isExpired(date?: string) {
+  if (!date) return false
+  return new Date(date).getTime() < new Date(new Date().toDateString()).getTime()
+}
 const total = ref(0)
 const queryParams = reactive({
   pageNo: 1,
@@ -126,15 +175,38 @@ const resetQuery = () => {
 }
 
 // ==================== 新增 / 编辑 ====================
+const handleExport = async () => {
+  try {
+    await message.exportConfirm()
+    exportLoading.value = true
+    const data = await LogisticsVehicleApi.exportVehicle(queryParams)
+    download.excel(data, '车辆.xls')
+  } finally {
+    exportLoading.value = false
+  }
+}
+
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
 const formLoading = ref(false)
 const formType = ref('')
 const formRef = ref()
 const formData = ref<LogisticsVehicleVO>(buildEmpty())
+/** 上传组件单独绑一个 ref（仓库既有做法），提交时再落到表单上 */
+const vehiclePhotos = ref<string[]>([])
 
 function buildEmpty(): LogisticsVehicleVO {
-  return { plateNo: undefined, vehicleType: undefined, capacityTon: undefined, status: 0, remark: undefined }
+  return {
+    plateNo: undefined,
+    vehicleType: undefined,
+    capacityTon: undefined,
+    drivingLicenseExpiryDate: undefined,
+    insuranceExpiryDate: undefined,
+    photos: [],
+    gpsDeviceId: undefined,
+    status: 0,
+    remark: undefined
+  }
 }
 
 const formRules = reactive({
@@ -147,11 +219,13 @@ const openForm = async (type: string, id?: number) => {
   formType.value = type
   dialogTitle.value = t('action.' + type)
   formData.value = buildEmpty()
+  vehiclePhotos.value = []
   formRef.value?.resetFields()
   if (id) {
     formLoading.value = true
     try {
       formData.value = await LogisticsVehicleApi.getVehicle(id)
+      vehiclePhotos.value = formData.value.photos || []
     } finally {
       formLoading.value = false
     }
@@ -160,6 +234,7 @@ const openForm = async (type: string, id?: number) => {
 
 const submitForm = async () => {
   await formRef.value.validate()
+  formData.value.photos = vehiclePhotos.value
   formLoading.value = true
   try {
     if (formType.value === 'create') {
@@ -190,6 +265,11 @@ getList()
 </script>
 
 <style scoped lang="scss">
+.expiry--warn {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+
 .tip {
   color: var(--el-text-color-secondary);
   font-size: 12px;

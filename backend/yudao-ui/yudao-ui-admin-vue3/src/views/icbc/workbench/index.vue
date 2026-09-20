@@ -111,6 +111,35 @@
     </ContentWrap>
 
     <!-- 待办 / 预警的来源明细 -->
+    <!-- 物流证件到期（#70 V3）：独立成卡，走物流自己的接口。
+         不塞进上面那组预警是因为：上面每个数字都来自本企业单据的聚合口径，
+         而这张是「四类证件的到期台账」，明细就是一行一证件。 -->
+    <ContentWrap title="物流证件到期">
+      <div class="mb-10px text-12px text-gray-500">
+        行驶证 / 保险 / 驾驶证 / 从业资格证。**过期就派不出车**；确需派出由管理员带原因授权放行。
+      </div>
+      <el-table v-loading="expiryLoading" :data="expiryWarnings" :stripe="true" max-height="320">
+        <el-table-column label="类别" prop="category" width="160" />
+        <el-table-column label="对象" prop="subjectName" min-width="140" />
+        <el-table-column label="到期日" align="center" prop="expiryDate" width="130" />
+        <el-table-column label="剩余天数" align="center" width="110">
+          <template #default="{ row }">
+            <el-tag :type="row.expired ? 'danger' : 'warning'">
+              {{ row.expired ? `已过期 ${-row.daysLeft} 天` : `${row.daysLeft} 天` }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" align="center" width="120">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="goLogistics(row.subjectType)">
+              去处理
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!expiryLoading && !expiryWarnings.length" description="30 天内没有到期的证件" />
+    </ContentWrap>
+
     <el-drawer v-model="drawerVisible" :title="drawerTitle" size="640px">
       <el-alert v-if="drawerNote" type="info" :closable="false" class="mb-10px" :title="drawerNote" />
       <el-table :data="drawerItems" :stripe="true" v-loading="loading">
@@ -157,6 +186,7 @@
 
 <script setup lang="ts">
 import { dateFormatter } from '@/utils/formatTime'
+import { LogisticsExpiryWarningApi, LogisticsExpiryWarningItemVO } from '@/api/logistics/expiryWarning'
 import {
   WorkbenchApi,
   WorkbenchItemVO,
@@ -246,5 +276,30 @@ const go = (path?: string) => {
   router.push(path)
 }
 
-onMounted(load)
+// ==================== 物流证件到期（#70 V3）====================
+
+const expiryLoading = ref(false)
+const expiryWarnings = ref<LogisticsExpiryWarningItemVO[]>([])
+
+async function loadExpiryWarnings() {
+  expiryLoading.value = true
+  try {
+    expiryWarnings.value = await LogisticsExpiryWarningApi.getList(30)
+  } catch {
+    // 物流权限没开（例如岗位只做票务）时不该把整个工作台拖红：这张卡留空即可
+    expiryWarnings.value = []
+  } finally {
+    expiryLoading.value = false
+  }
+}
+
+/** 去处理：1-车辆档案，2-司机档案 */
+function goLogistics(subjectType?: number) {
+  router.push(subjectType === 2 ? '/logistics/driver' : '/logistics/vehicle')
+}
+
+onMounted(() => {
+  load()
+  loadExpiryWarnings()
+})
 </script>
