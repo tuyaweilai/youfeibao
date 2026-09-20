@@ -4,6 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadRespVO;
 import cn.iocoder.yudao.module.icbc.service.download.InvoiceDownloadService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,7 +36,7 @@ public class InvoiceDownloadController {
 
     @PostMapping("/download")
     @Operation(summary = "下载发票")
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-download:download')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.DOWNLOAD_EXECUTE + "')")
     public CommonResult<InvoiceDownloadRespVO> downloadInvoice(@Valid @RequestBody InvoiceDownloadReqVO reqVO) {
         InvoiceDownloadRespVO result = invoiceDownloadService.downloadInvoice(reqVO);
         return success(result);
@@ -44,7 +45,7 @@ public class InvoiceDownloadController {
     @GetMapping("/get")
     @Operation(summary = "获取发票下载记录")
     @Parameter(name = "partnerOrderId", description = "合作方订单号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-download:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.DOWNLOAD_QUERY + "')")
     public CommonResult<InvoiceDownloadRespVO> getDownloadRecord(@RequestParam("partnerOrderId") String partnerOrderId) {
         InvoiceDownloadRespVO result = invoiceDownloadService.getDownloadRecord(partnerOrderId);
         return success(result);
@@ -53,7 +54,7 @@ public class InvoiceDownloadController {
     @GetMapping("/get-by-invoice")
     @Operation(summary = "根据发票号码获取下载记录")
     @Parameter(name = "invoiceNumber", description = "发票号码", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-download:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.DOWNLOAD_QUERY + "')")
     public CommonResult<InvoiceDownloadRespVO> getDownloadRecordByInvoiceNumber(@RequestParam("invoiceNumber") String invoiceNumber) {
         InvoiceDownloadRespVO result = invoiceDownloadService.getDownloadRecordByInvoiceNumber(invoiceNumber);
         return success(result);
@@ -62,7 +63,7 @@ public class InvoiceDownloadController {
     @PostMapping("/retry/{downloadId}")
     @Operation(summary = "重试下载")
     @Parameter(name = "downloadId", description = "下载记录ID", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-download:retry')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.DOWNLOAD_RETRY + "')")
     public CommonResult<InvoiceDownloadRespVO> retryDownload(@PathVariable("downloadId") Long downloadId) {
         InvoiceDownloadRespVO result = invoiceDownloadService.retryDownload(downloadId);
         return success(result);
@@ -72,7 +73,7 @@ public class InvoiceDownloadController {
     @Operation(summary = "下载发票文件")
     @Parameter(name = "downloadId", description = "下载记录ID", required = true)
     @Parameter(name = "fileType", description = "文件类型", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-download:download-file')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.DOWNLOAD_FILE + "')")
     public void downloadFile(@RequestParam("downloadId") Long downloadId,
                            @RequestParam("fileType") String fileType,
                            HttpServletResponse response) {

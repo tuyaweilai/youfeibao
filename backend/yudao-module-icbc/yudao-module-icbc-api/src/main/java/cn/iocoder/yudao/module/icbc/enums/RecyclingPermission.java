@@ -3,10 +3,13 @@ package cn.iocoder.yudao.module.icbc.enums;
 /**
  * 回收企业反向开票域的权限标识。
  *
- * <p>权限标识是本平台自己的语言，不直接等于工行或税务侧的接口名。它们既用于
- * Controller 上的 {@code @PreAuthorize}，也用于 {@link RecyclingRoleEnum} 里
- * 「哪个租户内角色能做什么」的映射。角色与权限的对应关系只在本模块内维护，
- * 不依赖数据库里的菜单数据。
+ * <p>权限标识是本平台自己的语言，不直接等于工行或税务侧的接口名。它们用于 Controller 上的
+ * {@code @ss.hasPermission}（运行时走 yudao 原生的菜单权限判断），并作为
+ * {@link RecyclingRoleEnum} 里「哪个租户内角色能做什么」的映射。
+ *
+ * <p>{@link RecyclingRoleEnum} 会依据本接口的常量幂等生成 {@code system_menu} 的权限行与
+ * {@code system_role_menu} 关联（见 {@code RecyclingPermissionSyncService}），所以新增操作时：
+ * 先在这里登记常量，再挂到 {@link RecyclingRoleEnum} 的相应角色，最后在 Controller 上用常量。
  */
 public interface RecyclingPermission {
 

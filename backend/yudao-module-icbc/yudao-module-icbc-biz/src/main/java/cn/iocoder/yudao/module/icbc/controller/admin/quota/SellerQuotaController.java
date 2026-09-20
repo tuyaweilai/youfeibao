@@ -48,14 +48,14 @@ public class SellerQuotaController {
     @GetMapping("/seller")
     @Operation(summary = "获得出售者额度台账（跨租户合并）")
     @Parameter(name = "payeeId", description = "出售者档案编号", required = true, example = "1024")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.QUOTA_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.QUOTA_QUERY + "')")
     public CommonResult<SellerQuotaRespVO> getSellerQuota(@RequestParam("payeeId") Long payeeId) {
         return success(naturalPersonQuotaService.getQuota(payeeId));
     }
 
     @GetMapping("/check")
     @Operation(summary = "判定这笔金额是否还在 500 万额度内")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.QUOTA_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.QUOTA_QUERY + "')")
     public CommonResult<SellerQuotaCheckRespVO> checkQuota(@RequestParam("payeeId") Long payeeId,
                                                           @RequestParam(value = "amount", required = false)
                                                           BigDecimal amount) {
@@ -64,7 +64,7 @@ public class SellerQuotaController {
 
     @GetMapping("/guidance/page")
     @Operation(summary = "分页获得额度超限的经营主体登记引导记录")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.QUOTA_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.QUOTA_QUERY + "')")
     public CommonResult<PageResult<SellerQuotaGuidanceRespVO>> getGuidancePage(
             @Valid SellerQuotaGuidancePageReqVO pageReqVO) {
         PageResult<SellerQuotaGuidanceDO> page = naturalPersonQuotaService.getGuidancePage(pageReqVO);
@@ -75,7 +75,7 @@ public class SellerQuotaController {
 
     @PutMapping("/guidance/handle")
     @Operation(summary = "处理一条引导记录（已引导 / 已办结）")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.QUOTA_GUIDANCE_HANDLE + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.QUOTA_GUIDANCE_HANDLE + "')")
     public CommonResult<Boolean> handleGuidance(@Valid @RequestBody SellerQuotaGuidanceHandleReqVO reqVO) {
         naturalPersonQuotaService.handleGuidance(reqVO);
         return success(true);

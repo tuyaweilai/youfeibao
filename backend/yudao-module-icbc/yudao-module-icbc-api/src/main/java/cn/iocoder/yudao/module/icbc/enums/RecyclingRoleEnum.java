@@ -11,8 +11,13 @@ import java.util.Set;
  * <p>四个租户内角色（管理员 / 开票员 / 收货员 / 财务）都属于回收企业这一租户，
  * 只能在本租户内做事；平台运营是跨租户角色，只存在于平台自己的租户里。
  *
- * <p>角色的 {@code code} 是 {@code system_role.code}，由业务侧的权限判断组件
- * 依据它判断「谁能做哪个操作」。管理员直接复用 yudao 建租户时自动生成的
+ * <p><b>本枚举是权限归属的唯一来源</b>：{@code icbc} 侧 Controller 的
+ * {@code @ss.hasPermission} 运行时走 yudao 原生的菜单权限判断，而菜单行（{@code system_menu}）
+ * 与角色-菜单关联（{@code system_role_menu}）由 {@code RecyclingPermissionSyncService}
+ * 依据本枚举幂等生成。新增权限时只需在 {@code RecyclingPermission} 登记、把它挂到这里的某个角色，
+ * 再在 Controller 上写 {@code @ss.hasPermission}；不用另行维护菜单种子。
+ *
+ * <p>角色的 {@code code} 是 {@code system_role.code}。管理员直接复用 yudao 建租户时自动生成的
  * {@code tenant_admin}，这样新租户开出来就天然是管理员，不必额外造角色。
  */
 public enum RecyclingRoleEnum {
@@ -145,11 +150,6 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PLATFORM_NATURAL_PERSON_QUERY,
             RecyclingPermission.PLATFORM_NATURAL_PERSON_MANAGE));
 
-    /**
-     * yudao 超级管理员：平台自有系统租户的最高权限，绕过角色映射。
-     */
-    public static final String SUPER_ADMIN_CODE = "super_admin";
-
     private final String code;
     private final String name;
     private final Set<String> permissions;
@@ -183,26 +183,6 @@ public enum RecyclingRoleEnum {
         return Arrays.stream(values())
                 .filter(role -> role.code.equals(code))
                 .findFirst();
-    }
-
-    /**
-     * 获得某个权限允许的角色标识集合。超管对任意已登记权限都放行。
-     *
-     * @param permission 权限标识
-     * @return 角色标识集合；权限未登记时返回空集合，表示拒绝
-     */
-    public static Set<String> roleCodesForPermission(String permission) {
-        if (permission == null || !allPermissions().contains(permission)) {
-            return Set.of(); // 未登记的权限一律拒绝，超管也不例外
-        }
-        Set<String> codes = new LinkedHashSet<>();
-        codes.add(SUPER_ADMIN_CODE);
-        for (RecyclingRoleEnum role : values()) {
-            if (role.permissions.contains(permission)) {
-                codes.add(role.code);
-            }
-        }
-        return codes;
     }
 
     /**

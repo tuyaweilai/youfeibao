@@ -4,6 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.warning.vo.IcbcExpiryWarningRespVO;
 import cn.iocoder.yudao.module.icbc.service.warning.IcbcExpiryWarningService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,7 +35,7 @@ public class IcbcExpiryWarningController {
 
     @GetMapping("/list")
     @Operation(summary = "获得待处理的资质到期预警列表")
-    @PreAuthorize("@icbc.hasPermission('icbc:expiry-warning:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.EXPIRY_WARNING_QUERY + "')")
     public CommonResult<List<IcbcExpiryWarningRespVO>> list() {
         return success(BeanUtils.toBean(expiryWarningService.getOpenList(), IcbcExpiryWarningRespVO.class));
     }
@@ -42,7 +43,7 @@ public class IcbcExpiryWarningController {
     @PutMapping("/acknowledge")
     @Operation(summary = "处理（关闭）一条资质到期预警")
     @Parameter(name = "id", description = "编号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:expiry-warning:ack')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.EXPIRY_WARNING_ACK + "')")
     public CommonResult<Boolean> acknowledge(@RequestParam("id") Long id) {
         expiryWarningService.acknowledge(id);
         return success(true);

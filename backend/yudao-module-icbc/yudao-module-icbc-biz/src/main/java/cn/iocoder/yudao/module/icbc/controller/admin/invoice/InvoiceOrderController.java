@@ -9,6 +9,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryResp
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceTaxCertificateRespVO;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceTaxCertificateService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +45,7 @@ public class InvoiceOrderController {
 
     @PostMapping("/pre-order")
     @Operation(summary = "创建反向开票预下单")
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-order:create')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.INVOICE_CREATE + "')")
     @ApiAccessLog(operateType = CREATE)
     public CommonResult<InvoicePreOrderRespVO> createPreOrder(@Valid @RequestBody InvoicePreOrderReqVO createReqVO) {
         log.info("收到反向开票预下单请求 - partnerOrderId: {}", createReqVO.getOutOrderId());
@@ -54,7 +55,7 @@ public class InvoiceOrderController {
 
     @GetMapping("/query")
     @Operation(summary = "查询反向开票信息")
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-order:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.INVOICE_QUERY + "')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<InvoiceQueryRespVO> queryInvoiceInfo(@Valid InvoiceQueryReqVO queryReqVO) {
         log.info("收到反向开票查询请求 - partnerOrderId: {}", queryReqVO.getOutOrderId());
@@ -64,7 +65,7 @@ public class InvoiceOrderController {
 
     @PostMapping("/query")
     @Operation(summary = "查询反向开票信息（POST方式）")
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-order:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.INVOICE_QUERY + "')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<InvoiceQueryRespVO> queryInvoiceInfoPost(@Valid @RequestBody InvoiceQueryReqVO queryReqVO) {
         log.info("收到反向开票查询请求（POST） - partnerOrderId: {}", queryReqVO.getOutOrderId());
@@ -74,7 +75,7 @@ public class InvoiceOrderController {
 
     @GetMapping("/tax-certificate")
     @Operation(summary = "查询代办税费缴税凭证")
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-order:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.INVOICE_QUERY + "')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<InvoiceTaxCertificateRespVO> getTaxCertificate(@RequestParam("partnerOrderId") String partnerOrderId) {
         return success(invoiceTaxCertificateService.getCertificate(partnerOrderId));
@@ -82,7 +83,7 @@ public class InvoiceOrderController {
 
     @GetMapping("/tax-certificate/export")
     @Operation(summary = "导出代办税费缴税凭证")
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-order:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.INVOICE_QUERY + "')")
     @ApiAccessLog(operateType = GET)
     public void exportTaxCertificate(@RequestParam("partnerOrderId") String partnerOrderId,
                                      HttpServletResponse response) {

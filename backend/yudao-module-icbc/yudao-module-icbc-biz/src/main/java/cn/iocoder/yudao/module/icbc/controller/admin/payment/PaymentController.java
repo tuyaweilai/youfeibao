@@ -8,6 +8,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.payment.vo.PaymentQueryReqV
 import cn.iocoder.yudao.module.icbc.controller.admin.payment.vo.PaymentReceiptRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.payment.vo.PaymentStatusRespVO;
 import cn.iocoder.yudao.module.icbc.service.payment.PaymentService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +46,7 @@ public class PaymentController {
 
     @PostMapping("/apply")
     @Operation(summary = "对预开票成功的收购发起付款")
-    @PreAuthorize("@icbc.hasPermission('icbc:payment:create')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYMENT_CREATE + "')")
     @ApiAccessLog(operateType = CREATE)
     public CommonResult<PaymentApplyRespVO> applyPayment(@Valid @RequestBody PaymentApplyReqVO reqVO) {
         return success(paymentService.applyPayment(reqVO));
@@ -53,7 +54,7 @@ public class PaymentController {
 
     @GetMapping("/query")
     @Operation(summary = "查询支付状态（自动经工行收敛一次）")
-    @PreAuthorize("@icbc.hasPermission('icbc:payment:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYMENT_QUERY + "')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<PaymentStatusRespVO> queryPaymentStatus(@Valid PaymentQueryReqVO reqVO) {
         return success(paymentService.queryPaymentStatus(reqVO));
@@ -61,7 +62,7 @@ public class PaymentController {
 
     @GetMapping("/receipt")
     @Operation(summary = "查询转账回单归档信息")
-    @PreAuthorize("@icbc.hasPermission('icbc:payment:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYMENT_QUERY + "')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<PaymentReceiptRespVO> getReceipt(@RequestParam("partnerOrderId") String partnerOrderId) {
         return success(paymentService.getReceipt(partnerOrderId));

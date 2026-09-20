@@ -13,6 +13,7 @@ import cn.iocoder.yudao.module.icbc.enums.PayeeRealNameStatusEnum;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.impl.NaturalPersonServiceImpl;
 import cn.iocoder.yudao.module.icbc.util.MaskUtils;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +47,7 @@ public class NaturalPersonAdminController {
 
     @GetMapping("/page")
     @Operation(summary = "分页查询自然人主体（跨租户）")
-    @PreAuthorize("@icbc.hasPermission('icbc:platform:natural-person:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_NATURAL_PERSON_QUERY + "')")
     public CommonResult<PageResult<NaturalPersonRespVO>> getPage(@Valid NaturalPersonPageReqVO pageReqVO) {
         PageResult<IcbcNaturalPersonDO> page = naturalPersonService.getNaturalPersonPage(pageReqVO);
         PageResult<NaturalPersonRespVO> result = new PageResult<>(toRespList(page.getList()), page.getTotal());
@@ -55,7 +56,7 @@ public class NaturalPersonAdminController {
 
     @GetMapping("/get")
     @Operation(summary = "获得自然人主体")
-    @PreAuthorize("@icbc.hasPermission('icbc:platform:natural-person:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_NATURAL_PERSON_QUERY + "')")
     public CommonResult<NaturalPersonRespVO> get(@RequestParam("id") Long id) {
         return success(toResp(naturalPersonService.getNaturalPerson(id)));
     }
@@ -64,14 +65,14 @@ public class NaturalPersonAdminController {
     @Operation(summary = "身份冲突清单（跨租户，只读）",
             description = "同一身份证在不同租户姓名/手机号不一致者。命中 ADR 0017「不自动合并」规则，出人工清单；"
                     + "本接口不改任何数据，裁决由平台运营核实后完成")
-    @PreAuthorize("@icbc.hasPermission('icbc:platform:natural-person:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_NATURAL_PERSON_QUERY + "')")
     public CommonResult<List<NaturalPersonConflictRespVO>> getConflicts() {
         return success(naturalPersonService.getIdentityConflictList());
     }
 
     @PostMapping("/claim")
     @Operation(summary = "身份认领", description = "核实后把某个登录凭证绑到已有自然人主体上（人工入口）")
-    @PreAuthorize("@icbc.hasPermission('icbc:platform:natural-person:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_NATURAL_PERSON_MANAGE + "')")
     public CommonResult<Boolean> claim(@Valid @RequestBody NaturalPersonClaimReqVO reqVO) {
         naturalPersonService.bindLogin(reqVO.getNaturalPersonId(), reqVO.getMemberUserId(),
                 NaturalPersonServiceImpl.SOURCE_OPS_CLAIM, reqVO.getRemark());
@@ -80,7 +81,7 @@ public class NaturalPersonAdminController {
 
     @PostMapping("/unbind")
     @Operation(summary = "解绑登录凭证", description = "只解绑凭证，主体与交易记录保留")
-    @PreAuthorize("@icbc.hasPermission('icbc:platform:natural-person:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_NATURAL_PERSON_MANAGE + "')")
     public CommonResult<Boolean> unbind(@Valid @RequestBody NaturalPersonClaimReqVO reqVO) {
         naturalPersonService.unbindLogin(reqVO.getNaturalPersonId(), reqVO.getMemberUserId());
         return success(true);
@@ -88,7 +89,7 @@ public class NaturalPersonAdminController {
 
     @PutMapping("/update-status")
     @Operation(summary = "停用 / 恢复身份", description = "停用是人为处置（如冒用），不删除任何数据")
-    @PreAuthorize("@icbc.hasPermission('icbc:platform:natural-person:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_NATURAL_PERSON_MANAGE + "')")
     public CommonResult<Boolean> updateStatus(@RequestParam("id") Long id,
                                              @RequestParam("status") Integer status,
                                              @RequestParam(value = "remark", required = false) String remark) {

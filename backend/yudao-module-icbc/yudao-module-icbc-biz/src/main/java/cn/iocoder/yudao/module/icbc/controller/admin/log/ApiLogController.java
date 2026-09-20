@@ -8,6 +8,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.log.vo.ApiLogPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.log.vo.ApiLogRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.log.ApiLogDO;
 import cn.iocoder.yudao.module.icbc.service.log.ApiLogService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,7 +32,7 @@ public class ApiLogController {
 
     @GetMapping("/page")
     @Operation(summary = "获得工行接口调用日志分页")
-    @PreAuthorize("@icbc.hasPermission('icbc:api-log:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.API_LOG_QUERY + "')")
     public CommonResult<PageResult<ApiLogRespVO>> getApiLogPage(@Valid ApiLogPageReqVO pageReqVO) {
         PageResult<ApiLogDO> pageResult = apiLogService.getApiLogPage(pageReqVO);
         return success(BeanUtils.toBean(pageResult, ApiLogRespVO.class));
@@ -40,7 +41,7 @@ public class ApiLogController {
     @GetMapping("/get")
     @Operation(summary = "获得工行接口调用日志")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
-    @PreAuthorize("@icbc.hasPermission('icbc:api-log:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.API_LOG_QUERY + "')")
     public CommonResult<ApiLogRespVO> getApiLog(@RequestParam("id") Long id) {
         ApiLogDO apiLog = apiLogService.getApiLog(id);
         return success(BeanUtils.toBean(apiLog, ApiLogRespVO.class));

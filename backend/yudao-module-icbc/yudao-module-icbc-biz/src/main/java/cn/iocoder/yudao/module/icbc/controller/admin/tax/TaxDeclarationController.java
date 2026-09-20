@@ -36,21 +36,21 @@ public class TaxDeclarationController {
     @GetMapping("/get")
     @Operation(summary = "取某申报月的代办税费申报单（未生成则即时生成）")
     @Parameter(name = "periodMonth", description = "申报月 yyyy-MM", required = true, example = "2026-08")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
     public CommonResult<TaxDeclarationRespVO> getDeclaration(@RequestParam("periodMonth") String periodMonth) {
         return success(taxDeclarationService.getDeclaration(periodMonth));
     }
 
     @GetMapping("/page")
     @Operation(summary = "分页获得代办税费申报单")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
     public CommonResult<PageResult<TaxDeclarationRespVO>> getDeclarationPage(@Valid TaxDeclarationPageReqVO reqVO) {
         return success(taxDeclarationService.getDeclarationPage(reqVO));
     }
 
     @GetMapping("/item/page")
     @Operation(summary = "分页获得代办税费申报明细（含当月超 10 万元的出售者）")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
     public CommonResult<PageResult<TaxDeclarationItemRespVO>> getItemPage(@Valid TaxDeclarationItemPageReqVO reqVO) {
         return success(taxDeclarationService.getItemPage(reqVO));
     }
@@ -58,14 +58,14 @@ public class TaxDeclarationController {
     @GetMapping("/precheck")
     @Operation(summary = "检查申报数据齐备性：还缺哪些数据")
     @Parameter(name = "periodMonth", description = "申报月 yyyy-MM", required = true, example = "2026-08")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
     public CommonResult<TaxDeclarationPrecheckRespVO> precheck(@RequestParam("periodMonth") String periodMonth) {
         return success(taxDeclarationService.precheck(periodMonth));
     }
 
     @GetMapping("/warning/list")
     @Operation(summary = "获得待处理的申报预警（申报期临近 / 逾期可能被暂停开票资格 / 数据不齐）")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
     public CommonResult<List<TaxDeclarationWarningRespVO>> getWarnings() {
         return success(taxDeclarationService.getWarnings());
     }
@@ -73,21 +73,21 @@ public class TaxDeclarationController {
     @PostMapping("/generate")
     @Operation(summary = "生成（或刷新）某申报月的申报清单与合计金额")
     @Parameter(name = "periodMonth", description = "申报月 yyyy-MM", required = true, example = "2026-08")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.TAX_DECLARATION_MANAGE + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.TAX_DECLARATION_MANAGE + "')")
     public CommonResult<TaxDeclarationRespVO> generate(@RequestParam("periodMonth") String periodMonth) {
         return success(taxDeclarationService.generate(periodMonth));
     }
 
     @PostMapping("/declare")
     @Operation(summary = "报送《代办税费报告表》《代办税费明细报告表》")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.TAX_DECLARATION_MANAGE + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.TAX_DECLARATION_MANAGE + "')")
     public CommonResult<TaxDeclarationRespVO> declare(@Valid @RequestBody TaxDeclarationDeclareReqVO reqVO) {
         return success(taxDeclarationService.declare(reqVO));
     }
 
     @PostMapping("/pay")
     @Operation(summary = "缴款成功：归档凭证并与对应发票关联")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.TAX_DECLARATION_MANAGE + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.TAX_DECLARATION_MANAGE + "')")
     public CommonResult<TaxDeclarationRespVO> pay(@Valid @RequestBody TaxDeclarationPayReqVO reqVO) {
         return success(taxDeclarationService.recordPayment(reqVO));
     }

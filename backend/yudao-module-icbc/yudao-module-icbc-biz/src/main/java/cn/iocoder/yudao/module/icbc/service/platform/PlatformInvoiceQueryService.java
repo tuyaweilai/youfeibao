@@ -9,7 +9,7 @@ import java.util.List;
  *
  * <p>平台运营看的是全平台，不限于某一个回收企业租户，所以这里的查询必须跨租户。
  * 跨租户只允许平台运营角色调用，鉴权在 Controller 层用
- * {@code @icbc.hasPermission('icbc:platform:invoice:query')} 完成。
+ * {@code @ss.hasPermission(RecyclingPermission.PLATFORM_INVOICE_QUERY)} 完成。
  */
 public interface PlatformInvoiceQueryService {
 

@@ -8,6 +8,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.station.vo.StationRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.station.vo.StationSaveReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.station.IcbcStationDO;
 import cn.iocoder.yudao.module.icbc.service.station.StationService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,14 +38,14 @@ public class StationController {
 
     @PostMapping("/create")
     @Operation(summary = "创建场站")
-    @PreAuthorize("@icbc.hasPermission('icbc:station:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.STATION_MANAGE + "')")
     public CommonResult<Long> create(@Valid @RequestBody StationSaveReqVO createReqVO) {
         return success(stationService.createStation(createReqVO));
     }
 
     @PutMapping("/update")
     @Operation(summary = "更新场站（含是否在收货）")
-    @PreAuthorize("@icbc.hasPermission('icbc:station:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.STATION_MANAGE + "')")
     public CommonResult<Boolean> update(@Valid @RequestBody StationSaveReqVO updateReqVO) {
         stationService.updateStation(updateReqVO);
         return success(true);
@@ -53,7 +54,7 @@ public class StationController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除场站")
     @Parameter(name = "id", description = "编号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:station:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.STATION_MANAGE + "')")
     public CommonResult<Boolean> delete(@RequestParam("id") Long id) {
         stationService.deleteStation(id);
         return success(true);
@@ -62,14 +63,14 @@ public class StationController {
     @GetMapping("/get")
     @Operation(summary = "获得场站")
     @Parameter(name = "id", description = "编号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:station:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.STATION_QUERY + "')")
     public CommonResult<StationRespVO> get(@RequestParam("id") Long id) {
         return success(toResp(stationService.getStation(id)));
     }
 
     @GetMapping("/page")
     @Operation(summary = "获得场站分页")
-    @PreAuthorize("@icbc.hasPermission('icbc:station:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.STATION_QUERY + "')")
     public CommonResult<PageResult<StationRespVO>> page(@Valid StationPageReqVO pageReqVO) {
         PageResult<IcbcStationDO> page = stationService.getStationPage(pageReqVO);
         return success(new PageResult<>(page.getList().stream().map(this::toResp).toList(),

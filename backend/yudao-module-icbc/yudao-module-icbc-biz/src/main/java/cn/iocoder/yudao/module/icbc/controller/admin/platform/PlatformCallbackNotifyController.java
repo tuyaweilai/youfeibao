@@ -45,7 +45,7 @@ public class PlatformCallbackNotifyController {
 
     @GetMapping("/page")
     @Operation(summary = "分页获得工行回调通知（跨租户）")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.PLATFORM_CALLBACK_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_CALLBACK_QUERY + "')")
     public CommonResult<PageResult<CallbackNotifyRespVO>> getPlatformCallbackNotifyPage(
             @Valid CallbackNotifyPageReqVO pageReqVO) {
         PageResult<CallbackNotifyDO> page = callbackNotifyService.getPlatformCallbackNotifyPage(pageReqVO);
@@ -58,14 +58,14 @@ public class PlatformCallbackNotifyController {
     @GetMapping("/get")
     @Operation(summary = "获得工行回调通知详情")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.PLATFORM_CALLBACK_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_CALLBACK_QUERY + "')")
     public CommonResult<CallbackNotifyRespVO> getPlatformCallbackNotify(@RequestParam("id") Long id) {
         return success(toRespVO(callbackNotifyService.getCallbackNotify(id)));
     }
 
     @GetMapping("/summary")
     @Operation(summary = "获得九类通知的处理结果概览（跨租户）")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.PLATFORM_CALLBACK_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_CALLBACK_QUERY + "')")
     public CommonResult<CallbackNotifySummaryRespVO> getPlatformCallbackNotifySummary() {
         return success(callbackNotifyService.getPlatformCallbackNotifySummary());
     }
@@ -73,7 +73,7 @@ public class PlatformCallbackNotifyController {
     @PostMapping("/replay")
     @Operation(summary = "重放处理失败的通知")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.PLATFORM_CALLBACK_RETRY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_CALLBACK_RETRY + "')")
     public CommonResult<Boolean> replayCallback(@RequestParam("id") Long id) {
         callbackNotifyService.replay(id);
         return success(true);

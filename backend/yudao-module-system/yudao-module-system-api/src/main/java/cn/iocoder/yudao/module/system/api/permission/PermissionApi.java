@@ -39,6 +39,19 @@ public interface PermissionApi {
     boolean hasAnyRoles(Long userId, String... roles);
 
     /**
+     * 给角色追加菜单授权（幂等：只新增，不删除已有授权）。
+     *
+     * <p>与 {@link cn.iocoder.yudao.module.system.service.permission.PermissionService#assignRoleMenu}
+     * 的「全量覆盖」不同，这里用于业务模块把代码里定义的权限补给角色，不会把角色已有的菜单（如租户套餐
+     * 带来的系统菜单）抹掉。
+     *
+     * @param roleId  角色编号
+     * @param menuIds 菜单编号集合
+     * @return 实际新增的授权数量
+     */
+    int addRoleMenus(Long roleId, Collection<Long> menuIds);
+
+    /**
      * 获得登陆用户的部门数据权限
      *
      * @param userId 用户编号

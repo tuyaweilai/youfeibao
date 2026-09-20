@@ -39,7 +39,7 @@ public class RedInvoiceController {
 
     @PostMapping("/apply")
     @Operation(summary = "发起红字冲销，取得红字确认单页面")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.RED_INVOICE_APPLY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.RED_INVOICE_APPLY + "')")
     @ApiAccessLog(operateType = CREATE)
     public CommonResult<RedInvoiceApplyResultVO> apply(@Valid @RequestBody RedInvoiceApplyReqVO reqVO) {
         return success(redInvoiceService.apply(reqVO));
@@ -47,7 +47,7 @@ public class RedInvoiceController {
 
     @PostMapping("/revoke")
     @Operation(summary = "撤销尚未生效的红字确认单")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.RED_INVOICE_REVOKE + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.RED_INVOICE_REVOKE + "')")
     @ApiAccessLog(operateType = CREATE)
     public CommonResult<RedInvoiceQueryRespVO> revoke(@Valid @RequestBody RedInvoiceRevokeReqVO reqVO) {
         return success(redInvoiceService.revoke(reqVO));
@@ -55,7 +55,7 @@ public class RedInvoiceController {
 
     @PostMapping("/cancel")
     @Operation(summary = "取消预开票成功但尚未支付的发票")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.INVOICE_CANCEL + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.INVOICE_CANCEL + "')")
     @ApiAccessLog(operateType = CREATE)
     public CommonResult<Boolean> cancel(@Valid @RequestBody InvoiceCancelReqVO reqVO) {
         redInvoiceService.cancelPreInvoice(reqVO.getPartnerOrderId());
@@ -64,7 +64,7 @@ public class RedInvoiceController {
 
     @GetMapping("/get")
     @Operation(summary = "按红冲流水号查询红字发票")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.RED_INVOICE_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.RED_INVOICE_QUERY + "')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<RedInvoiceQueryRespVO> get(@RequestParam("redOffsetNo") String redOffsetNo) {
         return success(redInvoiceService.getByRedOffsetNo(redOffsetNo));
@@ -72,7 +72,7 @@ public class RedInvoiceController {
 
     @GetMapping("/get-by-partner")
     @Operation(summary = "按蓝票合作方订单号查询最近一次红冲记录")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.RED_INVOICE_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.RED_INVOICE_QUERY + "')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<RedInvoiceQueryRespVO> getByPartner(
             @RequestParam("partnerOrderId") @Parameter(description = "蓝票合作方订单号") String partnerOrderId) {
@@ -81,7 +81,7 @@ public class RedInvoiceController {
 
     @GetMapping("/query")
     @Operation(summary = "主动向工行查询红冲最新状态并收敛")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.RED_INVOICE_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.RED_INVOICE_QUERY + "')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<RedInvoiceQueryRespVO> query(@RequestParam("redOffsetNo") String redOffsetNo) {
         return success(redInvoiceService.refresh(redOffsetNo));

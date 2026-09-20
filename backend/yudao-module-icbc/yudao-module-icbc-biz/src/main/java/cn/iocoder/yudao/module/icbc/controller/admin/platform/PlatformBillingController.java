@@ -43,7 +43,7 @@ public class PlatformBillingController {
 
     @GetMapping("/page")
     @Operation(summary = "分页获得计费计量台账（跨租户）")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.PLATFORM_BILLING_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_BILLING_QUERY + "')")
     public CommonResult<PageResult<IcbcBillingLedgerRespVO>> getBillingPage(
             @Valid IcbcBillingLedgerPageReqVO pageReqVO) {
         PageResult<IcbcBillingLedgerDO> page = platformBillingService.getPage(pageReqVO);
@@ -53,7 +53,7 @@ public class PlatformBillingController {
     @PostMapping("/generate")
     @Operation(summary = "重新计量某期间全部租户并落台账")
     @Parameter(name = "periodMonth", description = "计费期间（yyyy-MM）", required = true, example = "2026-09")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.PLATFORM_BILLING_MANAGE + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_BILLING_MANAGE + "')")
     public CommonResult<List<IcbcBillingLedgerRespVO>> generate(
             @RequestParam("periodMonth") String periodMonth) {
         List<IcbcBillingLedgerRespVO> list = platformBillingService.generate(periodMonth).stream()
@@ -66,7 +66,7 @@ public class PlatformBillingController {
     @Operation(summary = "重新计量某个租户某期间并落台账")
     @Parameter(name = "tenantId", description = "租户编号", required = true, example = "1")
     @Parameter(name = "periodMonth", description = "计费期间（yyyy-MM）", required = true, example = "2026-09")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.PLATFORM_BILLING_MANAGE + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_BILLING_MANAGE + "')")
     public CommonResult<IcbcBillingLedgerRespVO> generateTenant(
             @RequestParam("tenantId") Long tenantId,
             @RequestParam("periodMonth") String periodMonth) {

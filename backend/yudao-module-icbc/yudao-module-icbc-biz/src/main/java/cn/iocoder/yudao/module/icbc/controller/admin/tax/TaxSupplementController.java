@@ -34,28 +34,28 @@ public class TaxSupplementController {
 
     @PostMapping("/create")
     @Operation(summary = "登记一条需补缴税费")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.TAX_DECLARATION_MANAGE + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.TAX_DECLARATION_MANAGE + "')")
     public CommonResult<TaxSupplementRespVO> create(@Valid @RequestBody TaxSupplementCreateReqVO reqVO) {
         return success(taxSupplementService.create(reqVO));
     }
 
     @GetMapping("/page")
     @Operation(summary = "分页获得需补缴税费")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
     public CommonResult<PageResult<TaxSupplementRespVO>> getPage(@Valid TaxSupplementPageReqVO reqVO) {
         return success(taxSupplementService.getPage(reqVO));
     }
 
     @GetMapping("/summary")
     @Operation(summary = "待补缴累计金额（按 1% 与 3% 分列）")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.TAX_DECLARATION_QUERY + "')")
     public CommonResult<TaxSupplementSummaryRespVO> getSummary() {
         return success(taxSupplementService.getSummary());
     }
 
     @PostMapping("/pay")
     @Operation(summary = "缴清一条补缴记录并归档凭证")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.TAX_SUPPLEMENT_MANAGE + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.TAX_SUPPLEMENT_MANAGE + "')")
     public CommonResult<TaxSupplementRespVO> pay(@Valid @RequestBody TaxSupplementPayReqVO reqVO) {
         return success(taxSupplementService.recordPayment(reqVO));
     }

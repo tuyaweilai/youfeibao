@@ -419,6 +419,26 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 3. **冒烟**：`mvn -pl yudao-server -am -DskipTests install` + `spring-boot:run` 均成功（`Started YudaoServerApplication in 10.5s`，无 bean / 路由冲突）；租户 1 的 `admin` 调 `GET /admin-api/erp/warehouse/page` 与 `/erp/stock/page` 都返回 `{"list":[],"total":0}`。
 4. **ADR 0025 同步修订**：按 #38 规格，`purchase` 域不启用（采购履约链建在 `icbc`），实际只启用 `stock` 域。
 
+## #40 T02 权限收口到菜单与角色-菜单（已完成）
+
+把 `RecyclingRoleEnum` 从「运行时判权」改成「单一来源」：由它幂等生成菜单权限行、角色授权与租户套餐，
+运行时统一走 yudao 原生的 `@ss.hasPermission`（ADR 0026）。
+
+1. **运行时**：`icbc` 侧 33 个 Controller 的注解从 `@icbc.hasPermission('...')` 改为 `@ss.hasPermission('...')`，
+   所有写死的权限字符串统一成 `RecyclingPermission.*` 常量。删掉 `RecyclingPermissionChecker` 及其测试
+   （`RecyclingRoleEnum` 也不再提供 `roleCodesForPermission`）。
+2. **同步**：新增 `RecyclingPermissionSyncService`。全局部分（`system_menu` 权限行 + 回收企业套餐菜单）
+   由启动 runner `RecyclingPermissionSyncRunner` 自动跑（`@Profile("!unit-test")`，失败只 warn 不阻断启动）；
+   租户内的角色与角色-菜单由 `POST /icbc/tenant/role/init`（超管）跑。两段都幂等，重复调用返回全 0。
+3. **跨模块 API**：system 模块新增 `MenuApi`（按权限查 / 建按钮权限行），`PermissionApi` 加 `addRoleMenus`
+   （只追加不覆盖，保留套餐带来的系统菜单），`TenantApi` 加 `addTenantPackageMenuIds`（追加进套餐）。
+4. **一致性测试**：`RecyclingPermissionAnnotationConsistencyTest` 反射扫描 `controller/admin` 下的
+   `@PreAuthorize`，锁住「注解里的权限 = `RecyclingRoleEnum.allPermissions()`」；新增权限忘了登记会红。
+5. **实测**：启动日志「新增权限行 5 个、回收企业套餐补入 5 个」（即 5 个只在注解里、SQL 没种的权限）；
+   超管调 `/icbc/tenant/role/init` 首次返回 `createdRoleCount=4 / assignedRoleMenuCount=136`，二次全 0；
+   新建租户（套餐 200）的 admin 调权限接口拿到 197 条权限、含全部 icbc 业务权限且无 `icbc:platform:*`；
+   租户 admin 调收购/出售者接口 200、调平台计费接口返回 `code:403`。icbc 模块 430 测试全绿。
+
 ## 下一步建议
 
 - **A.** #13 代办税费申报——**已完成**；
@@ -428,7 +448,10 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 ## 约定与坑
 
-- **权限**：icbc 控制器用 `@icbc.hasPermission`（`RecyclingRoleEnum` 写死角色→权限）。新增权限**必须**在 `RecyclingPermission` + `RecyclingRoleEnum` 登记，否则连超管也 403（未登记即拒绝）。
+- **权限**：icbc 控制器统一用 `@ss.hasPermission(RecyclingPermission.X)`（yudao 原生菜单权限，见 ADR 0026）。
+  新增权限三步：在 `RecyclingPermission` 登记常量 → 挂到 `RecyclingRoleEnum` 的相应角色 → Controller 上用常量。
+  `system_menu` 权限行 / 角色授权 / 回收企业套餐由 `RecyclingPermissionSyncService` 幂等生成，启动时自动补全局部分；
+  一致性测试（`RecyclingPermissionAnnotationConsistencyTest`）会把「注解 ≠ 枚举」判为失败，别再写死字符串。
 - **工行 UI 页面**：预下单/付款/入驻返回的是自动提交表单 HTML，用 `src/views/icbc/util.ts` 的 `openIcbcForm()` 打新窗口，不能当 URL 跳。
 - **新增 icbc 表**：工行返回字段（如 `payee_no`/`payer_no`）在本地库应为可空；表放 `backend/sql/mysql/`，菜单用 `icbc-menu.sql` 幂等维护。**全局表**（无租户隔离语义，如 `icbc_scrap_code`、`icbc_billing_ledger`——后者的 `tenant_id` 是「被计费租户」这个数据列，不是隔离维度）必须登记进 `yudao-server/src/main/resources/application.yaml` 的 `yudao.tenant.ignore-tables`，否则会被拼上 `tenant_id`。租户隔离的单测要打开拦截器（`IcbcTenantTestConfiguration`），它那里同步维护了忽略表清单。单测表结构在 `yudao-module-icbc-biz/src/test/resources/sql/create_tables.sql`。
 - **测 icbc**：`mvn -pl yudao-module-icbc/yudao-module-icbc-biz test`；改了 `-api` 先 `mvn -pl ...-api -DskipTests install`。**不要**用 `-am test`（上游模块有既有失败会挡住 reactor）。

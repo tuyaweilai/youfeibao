@@ -8,6 +8,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreem
 import cn.iocoder.yudao.module.icbc.dal.dataobject.authorization.IcbcSellerAuthorizationDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -41,14 +42,14 @@ public class SellerOnboardingController {
     @GetMapping("/get")
     @Operation(summary = "获得出售者建档总览")
     @Parameter(name = "payeeId", description = "出售者编号", required = true, example = "1024")
-    @PreAuthorize("@icbc.hasPermission('icbc:seller-onboarding:execute')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_ONBOARDING_EXECUTE + "')")
     public CommonResult<SellerOnboardingRespVO> getOnboarding(@RequestParam("payeeId") Long payeeId) {
         return success(sellerOnboardingService.getOnboarding(payeeId));
     }
 
     @GetMapping("/returning-customer")
     @Operation(summary = "回头客带档：按身份证或手机号带出既有档案")
-    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYEE_QUERY + "')")
     public CommonResult<PayeeInfoRespVO> findReturningCustomer(
             @RequestParam(value = "idCardNo", required = false) String idCardNo,
             @RequestParam(value = "mobile", required = false) String mobile) {
@@ -60,7 +61,7 @@ public class SellerOnboardingController {
 
     @PostMapping("/real-name/start")
     @Operation(summary = "发起实人认证（返回工行 H5 页面表单）")
-    @PreAuthorize("@icbc.hasPermission('icbc:seller-onboarding:execute')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_ONBOARDING_EXECUTE + "')")
     public CommonResult<SellerStepRespVO> startRealName(@Valid @RequestBody SellerRealNameReqVO reqVO) {
         return success(sellerOnboardingService.startRealName(reqVO));
     }
@@ -68,7 +69,7 @@ public class SellerOnboardingController {
     @PostMapping("/real-name/sync")
     @Operation(summary = "查询实人认证结果")
     @Parameter(name = "payeeId", description = "出售者编号", required = true, example = "1024")
-    @PreAuthorize("@icbc.hasPermission('icbc:seller-onboarding:execute')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_ONBOARDING_EXECUTE + "')")
     public CommonResult<SellerOnboardingRespVO> syncRealName(@RequestParam("payeeId") Long payeeId) {
         sellerOnboardingService.syncRealName(payeeId);
         return success(sellerOnboardingService.getOnboarding(payeeId));
@@ -78,7 +79,7 @@ public class SellerOnboardingController {
 
     @PostMapping("/onboarding/submit")
     @Operation(summary = "发起收方入驻（返回工行页面表单）")
-    @PreAuthorize("@icbc.hasPermission('icbc:seller-onboarding:execute')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_ONBOARDING_EXECUTE + "')")
     public CommonResult<SellerStepRespVO> submitOnboarding(
             @Valid @RequestBody SellerOnboardingSubmitReqVO reqVO) {
         return success(sellerOnboardingService.submitOnboarding(reqVO));
@@ -87,7 +88,7 @@ public class SellerOnboardingController {
     @PostMapping("/onboarding/sync")
     @Operation(summary = "查询收方入驻结果（两条成败线四种组合）")
     @Parameter(name = "payeeId", description = "出售者编号", required = true, example = "1024")
-    @PreAuthorize("@icbc.hasPermission('icbc:seller-onboarding:execute')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_ONBOARDING_EXECUTE + "')")
     public CommonResult<SellerOnboardingRespVO> syncOnboarding(@RequestParam("payeeId") Long payeeId) {
         sellerOnboardingService.syncOnboarding(payeeId);
         return success(sellerOnboardingService.getOnboarding(payeeId));
@@ -95,7 +96,7 @@ public class SellerOnboardingController {
 
     @PostMapping("/contact-fallback")
     @Operation(summary = "入驻失败时留下联系方式等待联系")
-    @PreAuthorize("@icbc.hasPermission('icbc:seller-onboarding:execute')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_ONBOARDING_EXECUTE + "')")
     public CommonResult<Boolean> leaveContactFallback(
             @Valid @RequestBody SellerContactFallbackReqVO reqVO) {
         sellerOnboardingService.leaveContactFallback(reqVO);
@@ -106,7 +107,7 @@ public class SellerOnboardingController {
 
     @PostMapping("/agreement/create")
     @Operation(summary = "签署 / 更新框架收购协议")
-    @PreAuthorize("@icbc.hasPermission('icbc:seller-agreement:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_AGREEMENT_MANAGE + "')")
     public CommonResult<Long> saveFrameworkAgreement(
             @Valid @RequestBody FrameworkAgreementSaveReqVO reqVO) {
         return success(sellerOnboardingService.saveFrameworkAgreement(reqVO));
@@ -115,7 +116,7 @@ public class SellerOnboardingController {
     @GetMapping("/agreement/get")
     @Operation(summary = "获得生效中的框架收购协议")
     @Parameter(name = "payeeId", description = "出售者编号", required = true, example = "1024")
-    @PreAuthorize("@icbc.hasPermission('icbc:seller-agreement:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_AGREEMENT_MANAGE + "')")
     public CommonResult<FrameworkAgreementRespVO> getFrameworkAgreement(
             @RequestParam("payeeId") Long payeeId) {
         IcbcFrameworkAgreementDO agreement = sellerOnboardingService.getActiveFrameworkAgreement(payeeId);
@@ -125,7 +126,7 @@ public class SellerOnboardingController {
     @GetMapping("/agreement/list")
     @Operation(summary = "获得出售者的全部框架收购协议")
     @Parameter(name = "payeeId", description = "出售者编号", required = true, example = "1024")
-    @PreAuthorize("@icbc.hasPermission('icbc:seller-agreement:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_AGREEMENT_MANAGE + "')")
     public CommonResult<List<FrameworkAgreementRespVO>> getFrameworkAgreementList(
             @RequestParam("payeeId") Long payeeId) {
         return success(sellerOnboardingService.getFrameworkAgreements(payeeId).stream()
@@ -137,7 +138,7 @@ public class SellerOnboardingController {
 
     @PostMapping("/authorization/create")
     @Operation(summary = "记录出售者首次反向开票与代办税费授权")
-    @PreAuthorize("@icbc.hasPermission('icbc:seller-authorization:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_AUTHORIZATION_MANAGE + "')")
     public CommonResult<Long> authorizeSeller(
             @Valid @RequestBody SellerAuthorizationSaveReqVO reqVO) {
         return success(sellerOnboardingService.authorizeSeller(reqVO));
@@ -146,7 +147,7 @@ public class SellerOnboardingController {
     @GetMapping("/authorization/get")
     @Operation(summary = "获得出售者最近一次授权")
     @Parameter(name = "payeeId", description = "出售者编号", required = true, example = "1024")
-    @PreAuthorize("@icbc.hasPermission('icbc:seller-authorization:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_AUTHORIZATION_MANAGE + "')")
     public CommonResult<SellerAuthorizationRespVO> getSellerAuthorization(
             @RequestParam("payeeId") Long payeeId) {
         IcbcSellerAuthorizationDO authorization = sellerOnboardingService.getSellerAuthorization(payeeId);

@@ -7,6 +7,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.appointment.vo.AppointmentN
 import cn.iocoder.yudao.module.icbc.controller.admin.appointment.vo.AppointmentPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.appointment.vo.AppointmentRespVO;
 import cn.iocoder.yudao.module.icbc.service.appointment.AppointmentService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,7 +38,7 @@ public class IcbcAppointmentController {
 
     @GetMapping("/page")
     @Operation(summary = "获得到站预约分页")
-    @PreAuthorize("@icbc.hasPermission('icbc:appointment:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.APPOINTMENT_QUERY + "')")
     public CommonResult<PageResult<AppointmentRespVO>> page(@Valid AppointmentPageReqVO pageReqVO) {
         return success(appointmentService.getPage(pageReqVO));
     }
@@ -45,7 +46,7 @@ public class IcbcAppointmentController {
     @GetMapping("/get")
     @Operation(summary = "获得到站预约")
     @Parameter(name = "id", description = "预约编号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:appointment:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.APPOINTMENT_QUERY + "')")
     public CommonResult<AppointmentRespVO> get(@RequestParam("id") Long id) {
         return success(appointmentService.getAppointment(id));
     }
@@ -53,14 +54,14 @@ public class IcbcAppointmentController {
     @GetMapping("/pending")
     @Operation(summary = "某出售者待到站的预约", description = "现场登记收购时据此带出品类、约多少与车牌")
     @Parameter(name = "payeeId", description = "收方（出售者）档案编号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:appointment:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.APPOINTMENT_QUERY + "')")
     public CommonResult<List<AppointmentRespVO>> pending(@RequestParam("payeeId") Long payeeId) {
         return success(appointmentService.listPendingForPayee(payeeId));
     }
 
     @PostMapping("/arrive")
     @Operation(summary = "标记到场", description = "可同时挂上到场后建的收购单")
-    @PreAuthorize("@icbc.hasPermission('icbc:appointment:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.APPOINTMENT_MANAGE + "')")
     public CommonResult<Boolean> arrive(@Valid @RequestBody AppointmentArriveReqVO reqVO) {
         appointmentService.markArrived(reqVO);
         return success(true);
@@ -68,7 +69,7 @@ public class IcbcAppointmentController {
 
     @PostMapping("/no-show")
     @Operation(summary = "标记未到场")
-    @PreAuthorize("@icbc.hasPermission('icbc:appointment:manage')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.APPOINTMENT_MANAGE + "')")
     public CommonResult<Boolean> noShow(@Valid @RequestBody AppointmentNoShowReqVO reqVO) {
         appointmentService.markNoShow(reqVO);
         return success(true);

@@ -32,7 +32,7 @@ public class PublicTokenController {
 
     @PostMapping("/create")
     @Operation(summary = "签发公开令牌")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.PUBLIC_TOKEN_CREATE + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PUBLIC_TOKEN_CREATE + "')")
     public CommonResult<PublicTokenRespVO> createPublicToken(@Valid @RequestBody PublicTokenCreateReqVO reqVO) {
         return success(publicTokenService.mint(reqVO));
     }

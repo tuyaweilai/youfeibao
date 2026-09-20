@@ -4,6 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.platform.vo.PlatformInvoiceRespVO;
 import cn.iocoder.yudao.module.icbc.service.platform.PlatformInvoiceQueryService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -34,7 +35,7 @@ public class PlatformInvoiceController {
 
     @GetMapping("/list")
     @Operation(summary = "获得全平台反向开票订单（跨租户）")
-    @PreAuthorize("@icbc.hasPermission('icbc:platform:invoice:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_INVOICE_QUERY + "')")
     public CommonResult<List<PlatformInvoiceRespVO>> getPlatformInvoiceList() {
         return success(BeanUtils.toBean(platformInvoiceQueryService.getPlatformInvoiceList(),
                 PlatformInvoiceRespVO.class));

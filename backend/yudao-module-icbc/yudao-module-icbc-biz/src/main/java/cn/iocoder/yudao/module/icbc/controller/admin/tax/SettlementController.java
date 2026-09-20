@@ -37,7 +37,7 @@ public class SettlementController {
 
     @GetMapping("/page")
     @Operation(summary = "分页获得汇算清缴提醒")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.SETTLEMENT_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SETTLEMENT_QUERY + "')")
     public CommonResult<PageResult<SettlementReminderRespVO>> getPage(@Valid SettlementReminderPageReqVO reqVO) {
         return success(annualSettlementService.getPage(reqVO));
     }
@@ -46,7 +46,7 @@ public class SettlementController {
     @Operation(summary = "取出售者某年度的开票与已缴税款对账单")
     @Parameter(name = "payeeId", description = "出售者档案编号", required = true, example = "1024")
     @Parameter(name = "taxYear", description = "纳税年度，为空取当前应提醒年度", example = "2026")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.SETTLEMENT_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SETTLEMENT_QUERY + "')")
     public CommonResult<SellerSettlementStatementRespVO> getStatement(@RequestParam("payeeId") Long payeeId,
                                                                      @RequestParam(value = "taxYear", required = false)
                                                                      Integer taxYear) {
@@ -56,14 +56,14 @@ public class SettlementController {
     @PostMapping("/remind")
     @Operation(summary = "生成某纳税年度的汇算清缴提醒")
     @Parameter(name = "taxYear", description = "纳税年度，为空取当前应提醒年度", example = "2026")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.SETTLEMENT_REMIND + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SETTLEMENT_REMIND + "')")
     public CommonResult<Integer> remind(@RequestParam(value = "taxYear", required = false) Integer taxYear) {
         return success(annualSettlementService.remind(taxYear));
     }
 
     @PostMapping("/handle")
     @Operation(summary = "标记汇算清缴提醒为已提醒")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.SETTLEMENT_REMIND + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SETTLEMENT_REMIND + "')")
     public CommonResult<SettlementReminderRespVO> handle(@Valid @RequestBody SettlementReminderHandleReqVO reqVO) {
         return success(annualSettlementService.handle(reqVO));
     }

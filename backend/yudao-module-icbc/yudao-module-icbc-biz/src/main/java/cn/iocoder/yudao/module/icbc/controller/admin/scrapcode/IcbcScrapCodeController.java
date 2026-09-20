@@ -7,6 +7,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.scrapcode.vo.IcbcScrapCodeP
 import cn.iocoder.yudao.module.icbc.controller.admin.scrapcode.vo.IcbcScrapCodeRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.scrapcode.vo.IcbcScrapCodeSaveReqVO;
 import cn.iocoder.yudao.module.icbc.service.scrapcode.IcbcScrapCodeService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,14 +37,14 @@ public class IcbcScrapCodeController {
 
     @PostMapping("/create")
     @Operation(summary = "创建报废产品编码")
-    @PreAuthorize("@icbc.hasPermission('icbc:scrap-code:create')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SCRAP_CODE_CREATE + "')")
     public CommonResult<Long> create(@Valid @RequestBody IcbcScrapCodeSaveReqVO createReqVO) {
         return success(scrapCodeService.createScrapCode(createReqVO));
     }
 
     @PutMapping("/update")
     @Operation(summary = "更新报废产品编码")
-    @PreAuthorize("@icbc.hasPermission('icbc:scrap-code:update')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SCRAP_CODE_UPDATE + "')")
     public CommonResult<Boolean> update(@Valid @RequestBody IcbcScrapCodeSaveReqVO updateReqVO) {
         scrapCodeService.updateScrapCode(updateReqVO);
         return success(true);
@@ -52,7 +53,7 @@ public class IcbcScrapCodeController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除报废产品编码")
     @Parameter(name = "id", description = "编号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:scrap-code:delete')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SCRAP_CODE_DELETE + "')")
     public CommonResult<Boolean> delete(@RequestParam("id") Long id) {
         scrapCodeService.deleteScrapCode(id);
         return success(true);
@@ -61,21 +62,21 @@ public class IcbcScrapCodeController {
     @GetMapping("/get")
     @Operation(summary = "获得报废产品编码")
     @Parameter(name = "id", description = "编号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:scrap-code:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SCRAP_CODE_QUERY + "')")
     public CommonResult<IcbcScrapCodeRespVO> get(@RequestParam("id") Long id) {
         return success(BeanUtils.toBean(scrapCodeService.getScrapCode(id), IcbcScrapCodeRespVO.class));
     }
 
     @GetMapping("/page")
     @Operation(summary = "获得报废产品编码分页")
-    @PreAuthorize("@icbc.hasPermission('icbc:scrap-code:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SCRAP_CODE_QUERY + "')")
     public CommonResult<PageResult<IcbcScrapCodeRespVO>> page(@Valid IcbcScrapCodePageReqVO pageReqVO) {
         return success(BeanUtils.toBean(scrapCodeService.getScrapCodePage(pageReqVO), IcbcScrapCodeRespVO.class));
     }
 
     @GetMapping("/enabled-list")
     @Operation(summary = "获得启用的报废产品编码列表（租户选编码用）")
-    @PreAuthorize("@icbc.hasPermission('icbc:scrap-code:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SCRAP_CODE_QUERY + "')")
     public CommonResult<List<IcbcScrapCodeRespVO>> enabledList() {
         return success(BeanUtils.toBean(scrapCodeService.getEnabledList(), IcbcScrapCodeRespVO.class));
     }

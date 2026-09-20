@@ -2,8 +2,6 @@ package cn.iocoder.yudao.module.icbc.enums;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.Set;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -166,22 +164,6 @@ public class RecyclingRoleEnumTest {
                 RecyclingPermission.APPOINTMENT_QUERY));
         assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
                 RecyclingPermission.APPOINTMENT_MANAGE));
-    }
-
-    @Test
-    public void testRoleCodesForPermission() {
-        Set<String> roles = RecyclingRoleEnum.roleCodesForPermission(RecyclingPermission.PAYEE_CREATE);
-        assertTrue(roles.contains(RecyclingRoleEnum.RECEIVER.getCode()));
-        assertTrue(roles.contains(RecyclingRoleEnum.ADMIN.getCode()));
-        assertTrue(roles.contains(RecyclingRoleEnum.SUPER_ADMIN_CODE));
-        assertFalse(roles.contains(RecyclingRoleEnum.INVOICER.getCode()));
-        assertFalse(roles.contains(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode()));
-    }
-
-    @Test
-    public void testUnknownPermissionDenied() {
-        assertEquals(Set.of(), RecyclingRoleEnum.roleCodesForPermission("icbc:not-registered"));
-        assertEquals(Set.of(), RecyclingRoleEnum.roleCodesForPermission(null));
     }
 
     @Test

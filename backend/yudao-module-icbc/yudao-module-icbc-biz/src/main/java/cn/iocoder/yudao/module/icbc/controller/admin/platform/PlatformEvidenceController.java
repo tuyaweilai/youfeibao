@@ -34,14 +34,14 @@ public class PlatformEvidenceController {
 
     @GetMapping("/completeness")
     @Operation(summary = "获得全平台五流齐备率（跨租户）")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.PLATFORM_EVIDENCE_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_EVIDENCE_QUERY + "')")
     public CommonResult<EvidenceCompletenessSummaryRespVO> getPlatformCompleteness() {
         return success(platformEvidenceService.getPlatformCompleteness());
     }
 
     @GetMapping("/exception-invoice/list")
     @Operation(summary = "获得全平台异常票清单（跨租户）")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.PLATFORM_EVIDENCE_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_EVIDENCE_QUERY + "')")
     public CommonResult<List<PlatformExceptionInvoiceRespVO>> getExceptionInvoiceList() {
         return success(platformEvidenceService.getExceptionInvoiceList());
     }

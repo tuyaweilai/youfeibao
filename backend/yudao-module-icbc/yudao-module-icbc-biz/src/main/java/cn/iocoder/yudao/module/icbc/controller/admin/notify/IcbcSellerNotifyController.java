@@ -33,21 +33,21 @@ public class IcbcSellerNotifyController {
 
     @GetMapping("/page")
     @Operation(summary = "触达记录分页", description = "看每条触达发没发出去、为什么没发出去")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.SELLER_NOTIFY_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_NOTIFY_QUERY + "')")
     public CommonResult<PageResult<NotifyRespVO>> page(@Valid NotifyPageReqVO pageReqVO) {
         return success(sellerNotifyService.getNotifyPage(pageReqVO));
     }
 
     @GetMapping("/setting")
     @Operation(summary = "查看触达设置")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.SELLER_NOTIFY_QUERY + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_NOTIFY_QUERY + "')")
     public CommonResult<NotifySettingRespVO> setting() {
         return success(sellerNotifyService.getSetting());
     }
 
     @PutMapping("/setting")
     @Operation(summary = "开启 / 关闭本租户短信触达")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.SELLER_NOTIFY_MANAGE + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_NOTIFY_MANAGE + "')")
     public CommonResult<Boolean> saveSetting(@Valid @RequestBody NotifySettingSaveReqVO reqVO) {
         sellerNotifyService.saveSetting(reqVO);
         return success(true);
@@ -56,7 +56,7 @@ public class IcbcSellerNotifyController {
     @PostMapping("/settlement/forward-link")
     @Operation(summary = "一键把结算确认链接转达给出售者",
             description = "返回一次性令牌链接与可直接复制的短信文案；sendSms=true 时顺带发短信，由人显式触发")
-    @PreAuthorize("@icbc.hasPermission('" + RecyclingPermission.SELLER_NOTIFY_MANAGE + "')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_NOTIFY_MANAGE + "')")
     public CommonResult<NotifyForwardLinkRespVO> forwardLink(@Valid @RequestBody NotifyForwardLinkReqVO reqVO) {
         return success(sellerNotifyService.forwardSettlementLink(reqVO));
     }

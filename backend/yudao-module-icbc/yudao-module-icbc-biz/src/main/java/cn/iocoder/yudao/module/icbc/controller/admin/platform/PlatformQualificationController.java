@@ -6,6 +6,7 @@ import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.qualification.vo.IcbcQualificationPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.qualification.vo.IcbcQualificationRespVO;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,7 +36,7 @@ public class PlatformQualificationController {
 
     @GetMapping("/page")
     @Operation(summary = "获得全平台资质分页（跨租户，可按 tenantId 过滤）")
-    @PreAuthorize("@icbc.hasPermission('icbc:platform:qualification:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_QUALIFICATION_QUERY + "')")
     public CommonResult<PageResult<IcbcQualificationRespVO>> page(@Valid IcbcQualificationPageReqVO pageReqVO) {
         return success(BeanUtils.toBean(qualificationService.getQualificationPageIgnoreTenant(pageReqVO),
                 IcbcQualificationRespVO.class));
@@ -46,7 +47,7 @@ public class PlatformQualificationController {
     @Parameter(name = "id", description = "编号", required = true)
     @Parameter(name = "status", description = "0-待核实，1-有效，2-失效，3-吊销", required = true)
     @Parameter(name = "auditRemark", description = "核实意见")
-    @PreAuthorize("@icbc.hasPermission('icbc:platform:qualification:audit')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_QUALIFICATION_AUDIT + "')")
     public CommonResult<Boolean> audit(@RequestParam("id") Long id,
                                        @RequestParam("status") Integer status,
                                        @RequestParam(value = "auditRemark", required = false) String auditRemark) {

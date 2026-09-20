@@ -7,6 +7,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceApplicati
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceApplicationResultVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoicePreCheckRespVO;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceApplicationService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,7 +44,7 @@ public class InvoiceApplicationController {
     @Operation(summary = "开票申请前置校验", description = "逐项列出五类校验结果与补齐方式，不产生业务")
     @Parameter(name = "acquisitionId", description = "收购单编号", required = true, example = "1")
     @Parameter(name = "invoiceType", description = "发票类型：01-专票，02-普票", example = "02")
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-application:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.INVOICE_APPLICATION_QUERY + "')")
     @ApiAccessLog(operateType = GET)
     public CommonResult<InvoicePreCheckRespVO> preCheck(@RequestParam("acquisitionId") Long acquisitionId,
                                                         @RequestParam(value = "invoiceType", required = false,
@@ -53,7 +54,7 @@ public class InvoiceApplicationController {
 
     @PostMapping("/apply")
     @Operation(summary = "单笔发起开票申请", description = "校验通过后返回自然人确认页面，不产生发票")
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-application:apply')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.INVOICE_APPLICATION_APPLY + "')")
     @ApiAccessLog(operateType = CREATE)
     public CommonResult<InvoiceApplicationResultVO> apply(@Valid @RequestBody InvoiceApplicationApplyReqVO reqVO) {
         return success(invoiceApplicationService.apply(reqVO));
@@ -61,7 +62,7 @@ public class InvoiceApplicationController {
 
     @PostMapping("/apply-batch")
     @Operation(summary = "批量发起开票申请", description = "逐笔独立校验与提交，某一笔失败不影响其他笔")
-    @PreAuthorize("@icbc.hasPermission('icbc:invoice-application:apply')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.INVOICE_APPLICATION_APPLY + "')")
     @ApiAccessLog(operateType = CREATE)
     public CommonResult<List<InvoiceApplicationResultVO>> applyBatch(
             @Valid @RequestBody InvoiceApplicationBatchReqVO reqVO) {

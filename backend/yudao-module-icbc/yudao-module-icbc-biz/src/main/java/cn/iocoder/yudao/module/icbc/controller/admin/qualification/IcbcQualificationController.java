@@ -8,6 +8,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.qualification.vo.IcbcQualif
 import cn.iocoder.yudao.module.icbc.controller.admin.qualification.vo.IcbcQualificationSaveReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.qualification.IcbcQualificationDO;
 import cn.iocoder.yudao.module.icbc.service.qualification.IcbcQualificationService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,14 +37,14 @@ public class IcbcQualificationController {
 
     @PostMapping("/create")
     @Operation(summary = "创建资质")
-    @PreAuthorize("@icbc.hasPermission('icbc:qualification:create')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.QUALIFICATION_CREATE + "')")
     public CommonResult<Long> create(@Valid @RequestBody IcbcQualificationSaveReqVO createReqVO) {
         return success(qualificationService.createQualification(createReqVO));
     }
 
     @PutMapping("/update")
     @Operation(summary = "更新资质")
-    @PreAuthorize("@icbc.hasPermission('icbc:qualification:update')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.QUALIFICATION_UPDATE + "')")
     public CommonResult<Boolean> update(@Valid @RequestBody IcbcQualificationSaveReqVO updateReqVO) {
         qualificationService.updateQualification(updateReqVO);
         return success(true);
@@ -52,7 +53,7 @@ public class IcbcQualificationController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除资质")
     @Parameter(name = "id", description = "编号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:qualification:delete')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.QUALIFICATION_DELETE + "')")
     public CommonResult<Boolean> delete(@RequestParam("id") Long id) {
         qualificationService.deleteQualification(id);
         return success(true);
@@ -61,14 +62,14 @@ public class IcbcQualificationController {
     @GetMapping("/get")
     @Operation(summary = "获得资质")
     @Parameter(name = "id", description = "编号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:qualification:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.QUALIFICATION_QUERY + "')")
     public CommonResult<IcbcQualificationRespVO> get(@RequestParam("id") Long id) {
         return success(toResp(qualificationService.getQualification(id)));
     }
 
     @GetMapping("/page")
     @Operation(summary = "获得资质分页")
-    @PreAuthorize("@icbc.hasPermission('icbc:qualification:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.QUALIFICATION_QUERY + "')")
     public CommonResult<PageResult<IcbcQualificationRespVO>> page(@Valid IcbcQualificationPageReqVO pageReqVO) {
         PageResult<IcbcQualificationDO> page = qualificationService.getQualificationPage(pageReqVO);
         return success(BeanUtils.toBean(page, IcbcQualificationRespVO.class, this::fillExpiringSoon));
@@ -76,14 +77,14 @@ public class IcbcQualificationController {
 
     @GetMapping("/list")
     @Operation(summary = "获得资质列表")
-    @PreAuthorize("@icbc.hasPermission('icbc:qualification:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.QUALIFICATION_QUERY + "')")
     public CommonResult<List<IcbcQualificationRespVO>> list() {
         return success(qualificationService.getQualificationList().stream().map(this::toResp).toList());
     }
 
     @GetMapping("/expiring")
     @Operation(summary = "获得临近到期的资质（默认 30 天内）")
-    @PreAuthorize("@icbc.hasPermission('icbc:qualification:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.QUALIFICATION_QUERY + "')")
     public CommonResult<List<IcbcQualificationRespVO>> expiring(
             @RequestParam(value = "days", required = false, defaultValue = "30") Integer days) {
         return success(qualificationService.getExpiringList(days).stream().map(this::toResp).toList());
@@ -91,7 +92,7 @@ public class IcbcQualificationController {
 
     @GetMapping("/tenant-ready")
     @Operation(summary = "本租户三层资质是否齐全有效（开票就绪）")
-    @PreAuthorize("@icbc.hasPermission('icbc:qualification:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.QUALIFICATION_QUERY + "')")
     public CommonResult<Boolean> tenantReady() {
         return success(qualificationService.isTenantReady());
     }

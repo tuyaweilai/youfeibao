@@ -13,6 +13,7 @@ import cn.iocoder.yudao.module.icbc.enums.PayeeBankCardChangeStatusEnum;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
 import cn.iocoder.yudao.module.icbc.util.MaskUtils;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -45,14 +46,14 @@ public class PayeeInfoController {
 
     @PostMapping("/create")
     @Operation(summary = "创建收方信息")
-    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:create')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYEE_CREATE + "')")
     public CommonResult<Long> createPayeeInfo(@Valid @RequestBody PayeeInfoSaveReqVO createReqVO) {
         return success(payeeInfoService.createPayeeInfo(createReqVO));
     }
 
     @PutMapping("/update")
     @Operation(summary = "更新收方信息")
-    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:update')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYEE_UPDATE + "')")
     public CommonResult<Boolean> updatePayeeInfo(@Valid @RequestBody PayeeInfoSaveReqVO updateReqVO) {
         payeeInfoService.updatePayeeInfo(updateReqVO);
         return success(true);
@@ -61,7 +62,7 @@ public class PayeeInfoController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除收方信息")
     @Parameter(name = "id", description = "编号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:delete')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYEE_DELETE + "')")
     public CommonResult<Boolean> deletePayeeInfo(@RequestParam("id") Long id) {
         payeeInfoService.deletePayeeInfo(id);
         return success(true);
@@ -70,7 +71,7 @@ public class PayeeInfoController {
     @GetMapping("/get")
     @Operation(summary = "获得收方信息")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
-    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYEE_QUERY + "')")
     public CommonResult<PayeeInfoRespVO> getPayeeInfo(@RequestParam("id") Long id) {
         PayeeInfoDO payeeInfo = payeeInfoService.getPayeeInfo(id);
         PayeeInfoRespVO respVO = BeanUtils.toBean(payeeInfo, PayeeInfoRespVO.class);
@@ -80,7 +81,7 @@ public class PayeeInfoController {
 
     @GetMapping("/page")
     @Operation(summary = "获得收方信息分页")
-    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYEE_QUERY + "')")
     public CommonResult<PageResult<PayeeInfoRespVO>> getPayeeInfoPage(@Valid PayeeInfoPageReqVO pageReqVO) {
         PageResult<PayeeInfoDO> pageResult = payeeInfoService.getPayeeInfoPage(pageReqVO);
         PageResult<PayeeInfoRespVO> result = PayeeInfoConvert.INSTANCE.convertPage(pageResult);
@@ -90,7 +91,7 @@ public class PayeeInfoController {
 
     @GetMapping("/export-excel")
     @Operation(summary = "导出收方信息 Excel")
-    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:export')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYEE_EXPORT + "')")
     public void exportPayeeInfoExcel(@Valid PayeeInfoPageReqVO exportReqVO,
               HttpServletResponse response) throws IOException {
         exportReqVO.setPageSize(PageParam.PAGE_SIZE_NONE);
@@ -104,14 +105,14 @@ public class PayeeInfoController {
 
     @PostMapping("/reverse/receiver/add")
     @Operation(summary = "工行收方新增接口")
-    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:create')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYEE_CREATE + "')")
     public CommonResult<Long> addPayeeToIcbc(@Valid @RequestBody PayeeAddReqVO reqVO) {
         return success(payeeInfoService.addPayeeToIcbc(reqVO));
     }
 
     @PostMapping("/reverse/receiver/query")
     @Operation(summary = "工行收方查询接口")
-    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYEE_QUERY + "')")
     public CommonResult<List<PayeeInfoRespVO>> queryPayeeFromIcbc(@Valid @RequestBody PayeeQueryReqVO reqVO) {
         List<PayeeInfoDO> list = payeeInfoService.queryPayeeFromIcbc(reqVO);
         return success(PayeeInfoConvert.INSTANCE.convertList(list));
@@ -132,7 +133,7 @@ public class PayeeInfoController {
     @GetMapping("/bank-card-change/list")
     @Operation(summary = "获得某出售者的收款账户变更记录（倒序）")
     @Parameter(name = "payeeId", description = "收方（出售者）档案编号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYEE_QUERY + "')")
     public CommonResult<List<PayeeBankCardChangeRespVO>> getBankCardChangeList(
             @RequestParam("payeeId") Long payeeId) {
         return success(payeeBankCardChangeService.listByPayeeId(payeeId).stream()
@@ -142,7 +143,7 @@ public class PayeeInfoController {
     @PostMapping("/bank-card-change/cancel")
     @Operation(summary = "取消在途的收款账户变更",
             description = "企业侧人工清障：审核中的变更取消后，原卡继续有效，付款随即恢复")
-    @PreAuthorize("@icbc.hasPermission('icbc:payee-info:update')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYEE_UPDATE + "')")
     public CommonResult<Boolean> cancelBankCardChange(@RequestParam("changeId") Long changeId,
                                                      @RequestParam(value = "reason", required = false) String reason) {
         payeeBankCardChangeService.cancelChange(changeId, reason);

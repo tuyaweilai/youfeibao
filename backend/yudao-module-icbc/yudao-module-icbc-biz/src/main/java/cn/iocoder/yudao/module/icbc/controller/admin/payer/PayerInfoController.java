@@ -6,6 +6,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.payer.vo.*;
 import cn.iocoder.yudao.module.icbc.convert.payer.PayerInfoConvert;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payer.PayerInfoDO;
 import cn.iocoder.yudao.module.icbc.service.payer.PayerInfoService;
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,14 +35,14 @@ public class PayerInfoController {
 
     @PostMapping("/create")
     @Operation(summary = "创建付方信息")
-    @PreAuthorize("@icbc.hasPermission('icbc:payer-info:create')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYER_CREATE + "')")
     public CommonResult<Long> createPayerInfo(@Valid @RequestBody PayerInfoSaveReqVO createReqVO) {
         return success(payerInfoService.createPayerInfo(createReqVO));
     }
 
     @PutMapping("/update")
     @Operation(summary = "更新付方信息")
-    @PreAuthorize("@icbc.hasPermission('icbc:payer-info:update')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYER_UPDATE + "')")
     public CommonResult<Boolean> updatePayerInfo(@Valid @RequestBody PayerInfoSaveReqVO updateReqVO) {
         payerInfoService.updatePayerInfo(updateReqVO);
         return success(true);
@@ -50,7 +51,7 @@ public class PayerInfoController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除付方信息")
     @Parameter(name = "id", description = "编号", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:payer-info:delete')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYER_DELETE + "')")
     public CommonResult<Boolean> deletePayerInfo(@RequestParam("id") Long id) {
         payerInfoService.deletePayerInfo(id);
         return success(true);
@@ -59,7 +60,7 @@ public class PayerInfoController {
     @DeleteMapping("/delete-batch")
     @Operation(summary = "批量删除付方信息")
     @Parameter(name = "ids", description = "编号列表", required = true)
-    @PreAuthorize("@icbc.hasPermission('icbc:payer-info:delete')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYER_DELETE + "')")
     public CommonResult<Boolean> deletePayerInfos(@RequestParam("ids") Collection<Long> ids) {
         payerInfoService.deletePayerInfos(ids);
         return success(true);
@@ -68,7 +69,7 @@ public class PayerInfoController {
     @GetMapping("/get")
     @Operation(summary = "获得付方信息")
     @Parameter(name = "id", description = "编号", required = true, example = "1024")
-    @PreAuthorize("@icbc.hasPermission('icbc:payer-info:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYER_QUERY + "')")
     public CommonResult<PayerInfoRespVO> getPayerInfo(@RequestParam("id") Long id) {
         PayerInfoDO payerInfo = payerInfoService.getPayerInfo(id);
         return success(PayerInfoConvert.INSTANCE.convert(payerInfo));
@@ -77,7 +78,7 @@ public class PayerInfoController {
     @GetMapping("/get-by-credit-code")
     @Operation(summary = "根据统一社会信用代码获得付方信息")
     @Parameter(name = "creditCode", description = "统一社会信用代码", required = true, example = "91110105MA01R2278M")
-    @PreAuthorize("@icbc.hasPermission('icbc:payer-info:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYER_QUERY + "')")
     public CommonResult<PayerInfoRespVO> getPayerInfoByCreditCode(@RequestParam("creditCode") String creditCode) {
         PayerInfoDO payerInfo = payerInfoService.getPayerInfoByCreditCode(creditCode);
         return success(PayerInfoConvert.INSTANCE.convert(payerInfo));
@@ -86,7 +87,7 @@ public class PayerInfoController {
     @GetMapping("/list")
     @Operation(summary = "获得付方信息列表")
     @Parameter(name = "ids", description = "编号列表", required = true, example = "1024,2048")
-    @PreAuthorize("@icbc.hasPermission('icbc:payer-info:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYER_QUERY + "')")
     public CommonResult<List<PayerInfoRespVO>> getPayerInfoList(@RequestParam("ids") Collection<Long> ids) {
         List<PayerInfoDO> list = payerInfoService.getPayerInfoList(ids);
         return success(PayerInfoConvert.INSTANCE.convertList(list));
@@ -94,7 +95,7 @@ public class PayerInfoController {
 
     @GetMapping("/page")
     @Operation(summary = "获得付方信息分页")
-    @PreAuthorize("@icbc.hasPermission('icbc:payer-info:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYER_QUERY + "')")
     public CommonResult<PageResult<PayerInfoRespVO>> getPayerInfoPage(@Valid PayerInfoPageReqVO pageVO) {
         PageResult<PayerInfoDO> pageResult = payerInfoService.getPayerInfoPage(pageVO);
         return success(PayerInfoConvert.INSTANCE.convertPage(pageResult));
@@ -102,14 +103,14 @@ public class PayerInfoController {
 
     @PostMapping("/reverse/payer/add")
     @Operation(summary = "工行付方新增接口")
-    @PreAuthorize("@icbc.hasPermission('icbc:payer-info:create')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYER_CREATE + "')")
     public CommonResult<Long> addPayerToIcbc(@Valid @RequestBody PayerAddReqVO reqVO) {
         return success(payerInfoService.addPayerToIcbc(reqVO));
     }
 
     @PostMapping("/reverse/payer/query")
     @Operation(summary = "工行付方查询接口")
-    @PreAuthorize("@icbc.hasPermission('icbc:payer-info:query')")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PAYER_QUERY + "')")
     public CommonResult<PayerInfoRespVO> queryPayerFromIcbc(@Valid @RequestBody PayerQueryReqVO reqVO) {
         PayerInfoDO payerInfo = payerInfoService.queryPayerFromIcbc(reqVO);
         return success(PayerInfoConvert.INSTANCE.convert(payerInfo));

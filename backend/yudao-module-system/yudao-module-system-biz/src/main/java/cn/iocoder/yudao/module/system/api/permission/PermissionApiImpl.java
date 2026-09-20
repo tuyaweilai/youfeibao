@@ -1,11 +1,14 @@
 package cn.iocoder.yudao.module.system.api.permission;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.iocoder.yudao.module.system.api.permission.dto.DeptDataPermissionRespDTO;
 import cn.iocoder.yudao.module.system.service.permission.PermissionService;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -32,6 +35,24 @@ public class PermissionApiImpl implements PermissionApi {
     @Override
     public boolean hasAnyRoles(Long userId, String... roles) {
         return permissionService.hasAnyRoles(userId, roles);
+    }
+
+    @Override
+    public int addRoleMenus(Long roleId, Collection<Long> menuIds) {
+        if (CollUtil.isEmpty(menuIds)) {
+            return 0;
+        }
+        // 计算差集，只新增不删除，避免把租户套餐带来的菜单抹掉
+        Set<Long> currentMenuIds = permissionService.getRoleMenuListByRoleId(Collections.singleton(roleId));
+        Set<Long> toAddMenuIds = new LinkedHashSet<>(menuIds);
+        toAddMenuIds.removeAll(currentMenuIds);
+        if (toAddMenuIds.isEmpty()) {
+            return 0;
+        }
+        Set<Long> unionMenuIds = new LinkedHashSet<>(currentMenuIds);
+        unionMenuIds.addAll(menuIds);
+        permissionService.assignRoleMenu(roleId, unionMenuIds);
+        return toAddMenuIds.size();
     }
 
     @Override
