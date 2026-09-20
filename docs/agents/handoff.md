@@ -609,6 +609,19 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - **`.m2` 共享**：四个 worktree 共用 `~/.m2`，`-am install` 会互相覆盖 SNAPSHOT。改 `-api` 又要同轮测 `-biz` 时，用一条 reactor 命令：`mvn -pl yudao-module-icbc/yudao-module-icbc-api,yudao-module-icbc/yudao-module-icbc-biz test`。
 - **工作目录**：一票一目录一分支（`../youfeibao-t07` 等），**不要在同一目录多开窗口**。
 
+### 第二轮并行约定（#46 / #49）
+
+| 票 | 分支 | 菜单 ID 段 | 错误码段 |
+|---|---|---|---|
+| #46 T08 采购订单 | `t08-purchase-order` | 5227–5239 | `1_030_031_xxx` |
+| #49 T11 进项收票登记与勾稽 | `t11-input-invoice` | 5244–5259 | `1_030_032_xxx` |
+
+脊柱文件规则同上（各票只追加、不重排）。额外约定：
+
+- **两票不要互相编译依赖**。`#46` 建 `icbc_purchase_order` + 明细，并在 `PurchaseOrderService` 上留一个只读方法供 `#49` 合并后按 `id` 取单据金额 / 单号。
+- **`#49` 的勾稽用通用关联表**：`icbc_input_invoice_link(biz_type, biz_id, biz_no, biz_amount, linked_amount, ...)`，`InputInvoiceBizTypeEnum` 先支持 `ACQUISITION`（已存在）与 `PURCHASE_ORDER`（#46 落地），`STOCK_IN` 等 #52 再加。金额上限按调用方给出的 `biz_amount` 校验，**不 `import` #46 / #52 的类**，保证本分支独立可编译可测。
+- 合并后由人工在 `#49` 里把 `PURCHASE_ORDER` 的 `biz_amount` 查数接到 `#46` 的只读方法（一小段）。
+
 | 票 | 标题 | blocked by |
 |---|---|---|
 | #39 | T01 放开 ERP 并让本地能起 | — |
