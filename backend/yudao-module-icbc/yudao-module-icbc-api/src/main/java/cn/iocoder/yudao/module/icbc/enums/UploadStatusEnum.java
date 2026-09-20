@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.icbc.enums;
 
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 发票上传状态（发票文件上传至税务端）。
@@ -18,6 +19,9 @@ public enum UploadStatusEnum {
     UPLOADING(3, "上传中", "上传进行中，可稍后在「查状态」查询"),
     SUCCESS(4, "上传成功", null),
     FAILED(5, "上传失败", "发票上传失败，请在「查状态」确认后重新上传，或联系工行处理");
+
+    /** 需人工关注的异常状态：上传失败 */
+    private static final Set<Integer> EXCEPTION = Set.of(FAILED.status);
 
     private final Integer status;
     private final String name;
@@ -78,7 +82,14 @@ public enum UploadStatusEnum {
      * 是否为需要人工关注的异常态
      */
     public static boolean isException(Integer status) {
-        return FAILED.status.equals(status);
+        return status != null && EXCEPTION.contains(status);
+    }
+
+    /**
+     * 全部异常状态。工作台等聚合场景按集合一次性取数，不逐个状态拼条件。
+     */
+    public static Set<Integer> exceptionStatuses() {
+        return EXCEPTION;
     }
 
     public static String nameOf(Integer status) {

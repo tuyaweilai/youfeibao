@@ -27,4 +27,21 @@ public interface IcbcExpiryWarningMapper extends BaseMapperX<IcbcExpiryWarningDO
                 .stream().findFirst().orElse(null);
     }
 
+    // ==================== 工作台预警（#56 T18） ====================
+
+    /** 工作台「资质到期」预警条数：待处理的到期预警。 */
+    default long selectCountOpen() {
+        return selectCount(new LambdaQueryWrapperX<IcbcExpiryWarningDO>()
+                .eq(IcbcExpiryWarningDO::getStatus, 0));
+    }
+
+    /** 工作台「资质到期」预警明细：最快到期的排在前面，最多 {@code limit} 条。 */
+    default List<IcbcExpiryWarningDO> selectListOpen(int limit) {
+        return selectList(new LambdaQueryWrapperX<IcbcExpiryWarningDO>()
+                .eq(IcbcExpiryWarningDO::getStatus, 0)
+                .orderByAsc(IcbcExpiryWarningDO::getValidTo)
+                .orderByAsc(IcbcExpiryWarningDO::getId)
+                .last("LIMIT " + limit));
+    }
+
 }

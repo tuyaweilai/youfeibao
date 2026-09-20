@@ -8,6 +8,8 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.quota.SellerQuotaGuidanceDO;
 import cn.iocoder.yudao.module.icbc.enums.SellerQuotaGuidanceStatusEnum;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.List;
+
 /**
  * 出售者额度超限引导记录 Mapper
  */
@@ -36,6 +38,23 @@ public interface SellerQuotaGuidanceMapper extends BaseMapperX<SellerQuotaGuidan
                 .likeIfPresent(SellerQuotaGuidanceDO::getSellerName, reqVO.getSellerName())
                 .orderByDesc(SellerQuotaGuidanceDO::getLastTriggeredAt)
                 .orderByDesc(SellerQuotaGuidanceDO::getId));
+    }
+
+    // ==================== 工作台预警（#56 T18） ====================
+
+    /** 工作台「额度」预警条数：本租户尚未办结的引导记录。 */
+    default long selectCountOpen() {
+        return selectCount(new LambdaQueryWrapperX<SellerQuotaGuidanceDO>()
+                .ne(SellerQuotaGuidanceDO::getStatus, SellerQuotaGuidanceStatusEnum.RESOLVED.getStatus()));
+    }
+
+    /** 工作台「额度」预警明细：超限最久的排在前面，最多 {@code limit} 条。 */
+    default List<SellerQuotaGuidanceDO> selectListOpen(int limit) {
+        return selectList(new LambdaQueryWrapperX<SellerQuotaGuidanceDO>()
+                .ne(SellerQuotaGuidanceDO::getStatus, SellerQuotaGuidanceStatusEnum.RESOLVED.getStatus())
+                .orderByAsc(SellerQuotaGuidanceDO::getTriggeredAt)
+                .orderByAsc(SellerQuotaGuidanceDO::getId)
+                .last("LIMIT " + limit));
     }
 
 }

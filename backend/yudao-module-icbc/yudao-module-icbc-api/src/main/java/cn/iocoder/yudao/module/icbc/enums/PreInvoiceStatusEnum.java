@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.icbc.enums;
 
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 预开票状态。
@@ -17,6 +18,9 @@ public enum PreInvoiceStatusEnum {
     SUCCESS(2, "02", "预开票成功"),
     FAILED(3, "03", "预开票失败"),
     CANCELLED(4, "04", "预开票取消");
+
+    /** 需人工关注的异常状态：预开票失败 */
+    private static final Set<Integer> EXCEPTION = Set.of(FAILED.status);
 
     private final Integer status;
     private final String code;
@@ -53,5 +57,19 @@ public enum PreInvoiceStatusEnum {
 
     public static Optional<PreInvoiceStatusEnum> ofCode(String code) {
         return Arrays.stream(values()).filter(item -> item.code.equals(code)).findFirst();
+    }
+
+    /**
+     * 是否为需要人工关注的异常态
+     */
+    public static boolean isException(Integer status) {
+        return status != null && EXCEPTION.contains(status);
+    }
+
+    /**
+     * 全部异常状态。工作台等聚合场景按集合一次性取数。
+     */
+    public static Set<Integer> exceptionStatuses() {
+        return EXCEPTION;
     }
 }

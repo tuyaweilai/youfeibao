@@ -24,4 +24,12 @@ public interface IcbcEnterpriseAuthMapper extends BaseMapperX<IcbcEnterpriseAuth
         return selectOne(IcbcEnterpriseAuthDO::getOutVendorId, outVendorId);
     }
 
+    // ==================== 工作台开票就绪（#56 T18） ====================
+
+    /** 本租户处于给定授权状态的记录数（开票就绪看「已授权」）。 */
+    default long selectCountByAuthStatus(Integer authStatus) {
+        return selectCount(new LambdaQueryWrapperX<IcbcEnterpriseAuthDO>()
+                .eq(IcbcEnterpriseAuthDO::getAuthStatus, authStatus));
+    }
+
 }

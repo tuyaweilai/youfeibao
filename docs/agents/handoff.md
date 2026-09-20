@@ -618,3 +618,53 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 1. **ADR 0025 的域取舍在规格里被修订**：`purchase` 域不启用（采购履约链建在 `icbc` 模块，因为采购订单必须与收购单在同一模块内做关联追溯；`erp` 侧反向依赖 icbc 是错的）。实际只启用 `stock` 域。**#39 已把 ADR 0025 同步改掉**。
 2. **`yudao-module-erp-biz/src/test/` 是空的**，没有 `create_tables.sql` / `clean.sql`。凡涉及 ERP 库存能力的测试，先把这两份 H2 资源建起来（`#42` 起需要）。
+
+## #56 T18 工作台待办与开票就绪徽标（已完成，分支 `t18-workbench`）
+
+工作台（菜单 5200）从占位页变成一屏：八类待办 + 三条预警 + 开票就绪徽标，每项带口径与来源明细。
+
+1. **后端只读聚合**：`GET /icbc/workbench/overview`（权限 `icbc:workbench:query`），
+   `WorkbenchServiceImpl`。`WorkbenchTodoCodeEnum`（`icbc-api`）是待办项的**唯一来源**（编码 / 名称 /
+   口径 `definition`），前端按 `code` 决定下钻到哪个模块——所以后端不返回前端路由，层不混。
+2. **八类待办与取数（都在本票内落地，只读，不新增表）**：
+   - 今日到场 / 上门 ← `icbc_appointment` 待到站且预计到站 ≤ 今日（含逾期未处理）；
+   - 待称重 ← `icbc_acquisition` 未作废且 `net_weight` 为空（登记要件允许重量留空）；
+   - 待验收 ← 未作废、已录磅重、`settlement_id` 为空（现场还没「结束本次收货」）；
+   - 待入库 ← **显式标注「待接入」**（见下第 3 条）；
+   - 待结算确认 / 异议 ← `icbc_settlement` 处于待确认 / 有异议；
+   - 付款失败 ← `icbc_payment_order` 异常态（复用 `PaymentStatusEnum.exceptionStatuses()`）；
+   - 票务失败 ← `icbc_invoice_order` 预开票失败 / 开票失败 / 缴税异常 / 上传失败任一（同一张票只算一条；
+     红冲是另一张单 `icbc_red_invoice` 的状态线，不在本项口径内，已在枚举的 `definition` 里写明）。
+   每项附最多 10 条来源明细（单号 / 谁 / 说明 / 状态 / 时间 / 金额），总数照实报。
+3. **「待入库」判 `available=false` 而不是硬凑一个数字**：入库单是 T14（#52）才有的东西，
+   批次与验收结论是 T12/T15（#50/#53）。在它们落地前，「已入库」与「待入库」区分不开，硬算会给出
+   一个**用户无法清零**的待办（比如「待入库 37」却没有任何入库动作）。所以它出现在八项里、写明原因
+   （`unavailableReason`），界面上显示「待接入」+「—」而不是数字。**#52 落地后**：把
+   `WorkbenchTodoCodeEnum.PENDING_STOCK_IN` 的 `unavailableReason` 清空、在 `WorkbenchServiceImpl.loadTodo`
+   的 `default` 前加一个 `case PENDING_STOCK_IN` 分支即可，其余不用动。
+   > 待称重 / 待验收同样会在 T12 之后改成按交接批次取数（现在按收购单的现有事实取，口径写在枚举里）。
+4. **三条预警**：额度（未办结的 `icbc_seller_quota_guidance`）、资质到期（待处理的
+   `icbc_expiry_warning`）、开票就绪（未就绪时 DANGER，就绪时 OK）。就绪检查只算**本地库能判定**的四项
+   （三层资质 / 企业授权 / 付方档案 / 启用品类），**不打工行网络**——连通性仍在「基础资料 - 开票就绪自检」页按需验。
+5. **AC4「开票就绪不再是一级菜单」**：#41 已把「租户开票就绪」一级菜单取消、自检页挂在「基础资料」下
+   （菜单 5117，是配置入口）。本票把**就绪状态**做成工作台顶部徽标，点开是同一份检查表 + 逐项「去处理」。
+6. **落地物**：`WorkbenchController` / `WorkbenchService(+Impl)` / 6 个 VO / `WorkbenchTodoCodeEnum` /
+   `RecyclingPermission.WORKBENCH_QUERY`（挂到管理员 / 收货员 / 开票员 / 财务）+ `RecyclingRoleEnum`；
+   `icbc-menu.sql` 追加 **5210 工作台待办查询**（在 5200 下，随套餐递归进回收企业套餐）；
+   9 个 Mapper 各追加工作台专用的 `selectCount*/selectList*`（不改既有方法）；`PaymentStatusEnum` /
+   `TaxStatusEnum` / `UploadStatusEnum` / `PreInvoiceStatusEnum` 各追加 `exceptionStatuses()`
+   （异常口径仍只有一处，`isException` 也读同一个集合，`contains(null)` 不会 NPE）。
+   前端重写 `views/icbc/workbench/index.vue` + 新增 `api/icbc/workbench`（明细抽屉 + 就绪弹窗）。
+   **没有新表**，所以 `create_tables.sql` / `clean.sql` 未动。
+7. **测试**：`WorkbenchServiceTest` 13 例（八项固定顺序且都带口径、今日到场含逾期且不含未来 / 已到场、
+   待称重与待验收互斥、结算按确认状态分列、付款异常态、票务四条线且同票只算一条、额度与资质预警只算未办结 /
+   待处理、就绪由未就绪翻到就绪、明细上限 10 但总数照实）。**icbc 444 测试全绿**。
+8. **并行开工的坑（新发现）**：四个 worktree 共用 `~/.m2`。我在 `-pl ...-api install` 之后跑
+   `-pl ...-biz test`，中途被别的 worktree 的 `install` 覆盖了 `yudao-module-icbc-api` 的 SNAPSHOT jar，
+   于是 biz 编译报「找不到 WorkbenchTodoCodeEnum / WORKBENCH_QUERY」。**改 api 又要在同一轮里测 biz 时，
+   用一条 reactor 命令**：`mvn -pl yudao-module-icbc/yudao-module-icbc-api,yudao-module-icbc/yudao-module-icbc-biz test`
+   （两个模块同在一个 session，api 走 reactor 的 `target/classes`，不读 `.m2`）。
+9. **本地验收**：`icbc-menu.sql` 已在一个临时库（`t18_menu_check`，用完即删）整份跑通并通过：5210 落 5200 下、
+   套餐菜单 93 个含它。**没有动共享本地库**——四个 worktree 会各自重跑这份文件（它删 5100–5299 再重建），
+   谁跑谁把别人刚加的段删掉，所以本票只在需要时跑，并且跑完记得重新登录刷新菜单缓存（前端 `roleRouters`）。
+10. **前端**：`pnpm install --prefer-offline`（6.8s）+ `pnpm build:local` 通过。

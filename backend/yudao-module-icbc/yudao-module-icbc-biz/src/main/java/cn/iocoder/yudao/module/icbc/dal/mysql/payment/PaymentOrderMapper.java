@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.dal.mysql.payment;
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
+import cn.iocoder.yudao.module.icbc.enums.PaymentStatusEnum;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.Collection;
@@ -57,6 +58,22 @@ public interface PaymentOrderMapper extends BaseMapperX<PaymentOrderDO> {
         return selectList(new LambdaQueryWrapperX<PaymentOrderDO>()
                 .in(PaymentOrderDO::getAcquisitionId, acquisitionIds)
                 .orderByDesc(PaymentOrderDO::getId));
+    }
+
+    // ==================== 工作台待办（#56 T18） ====================
+
+    /** 工作台「付款失败」条数：异常状态（失败 / 关闭 / 冲正 / 退汇 / 他行已扣款 / 部分成功）。 */
+    default long selectCountException() {
+        return selectCount(new LambdaQueryWrapperX<PaymentOrderDO>()
+                .in(PaymentOrderDO::getPaymentStatus, PaymentStatusEnum.exceptionStatuses()));
+    }
+
+    /** 工作台「付款失败」明细：最近发生的排在前面，最多 {@code limit} 条。 */
+    default List<PaymentOrderDO> selectListException(int limit) {
+        return selectList(new LambdaQueryWrapperX<PaymentOrderDO>()
+                .in(PaymentOrderDO::getPaymentStatus, PaymentStatusEnum.exceptionStatuses())
+                .orderByDesc(PaymentOrderDO::getId)
+                .last("LIMIT " + limit));
     }
 
 } 

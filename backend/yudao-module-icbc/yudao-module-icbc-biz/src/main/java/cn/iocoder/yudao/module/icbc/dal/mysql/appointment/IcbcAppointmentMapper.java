@@ -8,6 +8,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.appointment.IcbcAppointmentDO
 import cn.iocoder.yudao.module.icbc.enums.AppointmentStatusEnum;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
@@ -69,6 +70,29 @@ public interface IcbcAppointmentMapper extends BaseMapperX<IcbcAppointmentDO> {
                 .geIfPresent(IcbcAppointmentDO::getExpectedArrivalTime, reqVO.getArrivalTimeStart())
                 .leIfPresent(IcbcAppointmentDO::getExpectedArrivalTime, reqVO.getArrivalTimeEnd())
                 .orderByDesc(IcbcAppointmentDO::getId));
+    }
+
+    // ==================== 工作台待办（#56 T18） ====================
+
+    /**
+     * 工作台「今日到场 / 上门」条数：待到站、且预计到站时间不晚于 {@code deadline}（含已逾期未处理的）。
+     */
+    default long selectCountPendingArrivalBefore(LocalDateTime deadline) {
+        return selectCount(new LambdaQueryWrapperX<IcbcAppointmentDO>()
+                .eq(IcbcAppointmentDO::getStatus, AppointmentStatusEnum.PENDING.getStatus())
+                .le(IcbcAppointmentDO::getExpectedArrivalTime, deadline));
+    }
+
+    /**
+     * 工作台「今日到场 / 上门」明细：按预计到站时间升序（越早该先接待），最多 {@code limit} 条。
+     */
+    default List<IcbcAppointmentDO> selectListPendingArrivalBefore(LocalDateTime deadline, int limit) {
+        return selectList(new LambdaQueryWrapperX<IcbcAppointmentDO>()
+                .eq(IcbcAppointmentDO::getStatus, AppointmentStatusEnum.PENDING.getStatus())
+                .le(IcbcAppointmentDO::getExpectedArrivalTime, deadline)
+                .orderByAsc(IcbcAppointmentDO::getExpectedArrivalTime)
+                .orderByAsc(IcbcAppointmentDO::getId)
+                .last("LIMIT " + limit));
     }
 
 }
