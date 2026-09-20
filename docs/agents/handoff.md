@@ -585,8 +585,22 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 - **规格**：[#38](https://github.com/tuyaweilai/youfeibao/issues/38)（`ready-for-agent`），56 条 user story、12 条实现决策、测试决策、out of scope、further notes。
 - **19 张票**：`#39`–`#57`，边用 GitHub 原生 issue dependencies 连（21 条）。
-- **frontier（现在就能 grab）**：`#47` T09 履约五口径与执行进度 / `#51` T13 收购单关联采购安排与「直接收购」。四张第一轮（`#45`/`#48`/`#50`/`#56`）与两张第二轮（`#46`/`#49`）都已合并进 `main`。
+- **frontier（现在就能 grab）**：`#47` T09 履约五口径与执行进度 / `#51` T13 收购单关联采购安排与「直接收购」。第一轮（`#45`/`#48`/`#50`/`#56`）与第二轮（`#46`/`#49`）都已合并进 `main`。
 - 依赖链（已完成票已删）：`#51→#52→#54/#55`；`#51→#53`；`#47/#52→#57`。
+
+### 第三轮并行约定（#47 / #51）
+
+| 票 | 分支 | 菜单 ID 段 | 错误码段 |
+|---|---|---|---|
+| #47 T09 履约五口径与执行进度 | `t09-order-progress` | 5250–5269 | `1_030_033_xxx` |
+| #51 T13 收购单关联采购安排与「直接收购」 | `t13-acquisition-link` | 5270–5289 | `1_030_034_xxx` |
+
+脊柱文件规则同前两轮（各票只追加、不重排；权限枚举、测试建表 / `clean.sql` / `README.md` / `handoff.md` 均只追自己的部分）。额外约定：
+
+- **`#47` 拥有 `PurchaseOrderService` 与 `PurchaseOrderProgressRespVO` 的进度口径**；`#51` 只调用 #46 已有的 `assertUsableAsPurchaseBasis` / 新增一个「可选采购安排查询」读取方法，不改 #47 的进度 VO。
+- **`#47` 的「入库」口径暂不可算**（入库单是 #52）：按 #56 的做法标 `unavailableReason` / 「待接入」，不要硬凑数字；`#52` 落地后再接。
+- **`#51` 会给 `icbc_acquisition` 加「采购订单 / 订单明细」关联列**（与 #50 的 `handover_batch_id` 同表），采用 `NOT NULL DEFAULT 0`，别用 NULL（同一票的教训见 ADR 0027/唯一索引）。
+- **落库时不要用 `git add -A`**：main 工作树里有一批与本轮无关的现场端 WIP，`-A` 会把它卷进提交（第二轮已踩过）。只 `git add` 自己改的文件。
 
 ### 并行开工约定（2026-09-20，已完成一轮）
 
