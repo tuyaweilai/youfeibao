@@ -1,5 +1,5 @@
 import { uploadImage } from '@/utils/upload'
-import { NodeReportReq, reportNode } from '@/api/task'
+import { AbnormalReportReq, NodeReportReq, reportAbnormal, reportNode } from '@/api/task'
 
 /** 尚未上传的照片（base64），补传时先上传拿到 URL */
 export interface DraftPhoto {
@@ -7,12 +7,19 @@ export interface DraftPhoto {
   dataUrl: string
 }
 
-/** 弱网时暂存在本地的一次节点上报 */
+/**
+ * 弱网时暂存在本地的一次上报。
+ *
+ * <p>节点与异常共用一份草稿队列：异常（道路封闭、没信号）恰恰更容易发生在弱网时。
+ * 旧草稿没有 `kind` 字段，按 NODE 兼容。
+ */
 export interface NodeDraft {
   clientRequestId: string
   createdAt: number
   summary: string
-  payload: Omit<NodeReportReq, 'photos'>
+  /** 上报类型：NODE-运输节点，ABNORMAL-运输异常；空按 NODE 兼容旧草稿 */
+  kind?: 'NODE' | 'ABNORMAL'
+  payload: Omit<NodeReportReq, 'photos'> | Omit<AbnormalReportReq, 'photos'>
   photos: DraftPhoto[]
   /** 已经上传好的照片 URL */
   photoUrls: Record<string, string>
@@ -72,7 +79,13 @@ export async function syncOfflineNodes(): Promise<{ success: number; failed: num
         draft.photoUrls[photo.key] = url
         photos.push(url)
       }
-      await reportNode({ ...draft.payload, photos })
+      // 幂等靠服务端的 `clientRequestId`：同一请求号重复提交只会落一条，
+      // 所以这里可以放心重试，不需要本地记录「传到哪一条了」。
+      if (draft.kind === 'ABNORMAL') {
+        await reportAbnormal({ ...draft.payload, photos } as AbnormalReportReq)
+      } else {
+        await reportNode({ ...draft.payload, photos } as NodeReportReq)
+      }
       removeDraft(draft.clientRequestId)
       success++
     } catch (e) {

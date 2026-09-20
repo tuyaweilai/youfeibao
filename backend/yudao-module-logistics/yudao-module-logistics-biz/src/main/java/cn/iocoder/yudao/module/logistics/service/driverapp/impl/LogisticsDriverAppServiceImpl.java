@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.logistics.service.driverapp.impl;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
+import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportAbnormalReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.driver.LogisticsDriverDO;
@@ -72,6 +73,12 @@ public class LogisticsDriverAppServiceImpl implements LogisticsDriverAppService 
     public Long reportMyNode(LogisticsTransportNodeReportReqVO reportReqVO) {
         getMyTask(reportReqVO.getTaskId());
         return logisticsTransportNodeService.reportNode(reportReqVO);
+    }
+
+    @Override
+    public Long reportMyAbnormal(LogisticsTransportAbnormalReportReqVO reportReqVO) {
+        getMyTask(reportReqVO.getTaskId());
+        return logisticsTransportNodeService.reportAbnormal(reportReqVO);
     }
 
 }

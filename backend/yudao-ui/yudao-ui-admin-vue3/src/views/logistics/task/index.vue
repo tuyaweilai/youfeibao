@@ -4,7 +4,7 @@
       type="info"
       :closable="false"
       class="mb-10px"
-      title="一个运输任务 = 一车 + 一司机 + 一次执行（一个出发地、一个提货点、一个时间窗）。任务可以什么都不挂——司机直接上门收购是常态。本票只开放「起运」一个节点；其余四类节点与异常标记见后续票。"
+      title="一个运输任务 = 一车 + 一司机 + 一次执行（一个出发地、一个提货点、一个时间窗）。五类运输节点都可上报，其中「交接完成」与「卸货完成」必须有照片；异常（车辆故障、道路封闭等）是独立标记，不改变任务状态；改派保留前后承接关系。"
     />
     <el-form class="-mb-15px" :model="queryParams" ref="queryFormRef" :inline="true" label-width="80px">
       <el-form-item label="任务单号" prop="taskNo">
@@ -64,6 +64,13 @@
             @click="handleAccept(row.id)"
             v-hasPermi="['logistics:transport-task:update']"
           >接单</el-button>
+          <el-button
+            v-if="row.status === 1 || row.status === 2 || row.status === 3"
+            link
+            type="primary"
+            @click="openReassign(row)"
+            v-hasPermi="['logistics:transport-task:reassign']"
+          >改派</el-button>
           <el-button
             v-if="row.status === 3 || row.status === 2"
             link
@@ -201,6 +208,60 @@
     </template>
   </Dialog>
 
+  <!-- 改派 -->
+  <Dialog title="改派运输任务" v-model="reassignVisible" width="520px">
+    <el-alert
+      type="info"
+      :closable="false"
+      class="mb-10px"
+      title="换车换人保留前后承接关系（原车原人 → 新车新人 + 原因）。改派不改任务状态。"
+    />
+    <el-form label-width="90px">
+      <el-form-item label="车辆">
+        <el-select v-model="reassignForm.vehicleId" placeholder="请选择新车" filterable class="!w-100%">
+          <el-option
+            v-for="v in vehicleOptions"
+            :key="v.id"
+            :label="`${v.plateNo}${v.vehicleType ? ' · ' + v.vehicleType : ''}`"
+            :value="v.id!"
+            :disabled="v.status === 2"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="司机">
+        <el-select v-model="reassignForm.driverId" placeholder="请选择新司机" filterable class="!w-100%">
+          <el-option
+            v-for="d in driverOptions"
+            :key="d.id"
+            :label="`${d.name}${d.source === 2 ? '（承运商）' : ''}`"
+            :value="d.id!"
+            :disabled="d.status !== 0"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="改派原因">
+        <el-input v-model="reassignForm.reason" type="textarea" :rows="3" placeholder="必填：为什么要中途换车换人" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="submitReassign" type="primary" :disabled="formLoading">确 定</el-button>
+      <el-button @click="reassignVisible = false">取 消</el-button>
+    </template>
+  </Dialog>
+
+  <!-- 解决异常 -->
+  <Dialog title="标记异常已解决" v-model="resolveVisible" width="480px">
+    <el-form label-width="90px">
+      <el-form-item label="解决说明">
+        <el-input v-model="resolveForm.resolveRemark" type="textarea" :rows="3" placeholder="怎么解决的（选填）" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="submitResolve" type="primary" :disabled="formLoading">确 定</el-button>
+      <el-button @click="resolveVisible = false">取 消</el-button>
+    </template>
+  </Dialog>
+
   <!-- 详情与时间线 -->
   <el-drawer v-model="detailVisible" title="运输任务详情" size="640px">
     <div v-if="detail" v-loading="detailLoading" class="detail">
@@ -233,33 +294,78 @@
         <el-timeline-item
           v-for="node in detail.nodes"
           :key="node.id"
+          :type="node.abnormalType ? 'warning' : 'primary'"
           :timestamp="`发生 ${formatTime(node.nodeTime)} ／ 上报 ${formatTime(node.reportTime)}`"
           placement="top"
         >
           <el-card shadow="never">
-            <div class="node__title">{{ node.nodeTypeName }}</div>
+            <div class="node__title">
+              {{ node.nodeTypeName || '异常' }}
+              <el-tag v-if="node.abnormalType" type="warning" size="small" class="ml-5px">异常</el-tag>
+            </div>
+            <div v-if="node.abnormalType" class="node__line">
+              异常类型：{{ node.abnormalTypeName }}｜说明：{{ node.abnormalReason || '—' }}
+            </div>
             <div class="node__line">位置：{{ node.location || '未记录' }}</div>
             <div class="node__line">上报人：{{ node.operatorName || '—' }}</div>
             <div v-if="node.photos && node.photos.length" class="node__line">凭证：{{ node.photos.length }} 张照片</div>
             <div v-else class="node__line node__line--warn">凭证：无照片</div>
+            <div v-if="node.abnormalType" class="node__line">
+              <template v-if="node.abnormalResolved">
+                已解决：{{ node.abnormalResolvedName || '—' }}（{{ formatTime(node.abnormalResolvedAt) }}）{{ node.abnormalResolvedRemark ? '：' + node.abnormalResolvedRemark : '' }}
+              </template>
+              <template v-else>
+                <el-tag type="danger" size="small">待解决</el-tag>
+                <el-button
+                  link
+                  type="primary"
+                  class="ml-5px"
+                  @click="openResolve(node)"
+                  v-hasPermi="['logistics:transport-node:abnormal:resolve']"
+                >标记已解决</el-button>
+              </template>
+            </div>
           </el-card>
         </el-timeline-item>
       </el-timeline>
       <el-empty v-else description="还没有任何节点上报" />
 
       <el-alert
-        v-if="detail.missingNodeNames && detail.missingNodeNames.length"
+        v-if="(detail.missingNodeNames && detail.missingNodeNames.length) || (detail.missingEvidenceNames && detail.missingEvidenceNames.length)"
         type="warning"
         :closable="false"
         class="mt-10px"
-        :title="`断点：${detail.missingNodeNames.join('、')} 尚未上报`"
+        :title="brokenPointText"
       />
+
+      <h4 class="section">改派承接记录</h4>
+      <el-empty v-if="!detail.reassigns || !detail.reassigns.length" description="没有改派过" :image-size="60" />
+      <el-timeline v-else>
+        <el-timeline-item
+          v-for="record in detail.reassigns"
+          :key="record.id"
+          :timestamp="formatTime(record.reassignTime)"
+          placement="top"
+        >
+          <div class="node__line">
+            {{ record.prevPlateNo || '—' }}／{{ record.prevDriverName || '—' }}
+            → {{ record.plateNo || '—' }}／{{ record.driverName || '—' }}
+          </div>
+          <div class="node__line">原因：{{ record.reason }}（{{ record.operatorName || '—' }}）</div>
+        </el-timeline-item>
+      </el-timeline>
 
       <h4 class="section">运输轨迹（模拟演示）</h4>
       <TransportTrackDemo v-if="detail.id" :task-id="detail.id" />
 
-      <h4 class="section">补录节点（本期只支持「起运」）</h4>
+      <h4 class="section">补录运输节点</h4>
       <el-form :model="nodeForm" label-width="90px" class="mt-10px">
+        <el-form-item label="节点类型">
+          <el-select v-model="nodeForm.nodeType" class="!w-100%">
+            <el-option v-for="(label, value) in NODE_TYPE_NAME" :key="value" :label="label" :value="Number(value)" />
+          </el-select>
+          <div v-if="nodePhotoRequired" class="tip">「交接完成」与「卸货完成」是货物流的关键凭证，必须上传照片。</div>
+        </el-form-item>
         <el-form-item label="发生时间">
           <el-date-picker
             v-model="nodeForm.nodeTime"
@@ -272,12 +378,42 @@
         <el-form-item label="位置">
           <el-input v-model="nodeForm.location" placeholder="如：城东场站门口" />
         </el-form-item>
+        <el-form-item label="凭证照片">
+          <UploadFile v-model="nodeForm.photos" :limit="6" />
+        </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="nodeForm.remark" placeholder="选填" />
         </el-form-item>
-        <div class="tip">照片由司机端上报时拍摄（后续票）；PC 代录只记时间与位置。发生时间与上报时间会分开留痕——补录晚到不代表业务倒序。</div>
+        <div class="tip">发生时间与上报时间会分开留痕——补录晚到不代表业务倒序。</div>
         <el-button type="primary" class="mt-10px" @click="submitNode" v-hasPermi="['logistics:transport-node:report']">
-          上报起运
+          上报节点
+        </el-button>
+      </el-form>
+
+      <h4 class="section">上报异常（独立标记，不改变任务状态）</h4>
+      <el-form :model="abnormalForm" label-width="90px" class="mt-10px">
+        <el-form-item label="异常类型">
+          <el-select v-model="abnormalForm.abnormalType" class="!w-100%">
+            <el-option v-for="(label, value) in ABNORMAL_TYPE_NAME" :key="value" :label="label" :value="Number(value)" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="发生时间">
+          <el-date-picker
+            v-model="abnormalForm.nodeTime"
+            type="datetime"
+            value-format="x"
+            placeholder="事情实际发生的时刻"
+            class="!w-100%"
+          />
+        </el-form-item>
+        <el-form-item label="说明">
+          <el-input v-model="abnormalForm.abnormalReason" type="textarea" :rows="2" placeholder="必填：发生了什么" />
+        </el-form-item>
+        <el-form-item label="现场照片">
+          <UploadFile v-model="abnormalForm.photos" :limit="6" />
+        </el-form-item>
+        <el-button type="warning" class="mt-10px" @click="submitAbnormal" v-hasPermi="['logistics:transport-node:report']">
+          上报异常
         </el-button>
       </el-form>
     </div>
@@ -285,11 +421,12 @@
 </template>
 
 <script setup lang="ts">
-import { LogisticsTransportTaskApi, LogisticsTransportNodeApi, LogisticsTransportTaskVO } from '@/api/logistics/task'
+import { LogisticsTransportTaskApi, LogisticsTransportNodeApi, LogisticsTransportNodeVO, LogisticsTransportTaskVO } from '@/api/logistics/task'
 import { LogisticsVehicleApi, LogisticsVehicleVO } from '@/api/logistics/vehicle'
 import { LogisticsDriverApi, LogisticsDriverVO } from '@/api/logistics/driver'
 import { formatDate } from '@/utils/formatTime'
 import TransportTrackDemo from './components/TransportTrackDemo.vue'
+import UploadFile from '@/components/UploadFile/src/UploadFile.vue'
 
 defineOptions({ name: 'LogisticsTask' })
 
@@ -308,6 +445,27 @@ const STATUS_TAG: Record<number, 'success' | 'warning' | 'info' | 'danger'> = {
   3: 'warning',
   4: 'success',
   5: 'danger'
+}
+// 五类节点（与后端 LogisticsTransportNodeTypeEnum 对齐）
+const NODE_TYPE_NAME: Record<number, string> = {
+  1: '到达提货点',
+  2: '交接完成',
+  3: '起运',
+  4: '到达场站',
+  5: '卸货完成'
+}
+// 照片必填的两类：交接完成与卸货完成（货物流关键凭证）
+const NODE_PHOTO_REQUIRED_TYPES = [2, 5]
+// 八类异常（与后端 LogisticsTransportAbnormalTypeEnum 对齐）
+const ABNORMAL_TYPE_NAME: Record<number, string> = {
+  1: '车辆故障',
+  2: '交通事故',
+  3: '天气延误',
+  4: '道路封闭',
+  5: '货物损坏',
+  6: '对方不在',
+  7: '地址错误',
+  8: '其他'
 }
 
 const { t } = useI18n()
@@ -520,14 +678,37 @@ const submitCancel = async () => {
 const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detail = ref<LogisticsTransportTaskVO>()
-const nodeForm = reactive<{ nodeTime?: number; location?: string; remark?: string }>({})
+const nodeForm = reactive<{ nodeType?: number; nodeTime?: number; location?: string; remark?: string; photos: string }>({
+  photos: ''
+})
+const abnormalForm = reactive<{ abnormalType?: number; nodeTime?: number; abnormalReason?: string; photos: string }>({
+  photos: ''
+})
+
+const nodePhotoRequired = computed(() => NODE_PHOTO_REQUIRED_TYPES.includes(nodeForm.nodeType ?? 0))
+const brokenPointText = computed(() => {
+  const parts: string[] = []
+  if (detail.value?.missingNodeNames?.length) {
+    parts.push(`尚未上报：${detail.value.missingNodeNames.join('、')}`)
+  }
+  if (detail.value?.missingEvidenceNames?.length) {
+    parts.push(`缺凭证：${detail.value.missingEvidenceNames.join('、')}`)
+  }
+  return parts.length ? `断点 · ${parts.join('；')}` : ''
+})
 
 const openDetail = async (id: number) => {
   detailVisible.value = true
   detailLoading.value = true
+  nodeForm.nodeType = 3 // 默认「起运」
   nodeForm.nodeTime = Date.now()
   nodeForm.location = undefined
   nodeForm.remark = undefined
+  nodeForm.photos = ''
+  abnormalForm.abnormalType = 1
+  abnormalForm.nodeTime = Date.now()
+  abnormalForm.abnormalReason = undefined
+  abnormalForm.photos = ''
   try {
     detail.value = await LogisticsTransportTaskApi.getTask(id)
   } finally {
@@ -535,24 +716,131 @@ const openDetail = async (id: number) => {
   }
 }
 
+/** UploadFile 的 v-model 是「逗号分隔的 URL 字符串」，转成接口要的数组 */
+function toPhotoList(photos: string): string[] {
+  return (photos || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+}
+
 const submitNode = async () => {
+  if (!nodeForm.nodeType) {
+    message.warning('请选择节点类型')
+    return
+  }
   if (!nodeForm.nodeTime) {
     message.warning('发生时间不能为空')
+    return
+  }
+  const photos = toPhotoList(nodeForm.photos)
+  if (nodePhotoRequired.value && photos.length === 0) {
+    message.warning('「交接完成」与「卸货完成」必须上传照片')
     return
   }
   formLoading.value = true
   try {
     await LogisticsTransportNodeApi.reportNode({
       taskId: detail.value!.id!,
-      nodeType: 3, // 起运（本期只支持这一类）
+      nodeType: nodeForm.nodeType,
       nodeTime: nodeForm.nodeTime as unknown as Date,
       location: nodeForm.location,
+      photos,
       remark: nodeForm.remark,
       // 幂等键：重复点击/断网重发不会落下两个节点
       clientRequestId: newClientRequestId()
     })
-    message.success('已上报起运')
+    message.success('已上报节点')
     await openDetail(detail.value!.id!)
+    await getList()
+  } finally {
+    formLoading.value = false
+  }
+}
+
+const submitAbnormal = async () => {
+  if (!abnormalForm.abnormalType) {
+    message.warning('请选择异常类型')
+    return
+  }
+  if (!abnormalForm.abnormalReason) {
+    message.warning('异常说明必填')
+    return
+  }
+  if (!abnormalForm.nodeTime) {
+    message.warning('发生时间不能为空')
+    return
+  }
+  formLoading.value = true
+  try {
+    await LogisticsTransportNodeApi.reportAbnormal({
+      taskId: detail.value!.id!,
+      abnormalType: abnormalForm.abnormalType,
+      abnormalReason: abnormalForm.abnormalReason,
+      nodeTime: abnormalForm.nodeTime as unknown as Date,
+      photos: toPhotoList(abnormalForm.photos),
+      clientRequestId: newClientRequestId()
+    })
+    message.success('已上报异常（不影响任务状态）')
+    await openDetail(detail.value!.id!)
+  } finally {
+    formLoading.value = false
+  }
+}
+
+// ==================== 异常解决 ====================
+const resolveVisible = ref(false)
+const resolveForm = reactive<{ id?: number; resolveRemark?: string }>({})
+const openResolve = (node: LogisticsTransportNodeVO) => {
+  resolveVisible.value = true
+  resolveForm.id = node.id
+  resolveForm.resolveRemark = undefined
+}
+const submitResolve = async () => {
+  formLoading.value = true
+  try {
+    await LogisticsTransportNodeApi.resolveAbnormal({
+      id: resolveForm.id!,
+      resolveRemark: resolveForm.resolveRemark
+    })
+    message.success('已标记解决')
+    resolveVisible.value = false
+    await openDetail(detail.value!.id!)
+  } finally {
+    formLoading.value = false
+  }
+}
+
+// ==================== 改派 ====================
+const reassignVisible = ref(false)
+const reassignForm = reactive<{ id?: number; vehicleId?: number; driverId?: number; reason?: string }>({})
+const openReassign = async (row: LogisticsTransportTaskVO) => {
+  reassignVisible.value = true
+  reassignForm.id = row.id
+  reassignForm.vehicleId = undefined
+  reassignForm.driverId = undefined
+  reassignForm.reason = undefined
+  await loadOptions()
+}
+const submitReassign = async () => {
+  if (!reassignForm.vehicleId || !reassignForm.driverId) {
+    message.warning('新车与新司机都要选')
+    return
+  }
+  if (!reassignForm.reason) {
+    message.warning('改派原因必填')
+    return
+  }
+  formLoading.value = true
+  try {
+    await LogisticsTransportTaskApi.reassignTask({
+      id: reassignForm.id!,
+      vehicleId: reassignForm.vehicleId,
+      driverId: reassignForm.driverId,
+      reason: reassignForm.reason
+    })
+    message.success('已改派，承接记录已留痕')
+    reassignVisible.value = false
     await getList()
   } finally {
     formLoading.value = false

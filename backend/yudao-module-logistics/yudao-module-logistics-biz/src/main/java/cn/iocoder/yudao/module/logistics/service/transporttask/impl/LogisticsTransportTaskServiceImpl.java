@@ -8,11 +8,14 @@ import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.Logis
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskOverrideAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskReassignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.driver.LogisticsDriverDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
+import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskReassignDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.vehicle.LogisticsVehicleDO;
 import cn.iocoder.yudao.module.logistics.dal.mysql.transporttask.LogisticsTransportTaskMapper;
+import cn.iocoder.yudao.module.logistics.dal.mysql.transporttask.LogisticsTransportTaskReassignMapper;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsDriverStatusEnum;
 import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
@@ -27,6 +30,8 @@ import org.springframework.validation.annotation.Validated;
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
@@ -46,6 +51,8 @@ public class LogisticsTransportTaskServiceImpl implements LogisticsTransportTask
 
     @Resource
     private LogisticsTransportTaskMapper logisticsTransportTaskMapper;
+    @Resource
+    private LogisticsTransportTaskReassignMapper logisticsTransportTaskReassignMapper;
     @Resource
     private LogisticsVehicleService logisticsVehicleService;
     @Resource
@@ -138,6 +145,65 @@ public class LogisticsTransportTaskServiceImpl implements LogisticsTransportTask
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reassignTask(LogisticsTransportTaskReassignReqVO reassignReqVO) {
+        if (StrUtil.isBlank(reassignReqVO.getReason())) {
+            throw exception(TRANSPORT_TASK_REASSIGN_REASON_REQUIRED);
+        }
+        LogisticsTransportTaskDO task = getTask(reassignReqVO.getId());
+        LogisticsTransportTaskStatusEnum current = LogisticsTransportTaskStatusEnum.ofStatus(task.getStatus())
+                .orElseThrow(() -> exception(TRANSPORT_TASK_REASSIGN_NOT_ALLOWED));
+        // 待分配还没有车与人可换；终态已经了结。中途（已分配 / 已接单 / 执行中）都能换车换人。
+        if (current != LogisticsTransportTaskStatusEnum.ASSIGNED
+                && current != LogisticsTransportTaskStatusEnum.ACCEPTED
+                && current != LogisticsTransportTaskStatusEnum.IN_TRANSIT) {
+            throw exception(TRANSPORT_TASK_REASSIGN_NOT_ALLOWED);
+        }
+
+        Long prevVehicleId = task.getVehicleId();
+        LogisticsTransportTaskDO update = new LogisticsTransportTaskDO();
+        update.setId(task.getId());
+        // 门禁与首次派车一致（证件过期 / 车辆维修中 / 司机离职都会拦），并占用新车
+        fillAssignment(update, reassignReqVO.getVehicleId(), reassignReqVO.getDriverId(), false);
+        // 原车放回车队（换的是同一辆车就不动它；维修中的车 releaseByTask 会自己跳过）
+        if (!Objects.equals(prevVehicleId, reassignReqVO.getVehicleId())) {
+            logisticsVehicleService.releaseByTask(prevVehicleId);
+        }
+        // 不覆盖任务上的原派车时间：改派时间属于承接记录，不是「第一次派车是什么时候」
+        update.setAssignTime(null);
+        logisticsTransportTaskMapper.updateById(update);
+
+        // 承接记录：原车原人 → 新车新人 + 原因 + 谁改的。只追加，不覆盖。
+        LogisticsTransportTaskReassignDO record = new LogisticsTransportTaskReassignDO();
+        record.setTaskId(task.getId());
+        record.setTaskNo(task.getTaskNo());
+        record.setPrevVehicleId(task.getVehicleId());
+        record.setPrevPlateNo(task.getPlateNo());
+        record.setPrevDriverId(task.getDriverId());
+        record.setPrevDriverName(task.getDriverName());
+        record.setPrevDriverMobile(task.getDriverMobile());
+        record.setVehicleId(update.getVehicleId());
+        record.setPlateNo(update.getPlateNo());
+        record.setDriverId(update.getDriverId());
+        record.setDriverName(update.getDriverName());
+        record.setDriverMobile(update.getDriverMobile());
+        record.setReason(reassignReqVO.getReason());
+        record.setOperatorId(SecurityFrameworkUtils.getLoginUserId());
+        record.setOperatorName(SecurityFrameworkUtils.getLoginUserNickname());
+        record.setReassignTime(LocalDateTime.now());
+        logisticsTransportTaskReassignMapper.insert(record);
+    }
+
+    @Override
+    public List<LogisticsTransportTaskReassignDO> getReassignListByTaskId(Long taskId) {
+        if (taskId == null) {
+            return Collections.emptyList();
+        }
+        return logisticsTransportTaskReassignMapper.selectListByTaskId(taskId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void acceptTask(Long id) {
         LogisticsTransportTaskDO task = getTask(id);
         LogisticsTransportTaskDO update = new LogisticsTransportTaskDO();

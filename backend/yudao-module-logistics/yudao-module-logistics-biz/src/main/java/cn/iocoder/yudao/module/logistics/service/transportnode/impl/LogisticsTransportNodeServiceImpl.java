@@ -4,11 +4,14 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
 import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
+import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportAbnormalReportReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportAbnormalResolveReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeRespVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transportnode.LogisticsTransportNodeDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
 import cn.iocoder.yudao.module.logistics.dal.mysql.transportnode.LogisticsTransportNodeMapper;
+import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportAbnormalTypeEnum;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportNodeTypeEnum;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportTaskStatusEnum;
 import cn.iocoder.yudao.module.logistics.service.transportnode.LogisticsTransportNodeService;
@@ -27,21 +30,19 @@ import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionU
 import static cn.iocoder.yudao.module.logistics.enums.ErrorCodeConstants.*;
 
 /**
- * 运输节点 Service 实现（V2b #78）。
+ * 运输节点 Service 实现（V2b #78；V4 #71 开全五类并加异常）。
  *
- * <p>两件事必须做对：**写入幂等**（弱网补传会重复提交同一条事实）与**两个时间分开**
- *（发生时间是事情真的发生的那一刻，上报时间是客户端提交上来的那一刻；补录晚到不代表业务倒序）。
+ * <p>三件事必须做对：
+ * <ol>
+ *   <li><b>写入幂等</b>——弱网补传会重复提交同一条事实；</li>
+ *   <li><b>两个时间分开</b>——发生时间是事情真的发生的那一刻，上报时间是客户端提交上来的那一刻；
+ *       补录晚到不代表业务倒序（时间线按发生时间排）；</li>
+ *   <li><b>异常是独立标记，不是状态</b>——异常只落事实，任务状态机由 {@link LogisticsTransportTaskService} 负责。</li>
+ * </ol>
  */
 @Service
 @Validated
 public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNodeService {
-
-    /**
-     * 本票开放上报的节点类型。其余四类归 V4（#71）——那时才有照片必填策略与异常标记，
-     * 现在放开等于把「还没设计好的规则」也交给现场用。
-     */
-    private static final List<Integer> SUPPORTED_NODE_TYPES =
-            Collections.singletonList(LogisticsTransportNodeTypeEnum.DEPARTED.getType());
 
     @Resource
     private LogisticsTransportNodeMapper logisticsTransportNodeMapper;
@@ -57,20 +58,27 @@ public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNode
         if (existing != null) {
             return existing.getId();
         }
-        // 2. 类型与时间：本期只开放起运；发生时间必填（它是时间线的排序依据，不能靠上报时间替代）
-        if (!SUPPORTED_NODE_TYPES.contains(reportReqVO.getNodeType())) {
-            throw exception(TRANSPORT_NODE_TYPE_NOT_SUPPORTED_YET);
+        // 2. 类型与时间：五类节点全部可上报；发生时间必填（它是时间线的排序依据，不能靠上报时间替代）
+        if (reportReqVO.getNodeType() == null) {
+            throw exception(TRANSPORT_NODE_TYPE_REQUIRED);
         }
+        LogisticsTransportNodeTypeEnum nodeType = LogisticsTransportNodeTypeEnum.ofType(reportReqVO.getNodeType())
+                .orElseThrow(() -> exception(TRANSPORT_NODE_TYPE_UNKNOWN));
         if (reportReqVO.getNodeTime() == null) {
             throw exception(TRANSPORT_NODE_TIME_REQUIRED);
         }
         LogisticsTransportTaskDO task = logisticsTransportTaskService.getTask(reportReqVO.getTaskId());
+        assertTaskReportable(task);
+        // 3. 照片必填策略：交接完成与卸货完成是货物流的关键凭证（ADR 0031 / 税总 5 号公告第十七条）
+        if (nodeType.isPhotoRequired() && CollUtil.isEmpty(reportReqVO.getPhotos())) {
+            throw exception(TRANSPORT_NODE_PHOTO_REQUIRED);
+        }
 
-        // 3. 落节点
+        // 4. 落节点
         LogisticsTransportNodeDO node = new LogisticsTransportNodeDO();
         node.setTaskId(task.getId());
         node.setTaskNo(task.getTaskNo());
-        node.setNodeType(reportReqVO.getNodeType());
+        node.setNodeType(nodeType.getType());
         node.setNodeTime(reportReqVO.getNodeTime());
         node.setReportTime(LocalDateTime.now());
         node.setLocation(reportReqVO.getLocation());
@@ -83,8 +91,8 @@ public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNode
         node.setRemark(reportReqVO.getRemark());
         logisticsTransportNodeMapper.insert(node);
 
-        // 4. 起运把任务推进到「执行中」（状态推进只经任务服务，状态机只有一处）
-        if (LogisticsTransportNodeTypeEnum.DEPARTED.getType().equals(reportReqVO.getNodeType())) {
+        // 5. 起运把任务推进到「执行中」（状态推进只经任务服务，状态机只有一处）
+        if (LogisticsTransportNodeTypeEnum.DEPARTED == nodeType) {
             LogisticsTransportTaskDO update = new LogisticsTransportTaskDO();
             update.setId(task.getId());
             update.setStartTime(reportReqVO.getNodeTime());
@@ -92,6 +100,72 @@ public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNode
                     task, LogisticsTransportTaskStatusEnum.IN_TRANSIT, update);
         }
         return node.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long reportAbnormal(LogisticsTransportAbnormalReportReqVO reportReqVO) {
+        // 1. 幂等：与节点共用同一套客户端请求号
+        LogisticsTransportNodeDO existing =
+                logisticsTransportNodeMapper.selectByClientRequestId(reportReqVO.getClientRequestId());
+        if (existing != null) {
+            return existing.getId();
+        }
+        // 2. 校验：类型固定枚举、说明必填、发生时间必填
+        LogisticsTransportAbnormalTypeEnum abnormalType =
+                LogisticsTransportAbnormalTypeEnum.ofType(reportReqVO.getAbnormalType())
+                        .orElseThrow(() -> exception(TRANSPORT_ABNORMAL_TYPE_UNKNOWN));
+        if (StrUtil.isBlank(reportReqVO.getAbnormalReason())) {
+            throw exception(TRANSPORT_ABNORMAL_REASON_REQUIRED);
+        }
+        if (reportReqVO.getNodeTime() == null) {
+            throw exception(TRANSPORT_NODE_TIME_REQUIRED);
+        }
+        LogisticsTransportTaskDO task = logisticsTransportTaskService.getTask(reportReqVO.getTaskId());
+        assertTaskReportable(task);
+
+        // 3. 落一条**没有节点类型**的事实：异常是独立标记，不是「走到哪一步」
+        LogisticsTransportNodeDO node = new LogisticsTransportNodeDO();
+        node.setTaskId(task.getId());
+        node.setTaskNo(task.getTaskNo());
+        node.setNodeType(null);
+        node.setNodeTime(reportReqVO.getNodeTime());
+        node.setReportTime(LocalDateTime.now());
+        node.setLocation(reportReqVO.getLocation());
+        node.setLatitude(reportReqVO.getLatitude());
+        node.setLongitude(reportReqVO.getLongitude());
+        node.setPhotos(toPhotosJson(reportReqVO.getPhotos()));
+        node.setOperatorId(SecurityFrameworkUtils.getLoginUserId());
+        node.setOperatorName(currentOperatorName());
+        node.setAbnormalType(abnormalType.getType());
+        node.setAbnormalReason(reportReqVO.getAbnormalReason());
+        node.setAbnormalResolved(false);
+        node.setClientRequestId(reportReqVO.getClientRequestId());
+        node.setRemark(reportReqVO.getRemark());
+        logisticsTransportNodeMapper.insert(node);
+        // 4. 刻意**不**调 transitStatus：异常不改变任务状态机
+        return node.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void resolveAbnormal(LogisticsTransportAbnormalResolveReqVO resolveReqVO) {
+        LogisticsTransportNodeDO node = logisticsTransportNodeMapper.selectById(resolveReqVO.getId());
+        if (node == null || node.getAbnormalType() == null) {
+            throw exception(TRANSPORT_ABNORMAL_NOT_EXISTS);
+        }
+        if (Boolean.TRUE.equals(node.getAbnormalResolved())) {
+            // 不覆盖已有的解决留痕：谁在什么时候怎么解决的是一旦写下就不该变的事实
+            throw exception(TRANSPORT_ABNORMAL_ALREADY_RESOLVED);
+        }
+        LogisticsTransportNodeDO update = new LogisticsTransportNodeDO();
+        update.setId(node.getId());
+        update.setAbnormalResolved(true);
+        update.setAbnormalResolvedAt(LocalDateTime.now());
+        update.setAbnormalResolvedBy(SecurityFrameworkUtils.getLoginUserId());
+        update.setAbnormalResolvedName(currentOperatorName());
+        update.setAbnormalResolvedRemark(resolveReqVO.getResolveRemark());
+        logisticsTransportNodeMapper.updateById(update);
     }
 
     @Override
@@ -118,6 +192,21 @@ public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNode
         return nodes.stream().map(this::toResp).collect(Collectors.toList());
     }
 
+    /**
+     * 待分配意味着还没有车与人（谈不上运输过程）；已取消意味着这趟活已经了结。
+     *
+     * <p>**已完成仍可补录**：「补录晚到不导致业务倒序」——弱网下事后补报事实是常态，
+     * 把证据拦在门外比多一条晚到的记录更糟。（「起运」在已完成的任务上仍会被状态机拦，那不是重开一趟活。）
+     */
+    private void assertTaskReportable(LogisticsTransportTaskDO task) {
+        LogisticsTransportTaskStatusEnum status = LogisticsTransportTaskStatusEnum.ofStatus(task.getStatus())
+                .orElseThrow(() -> exception(TRANSPORT_NODE_TASK_NOT_REPORTABLE));
+        if (status == LogisticsTransportTaskStatusEnum.PENDING
+                || status == LogisticsTransportTaskStatusEnum.CANCELLED) {
+            throw exception(TRANSPORT_NODE_TASK_NOT_REPORTABLE);
+        }
+    }
+
     private LogisticsTransportNodeRespVO toResp(LogisticsTransportNodeDO node) {
         LogisticsTransportNodeRespVO resp = new LogisticsTransportNodeRespVO();
         resp.setId(node.getId());
@@ -134,6 +223,13 @@ public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNode
         resp.setPhotos(fromPhotosJson(node.getPhotos()));
         resp.setOperatorId(node.getOperatorId());
         resp.setOperatorName(node.getOperatorName());
+        resp.setAbnormalType(node.getAbnormalType());
+        resp.setAbnormalTypeName(LogisticsTransportAbnormalTypeEnum.nameOf(node.getAbnormalType()));
+        resp.setAbnormalReason(node.getAbnormalReason());
+        resp.setAbnormalResolved(node.getAbnormalResolved());
+        resp.setAbnormalResolvedAt(node.getAbnormalResolvedAt());
+        resp.setAbnormalResolvedName(node.getAbnormalResolvedName());
+        resp.setAbnormalResolvedRemark(node.getAbnormalResolvedRemark());
         resp.setRemark(node.getRemark());
         resp.setCreateTime(node.getCreateTime());
         return resp;

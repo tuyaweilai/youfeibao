@@ -69,4 +69,10 @@ public class LogisticsTransportTaskRespVO extends LogisticsTransportTaskSaveReqV
     @Schema(description = "还没上报的节点类型（断点，按流程顺序；详情接口才有）")
     private List<String> missingNodeNames;
 
+    @Schema(description = "已有节点但缺凭证的说明（断点，如「交接完成缺照片」；详情接口才有）")
+    private List<String> missingEvidenceNames;
+
+    @Schema(description = "改派承接记录（按改派时间正序；没有改派过则为空；详情接口才有）")
+    private List<LogisticsTransportTaskReassignRespVO> reassigns;
+
 }

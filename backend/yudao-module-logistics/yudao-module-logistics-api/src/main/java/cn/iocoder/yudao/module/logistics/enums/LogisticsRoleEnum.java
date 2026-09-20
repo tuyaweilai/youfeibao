@@ -39,6 +39,7 @@ public enum LogisticsRoleEnum {
             LogisticsPermission.TRANSPORT_TASK_QUERY, LogisticsPermission.TRANSPORT_TASK_ASSIGN,
             LogisticsPermission.TRANSPORT_TASK_CANCEL,
             LogisticsPermission.TRANSPORT_NODE_REPORT, LogisticsPermission.TRANSPORT_NODE_QUERY,
+            LogisticsPermission.TRANSPORT_TASK_REASSIGN, LogisticsPermission.TRANSPORT_NODE_ABNORMAL_RESOLVE,
             LogisticsPermission.DRIVER_APP_TASK_QUERY, LogisticsPermission.DRIVER_APP_TASK_ACCEPT,
             LogisticsPermission.DRIVER_APP_NODE_REPORT,
             LogisticsPermission.CARRIER_CREATE, LogisticsPermission.CARRIER_UPDATE,
@@ -59,6 +60,7 @@ public enum LogisticsRoleEnum {
             LogisticsPermission.TRANSPORT_TASK_QUERY, LogisticsPermission.TRANSPORT_TASK_ASSIGN,
             LogisticsPermission.TRANSPORT_TASK_CANCEL,
             LogisticsPermission.TRANSPORT_NODE_REPORT, LogisticsPermission.TRANSPORT_NODE_QUERY,
+            LogisticsPermission.TRANSPORT_TASK_REASSIGN, LogisticsPermission.TRANSPORT_NODE_ABNORMAL_RESOLVE,
             LogisticsPermission.CARRIER_QUERY, LogisticsPermission.EXPIRY_WARNING_QUERY,
             LogisticsPermission.DEMO_TRACK_QUERY)),
 

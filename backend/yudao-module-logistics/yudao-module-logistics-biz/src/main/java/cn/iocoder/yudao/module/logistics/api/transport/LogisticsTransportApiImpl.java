@@ -5,6 +5,7 @@ import cn.iocoder.yudao.module.logistics.api.transport.dto.LogisticsTransportNod
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transportnode.LogisticsTransportNodeDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
 import cn.iocoder.yudao.module.logistics.dal.mysql.transportnode.LogisticsTransportNodeMapper;
+import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportAbnormalTypeEnum;
 import cn.iocoder.yudao.module.logistics.service.transporttask.LogisticsTransportTaskService;
 import cn.hutool.core.util.StrUtil;
 import org.springframework.stereotype.Service;
@@ -56,6 +57,8 @@ public class LogisticsTransportApiImpl implements LogisticsTransportApi {
         dto.setTransportTaskId(node.getTaskId());
         dto.setTaskNo(node.getTaskNo());
         dto.setNodeType(node.getNodeType());
+        dto.setAbnormalType(node.getAbnormalType());
+        dto.setAbnormalTypeName(LogisticsTransportAbnormalTypeEnum.nameOf(node.getAbnormalType()));
         dto.setNodeTime(node.getNodeTime());
         dto.setReportTime(node.getReportTime());
         dto.setLocation(node.getLocation());

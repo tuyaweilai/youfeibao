@@ -5,11 +5,14 @@ import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.Logis
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskOverrideAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskReassignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
+import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskReassignDO;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportTaskStatusEnum;
 
 import javax.validation.Valid;
+import java.util.List;
 
 /**
  * 运输任务 Service（V2b #78）。
@@ -46,6 +49,20 @@ public interface LogisticsTransportTaskService {
      * 那不是在办手续，是在无证运营。
      */
     void assignTaskWithOverride(@Valid LogisticsTransportTaskOverrideAssignReqVO overrideReqVO);
+
+    /**
+     * 改派：换车换人。**保留承接关系、不覆盖原记录**——原车原人、新车新人、原因、谁改的
+     * 都写进 {@code logistics_transport_task_reassign}，任务行上的快照只是「当前是谁」。
+     *
+     * <p>只有「已分配 / 已接单 / 执行中」能改派；改派**不改状态机**（异常与改派都不是状态）。
+     * 门禁与 {@link #assignTask} 一致：车辆不得维修中、司机必须在职、证件都不过期。
+     */
+    void reassignTask(@Valid LogisticsTransportTaskReassignReqVO reassignReqVO);
+
+    /**
+     * 按任务取改派承接记录，按改派时间正序。没有改派过返回空列表。
+     */
+    List<LogisticsTransportTaskReassignDO> getReassignListByTaskId(Long taskId);
 
     /**
      * 接单（V2c 由司机端点；本票由调度在 PC 上代记）。

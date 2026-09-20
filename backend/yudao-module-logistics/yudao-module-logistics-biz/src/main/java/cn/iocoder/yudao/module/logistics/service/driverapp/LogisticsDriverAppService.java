@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.logistics.service.driverapp;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportAbnormalReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.driver.LogisticsDriverDO;
@@ -48,5 +49,12 @@ public interface LogisticsDriverAppService {
      * @return 节点编号
      */
     Long reportMyNode(@Valid LogisticsTransportNodeReportReqVO reportReqVO);
+
+    /**
+     * 上报运输异常（只能报自己任务上的）。异常是独立标记，不会改变任务状态。
+     *
+     * @return 异常事实编号（运输节点编号）
+     */
+    Long reportMyAbnormal(@Valid LogisticsTransportAbnormalReportReqVO reportReqVO);
 
 }

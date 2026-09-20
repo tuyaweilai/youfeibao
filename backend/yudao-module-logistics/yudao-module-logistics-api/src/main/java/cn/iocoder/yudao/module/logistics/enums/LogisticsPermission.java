@@ -60,6 +60,24 @@ public interface LogisticsPermission {
     /** 查询运输节点与凭证 */
     String TRANSPORT_NODE_QUERY = "logistics:transport-node:query";
 
+    // ========== 运输过程：改派与异常（V4 #71） ==========
+
+    /**
+     * 改派运输任务（换车换人）。
+     *
+     * <p>与首次派车分开一条权限：改派发生在货已经在路上之后，是比派车更重的一个动作
+     *（要写承接记录、要放回原车）。
+     */
+    String TRANSPORT_TASK_REASSIGN = "logistics:transport-task:reassign";
+
+    /**
+     * 解决运输异常（记录谁 / 什么时候 / 怎么解决的）。
+     *
+     * <p>**上报异常不需要单独权限**：它就是一次节点上报（车辆的异常也走同一个司机端入口），
+     * 复用 {@link #TRANSPORT_NODE_REPORT}；解决是调度侧的动作，才需要单独一位。
+     */
+    String TRANSPORT_NODE_ABNORMAL_RESOLVE = "logistics:transport-node:abnormal:resolve";
+
     // ========== 承运商档案（V3 #70） ==========
 
     /** 新增承运商 */

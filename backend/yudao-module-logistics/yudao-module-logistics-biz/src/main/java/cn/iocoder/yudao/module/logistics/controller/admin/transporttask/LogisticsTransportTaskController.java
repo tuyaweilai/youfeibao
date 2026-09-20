@@ -7,14 +7,17 @@ import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.Logis
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskOverrideAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskReassignReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskReassignRespVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskRespVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transportnode.LogisticsTransportNodeDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
+import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskReassignDO;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsPermission;
-import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportNodeTypeEnum;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportTaskStatusEnum;
 import cn.iocoder.yudao.module.logistics.service.transportnode.LogisticsTransportNodeService;
+import cn.iocoder.yudao.module.logistics.service.transportnode.TransportNodeGaps;
 import cn.iocoder.yudao.module.logistics.service.transporttask.LogisticsTransportTaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -26,8 +29,6 @@ import org.springframework.web.bind.annotation.*;
 import javax.annotation.Resource;
 import javax.validation.Valid;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
@@ -80,6 +81,15 @@ public class LogisticsTransportTaskController {
         return success(true);
     }
 
+    @PutMapping("/reassign")
+    @Operation(summary = "改派运输任务",
+            description = "换车换人并保留承接关系（原车原人 → 新车新人 + 原因）；只有已分配 / 已接单 / 执行中能改派")
+    @PreAuthorize("@ss.hasPermission('" + LogisticsPermission.TRANSPORT_TASK_REASSIGN + "')")
+    public CommonResult<Boolean> reassign(@Valid @RequestBody LogisticsTransportTaskReassignReqVO reassignReqVO) {
+        logisticsTransportTaskService.reassignTask(reassignReqVO);
+        return success(true);
+    }
+
     @PutMapping("/accept")
     @Operation(summary = "接单", description = "V2c 由司机端点；本票由调度在 PC 上代记")
     @Parameter(name = "id", description = "编号", required = true)
@@ -116,7 +126,11 @@ public class LogisticsTransportTaskController {
         fillStatusName(resp);
         List<LogisticsTransportNodeDO> nodes = logisticsTransportNodeService.getNodeListByTaskId(task.getId());
         resp.setNodes(logisticsTransportNodeService.toRespList(nodes));
-        resp.setMissingNodeNames(missingNodeNames(nodes));
+        resp.setMissingNodeNames(TransportNodeGaps.missingNodeNames(nodes));
+        resp.setMissingEvidenceNames(TransportNodeGaps.missingEvidenceNames(nodes));
+        resp.setReassigns(BeanUtils.toBean(
+                logisticsTransportTaskService.getReassignListByTaskId(task.getId()),
+                LogisticsTransportTaskReassignRespVO.class));
         return success(resp);
     }
 
@@ -136,23 +150,6 @@ public class LogisticsTransportTaskController {
      */
     private void fillStatusName(LogisticsTransportTaskRespVO resp) {
         resp.setStatusName(LogisticsTransportTaskStatusEnum.nameOf(resp.getStatus()));
-    }
-
-    /**
-     * 断点：流程里的五类节点，哪些还没上报。
-     *
-     * <p>本票只有「起运」能上报，所以这里会把其余四类都列成待补——这是**有意的**：
-     * 页面要能显示「这趟活还有哪几步没留痕」，而不是假装流程已经完整。四类节点的上报与
-     * 照片必填策略归 V4（#71）。
-     */
-    private List<String> missingNodeNames(List<LogisticsTransportNodeDO> nodes) {
-        Set<Integer> reported = nodes.stream()
-                .map(LogisticsTransportNodeDO::getNodeType)
-                .collect(Collectors.toSet());
-        return java.util.Arrays.stream(LogisticsTransportNodeTypeEnum.values())
-                .filter(type -> !reported.contains(type.getType()))
-                .map(LogisticsTransportNodeTypeEnum::getName)
-                .collect(Collectors.toList());
     }
 
 }

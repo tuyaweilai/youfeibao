@@ -30,8 +30,14 @@
         <view v-else>
           <view v-for="node in task.nodes" :key="node.id" class="node">
             <view class="node__head">
-              <text class="node__name">{{ node.nodeTypeName }}</text>
+              <text class="node__name">{{ node.nodeTypeName || '异常' }}</text>
               <text class="node__time">发生 {{ fmt(node.nodeTime) }}</text>
+            </view>
+            <view v-if="node.abnormalType" class="node__line node__line--warn">
+              异常 · {{ node.abnormalTypeName }}｜{{ node.abnormalReason || '—' }}
+            </view>
+            <view v-if="node.abnormalType" class="node__line node__line--warn">
+              {{ node.abnormalResolved ? `已解决：${node.abnormalResolvedName || '—'} ${fmt(node.abnormalResolvedAt)}` : '待调度处理' }}
             </view>
             <view class="node__line">上报 {{ fmt(node.reportTime) }} · {{ node.operatorName || '—' }}</view>
             <view class="node__line">{{ node.location || '未记录位置' }}</view>
@@ -47,6 +53,7 @@
             </view>
           </view>
         </view>
+        <view v-if="brokenPointText" class="tip tip--warn">{{ brokenPointText }}</view>
       </view>
 
       <view class="card card--handoff">
@@ -59,10 +66,20 @@
       </view>
 
       <view v-if="canReport" class="card">
-        <view class="card__title">上报起运</view>
+        <view class="card__title">上报运输节点</view>
         <view class="tip">
-          上报时记录**发生时间**与当时的位置快照；照片是这趟运输的凭证。钱不在这里算——现场不产生金额。
+          先选走到哪一步，再上报；发生时间与上报时间分开留痕（补录晚到不代表业务倒序）。
+          交接完成与卸货完成是货物流的关键凭证，必须有照片。
         </view>
+        <view class="chips">
+          <view
+            v-for="item in nodeTypeOptions"
+            :key="item.value"
+            :class="['chip', { 'chip--active': nodeType === item.value }]"
+            @click="nodeType = item.value"
+          >{{ item.label }}</view>
+        </view>
+        <view v-if="nodePhotoRequired" class="tip tip--warn">这一步必须有照片。</view>
         <view class="photos">
           <view v-for="(path, idx) in photoPaths" :key="idx" class="photos__item">
             <image :src="path" mode="aspectFill" class="photos__img" />
@@ -70,11 +87,35 @@
           </view>
           <view class="photos__add" @click="addPhotos">+ 拍照</view>
         </view>
-        <button class="btn btn--primary" :loading="busy" @click="onReport">上报起运</button>
+        <button class="btn btn--primary" :loading="busy" @click="onReport">上报节点</button>
       </view>
 
-      <view v-if="task.status === 3 || task.status === 4" class="tip tip--bottom">
-        送达与卸货完成由后续版本支持；本期只开放「起运」。
+      <view v-if="canReport" class="card card--abnormal">
+        <view class="card__title">上报异常</view>
+        <view class="tip">
+          异常是**独立标记**，不改变任务状态；调度会根据它决定是否改派。
+        </view>
+        <view class="chips">
+          <view
+            v-for="item in abnormalTypeOptions"
+            :key="item.value"
+            :class="['chip', { 'chip--danger': abnormalType === item.value }]"
+            @click="abnormalType = item.value"
+          >{{ item.label }}</view>
+        </view>
+        <textarea v-model="abnormalReason" class="textarea" placeholder="说明发生了什么（必填）" maxlength="200" />
+        <view class="photos">
+          <view v-for="(path, idx) in abnormalPhotoPaths" :key="idx" class="photos__item">
+            <image :src="path" mode="aspectFill" class="photos__img" />
+            <view class="photos__del" @click="removeAbnormalPhoto(idx)">×</view>
+          </view>
+          <view class="photos__add" @click="addAbnormalPhotos">+ 拍照</view>
+        </view>
+        <button class="btn btn--danger" :loading="busy" @click="onReportAbnormal">上报异常</button>
+      </view>
+
+      <view v-if="task.status === 4" class="tip tip--bottom">
+        这趟活已完成；如发现凭证缺失，请联系调度在后台补录。
       </view>
     </template>
   </view>
@@ -83,7 +124,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { DriverTaskVO, getTask, acceptTask, reportNode } from '@/api/task'
+import { DriverTaskVO, getTask, acceptTask, reportNode, reportAbnormal } from '@/api/task'
 import { chooseImage, pathToDataUrl, uploadImage } from '@/utils/upload'
 import { saveDraft } from '@/utils/draft'
 
@@ -91,8 +132,45 @@ const task = ref<DriverTaskVO>()
 const taskId = ref<number>(0)
 const busy = ref(false)
 const photoPaths = ref<string[]>([])
+const abnormalPhotoPaths = ref<string[]>([])
+
+// 五类节点（与后端 LogisticsTransportNodeTypeEnum 对齐）
+const nodeTypeOptions = [
+  { value: 1, label: '到达提货点' },
+  { value: 2, label: '交接完成' },
+  { value: 3, label: '起运' },
+  { value: 4, label: '到达场站' },
+  { value: 5, label: '卸货完成' }
+]
+// 照片必填的两类：交接完成与卸货完成
+const NODE_PHOTO_REQUIRED_TYPES = [2, 5]
+// 八类异常（与后端 LogisticsTransportAbnormalTypeEnum 对齐）
+const abnormalTypeOptions = [
+  { value: 1, label: '车辆故障' },
+  { value: 2, label: '交通事故' },
+  { value: 3, label: '天气延误' },
+  { value: 4, label: '道路封闭' },
+  { value: 5, label: '货物损坏' },
+  { value: 6, label: '对方不在' },
+  { value: 7, label: '地址错误' },
+  { value: 8, label: '其他' }
+]
+const nodeType = ref<number>(3)
+const abnormalType = ref<number>(1)
+const abnormalReason = ref('')
 
 const canReport = computed(() => !!task.value && (task.value.status === 2 || task.value.status === 3))
+const nodePhotoRequired = computed(() => NODE_PHOTO_REQUIRED_TYPES.includes(nodeType.value))
+const brokenPointText = computed(() => {
+  const parts: string[] = []
+  if (task.value?.missingNodeNames?.length) {
+    parts.push(`尚未上报：${task.value.missingNodeNames.join('、')}`)
+  }
+  if (task.value?.missingEvidenceNames?.length) {
+    parts.push(`缺凭证：${task.value.missingEvidenceNames.join('、')}`)
+  }
+  return parts.length ? `断点 · ${parts.join('；')}` : ''
+})
 const cargoText = computed(() => {
   if (!task.value?.cargoName) return '以现场交接为准'
   const qty = task.value.estimatedQuantity ? ` · 约 ${task.value.estimatedQuantity}${task.value.quantityUnit || ''}` : ''
@@ -140,6 +218,19 @@ function removePhoto(idx: number) {
   photoPaths.value.splice(idx, 1)
 }
 
+async function addAbnormalPhotos() {
+  try {
+    const paths = await chooseImage(3)
+    abnormalPhotoPaths.value = [...abnormalPhotoPaths.value, ...paths].slice(0, 6)
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message || '选择照片失败', icon: 'none' })
+  }
+}
+
+function removeAbnormalPhoto(idx: number) {
+  abnormalPhotoPaths.value.splice(idx, 1)
+}
+
 function preview(url: string) {
   uni.previewImage({ urls: task.value?.nodes?.flatMap((n) => n.photos || []) || [url] })
 }
@@ -169,40 +260,47 @@ function getLocationSnapshot(): Promise<{ latitude?: number; longitude?: number 
 }
 
 async function onReport() {
+  const photosInFlight = photoPaths.value
+  if (nodePhotoRequired.value && photosInFlight.length === 0) {
+    uni.showToast({ title: '这一步必须有照片', icon: 'none' })
+    return
+  }
   busy.value = true
   // 发生时间取点击这一刻；上报时间由服务端落，两者分开留痕
   const nodeTime = Date.now()
   const clientRequestId = `driver-${nodeTime}-${Math.floor(Math.random() * 1e6)}`
   const location = await getLocationSnapshot()
+  const nodeTypeValue = nodeType.value
   try {
     const photos: string[] = []
-    for (const path of photoPaths.value) {
+    for (const path of photosInFlight) {
       photos.push(await uploadImage(path))
     }
     await reportNode({
       taskId: taskId.value,
-      nodeType: 3, // 起运（本期只开放这一类）
+      nodeType: nodeTypeValue,
       nodeTime,
       photos,
       clientRequestId,
       ...location
     })
     photoPaths.value = []
-    uni.showToast({ title: '已上报起运', icon: 'none' })
+    uni.showToast({ title: '已上报节点', icon: 'none' })
     await load()
   } catch (e) {
     // 弱网：把照片一起暂存到本机（base64），恢复后在「待补传」里重传
     const drafts = []
-    for (let i = 0; i < photoPaths.value.length; i++) {
-      drafts.push({ key: `photo-${i}`, dataUrl: await pathToDataUrl(photoPaths.value[i]) })
+    for (let i = 0; i < photosInFlight.length; i++) {
+      drafts.push({ key: `photo-${i}`, dataUrl: await pathToDataUrl(photosInFlight[i]) })
     }
     saveDraft({
       clientRequestId,
       createdAt: nodeTime,
-      summary: `${task.value?.taskNo || ''} 起运`,
+      kind: 'NODE',
+      summary: `${task.value?.taskNo || ''} ${nodeTypeLabel(nodeTypeValue)}`,
       payload: {
         taskId: taskId.value,
-        nodeType: 3,
+        nodeType: nodeTypeValue,
         nodeTime,
         clientRequestId,
         ...location
@@ -214,6 +312,71 @@ async function onReport() {
   } finally {
     busy.value = false
   }
+}
+
+async function onReportAbnormal() {
+  if (!abnormalReason.value.trim()) {
+    uni.showToast({ title: '请填异常说明', icon: 'none' })
+    return
+  }
+  const photosInFlight = abnormalPhotoPaths.value
+  busy.value = true
+  const nodeTime = Date.now()
+  const clientRequestId = `driver-abn-${nodeTime}-${Math.floor(Math.random() * 1e6)}`
+  const location = await getLocationSnapshot()
+  const abnormalTypeValue = abnormalType.value
+  const reason = abnormalReason.value.trim()
+  try {
+    const photos: string[] = []
+    for (const path of photosInFlight) {
+      photos.push(await uploadImage(path))
+    }
+    await reportAbnormal({
+      taskId: taskId.value,
+      abnormalType: abnormalTypeValue,
+      abnormalReason: reason,
+      nodeTime,
+      photos,
+      clientRequestId,
+      ...location
+    })
+    abnormalPhotoPaths.value = []
+    abnormalReason.value = ''
+    uni.showToast({ title: '已上报异常', icon: 'none' })
+    await load()
+  } catch (e) {
+    const drafts = []
+    for (let i = 0; i < photosInFlight.length; i++) {
+      drafts.push({ key: `photo-${i}`, dataUrl: await pathToDataUrl(photosInFlight[i]) })
+    }
+    saveDraft({
+      clientRequestId,
+      createdAt: nodeTime,
+      kind: 'ABNORMAL',
+      summary: `${task.value?.taskNo || ''} 异常·${abnormalTypeLabel(abnormalTypeValue)}`,
+      payload: {
+        taskId: taskId.value,
+        abnormalType: abnormalTypeValue,
+        abnormalReason: reason,
+        nodeTime,
+        clientRequestId,
+        ...location
+      },
+      photos: drafts,
+      photoUrls: {}
+    })
+    uni.showToast({ title: '网络不通，已暂存本机，稍后补传', icon: 'none' })
+  } finally {
+    busy.value = false
+  }
+}
+
+function nodeTypeLabel(value: number) {
+  return nodeTypeOptions.find((item) => item.value === value)?.label || '节点'
+}
+
+function abnormalTypeLabel(value: number) {
+  return abnormalTypeOptions.find((item) => item.value === value)?.label || '异常'
 }
 
 onLoad((options) => {
@@ -360,22 +523,76 @@ onLoad((options) => {
   }
 }
 
+.tip {
+  color: #8a919f;
+  font-size: 24rpx;
+  line-height: 1.6;
+
+  &--warn {
+    color: #b45309;
+  }
+
+  &--bottom {
+    margin-top: 16rpx;
+    text-align: center;
+  }
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin: 16rpx 0;
+}
+
+.chip {
+  padding: 10rpx 24rpx;
+  background-color: #f3f4f6;
+  border: 1rpx solid #e5e7eb;
+  border-radius: 999rpx;
+  color: #4b5563;
+  font-size: 24rpx;
+
+  &--active {
+    background-color: #16a34a;
+    border-color: #16a34a;
+    color: #fff;
+  }
+
+  &--danger {
+    background-color: #dc2626;
+    border-color: #dc2626;
+    color: #fff;
+  }
+}
+
+.textarea {
+  width: 100%;
+  min-height: 120rpx;
+  margin: 8rpx 0 4rpx;
+  box-sizing: border-box;
+  padding: 16rpx;
+  background-color: #f9fafb;
+  border: 1rpx solid #e5e7eb;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+}
+
+.card--abnormal {
+  border: 1rpx solid #fecaca;
+}
+
 .btn {
   &--primary {
     background-color: #16a34a;
     color: #fff;
     border-radius: 12rpx;
   }
-}
 
-.tip {
-  color: #8a919f;
-  font-size: 24rpx;
-  line-height: 1.6;
-
-  &--bottom {
-    margin-top: 16rpx;
-    text-align: center;
+  &--danger {
+    background-color: #dc2626;
+    color: #fff;
+    border-radius: 12rpx;
   }
 }
 

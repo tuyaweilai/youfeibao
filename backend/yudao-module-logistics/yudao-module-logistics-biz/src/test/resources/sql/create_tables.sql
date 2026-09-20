@@ -91,12 +91,13 @@ CREATE TABLE IF NOT EXISTS logistics_transport_task (
     PRIMARY KEY (id)
 );
 
--- 运输节点（V2b #78）
+-- 运输节点（V2b #78；异常字段 V4 #71）
+-- node_type 可空：异常事件没有「走到哪一步」，它就是一条独立事实（#71 的「异常是独立标记」）
 CREATE TABLE IF NOT EXISTS logistics_transport_node (
     id BIGINT NOT NULL AUTO_INCREMENT,
     task_id BIGINT NOT NULL,
     task_no VARCHAR(64) NOT NULL,
-    node_type TINYINT NOT NULL,
+    node_type TINYINT,
     node_time DATETIME NOT NULL,
     report_time DATETIME NOT NULL,
     location VARCHAR(500),
@@ -105,8 +106,43 @@ CREATE TABLE IF NOT EXISTS logistics_transport_node (
     photos TEXT,
     operator_id BIGINT,
     operator_name VARCHAR(64),
+    abnormal_type TINYINT,
+    abnormal_reason VARCHAR(500),
+    abnormal_resolved BOOLEAN NOT NULL DEFAULT FALSE,
+    abnormal_resolved_at DATETIME,
+    abnormal_resolved_by BIGINT,
+    abnormal_resolved_name VARCHAR(64),
+    abnormal_resolved_remark VARCHAR(500),
     client_request_id VARCHAR(64) NOT NULL,
     remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- 运输任务改派承接记录（V4 #71）：换车换人不覆盖原记录，前后关系留在这里
+CREATE TABLE IF NOT EXISTS logistics_transport_task_reassign (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    task_id BIGINT NOT NULL,
+    task_no VARCHAR(64) NOT NULL,
+    prev_vehicle_id BIGINT,
+    prev_plate_no VARCHAR(32),
+    prev_driver_id BIGINT,
+    prev_driver_name VARCHAR(64),
+    prev_driver_mobile VARCHAR(32),
+    vehicle_id BIGINT NOT NULL,
+    plate_no VARCHAR(32),
+    driver_id BIGINT NOT NULL,
+    driver_name VARCHAR(64),
+    driver_mobile VARCHAR(32),
+    reason VARCHAR(500) NOT NULL,
+    operator_id BIGINT,
+    operator_name VARCHAR(64),
+    reassign_time DATETIME NOT NULL,
     tenant_id BIGINT NOT NULL DEFAULT 0,
     creator VARCHAR(64) DEFAULT '',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

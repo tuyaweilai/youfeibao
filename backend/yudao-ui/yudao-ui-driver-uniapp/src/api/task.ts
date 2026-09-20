@@ -31,6 +31,8 @@ export interface DriverTaskVO {
   cancelReason?: string
   remark?: string
   nodes?: DriverNodeVO[]
+  missingNodeNames?: string[]
+  missingEvidenceNames?: string[]
 }
 
 export interface DriverNodeVO {
@@ -42,6 +44,14 @@ export interface DriverNodeVO {
   location?: string
   photos?: string[]
   operatorName?: string
+  // 异常是独立标记（V4 #71）
+  abnormalType?: number
+  abnormalTypeName?: string
+  abnormalReason?: string
+  abnormalResolved?: boolean
+  abnormalResolvedAt?: number
+  abnormalResolvedName?: string
+  abnormalResolvedRemark?: string
   remark?: string
 }
 
@@ -56,6 +66,19 @@ export interface DriverProfileVO {
 export interface NodeReportReq {
   taskId: number
   nodeType: number
+  nodeTime: number
+  location?: string
+  latitude?: number
+  longitude?: number
+  photos?: string[]
+  clientRequestId: string
+  remark?: string
+}
+
+export interface AbnormalReportReq {
+  taskId: number
+  abnormalType: number
+  abnormalReason: string
   nodeTime: number
   location?: string
   latitude?: number
@@ -82,3 +105,7 @@ export const acceptTask = (id: number) =>
 /** 上报运输节点（幂等：同一 clientRequestId 重复提交返回既有节点编号） */
 export const reportNode = (data: NodeReportReq) =>
   post<number>('/logistics/driver-app/node/report', data as unknown as Record<string, any>)
+
+/** 上报运输异常（独立标记，不改任务状态；幂等：同一 clientRequestId 重复提交返回既有记录编号） */
+export const reportAbnormal = (data: AbnormalReportReq) =>
+  post<number>('/logistics/driver-app/node/abnormal/report', data as unknown as Record<string, any>)

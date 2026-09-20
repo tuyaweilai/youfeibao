@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.logistics.api.transport.dto;
 
+import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportAbnormalTypeEnum;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportNodeTypeEnum;
 import lombok.Data;
 
@@ -35,9 +36,19 @@ public class LogisticsTransportNodeRespDTO {
     /**
      * 节点类型
      *
-     * 枚举 {@link LogisticsTransportNodeTypeEnum}
+     * 枚举 {@link LogisticsTransportNodeTypeEnum}；**空 = 异常事实**（异常是独立标记，不是节点类型）
      */
     private Integer nodeType;
+    /**
+     * 异常类型（空 = 正常节点）
+     *
+     * 枚举 {@link LogisticsTransportAbnormalTypeEnum}
+     */
+    private Integer abnormalType;
+    /**
+     * 异常类型名
+     */
+    private String abnormalTypeName;
     /**
      * 发生时间：事情实际发生的时刻（补录时可能早于上报时间）
      */

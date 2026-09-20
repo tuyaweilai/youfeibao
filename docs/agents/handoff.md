@@ -1486,7 +1486,27 @@ frontier 推进：**#74（V7 司机端现场引导自然人准入四步）** 与
 > 没列出那 6 条 icbc 权限（但 DB 里有、鉴权也放行）。像是该接口按租户菜单包过滤或走了角色-菜单缓存。
 > 目前不影响功能（司机端页面不靠权限串渲染），但将来若要用权限串控制前端显隐，得先查清它。
 
-frontier：波次 A（#70 / #74 / #76）**全部完成**。剩余 #71 → #72（串行）、#73（需 #71）、#75（就绪）。
+### V4 #71 运输过程做全：五类节点、异常与改派（已完成）
+
+把运输过程做全：五类节点全部开放、双时间与照片必填策略落地、异常成为**独立标记**、改派**保留承接关系**。
+
+1. **五类节点全开**：删掉 V2b 的 `SUPPORTED_NODE_TYPES` 白名单与 `TRANSPORT_NODE_TYPE_NOT_SUPPORTED_YET` 错误码；到达提货点 / 交接完成 / 起运 / 到达场站 / 卸货完成都可上报。仍只有「起运」推进状态（其余四类不推进，状态机只有一处）。
+2. **双时间**：`nodeTime`（发生）与 `reportTime`（上报）分存；时间线按 `nodeTime` 正序，补录晚到不倒序业务。「已完成」的任务**仍可补录**（弱网事后补报事实是常态），只拦「待分配」与「已取消」。
+3. **照片必填策略写在枚举里**：`LogisticsTransportNodeTypeEnum.photoRequired` 只有「交接完成 / 卸货完成」为 true，服务层照它拦（`TRANSPORT_NODE_PHOTO_REQUIRED`），PC 与司机端也照同一份清单提示。
+4. **异常是独立标记**：新增 `LogisticsTransportAbnormalTypeEnum`（八类）+ 节点表异常字段（`abnormal_type` / `abnormal_reason` / `abnormal_resolved_*`）；异常事实**没有节点类型**（`node_type` 放开为可空）。上报走独立入口，**不推进也不回退状态机**（有测试钉住）。解决留痕（谁 / 何时 / 怎么解决）不覆盖。
+5. **改派保留承接关系**：新增 `logistics_transport_task_reassign`（原车原人 → 新车新人 + 原因 + 改派人），只追加不覆盖；`reassignTask` 只放行「已分配 / 已接单 / 执行中」，门禁与首次派车一致（证件过期 / 维修中 / 离职都拦），**不改状态机**。首次派车 `assignTask` 仍是「只能派待分配」。
+6. **断点**：断点计算抽到 `TransportNodeGaps`（PC 与司机端共用一处，异常事实不参与判定），响应给 `missingNodeNames`（还差哪几步）与 `missingEvidenceNames`（哪一步有记录但缺凭证）。
+7. **权限 / 菜单**：新增 `logistics:transport-task:reassign` 与 `logistics:transport-node:abnormal:resolve`（管理员 / 调度），**上报异常复用节点上报权限**；按钮权限行由同步服务生成，`logistics-menu.sql` 未动。
+8. **落地**：`backend/sql/mysql/logistics-transport-process.sql`（幂等：按 information_schema 判存在再 ALTER，建表用 IF NOT EXISTS；已进 README 导入顺序，并在临时库跑过两遍验证幂等）；测试建表与 `clean.sql` 同步；PC `views/logistics/task/index.vue`（节点类型选择 + 照片必填提示 + 异常上报 / 解决 + 改派 + 断点）与司机端 `pages/task/detail.vue`（五类节点按钮 + 异常上报 + 断点；异常与节点共用弱网草稿队列，`kind` 区分）。
+9. **测试**：物流模块 **106 全绿**（新增 / 改写：五类节点全开与存储、补录晚到不倒序、双时间、照片必填两类、未知类型 / 待分配 / 已取消拦截、已完成可补录、异常不改状态机、异常幂等与必填、解决留痕与不覆盖、改派承接记录 + 释放原车 + 不改状态、司机端异常归属）；`LogisticsTransportAbnormalTypeEnumTest` / `TransportNodeGapsTest` 新增；PC `pnpm build:local` 通过且 `vue-tsc` 在 `views|api/logistics` 零新增错误（仓库基线 1254）；司机端 `pnpm ts:check` / `pnpm build:h5` 通过。
+
+> **两处口径说明（留档）**：① **异常的照片不是必填**——AC 的「照片必填策略」只点名「交接完成 / 卸货完成」；异常「带说明、照片与解决留痕」读作有这些字段，页面上仍鼓励拍照。② 节点上报的门禁只拦「待分配 / 已取消」，**已完成允许补录**；对已完成任务报「起运」仍会被状态机拦（那等于重开一趟活）。
+
+> **未做**：改派的**授权放行**（证件过期时中途换车没有逃生门，只能先换证；首次派车有 `assign-override`）；异常清单的跨任务聚合页（只在任务详情里看）；节点级显式上下游（仍由五类顺序表达）。
+
+> **现场端司机 app 的 `pnpm-lock.yaml` 之前没入库**（V2c 建的工程，field/seller/admin 都有），本票 `pnpm install` 时生成，随本票一起提交。
+
+frontier：V4 #71 **完成**。剩余 #72（V5 多停靠点集货，需 #71，与 #71 串行）、#73（V6，需 #71）、#75（V8，就绪）。
 
 ## ⚠️ 一处需要知情的历史问题：`d98f31b` 混进了别人的 WIP
 

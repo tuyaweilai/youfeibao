@@ -23,6 +23,8 @@ public interface ErrorCodeConstants {
     ErrorCode TRANSPORT_TASK_NOT_BELONG_TO_DRIVER = new ErrorCode(1_030_200_007, "这不是派给你的任务");
     ErrorCode TRANSPORT_TASK_OVERRIDE_REASON_REQUIRED = new ErrorCode(1_030_200_008, "授权放行必须填原因");
     ErrorCode TRANSPORT_TASK_OVERRIDE_NOT_APPLICABLE = new ErrorCode(1_030_200_009, "该情况不能授权放行（车辆维修中、司机离职这类硬门禁不可绕过）");
+    ErrorCode TRANSPORT_TASK_REASSIGN_REASON_REQUIRED = new ErrorCode(1_030_200_010, "改派必须填原因");
+    ErrorCode TRANSPORT_TASK_REASSIGN_NOT_ALLOWED = new ErrorCode(1_030_200_011, "当前状态不允许改派（只有已分配 / 已接单 / 执行中可以改派）");
 
     // ========== 车辆 1-030-201-000 ==========
     ErrorCode VEHICLE_NOT_EXISTS = new ErrorCode(1_030_201_000, "车辆不存在");
@@ -46,11 +48,28 @@ public interface ErrorCodeConstants {
     ErrorCode CARRIER_NOT_ACTIVE = new ErrorCode(1_030_205_002, "承运商已停用");
 
     // ========== 运输节点 1-030-203-000 ==========
-    ErrorCode TRANSPORT_NODE_TYPE_NOT_SUPPORTED_YET =
-            new ErrorCode(1_030_203_000, "该节点类型本期还不支持上报（五类节点与异常见 #71）");
     ErrorCode TRANSPORT_NODE_CLIENT_REQUEST_REQUIRED =
             new ErrorCode(1_030_203_001, "上报节点必须带客户端请求号（幂等键）");
     ErrorCode TRANSPORT_NODE_TIME_REQUIRED =
             new ErrorCode(1_030_203_002, "节点发生时间不能为空");
+    ErrorCode TRANSPORT_NODE_TYPE_REQUIRED =
+            new ErrorCode(1_030_203_003, "节点类型不能为空");
+    ErrorCode TRANSPORT_NODE_TYPE_UNKNOWN =
+            new ErrorCode(1_030_203_004, "未知的节点类型");
+    ErrorCode TRANSPORT_NODE_TASK_NOT_REPORTABLE =
+            new ErrorCode(1_030_203_005, "待分配或已取消的任务不能上报运输节点");
+
+    // ========== 运输节点：照片必填与异常（V4 #71，段位 1_030_203_1xx） ==========
+    /** 交接完成与卸货完成是货物流的关键凭证，必须有照片 */
+    ErrorCode TRANSPORT_NODE_PHOTO_REQUIRED =
+            new ErrorCode(1_030_203_100, "「交接完成」与「卸货完成」必须上传照片（货物流凭证）");
+    ErrorCode TRANSPORT_ABNORMAL_TYPE_UNKNOWN =
+            new ErrorCode(1_030_203_101, "未知的异常类型");
+    ErrorCode TRANSPORT_ABNORMAL_REASON_REQUIRED =
+            new ErrorCode(1_030_203_102, "上报异常必须填说明");
+    ErrorCode TRANSPORT_ABNORMAL_NOT_EXISTS =
+            new ErrorCode(1_030_203_103, "该异常记录不存在");
+    ErrorCode TRANSPORT_ABNORMAL_ALREADY_RESOLVED =
+            new ErrorCode(1_030_203_104, "该异常已经解决过了");
 
 }

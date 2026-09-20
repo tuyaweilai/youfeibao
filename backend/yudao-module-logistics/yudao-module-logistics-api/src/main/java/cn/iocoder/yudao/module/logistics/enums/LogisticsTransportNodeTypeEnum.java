@@ -15,17 +15,21 @@ import java.util.Optional;
  *
  * <p>轨迹不是节点：节点是事件，轨迹是路径。一期只有上报时的一次性位置快照，不承诺连续采集。
  *
+ * <p>**照片必填策略**（V4 #71）写在枚举里：
+ * 「交接完成」与「卸货完成」是货物流的关键凭证（税总 5 号公告第十七条要求保存运输凭证），
+ * 必须有照片；其余三类允许没有。这是固定规则，不靠现场自觉。
+ *
  * @author 芋道源码
  */
 @AllArgsConstructor
 @Getter
 public enum LogisticsTransportNodeTypeEnum implements IntArrayValuable {
 
-    ARRIVED_PICKUP(1, "到达提货点"),
-    HANDOVER_CONFIRMED(2, "交接完成"),
-    DEPARTED(3, "起运"),
-    ARRIVED_STATION(4, "到达场站"),
-    UNLOADED(5, "卸货完成");
+    ARRIVED_PICKUP(1, "到达提货点", false),
+    HANDOVER_CONFIRMED(2, "交接完成", true),
+    DEPARTED(3, "起运", false),
+    ARRIVED_STATION(4, "到达场站", false),
+    UNLOADED(5, "卸货完成", true);
 
     public static final int[] ARRAYS = Arrays.stream(values()).mapToInt(LogisticsTransportNodeTypeEnum::getType).toArray();
 
@@ -37,6 +41,10 @@ public enum LogisticsTransportNodeTypeEnum implements IntArrayValuable {
      * 类型名
      */
     private final String name;
+    /**
+     * 是否必须有照片（货物流关键凭证）
+     */
+    private final boolean photoRequired;
 
     @Override
     public int[] array() {

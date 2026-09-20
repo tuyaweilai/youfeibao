@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.logistics.controller.admin.driverapp;
 
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportAbnormalReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeRespVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
@@ -14,6 +15,7 @@ import cn.iocoder.yudao.module.logistics.enums.LogisticsPermission;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportTaskStatusEnum;
 import cn.iocoder.yudao.module.logistics.service.driverapp.LogisticsDriverAppService;
 import cn.iocoder.yudao.module.logistics.service.transportnode.LogisticsTransportNodeService;
+import cn.iocoder.yudao.module.logistics.service.transportnode.TransportNodeGaps;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -89,6 +91,8 @@ public class LogisticsDriverAppController {
         copyForDriver(task, resp);
         List<LogisticsTransportNodeDO> nodes = logisticsTransportNodeService.getNodeListByTaskId(task.getId());
         resp.setNodes(logisticsTransportNodeService.toRespList(nodes));
+        resp.setMissingNodeNames(TransportNodeGaps.missingNodeNames(nodes));
+        resp.setMissingEvidenceNames(TransportNodeGaps.missingEvidenceNames(nodes));
         return success(resp);
     }
 
@@ -106,6 +110,14 @@ public class LogisticsDriverAppController {
     @PreAuthorize("@ss.hasPermission('" + LogisticsPermission.DRIVER_APP_NODE_REPORT + "')")
     public CommonResult<Long> nodeReport(@Valid @RequestBody LogisticsTransportNodeReportReqVO reportReqVO) {
         return success(logisticsDriverAppService.reportMyNode(reportReqVO));
+    }
+
+    @PostMapping("/node/abnormal/report")
+    @Operation(summary = "上报运输异常", description = "只能报自己任务上的；异常是独立标记，不改任务状态；同一 clientRequestId 重复提交返回既有记录编号")
+    @PreAuthorize("@ss.hasPermission('" + LogisticsPermission.DRIVER_APP_NODE_REPORT + "')")
+    public CommonResult<Long> nodeAbnormalReport(
+            @Valid @RequestBody LogisticsTransportAbnormalReportReqVO reportReqVO) {
+        return success(logisticsDriverAppService.reportMyAbnormal(reportReqVO));
     }
 
     /**

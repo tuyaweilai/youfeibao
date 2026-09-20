@@ -1,15 +1,19 @@
 package cn.iocoder.yudao.module.logistics.service.transporttask;
 
+import cn.iocoder.yudao.framework.security.core.LoginUser;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.logistics.UnitTestConfiguration;
 import cn.iocoder.yudao.module.logistics.controller.admin.driver.vo.LogisticsDriverSaveReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskReassignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.vehicle.vo.LogisticsVehicleSaveReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
+import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskReassignDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.vehicle.LogisticsVehicleDO;
 import cn.iocoder.yudao.module.logistics.dal.mysql.transporttask.LogisticsTransportTaskMapper;
+import cn.iocoder.yudao.module.logistics.dal.mysql.transporttask.LogisticsTransportTaskReassignMapper;
 import cn.iocoder.yudao.module.logistics.dal.mysql.vehicle.LogisticsVehicleMapper;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsDriverSourceEnum;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsDriverStatusEnum;
@@ -20,13 +24,17 @@ import cn.iocoder.yudao.module.logistics.service.driver.impl.LogisticsDriverServ
 import cn.iocoder.yudao.module.logistics.service.transporttask.impl.LogisticsTransportTaskServiceImpl;
 import cn.iocoder.yudao.module.logistics.service.vehicle.LogisticsVehicleService;
 import cn.iocoder.yudao.module.logistics.service.vehicle.impl.LogisticsVehicleServiceImpl;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.math.BigDecimal;
+import java.util.List;
 
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
 import static cn.iocoder.yudao.module.logistics.enums.ErrorCodeConstants.*;
@@ -53,7 +61,16 @@ public class LogisticsTransportTaskServiceImplTest extends BaseDbUnitTest {
     @Resource
     private LogisticsTransportTaskMapper logisticsTransportTaskMapper;
     @Resource
+    private LogisticsTransportTaskReassignMapper logisticsTransportTaskReassignMapper;
+    @Resource
     private LogisticsVehicleMapper logisticsVehicleMapper;
+
+    private static final Long OPERATOR_USER_ID = 1L;
+
+    @AfterEach
+    public void clearLoginUser() {
+        SecurityContextHolder.clearContext();
+    }
 
     @Test
     public void testCreateTask_withoutVehicle_isPending() {
@@ -301,7 +318,131 @@ public class LogisticsTransportTaskServiceImplTest extends BaseDbUnitTest {
         assertNull(logisticsTransportTaskService.getTaskByTaskNo("TT-NOT-EXISTS"));
     }
 
+    // ==================== 改派（V4 #71） ====================
+
+    @Test
+    public void testReassignTask_keepsHandoverRecord_andReleasesOldVehicle() {
+        loginAs(OPERATOR_USER_ID);
+        Long oldVehicleId = createVehicle("浙A11111");
+        Long oldDriverId = createDriver(1024L, "张三");
+        Long newVehicleId = createVehicle("浙B22222");
+        Long newDriverId = createDriver(2048L, "李四");
+        Long taskId = logisticsTransportTaskService.createTask(newTask(oldVehicleId, oldDriverId));
+
+        LogisticsTransportTaskReassignReqVO reassignReqVO = new LogisticsTransportTaskReassignReqVO();
+        reassignReqVO.setId(taskId);
+        reassignReqVO.setVehicleId(newVehicleId);
+        reassignReqVO.setDriverId(newDriverId);
+        reassignReqVO.setReason("原车水温过高，货转备用车");
+        logisticsTransportTaskService.reassignTask(reassignReqVO);
+
+        // 任务行上的快照变成「当前是谁」
+        LogisticsTransportTaskDO task = logisticsTransportTaskMapper.selectById(taskId);
+        assertEquals(newVehicleId, task.getVehicleId());
+        assertEquals("浙B22222", task.getPlateNo());
+        assertEquals(newDriverId, task.getDriverId());
+        assertEquals("李四", task.getDriverName());
+        // 原车放回车队，新车被占用
+        assertEquals(LogisticsVehicleStatusEnum.AVAILABLE.getStatus(),
+                logisticsVehicleMapper.selectById(oldVehicleId).getStatus());
+        assertEquals(LogisticsVehicleStatusEnum.IN_TRANSIT.getStatus(),
+                logisticsVehicleMapper.selectById(newVehicleId).getStatus());
+
+        // 承接关系：原车原人 → 新车新人 + 原因 + 谁改的，原记录不被覆盖
+        List<LogisticsTransportTaskReassignDO> records =
+                logisticsTransportTaskService.getReassignListByTaskId(taskId);
+        assertEquals(1, records.size());
+        LogisticsTransportTaskReassignDO record = records.get(0);
+        assertEquals(oldVehicleId, record.getPrevVehicleId());
+        assertEquals("浙A11111", record.getPrevPlateNo());
+        assertEquals(oldDriverId, record.getPrevDriverId());
+        assertEquals("张三", record.getPrevDriverName());
+        assertEquals(newVehicleId, record.getVehicleId());
+        assertEquals(newDriverId, record.getDriverId());
+        assertEquals("原车水温过高，货转备用车", record.getReason());
+        assertEquals(OPERATOR_USER_ID, record.getOperatorId());
+        assertNotNull(record.getReassignTime());
+    }
+
+    @Test
+    public void testReassignTask_doesNotChangeStatus() {
+        Long oldVehicleId = createVehicle("浙A11111");
+        Long oldDriverId = createDriver(1024L, "张三");
+        Long newVehicleId = createVehicle("浙B22222");
+        Long newDriverId = createDriver(2048L, "李四");
+        Long taskId = logisticsTransportTaskService.createTask(newTask(oldVehicleId, oldDriverId));
+        logisticsTransportTaskService.acceptTask(taskId);
+        logisticsTransportTaskService.transitStatus(logisticsTransportTaskMapper.selectById(taskId),
+                LogisticsTransportTaskStatusEnum.IN_TRANSIT);
+
+        LogisticsTransportTaskReassignReqVO reassignReqVO = new LogisticsTransportTaskReassignReqVO();
+        reassignReqVO.setId(taskId);
+        reassignReqVO.setVehicleId(newVehicleId);
+        reassignReqVO.setDriverId(newDriverId);
+        reassignReqVO.setReason("中途换车");
+        logisticsTransportTaskService.reassignTask(reassignReqVO);
+
+        // 改派不是状态：执行中的任务换完车仍是执行中
+        assertEquals(LogisticsTransportTaskStatusEnum.IN_TRANSIT.getStatus(),
+                logisticsTransportTaskMapper.selectById(taskId).getStatus());
+    }
+
+    @Test
+    public void testReassignTask_requiresReason() {
+        Long vehicleId = createVehicle("浙A11111");
+        Long driverId = createDriver(1024L, "张三");
+        Long taskId = logisticsTransportTaskService.createTask(newTask(vehicleId, driverId));
+
+        LogisticsTransportTaskReassignReqVO reassignReqVO = new LogisticsTransportTaskReassignReqVO();
+        reassignReqVO.setId(taskId);
+        reassignReqVO.setVehicleId(vehicleId);
+        reassignReqVO.setDriverId(driverId);
+        // 服务层也要拦：VO 的 @NotEmpty 只挡 HTTP 入口
+        assertServiceException(() -> logisticsTransportTaskService.reassignTask(reassignReqVO),
+                TRANSPORT_TASK_REASSIGN_REASON_REQUIRED);
+    }
+
+    @Test
+    public void testReassignTask_pendingOrTerminal_isRejected() {
+        Long pendingTaskId = logisticsTransportTaskService.createTask(newTask(null, null));
+        Long vehicleId = createVehicle("浙A11111");
+        Long driverId = createDriver(1024L, "张三");
+        LogisticsTransportTaskReassignReqVO toPending = new LogisticsTransportTaskReassignReqVO();
+        toPending.setId(pendingTaskId);
+        toPending.setVehicleId(vehicleId);
+        toPending.setDriverId(driverId);
+        toPending.setReason("换车");
+        assertServiceException(() -> logisticsTransportTaskService.reassignTask(toPending),
+                TRANSPORT_TASK_REASSIGN_NOT_ALLOWED);
+
+        Long completedTaskId = logisticsTransportTaskService.createTask(newTask(vehicleId, driverId));
+        logisticsTransportTaskService.completeTask(completedTaskId);
+        LogisticsTransportTaskReassignReqVO toCompleted = new LogisticsTransportTaskReassignReqVO();
+        toCompleted.setId(completedTaskId);
+        toCompleted.setVehicleId(createVehicle("浙B22222"));
+        toCompleted.setDriverId(createDriver(2048L, "李四"));
+        toCompleted.setReason("换车");
+        assertServiceException(() -> logisticsTransportTaskService.reassignTask(toCompleted),
+                TRANSPORT_TASK_REASSIGN_NOT_ALLOWED);
+    }
+
+    @Test
+    public void testReassignTask_noReassign_returnsEmptyList() {
+        Long taskId = createAssignedTask();
+        assertTrue(logisticsTransportTaskService.getReassignListByTaskId(taskId).isEmpty());
+        assertTrue(logisticsTransportTaskService.getReassignListByTaskId(null).isEmpty());
+    }
+
     // ==================== 辅助 ====================
+
+    private void loginAs(Long userId) {
+        LoginUser loginUser = new LoginUser();
+        loginUser.setId(userId);
+        loginUser.setUserType(1);
+        loginUser.setTenantId(1L);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(loginUser, null, null));
+    }
 
     private Long createAssignedTask() {
         Long vehicleId = createVehicle("浙A" + System.nanoTime() % 100000);

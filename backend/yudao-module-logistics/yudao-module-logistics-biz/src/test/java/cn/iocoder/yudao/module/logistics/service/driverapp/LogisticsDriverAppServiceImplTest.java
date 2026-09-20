@@ -6,6 +6,7 @@ import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.logistics.UnitTestConfiguration;
 import cn.iocoder.yudao.module.logistics.controller.admin.driver.vo.LogisticsDriverSaveReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportAbnormalReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
@@ -14,6 +15,7 @@ import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsT
 import cn.iocoder.yudao.module.logistics.dal.mysql.transporttask.LogisticsTransportTaskMapper;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsDriverSourceEnum;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsDriverStatusEnum;
+import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportAbnormalTypeEnum;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportNodeTypeEnum;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportTaskStatusEnum;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsVehicleStatusEnum;
@@ -166,6 +168,46 @@ public class LogisticsDriverAppServiceImplTest extends BaseDbUnitTest {
         assertServiceException(
                 () -> logisticsDriverAppService.reportMyNode(
                         newReport(otherTaskId, LocalDateTime.now(), "driver-req-2")),
+                TRANSPORT_TASK_NOT_BELONG_TO_DRIVER);
+    }
+
+    @Test
+    public void testReportMyAbnormal_onlyMine_andDoesNotChangeStatus() {
+        Long myDriverId = createDriver(DRIVER_USER_ID, "张三");
+        Long myTaskId = createAssignedTask("浙A11111", myDriverId);
+        loginAs(DRIVER_USER_ID);
+        logisticsDriverAppService.acceptMyTask(myTaskId);
+
+        LogisticsTransportAbnormalReportReqVO reqVO = new LogisticsTransportAbnormalReportReqVO();
+        reqVO.setTaskId(myTaskId);
+        reqVO.setAbnormalType(LogisticsTransportAbnormalTypeEnum.ROAD_CLOSED.getType());
+        reqVO.setAbnormalReason("前方塌方，封路");
+        reqVO.setNodeTime(LocalDateTime.now().minusMinutes(5));
+        reqVO.setPhotos(Arrays.asList("https://file/abnormal-1.jpg"));
+        reqVO.setClientRequestId("driver-abn-1");
+        Long abnormalId = logisticsDriverAppService.reportMyAbnormal(reqVO);
+
+        assertNotNull(abnormalId);
+        // 异常是独立标记：任务状态不动（还是「已接单」）
+        assertEquals(LogisticsTransportTaskStatusEnum.ACCEPTED.getStatus(),
+                logisticsTransportTaskMapper.selectById(myTaskId).getStatus());
+    }
+
+    @Test
+    public void testReportMyAbnormal_notMine_isRejected() {
+        createDriver(DRIVER_USER_ID, "张三");
+        Long otherDriverId = createDriver(OTHER_USER_ID, "李四");
+        Long otherTaskId = createAssignedTask("浙A22222", otherDriverId);
+        loginAs(DRIVER_USER_ID);
+
+        LogisticsTransportAbnormalReportReqVO reqVO = new LogisticsTransportAbnormalReportReqVO();
+        reqVO.setTaskId(otherTaskId);
+        reqVO.setAbnormalType(LogisticsTransportAbnormalTypeEnum.OTHER.getType());
+        reqVO.setAbnormalReason("别人的活");
+        reqVO.setNodeTime(LocalDateTime.now());
+        reqVO.setClientRequestId("driver-abn-2");
+
+        assertServiceException(() -> logisticsDriverAppService.reportMyAbnormal(reqVO),
                 TRANSPORT_TASK_NOT_BELONG_TO_DRIVER);
     }
 

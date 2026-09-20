@@ -67,6 +67,28 @@ public class LogisticsTransportNodeDO extends TenantBaseDO {
     private String operatorName;
 
     /**
+     * 异常类型（空 = 正常节点）
+     *
+     * <p>异常是**独立标记**，不是节点类型也不是任务状态（#59 的 Implementation Decisions 第 17 条）：
+     * 它只在这里留痕，不推进也不回退任务状态机。
+     *
+     * 枚举 {@link cn.iocoder.yudao.module.logistics.enums.LogisticsTransportAbnormalTypeEnum}
+     */
+    private Integer abnormalType;
+    /** 异常说明（上报异常必填） */
+    private String abnormalReason;
+    /** 异常是否已解决（解决留痕：时间 / 人 / 说明） */
+    private Boolean abnormalResolved;
+    /** 异常解决时间 */
+    private LocalDateTime abnormalResolvedAt;
+    /** 异常解决人（系统用户编号） */
+    private Long abnormalResolvedBy;
+    /** 异常解决人姓名快照 */
+    private String abnormalResolvedName;
+    /** 异常解决说明 */
+    private String abnormalResolvedRemark;
+
+    /**
      * 客户端请求号：同一请求号重复提交只落一条（离线补传的幂等键）
      */
     private String clientRequestId;

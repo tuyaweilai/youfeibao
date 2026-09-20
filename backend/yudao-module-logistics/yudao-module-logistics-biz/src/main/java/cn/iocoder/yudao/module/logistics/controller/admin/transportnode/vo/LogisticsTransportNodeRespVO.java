@@ -50,6 +50,27 @@ public class LogisticsTransportNodeRespVO {
     @Schema(description = "上报人姓名")
     private String operatorName;
 
+    @Schema(description = "异常类型（空 = 正常节点）：1-车辆故障，2-交通事故，3-天气延误，4-道路封闭，5-货物损坏，6-对方不在，7-地址错误，8-其他")
+    private Integer abnormalType;
+
+    @Schema(description = "异常类型名")
+    private String abnormalTypeName;
+
+    @Schema(description = "异常说明")
+    private String abnormalReason;
+
+    @Schema(description = "异常是否已解决")
+    private Boolean abnormalResolved;
+
+    @Schema(description = "异常解决时间")
+    private LocalDateTime abnormalResolvedAt;
+
+    @Schema(description = "异常解决人姓名")
+    private String abnormalResolvedName;
+
+    @Schema(description = "异常解决说明")
+    private String abnormalResolvedRemark;
+
     @Schema(description = "备注")
     private String remark;
 
