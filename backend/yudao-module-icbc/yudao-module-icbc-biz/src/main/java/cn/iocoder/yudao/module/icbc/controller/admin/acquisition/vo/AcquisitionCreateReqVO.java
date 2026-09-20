@@ -27,6 +27,9 @@ public class AcquisitionCreateReqVO {
     @Schema(description = "场站编号（ADR 0018：一次到场批次按「出售者 + 场站」聚合；历史数据可空）", example = "3072")
     private Long stationId;
 
+    @Schema(description = "交接批次编号（#50）：填了就从该批次的**有效磅次**取重量与磅单，手填的毛重 / 皮重 / 净重不采用", example = "2048")
+    private Long handoverBatchId;
+
     @Schema(description = "品类配置编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "2048")
     private Long goodsConfigId;
 

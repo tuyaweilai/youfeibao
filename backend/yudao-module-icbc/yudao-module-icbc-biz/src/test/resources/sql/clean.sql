@@ -31,3 +31,5 @@ DELETE FROM icbc_appointment;
 DELETE FROM icbc_payee_bank_card_change;
 DELETE FROM icbc_seller_notify;
 DELETE FROM icbc_notify_setting;
+DELETE FROM icbc_weighing;
+DELETE FROM icbc_handover_batch;

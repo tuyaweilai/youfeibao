@@ -198,4 +198,11 @@ public interface RecyclingPermission {
     /** 转达确认链接、发短信、开关本租户短信 */
     String SELLER_NOTIFY_MANAGE = "icbc:seller-notify:manage";
 
+    // ========== 交接批次与有效磅次（#50 T12） ==========
+
+    /** 查看交接批次、磅次与有效磅次 */
+    String HANDOVER_BATCH_QUERY = "icbc:handover-batch:query";
+    /** 登记交接批次、补录、加磅次与指定有效磅次 */
+    String HANDOVER_BATCH_MANAGE = "icbc:handover-batch:manage";
+
 }

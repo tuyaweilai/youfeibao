@@ -47,6 +47,7 @@ const roleText = computed(() => {
 })
 
 const menus = [
+  { title: '交接批次', desc: '一车一次交接；多次磅次指定有效那一次', url: '/pages/handover/index' },
   { title: '收购登记', desc: '现场登记一笔收购', url: '/pages/acquisition/index' },
   { title: '出售者建档', desc: '实名、收方入驻、协议与授权', url: '/pages/payee/index' },
   { title: '结算与确认', desc: '结束本次收货、把确认链接转达给出售者', url: '/pages/settlement/index' },

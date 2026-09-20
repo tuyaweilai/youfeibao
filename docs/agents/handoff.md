@@ -618,3 +618,24 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 1. **ADR 0025 的域取舍在规格里被修订**：`purchase` 域不启用（采购履约链建在 `icbc` 模块，因为采购订单必须与收购单在同一模块内做关联追溯；`erp` 侧反向依赖 icbc 是错的）。实际只启用 `stock` 域。**#39 已把 ADR 0025 同步改掉**。
 2. **`yudao-module-erp-biz/src/test/` 是空的**，没有 `create_tables.sql` / `clean.sql`。凡涉及 ERP 库存能力的测试，先把这两份 H2 资源建起来（`#42` 起需要）。
+
+## #50 T12 交接批次与有效磅次（已完成）
+
+把「这批货经历了什么」和「哪一次过磅算数」落成两个对象（CONTEXT 的「交接批次」「有效磅次」）：
+一个交易对方的一次**物理交接**记为一个交接批次；过磅保留每一次原始读数（磅次），
+**只有被选定的那一次参与计量**，其余留档不参与。现场端为主，PC 可查改补录。
+
+1. **两张新表（租户表，不进 ignore-tables）**：
+   - `icbc_handover_batch`：批次号、交易对方（`payee_id` + 姓名 / 手机号快照）、`station_id` / `station_name` 或 `visit_address`（二者至少一个）、`occur_time`、`source_type`、司机与手机号、车牌；`appointment_id` / `purchase_order_id` **都可空**。
+   - `icbc_weighing`：`batch_id` + `seq_no`（唯一）、毛重 / 皮重 / 净重、过磅时间、磅单号与照片、磅单上车牌、`effective`、备注。
+     `effective` 至多一条为 true：新增第一次磅次时自动置有效；改由 `POST /icbc/handover-batch/weighing/effective` 显式指定，指定时一条 UPDATE 先把其余置 false（并发下不会出现两个「有效磅次」）。
+2. **收购单引用有效磅次的值与版本**：`icbc_acquisition` 加 `handover_batch_id` / `weighing_id` / `weighing_seq_no`。收购登记带 `handoverBatchId` 时，**毛重 / 皮重 / 净重 / 磅单号一律取自该批次的有效磅次**（请求里手填的值被覆盖，这才叫「只有那一次参与计量」）；批次没有有效磅次时直接报 `WEIGHING_EFFECTIVE_NOT_SELECTED`，不猜、不退回手填值；出售者与批次交易对方不一致报 `ACQUISITION_BATCH_PAYEE_MISMATCH`。反过来，按有效磅次计量的收购单**不能手工改重量**（`WEIGHING_LOCKED_FOR_ACQUISITION`），与重量无关的补录照旧。
+3. **两条刻意的不变量**：**不按「车牌 + 日期」去重**（同一车同一天两次送货就是两个批次，磅单与收购单各归各）；**预约与采购订单都不是建批次的必要条件**（临时上门的散户不被流程挡住）。
+4. **有效磅次锁定**：该批次已产生**未作废**的收购单后不允许再改有效磅次（计量结果引用的是当时那一版）；把收购单作废后重新可指定——单据仍保留、作废原因对自然人可见（#33 的作废动作）。批次响应带 `weighingChangeLocked` 供界面置灰。
+5. **权限 / 菜单**：新增 `icbc:handover-batch:query|manage`，登记进 `RecyclingPermission` + `RecyclingRoleEnum`（管理员 / 收货员可管理，开票员 / 财务只读）；菜单 5240–5243 挂在「回收作业」（5204）下。
+6. **现场端（AC5）**：新增 `pages/handover/index.vue`（首页菜单「交接批次」）：带出售者档案 → 登记批次（场站或上门地址、来源方式、车牌、司机）→ 多次磅次 → 指定有效磅次 → 「按此批次登记收购」跳到 `pages/acquisition/index?handoverBatchId=`（该页带出批次的车牌 / 司机 / 场站与有效磅次重量，提交时把批次挂上）。PC 新增 `views/icbc/handoverBatch/index.vue`（查、补录、看磅次、指定有效）。
+7. **落地**：迁移 `backend/sql/mysql/icbc-handover-batch.sql`（幂等；两张新表 + 收购单三个列 + 索引），已进 README 导入顺序；菜单只追加 `icbc-menu.sql`；测试建表与 `clean.sql` 同步。**测试**：`HandoverBatchServiceTest`（11 例）+ `AcquisitionServiceImplTest` 新增 6 例（按有效磅次计量并覆盖手填值、无有效磅次拒结、交易对方不一致拒结、一次混装拆成多张收购单共用同一次磅次、同车同日两批不串、按磅次计量后锁定手工改重量）+ `IcbcTenantIsolationTest` 新增两表租户隔离 + `RecyclingRoleEnumTest` 权限；icbc 450 测试全绿；现场端 `pnpm ts:check` / `pnpm build:h5`、PC `pnpm build:local` 均通过。
+
+> **与 #51 的分工**：本票只负责「批次 → 磅次 → 有效磅次 → 收购单引用」，采购订单关联（`purchaseOrderId` 只落字段、不做门禁与「直接收购」口径）留给 #51；批次与结算单还没有直接外键，结算仍是「出售者 + 场站」聚合（#33 口径不变）。
+
+> **踩到的坑**：`.m2` 是各 worktree 共享的，并行票的 `-am install` 会把你刚装的 `yudao-module-icbc-api` 覆盖回旧版，表现为「刚才编译过、现在找不到符号」。稳妥做法是把 api 与 biz 放进同一次 reactor：`mvn -o -pl yudao-module-icbc/yudao-module-icbc-api,yudao-module-icbc/yudao-module-icbc-biz test`。

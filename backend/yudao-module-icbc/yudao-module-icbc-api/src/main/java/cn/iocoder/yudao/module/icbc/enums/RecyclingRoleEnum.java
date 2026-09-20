@@ -64,7 +64,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SETTLEMENT_CONFIRM_QUERY, RecyclingPermission.SETTLEMENT_CONFIRM_MANAGE,
             RecyclingPermission.STATION_QUERY, RecyclingPermission.STATION_MANAGE,
             RecyclingPermission.APPOINTMENT_QUERY, RecyclingPermission.APPOINTMENT_MANAGE,
-            RecyclingPermission.SELLER_NOTIFY_QUERY, RecyclingPermission.SELLER_NOTIFY_MANAGE)),
+            RecyclingPermission.SELLER_NOTIFY_QUERY, RecyclingPermission.SELLER_NOTIFY_MANAGE,
+            RecyclingPermission.HANDOVER_BATCH_QUERY, RecyclingPermission.HANDOVER_BATCH_MANAGE)),
 
     /**
      * 收货员：收购现场登记，维护出售者档案与收购单。
@@ -84,7 +85,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.STATION_QUERY,
             RecyclingPermission.SETTLEMENT_CONFIRM_QUERY, RecyclingPermission.SETTLEMENT_CONFIRM_MANAGE,
             RecyclingPermission.SELLER_NOTIFY_QUERY, RecyclingPermission.SELLER_NOTIFY_MANAGE,
-            RecyclingPermission.APPOINTMENT_QUERY, RecyclingPermission.APPOINTMENT_MANAGE)),
+            RecyclingPermission.APPOINTMENT_QUERY, RecyclingPermission.APPOINTMENT_MANAGE,
+            RecyclingPermission.HANDOVER_BATCH_QUERY, RecyclingPermission.HANDOVER_BATCH_MANAGE)),
 
     /**
      * 开票员：发起反向开票与付款，下载发票原件。
@@ -107,7 +109,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.QUOTA_QUERY,
             RecyclingPermission.TAX_DECLARATION_QUERY,
             RecyclingPermission.SETTLEMENT_QUERY,
-            RecyclingPermission.SETTLEMENT_CONFIRM_QUERY)),
+            RecyclingPermission.SETTLEMENT_CONFIRM_QUERY,
+            RecyclingPermission.HANDOVER_BATCH_QUERY)),
 
     /**
      * 财务：代办税费、对账、归集发票。
@@ -126,6 +129,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SETTLEMENT_QUERY, RecyclingPermission.SETTLEMENT_REMIND,
             RecyclingPermission.SETTLEMENT_CONFIRM_QUERY,
             RecyclingPermission.SELLER_NOTIFY_QUERY,
+            RecyclingPermission.HANDOVER_BATCH_QUERY,
             RecyclingPermission.PUBLIC_TOKEN_CREATE)),
 
     /**

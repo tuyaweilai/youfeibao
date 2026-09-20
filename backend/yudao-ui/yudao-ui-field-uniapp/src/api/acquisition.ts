@@ -5,6 +5,8 @@ export interface AcquisitionCreateReq {
   payeeId: number
   /** 场站编号：一次到场批次按「出售者 + 场站」聚合 */
   stationId?: number
+  /** 交接批次编号（#50）：填了就按该批次的有效磅次计量，手填重量不采用 */
+  handoverBatchId?: number
   goodsConfigId: number
   specification?: string
   quantity?: number
@@ -70,6 +72,10 @@ export interface AcquisitionVO {
   grossWeight?: number
   tareWeight?: number
   netWeight?: number
+  /** 交接批次与有效磅次（#50）：计量结果引用的是有效磅次的值与版本 */
+  handoverBatchId?: number
+  weighingId?: number
+  weighingSeqNo?: number
   deduction?: number
   deductionMethod?: string
   /** 结算重量 = 毛重 − 皮重 − 扣杂（唯一计价基准） */

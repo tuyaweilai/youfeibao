@@ -167,6 +167,26 @@ public class RecyclingRoleEnumTest {
     }
 
     @Test
+    public void testHandoverBatchPermissions() {
+        // 交接批次与磅次是现场动作：管理员 / 收货员可登记与指定有效磅次
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.HANDOVER_BATCH_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.HANDOVER_BATCH_MANAGE));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.HANDOVER_BATCH_MANAGE));
+        // 开票员 / 财务只在追溯时看得到，不改磅次
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.INVOICER.getCode(),
+                RecyclingPermission.HANDOVER_BATCH_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.INVOICER.getCode(),
+                RecyclingPermission.HANDOVER_BATCH_MANAGE));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.HANDOVER_BATCH_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.HANDOVER_BATCH_MANAGE));
+    }
+
+    @Test
     public void testOfCode() {
         assertEquals(RecyclingRoleEnum.ADMIN,
                 RecyclingRoleEnum.ofCode(RecyclingRoleEnum.ADMIN.getCode()).orElseThrow());

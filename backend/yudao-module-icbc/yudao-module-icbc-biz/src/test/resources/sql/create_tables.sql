@@ -1022,3 +1022,64 @@ CREATE TABLE IF NOT EXISTS icbc_payee_bank_card_change (
     PRIMARY KEY (id),
     CONSTRAINT uk_bank_card_change_no UNIQUE (change_no)
 );
+
+-- ===== 交接批次与有效磅次（#50 T12）=====
+
+-- icbc_handover_batch table（交接批次；租户表）
+CREATE TABLE IF NOT EXISTS icbc_handover_batch (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    batch_no VARCHAR(64) NOT NULL,
+    payee_id BIGINT NOT NULL,
+    seller_name VARCHAR(100),
+    seller_mobile VARCHAR(32),
+    station_id BIGINT,
+    station_name VARCHAR(100),
+    visit_address VARCHAR(500),
+    occur_time DATETIME,
+    source_type VARCHAR(20),
+    driver_name VARCHAR(50),
+    driver_mobile VARCHAR(32),
+    plate_no VARCHAR(32),
+    appointment_id BIGINT,
+    purchase_order_id BIGINT,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_handover_batch_no UNIQUE (batch_no)
+);
+CREATE INDEX IF NOT EXISTS idx_handover_batch_payee ON icbc_handover_batch(tenant_id, payee_id);
+
+-- icbc_weighing table（磅次；租户表；同一批次至多一条 effective）
+CREATE TABLE IF NOT EXISTS icbc_weighing (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    batch_id BIGINT NOT NULL,
+    seq_no INT NOT NULL,
+    gross_weight DECIMAL(14,4),
+    tare_weight DECIMAL(14,4),
+    net_weight DECIMAL(14,4),
+    weigh_time DATETIME,
+    weight_ticket_no VARCHAR(64),
+    weight_ticket_image_url VARCHAR(500),
+    plate_no VARCHAR(32),
+    effective BOOLEAN NOT NULL DEFAULT FALSE,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_weighing_batch_seq UNIQUE (batch_id, seq_no)
+);
+
+-- 收购单挂交接批次与有效磅次（#50）：追加列，不改上面的建表块
+ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS handover_batch_id BIGINT;
+ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS weighing_id BIGINT;
+ALTER TABLE icbc_acquisition ADD COLUMN IF NOT EXISTS weighing_seq_no INT;
+CREATE INDEX IF NOT EXISTS idx_acquisition_handover_batch ON icbc_acquisition(handover_batch_id);

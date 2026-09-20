@@ -65,6 +65,18 @@
         </view>
       </view>
 
+      <!-- 交接批次（#50）：计量只认被选定的那一次磅次 -->
+      <view v-if="handoverBatch" class="card">
+        <view class="card__title">交接批次 {{ handoverBatch.batchNo }}</view>
+        <view class="kv">
+          <view class="kv__row"><text class="kv__k">参与计量</text><text>{{ effectiveWeighingText }}</text></view>
+          <view class="kv__row"><text class="kv__k">车牌</text><text>{{ handoverBatch.plateNo || '-' }}</text></view>
+        </view>
+        <view class="hint">
+          重量与磅单以该批次的有效磅次为准，下面手填的值不会被采用；其余磅次留档不参与。
+        </view>
+      </view>
+
       <!-- 场站：一次到场批次按「出售者 + 场站」聚合（ADR 0018） -->
       <view class="card">
         <view class="card__title">场站</view>
@@ -217,6 +229,7 @@ import { getEnabledGoodsList, GoodsConfigVO } from '@/api/goodsConfig'
 import { findReturningCustomer, PayeeVO } from '@/api/payee'
 import { getStationPage, StationVO } from '@/api/station'
 import { createAcquisition, AcquisitionCreateReq, AcquisitionCreateResp } from '@/api/acquisition'
+import { getHandoverBatch, getWeighings, HandoverBatchVO } from '@/api/handover'
 import {
   AppointmentVO,
   getPendingAppointments,
@@ -252,6 +265,9 @@ const appointments = ref<AppointmentVO[]>([])
 const selectedAppointmentId = ref<number | null>(null)
 /** 从预约带出的数量文案（一律带「约」）：只作提示，不当准数用 */
 const prefilledQuantityText = ref('')
+/** 交接批次（#50）：填了就按该批次的有效磅次计量 */
+const handoverBatch = ref<HandoverBatchVO | null>(null)
+const effectiveWeighingText = ref('')
 
 const uploading = reactive<Record<PhotoKey, boolean>>({
   weightTicketImageUrl: false,
@@ -333,10 +349,51 @@ const plateClass = computed(() => ({
   'plate--bad': plateResult.value === false
 }))
 
-onLoad(() => {
+onLoad((options) => {
   loadGoods()
   loadStations()
+  // 从「交接批次」页过来：按批次带上出售者、车牌、司机与有效磅次的重量
+  if (options?.handoverBatchId) {
+    applyHandoverBatch(Number(options.handoverBatchId))
+  }
 })
+
+/**
+ * 按交接批次登记：只带出，不算账——真正的计量在服务端按有效磅次完成。
+ */
+async function applyHandoverBatch(batchId: number) {
+  try {
+    const detail = await getHandoverBatch(batchId)
+    handoverBatch.value = detail
+    if (detail.payeeId) {
+      seller.value = { id: detail.payeeId, name: detail.sellerName || '', mobile: detail.sellerMobile || '' }
+      lookedUp.value = true
+      form.payeeId = detail.payeeId
+    }
+    if (detail.stationId) {
+      form.stationId = detail.stationId
+      const index = stations.value.findIndex((station) => station.id === detail.stationId)
+      if (index >= 0) stationIndex.value = index
+    }
+    if (detail.plateNo) form.vehiclePlateNo = detail.plateNo
+    if (detail.driverName) form.driverName = detail.driverName
+    if (detail.driverMobile) form.driverMobile = detail.driverMobile
+    if (detail.visitAddress) form.tradeAddress = detail.visitAddress
+    const list = await getWeighings(batchId)
+    const effective = list.find((item) => item.effective)
+    if (effective) {
+      form.grossWeight = effective.grossWeight == null ? '' : String(effective.grossWeight)
+      form.tareWeight = effective.tareWeight == null ? '' : String(effective.tareWeight)
+      form.netWeight = effective.netWeight == null ? '' : String(effective.netWeight)
+      if (effective.weightTicketNo) form.weightTicketNo = effective.weightTicketNo
+      effectiveWeighingText.value = `第 ${effective.seqNo} 次磅次（毛重 ${effective.grossWeight} / 皮重 ${effective.tareWeight}）`
+    } else {
+      effectiveWeighingText.value = '还没有指定有效磅次，请先到交接批次页指定'
+    }
+  } catch (e) {
+    showError(e)
+  }
+}
 
 async function loadStations() {
   try {
@@ -345,6 +402,11 @@ async function loadStations() {
   } catch (e) {
     // 场站拉不到不阻断登记；提交时只是缺场站维度
     stations.value = []
+  }
+  // 批次带出的场站可能在 stationIndex 还没算好时先落进 form
+  if (form.stationId != null) {
+    const index = stations.value.findIndex((station) => station.id === form.stationId)
+    if (index >= 0) stationIndex.value = index
   }
 }
 
@@ -481,6 +543,8 @@ function clearSeller() {
   appointments.value = []
   selectedAppointmentId.value = null
   prefilledQuantityText.value = ''
+  handoverBatch.value = null
+  effectiveWeighingText.value = ''
 }
 
 async function loadAppointments(payeeId: number) {
@@ -574,6 +638,7 @@ function buildPayload(): AcquisitionCreateReq {
     clientRequestId: clientRequestId.value,
     payeeId: form.payeeId!,
     stationId: form.stationId,
+    handoverBatchId: handoverBatch.value?.id,
     goodsConfigId: form.goodsConfigId!,
     specification: form.specification || undefined,
     quantity: toNum(form.quantity) ?? undefined,
