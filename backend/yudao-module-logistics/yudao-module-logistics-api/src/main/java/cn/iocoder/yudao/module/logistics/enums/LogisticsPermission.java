@@ -86,6 +86,16 @@ public interface LogisticsPermission {
     /** 查看到期提醒（行驶证 / 保险 / 驾驶证 / 从业资格证） */
     String EXPIRY_WARNING_QUERY = "logistics:expiry-warning:query";
 
+    // ========== 轨迹演示件（V9 #76） ==========
+
+    /**
+     * 查看运输轨迹**演示**（模拟数据）。
+     *
+     * <p>单独一条权限而不是混进运输任务查询：演示件要能**一键关掉**，权限粒度与配置开关一致，
+     * 谁都不必为了演示能力放开真实数据的读取面。
+     */
+    String DEMO_TRACK_QUERY = "logistics:demo:track:query";
+
     // ========== 司机端（V2c #79） ==========
     //
     // 司机在用司机端时只拿这三个权限，且**只看得到派给自己的任务**——「是谁的任务」这层归属校验

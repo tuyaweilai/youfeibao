@@ -45,6 +45,7 @@ public enum LogisticsRoleEnum {
             LogisticsPermission.CARRIER_DELETE, LogisticsPermission.CARRIER_QUERY,
             LogisticsPermission.CARRIER_EXPORT,
             LogisticsPermission.TRANSPORT_TASK_OVERRIDE, LogisticsPermission.EXPIRY_WARNING_QUERY,
+            LogisticsPermission.DEMO_TRACK_QUERY,
             LogisticsPermission.TENANT_ROLE_INIT)),
 
     /**
@@ -58,7 +59,8 @@ public enum LogisticsRoleEnum {
             LogisticsPermission.TRANSPORT_TASK_QUERY, LogisticsPermission.TRANSPORT_TASK_ASSIGN,
             LogisticsPermission.TRANSPORT_TASK_CANCEL,
             LogisticsPermission.TRANSPORT_NODE_REPORT, LogisticsPermission.TRANSPORT_NODE_QUERY,
-            LogisticsPermission.CARRIER_QUERY, LogisticsPermission.EXPIRY_WARNING_QUERY)),
+            LogisticsPermission.CARRIER_QUERY, LogisticsPermission.EXPIRY_WARNING_QUERY,
+            LogisticsPermission.DEMO_TRACK_QUERY)),
 
     /**
      * 司机：把货从提货点运到场站并上报运输节点的人（自有司机与承运商司机同构）。

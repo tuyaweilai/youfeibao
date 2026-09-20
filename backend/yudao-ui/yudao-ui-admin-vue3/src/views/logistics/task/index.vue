@@ -255,6 +255,9 @@
         :title="`断点：${detail.missingNodeNames.join('、')} 尚未上报`"
       />
 
+      <h4 class="section">运输轨迹（模拟演示）</h4>
+      <TransportTrackDemo v-if="detail.id" :task-id="detail.id" />
+
       <h4 class="section">补录节点（本期只支持「起运」）</h4>
       <el-form :model="nodeForm" label-width="90px" class="mt-10px">
         <el-form-item label="发生时间">
@@ -286,6 +289,7 @@ import { LogisticsTransportTaskApi, LogisticsTransportNodeApi, LogisticsTranspor
 import { LogisticsVehicleApi, LogisticsVehicleVO } from '@/api/logistics/vehicle'
 import { LogisticsDriverApi, LogisticsDriverVO } from '@/api/logistics/driver'
 import { formatDate } from '@/utils/formatTime'
+import TransportTrackDemo from './components/TransportTrackDemo.vue'
 
 defineOptions({ name: 'LogisticsTask' })
 
