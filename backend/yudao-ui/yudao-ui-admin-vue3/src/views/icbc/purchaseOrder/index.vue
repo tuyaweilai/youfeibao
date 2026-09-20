@@ -333,24 +333,62 @@
     </template>
   </el-dialog>
 
-  <!-- 执行进度 -->
-  <el-dialog v-model="progressVisible" title="执行进度" width="720px">
+  <!-- 执行进度：五口径分列，不混口径；完成比例标明按哪个口径算 -->
+  <el-dialog v-model="progressVisible" title="执行进度（履约五口径）" width="880px">
     <template v-if="progress">
       <el-alert type="info" :closable="false" class="mb-10px" :title="progress.scopeNote" />
-      <el-descriptions :column="3" border class="mb-10px">
+      <el-descriptions :column="4" border class="mb-10px">
         <el-descriptions-item label="订单号">{{ progress.orderNo }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ progress.statusName }}</el-descriptions-item>
         <el-descriptions-item label="计划金额">{{ progress.totalAmount ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="计划量">{{ progress.totalQuantity ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="已收量">{{ progress.receivedQuantity ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="未收量">{{ progress.remainingQuantity ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="完成比例">
+          {{ progress.completionRatio == null ? '-' : (progress.completionRatio * 100).toFixed(2) + '%' }}
+          <el-tag size="small" class="ml-5px">{{ progress.completionBasisName }}</el-tag>
+        </el-descriptions-item>
       </el-descriptions>
+      <template v-for="anomaly in progress.anomalies" :key="anomaly.code">
+        <el-alert
+          :type="anomaly.severity === 'DANGER' ? 'error' : 'warning'"
+          :closable="false"
+          class="mb-10px"
+          :title="anomaly.name + '：' + anomaly.message"
+        />
+      </template>
+      <el-table :data="progress.measures" size="small" class="mb-10px">
+        <el-table-column label="口径" prop="name" width="90" />
+        <el-table-column label="数量" width="130" align="right">
+          <template #default="{ row }">
+            <span v-if="!row.available" class="text-gray-400">待接入</span>
+            <span v-else>{{ row.quantity ?? '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="口径说明（这个数字怎么来的）" prop="definition" min-width="300" />
+        <el-table-column label="数据来源" prop="source" min-width="180" show-overflow-tooltip />
+        <el-table-column label="不可用原因" min-width="160">
+          <template #default="{ row }">
+            <span v-if="row.unavailableReason" class="text-gray-500">{{ row.unavailableReason }}</span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+      </el-table>
       <el-table :data="progress.items" size="small">
-        <el-table-column label="品类" prop="categoryName" min-width="140" />
+        <el-table-column label="品类" prop="categoryName" min-width="130" />
         <el-table-column label="单位" prop="unit" width="70" />
-        <el-table-column label="计划量" prop="quantity" width="110" align="right" />
-        <el-table-column label="已收量" prop="receivedQuantity" width="110" align="right" />
-        <el-table-column label="未收量" prop="remainingQuantity" width="110" align="right" />
+        <el-table-column label="计划" prop="quantity" width="100" align="right" />
+        <el-table-column label="验收" width="110" align="right">
+          <template #default="{ row }">
+            <span :class="row.overQuantity ? 'text-red-500' : ''">{{ row.acceptedQuantity ?? '-' }}</span>
+            <el-tag v-if="row.overQuantity" type="danger" size="small" class="ml-5px">超量</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="入库" width="90" align="right">
+          <template #default="{ row }">
+            <span v-if="row.stockedQuantity == null" class="text-gray-400">待接入</span>
+            <span v-else>{{ row.stockedQuantity }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="结算" prop="settledQuantity" width="100" align="right" />
+        <el-table-column label="未履行" prop="unperformedQuantity" width="110" align="right" />
         <el-table-column label="成交笔数" prop="dealCount" width="90" align="center" />
       </el-table>
     </template>
@@ -377,6 +415,39 @@
         <el-descriptions-item label="关闭原因" :span="3">{{ detail.closeReason || '-' }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="3">{{ detail.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
+      <el-divider content-position="left">履约五口径（不混口径）</el-divider>
+      <el-alert
+        v-if="detailProgress"
+        type="info"
+        :closable="false"
+        class="mb-10px"
+        :title="detailProgress.scopeNote"
+      />
+      <el-descriptions v-if="detailProgress" :column="5" border class="mb-10px">
+        <el-descriptions-item
+          v-for="measure in detailProgress.measures"
+          :key="measure.code"
+          :label="measure.name"
+        >
+          <span v-if="!measure.available" class="text-gray-400">待接入</span>
+          <span v-else>{{ measure.quantity ?? '-' }}</span>
+        </el-descriptions-item>
+      </el-descriptions>
+      <el-alert
+        v-if="detailProgress"
+        type="success"
+        :closable="false"
+        class="mb-10px"
+        :title="'完成比例 ' + (detailProgress.completionRatio == null ? '-' : (detailProgress.completionRatio * 100).toFixed(2) + '%') + '，采用的履约口径：' + detailProgress.completionBasisName"
+      />
+      <template v-for="anomaly in detailProgress?.anomalies || []" :key="anomaly.code">
+        <el-alert
+          :type="anomaly.severity === 'DANGER' ? 'error' : 'warning'"
+          :closable="false"
+          class="mb-10px"
+          :title="anomaly.name + '：' + anomaly.message"
+        />
+      </template>
       <el-divider content-position="left">品类明细（一条明细可分多次收货）</el-divider>
       <el-table :data="detail.items" size="small" class="mb-10px">
         <el-table-column label="品类" prop="categoryName" min-width="120" />
@@ -435,8 +506,8 @@ import { reactive, ref } from 'vue'
 import {
   PurchaseOrderApi,
   PurchaseOrderVO,
-  PurchaseOrderItemVO,
   PurchaseOrderDealVO,
+  PurchaseOrderProgressVO,
   PURCHASE_ORDER_STATUS_OPTIONS,
   PURCHASE_ORDER_PRICE_MODE_OPTIONS,
   PURCHASE_ORDER_COUNTERPARTY_TYPE_OPTIONS,
@@ -696,9 +767,12 @@ const openProgress = async (row: PurchaseOrderVO) => {
 const detailVisible = ref(false)
 const detail = ref<PurchaseOrderVO>()
 const deals = ref<PurchaseOrderDealVO[]>([])
+const detailProgress = ref<PurchaseOrderProgressVO>()
 const openDetail = async (row: PurchaseOrderVO) => {
   detail.value = await PurchaseOrderApi.getPurchaseOrder(row.id!)
   deals.value = await PurchaseOrderApi.getDealList(row.id!)
+  // 订单详情也要能看到五口径与完成比例口径（AC1）；执行进度弹窗有更细的表
+  detailProgress.value = await PurchaseOrderApi.getProgress(row.id!)
   detailVisible.value = true
 }
 

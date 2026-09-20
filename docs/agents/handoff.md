@@ -844,3 +844,66 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 > **未做（不属本票）**：进项抵扣认证与发票查验平台对接（规格 #38 明确 out of scope，进项一期只做到
 > 收票登记与勾稽）。
+
+## #47 T09 履约五口径与执行进度（已完成）
+
+让订单的执行进度按**计划 / 验收 / 入库 / 结算 / 未履行**五个口径分列、不混口径（用户故事 21），
+并让超量 / 过期 / 跨场站交货按企业配置拦截或提交授权审核。分支 `t09-order-progress`，
+菜单段 5250–5269（用了 5250–5254），错误码段 `1_030_033_xxx`。
+
+1. **五口径的取数只有一处**：`PurchaseOrderService#getProgress`，口径定义（编码 / 名称 / 口径说明 /
+   数据来源 / 是否取得到数）的唯一来源是 `PurchaseProgressMeasureEnum`（`icbc-api`），响应里随
+   数字一起返回，前端只展示、不另算一遍：
+   - **计划** ← `icbc_purchase_order_item.quantity` 汇总；
+   - **验收** ← `icbc_purchase_order_deal.quantity` 汇总（**退货记负数，自动扣回** —— AC3）；
+   - **结算** ← 成交记录中「来源收购单已归入结算单」的那部分（顺 `deal.source_type=ACQUISITION` +
+     `source_id` 读收购单已有的 `settlement_id`，**不依赖 #51 的关联列**）；
+   - **入库** ← **标 `available=false` + `unavailableReason`（「待接入」），数量为空而不是 0**。
+     入库单是 #52；`PurchaseProgressMeasureEnum.STOCKED_IN` 清空 `unavailableReason`、在
+     `getProgress` 里按「来源收购单已入库」补一段取数即可，其余不用动（照 #56 对待「待入库」的做法）；
+   - **未履行** ← 计划 − 本单履约口径量，**可为负**（超收是要被看见的异常，不截断）。
+   **完成比例必须带口径**：`completionBasis` / `completionBasisName` / `completionBasisDefinition` /
+   `completionRatio` 一起返回（AC1）。口径落在租户级配置 `icbc_purchase_setting.performance_basis`
+   （默认验收口径；只允许选**能取到数**的口径，入库口径不可选——采购合同 #45 没有承载该字段）。
+2. **异常可见**：`getProgress` 另返回 `anomalies`（`OVER_QUANTITY` 验收超计划、`EXPIRED_EXECUTING`
+   执行中却已过期、`PENDING_EXCEPTION` 有待审核授权），明细行带 `overQuantity` 标记。
+3. **交货门禁 + 授权审核（AC2）**：配置表 `icbc_purchase_setting` 按异常类型各配一项
+   `BLOCK`（拦截）/ `APPROVAL`（提交授权审核），**默认 BLOCK，没配过不等于放行**。
+   - `checkDelivery(req)` 只读地返回三类异常、企业配置的处理方式、有没有生效中的授权放行；
+     `assertDeliveryAllowed(req)` 不允许就抛 `PURCHASE_ORDER_DELIVERY_BLOCKED` /
+     `PURCHASE_ORDER_DELIVERY_NEEDS_APPROVAL` 并给出逐条原因。
+   - **门禁接在 `recordDeal` 里**（收货即成交记录），所以 UI 手工登记的成交也走同一道闸；
+     `#51` 收购登记把收购单挂到订单上时调 `assertDeliveryAllowed` 即可，不要再另写一份判断。
+   - **订单状态是硬门禁**：草稿 / 暂停 / 完成 / 关闭一律拒（前两者抛 `PURCHASE_ORDER_NOT_DELIVERABLE`，
+     关闭抛 `PURCHASE_ORDER_CLOSED_NOT_DELIVERABLE`），企业配置与授权都放宽不了；**过期**才是可配置的那一条。
+   - 新增 `icbc_purchase_exception`（履约异常授权单）：提交 → 审核（通过 / 拒绝）→ 已通过的授权按范围放行。
+     授权范围：超量给「追加量」（多张已通过授权的追加量**累加**，超出的部分仍拦）、
+     过期给「有效期」、跨场站必须**指定场站**（只对该场站放行）。授权只放宽它自己那一件事，不改订单状态。
+4. **退货按口径扣回（AC3）**：`recordDeal` 接受**负数数量**（退货），验收 / 结算两个口径都会跟着减；
+   已暂停 / 完成 / 关闭的订单**仍可登记退货**（否则货退回来没地方记），只有草稿单不可以。
+5. **关闭不删除已发生的业务（AC4）**：关闭后订单、成交记录、授权单都还在（`deleteOrder` 仍只允许草稿），
+   测试锁死「关闭后 `getDealList` / `getProgress` 照常可读、`deleteOrder` 被拒」。
+6. **权限 / 菜单**：新增 `icbc:purchase-setting:query|manage`、`icbc:purchase-exception:query|request|audit`
+   （管理员全量；收货员可提交可查、不能自己审；财务只看；平台运营不参与）。菜单 5250–5254 挂在
+   「采购管理」（5203）下，随套餐递归进回收企业套餐（已在临时库 `t09_menu_check` 整份跑通后删库）。
+7. **落地**：迁移 `backend/sql/mysql/icbc-purchase-order-progress.sql`（幂等，两张租户表，已进 README 导入顺序）；
+   测试建表与 `clean.sql` 同步；新增枚举 `PurchaseProgressMeasureEnum` / `PurchasePerformanceBasisEnum` /
+   `PurchaseDeliveryRuleEnum` / `PurchaseExceptionTypeEnum` / `PurchaseExceptionStatusEnum` /
+   `PurchaseDealSourceTypeEnum`（成交记录的来源类型，`#51` 应使用它而不是写字符串）。
+8. **测试**：`PurchaseOrderServiceTest` 24 例（五口径分列且来源分开、结算口径、退货扣回、异常可见、
+   三类门禁 BLOCK / APPROVAL / 硬门禁、授权范围收紧与到期、配置默认值与非法值、关闭保留业务）+
+   新增 `PurchaseOrderExceptionServiceTest` 6 例（提交校验与不重复提交、审核收紧范围、拒绝与过有效期、
+   订单级异常不挂明细、口径说明、分页）+ `RecyclingRoleEnumTest` 补权限 + `IcbcTenantIsolationTest`
+   补两表租户隔离。**icbc 549 测试全绿**；PC `pnpm build:local` 通过、`pnpm ts:check` 在
+   `views|api/icbc/purchaseOrder` 下零新增报错。
+9. **前端**：`views/icbc/purchaseOrder/index.vue` 的执行进度弹窗改为五口径表格（含口径说明、数据来源、
+   「待接入」标注、完成比例口径标签、异常提示条）；新增 `views/icbc/purchaseOrder/exception.vue`
+   （授权单列表 / 提交 / 审核 / 口径说明）与 `views/icbc/purchaseOrder/setting.vue`（履约配置）。
+
+> **给 #51 / #52 的接口**：`#51` 把收购单挂到订单上时，成交记录的 `source_type` 用
+> `PurchaseDealSourceTypeEnum.ACQUISITION`、`source_id` 填收购单编号（结算口径靠它找结算状态），
+> 并在登记前调 `assertDeliveryAllowed`；`#52` 的入库单落地后只改 `PurchaseProgressMeasureEnum.STOCKED_IN`
+> 与 `getProgress` 的入库取数，不改 VO 与前端（`stockedQuantity` 从空变成数字）。
+
+> **与 #51 的约定已遵守**：本票没有动 `icbc_acquisition` 的任何列，也没有碰采购合同。
+> 合并时若 #51 先合，仍需人工确认它的成交记录写入与 `recordDeal` 的门禁一致（超量 / 过期 / 跨场站）。

@@ -345,7 +345,7 @@ public interface ErrorCodeConstants {
     ErrorCode PURCHASE_ORDER_ONLY_DRAFT_DELETABLE = new ErrorCode(1_030_031_017,
             "只有草稿采购订单可以删除");
     ErrorCode PURCHASE_ORDER_DEAL_QUANTITY_INVALID = new ErrorCode(1_030_031_018,
-            "成交数量必须大于 0");
+            "成交数量不能为 0（退货请填负数，按履约口径自动扣回）");
     ErrorCode PURCHASE_ORDER_DEAL_ADJUST_REASON_REQUIRED = new ErrorCode(1_030_031_019,
             "成交价与参考价不一致时必须填写调整原因");
     ErrorCode PURCHASE_ORDER_DEAL_PRICE_INVALID = new ErrorCode(1_030_031_020,
@@ -369,4 +369,35 @@ public interface ErrorCodeConstants {
             "勾稽金额 {} 超过单据可勾稽额度（单据金额 {}，已勾稽 {}）");
     ErrorCode INPUT_INVOICE_LINK_EXCEED_INVOICE_AMOUNT = new ErrorCode(1_030_032_010,
             "勾稽金额 {} 超过发票可勾稽金额（价税合计 {}，已勾稽 {}）");
+
+    // ========== 采购订单履约五口径与执行进度（#47 T09，ADR 0027） 1-030-033-000 ==========
+    ErrorCode PURCHASE_ORDER_DELIVERY_BLOCKED = new ErrorCode(1_030_033_000,
+            "本次交货被企业的履约配置拦截，不能登记：{}");
+    ErrorCode PURCHASE_ORDER_DELIVERY_NEEDS_APPROVAL = new ErrorCode(1_030_033_001,
+            "本次交货需先提交授权审核，审核通过后才能登记：{}");
+    ErrorCode PURCHASE_ORDER_CLOSED_NOT_DELIVERABLE = new ErrorCode(1_030_033_002,
+            "采购订单已关闭，不能再登记交货（已发生的业务仍可回查）：{}");
+    ErrorCode PURCHASE_ORDER_NOT_DELIVERABLE = new ErrorCode(1_030_033_003,
+            "采购订单当前状态不允许登记交货，请先让它成为「执行中」的采购依据：{}");
+    ErrorCode PURCHASE_EXCEPTION_NOT_EXISTS = new ErrorCode(1_030_033_004, "履约异常授权单不存在");
+    ErrorCode PURCHASE_EXCEPTION_STATUS_NOT_ALLOW = new ErrorCode(1_030_033_005,
+            "履约异常授权单当前状态不允许该操作：{}");
+    ErrorCode PURCHASE_EXCEPTION_TYPE_INVALID = new ErrorCode(1_030_033_006,
+            "履约异常类型不合法：{}");
+    ErrorCode PURCHASE_EXCEPTION_REASON_REQUIRED = new ErrorCode(1_030_033_007,
+            "提交履约异常授权审核必须填写原因");
+    ErrorCode PURCHASE_EXCEPTION_QUANTITY_INVALID = new ErrorCode(1_030_033_008,
+            "申请的交货量必须大于 0");
+    ErrorCode PURCHASE_EXCEPTION_STATION_REQUIRED = new ErrorCode(1_030_033_009,
+            "跨场站交货的授权必须指明本次交货场站");
+    ErrorCode PURCHASE_EXCEPTION_ITEM_REQUIRED = new ErrorCode(1_030_033_010,
+            "超量交货的授权必须指明采购订单明细");
+    ErrorCode PURCHASE_EXCEPTION_APPROVED_QUANTITY_INVALID = new ErrorCode(1_030_033_011,
+            "超量交货的授权追加量不能为负");
+    ErrorCode PURCHASE_EXCEPTION_ALREADY_PENDING = new ErrorCode(1_030_033_012,
+            "该异常已有待审核的授权申请（{}），先等它审完或撤下再提交");
+    ErrorCode PURCHASE_SETTING_PERFORMANCE_BASIS_INVALID = new ErrorCode(1_030_033_013,
+            "完成比例采用的履约口径不合法（只接受已能取到数的口径）：{}");
+    ErrorCode PURCHASE_SETTING_RULE_INVALID = new ErrorCode(1_030_033_014,
+            "履约异常的处理方式不合法（只接受拦截 / 提交授权审核）：{}");
 }

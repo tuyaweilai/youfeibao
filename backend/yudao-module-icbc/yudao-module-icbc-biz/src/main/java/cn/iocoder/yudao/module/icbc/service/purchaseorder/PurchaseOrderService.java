@@ -3,10 +3,14 @@ package cn.iocoder.yudao.module.icbc.service.purchaseorder;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDeliveryCheckReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDeliveryCheckRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderProgressRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderSaveReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderSettingRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderSettingSaveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderStatusUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderDO;
 
@@ -82,12 +86,47 @@ public interface PurchaseOrderService {
     PageResult<PurchaseOrderRespVO> getOrderPage(PurchaseOrderPageReqVO pageReqVO);
 
     /**
-     * 获得采购订单执行进度（本票：计划 / 已收；五口径分列见 #47）。
+     * 获得采购订单执行进度（#47 T09：**计划 / 验收 / 入库 / 结算 / 未履行**五口径分列，不混口径）。
+     *
+     * <p>口径的唯一来源是 {@code PurchaseProgressMeasureEnum}；完成比例按企业配置的履约口径计算，
+     * 随响应一起返回口径名与口径说明。「入库」在入库单（#52）落地前取不到数，返回
+     * {@code available=false} + {@code unavailableReason}，不给一个会被误读的 0。
      *
      * @param id 订单编号
      * @return 执行进度
      */
     PurchaseOrderProgressRespVO getProgress(Long id);
+
+    /**
+     * 校验一次交货是否被允许（#47 T09 AC2：超量 / 过期 / 跨场站交货按企业配置拦截或提交授权审核）。
+     *
+     * <p>只读，不抛业务异常：调用方（现场 UI）拿它去提示「为什么不能收」与「下一步做什么」。
+     *
+     * @param reqVO 交货校验信息
+     * @return 校验结果
+     */
+    PurchaseOrderDeliveryCheckRespVO checkDelivery(PurchaseOrderDeliveryCheckReqVO reqVO);
+
+    /**
+     * 交货门禁：不允许则抛业务异常。收购登记（#51）在把收购单挂到订单上之前调用它。
+     *
+     * @param reqVO 交货校验信息
+     */
+    void assertDeliveryAllowed(PurchaseOrderDeliveryCheckReqVO reqVO);
+
+    /**
+     * 获得采购履约配置（未配置过时返回默认值：完成比例按验收口径、三类异常都拦截）。
+     *
+     * @return 配置
+     */
+    PurchaseOrderSettingRespVO getSetting();
+
+    /**
+     * 修改采购履约配置（租户级，单行）。
+     *
+     * @param reqVO 配置
+     */
+    void updateSetting(PurchaseOrderSettingSaveReqVO reqVO);
 
     /**
      * 校验订单可作为采购依据：必须「执行中」且未过期。
@@ -98,10 +137,14 @@ public interface PurchaseOrderService {
     IcbcPurchaseOrderDO assertUsableAsPurchaseBasis(Long id);
 
     /**
-     * 登记一次成交：留价格快照与调整原因，数量汇总为明细的已收量。
+     * 登记一次成交：留价格快照与调整原因，数量汇总为明细的**验收口径**。
      *
      * <p>成交价通常来自收购单（#51）；服务端按明细定价方式算出参考价并比对，
      * 不一致时 {@code adjustReason} 必填。
+     *
+     * <p>#47 T09 起，这里也是**交货门禁**的落点：正数（收货）先过
+     * {@link #assertDeliveryAllowed}——超量 / 过期 / 跨场站按企业配置拦截或要求授权审核；
+     * 负数表示**退货**，按同一口径自动扣回（已暂停 / 完成 / 关闭的订单仍可登记退货，只有草稿不行）。
      *
      * @param reqVO 成交信息
      * @return 成交记录编号

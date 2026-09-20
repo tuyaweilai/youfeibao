@@ -70,7 +70,10 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PURCHASE_ORDER_QUERY, RecyclingPermission.PURCHASE_ORDER_MANAGE,
             RecyclingPermission.HANDOVER_BATCH_QUERY, RecyclingPermission.HANDOVER_BATCH_MANAGE,
             RecyclingPermission.INPUT_INVOICE_QUERY, RecyclingPermission.INPUT_INVOICE_MANAGE,
-            RecyclingPermission.WORKBENCH_QUERY)),
+            RecyclingPermission.WORKBENCH_QUERY,
+            RecyclingPermission.PURCHASE_SETTING_QUERY, RecyclingPermission.PURCHASE_SETTING_MANAGE,
+            RecyclingPermission.PURCHASE_EXCEPTION_QUERY, RecyclingPermission.PURCHASE_EXCEPTION_REQUEST,
+            RecyclingPermission.PURCHASE_EXCEPTION_AUDIT)),
 
     /**
      * 收货员：收购现场登记，维护出售者档案与收购单。
@@ -94,6 +97,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PURCHASE_CONTRACT_QUERY,
             RecyclingPermission.PURCHASE_ORDER_QUERY,
             RecyclingPermission.HANDOVER_BATCH_QUERY, RecyclingPermission.HANDOVER_BATCH_MANAGE,
+            RecyclingPermission.PURCHASE_SETTING_QUERY,
+            RecyclingPermission.PURCHASE_EXCEPTION_QUERY, RecyclingPermission.PURCHASE_EXCEPTION_REQUEST,
             RecyclingPermission.WORKBENCH_QUERY)),
 
     /**
@@ -121,6 +126,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PURCHASE_ORDER_QUERY,
             RecyclingPermission.HANDOVER_BATCH_QUERY,
             RecyclingPermission.INPUT_INVOICE_QUERY,
+            RecyclingPermission.PURCHASE_EXCEPTION_QUERY,
             RecyclingPermission.WORKBENCH_QUERY)),
 
     /**
@@ -144,6 +150,8 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PURCHASE_ORDER_QUERY,
             RecyclingPermission.HANDOVER_BATCH_QUERY,
             RecyclingPermission.INPUT_INVOICE_QUERY, RecyclingPermission.INPUT_INVOICE_MANAGE,
+            RecyclingPermission.PURCHASE_SETTING_QUERY,
+            RecyclingPermission.PURCHASE_EXCEPTION_QUERY,
             RecyclingPermission.PUBLIC_TOKEN_CREATE,
             RecyclingPermission.WORKBENCH_QUERY)),
 
