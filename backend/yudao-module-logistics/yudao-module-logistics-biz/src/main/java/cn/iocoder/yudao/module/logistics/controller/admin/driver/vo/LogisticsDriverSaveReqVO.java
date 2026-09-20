@@ -5,6 +5,7 @@ import lombok.Data;
 
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
+import java.time.LocalDate;
 
 @Schema(description = "管理后台 - 司机新增/修改 Request VO")
 @Data
@@ -28,6 +29,24 @@ public class LogisticsDriverSaveReqVO {
     @Schema(description = "司机来源：1-自有，2-承运商", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     @NotNull(message = "司机来源不能为空")
     private Integer source;
+
+    @Schema(description = "所属承运商编号（来源为承运商时必填）", example = "1")
+    private Long carrierId;
+
+    @Schema(description = "驾驶证号码", example = "3301...")
+    private String drivingLicenseNo;
+
+    @Schema(description = "准驾车型", example = "A2")
+    private String drivingLicenseType;
+
+    @Schema(description = "驾驶证到期日（过期不得派出；可由管理员带原因授权放行）")
+    private LocalDate drivingLicenseExpiryDate;
+
+    @Schema(description = "从业资格证号码")
+    private String qualificationCertNo;
+
+    @Schema(description = "从业资格证到期日（同上）")
+    private LocalDate qualificationCertExpiryDate;
 
     @Schema(description = "司机状态：0-在职，1-离职，2-请假", requiredMode = Schema.RequiredMode.REQUIRED, example = "0")
     @NotNull(message = "司机状态不能为空")

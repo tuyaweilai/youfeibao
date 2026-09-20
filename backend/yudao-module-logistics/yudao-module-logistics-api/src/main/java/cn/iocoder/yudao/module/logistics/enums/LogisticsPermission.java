@@ -60,6 +60,32 @@ public interface LogisticsPermission {
     /** 查询运输节点与凭证 */
     String TRANSPORT_NODE_QUERY = "logistics:transport-node:query";
 
+    // ========== 承运商档案（V3 #70） ==========
+
+    /** 新增承运商 */
+    String CARRIER_CREATE = "logistics:carrier:create";
+    /** 修改承运商 */
+    String CARRIER_UPDATE = "logistics:carrier:update";
+    /** 删除承运商 */
+    String CARRIER_DELETE = "logistics:carrier:delete";
+    /** 查询承运商 */
+    String CARRIER_QUERY = "logistics:carrier:query";
+    /** 导出承运商 */
+    String CARRIER_EXPORT = "logistics:carrier:export";
+
+    // ========== 派车门禁的授权放行（V3 #70） ==========
+
+    /**
+     * 证件过期时授权放行（**只挂管理员**）。
+     *
+     * <p>放行的是「软门禁」：证件过期（现实里常见「正在换证」）。车辆维修中、司机离职这类
+     * **硬门禁不可授权绕过**——那不是流程不便，是无证运营。
+     */
+    String TRANSPORT_TASK_OVERRIDE = "logistics:transport-task:override";
+
+    /** 查看到期提醒（行驶证 / 保险 / 驾驶证 / 从业资格证） */
+    String EXPIRY_WARNING_QUERY = "logistics:expiry-warning:query";
+
     // ========== 司机端（V2c #79） ==========
     //
     // 司机在用司机端时只拿这三个权限，且**只看得到派给自己的任务**——「是谁的任务」这层归属校验

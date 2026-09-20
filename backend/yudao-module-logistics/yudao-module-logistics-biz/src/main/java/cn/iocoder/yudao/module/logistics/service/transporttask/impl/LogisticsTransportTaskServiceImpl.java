@@ -6,6 +6,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskOverrideAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.driver.LogisticsDriverDO;
@@ -13,6 +14,8 @@ import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsT
 import cn.iocoder.yudao.module.logistics.dal.dataobject.vehicle.LogisticsVehicleDO;
 import cn.iocoder.yudao.module.logistics.dal.mysql.transporttask.LogisticsTransportTaskMapper;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsDriverStatusEnum;
+import cn.iocoder.yudao.framework.common.exception.ServiceException;
+import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportTaskStatusEnum;
 import cn.iocoder.yudao.module.logistics.service.driver.LogisticsDriverService;
 import cn.iocoder.yudao.module.logistics.service.transporttask.LogisticsTransportTaskService;
@@ -62,8 +65,9 @@ public class LogisticsTransportTaskServiceImpl implements LogisticsTransportTask
         task.setTaskNo(generateTaskNo());
         task.setStatus(LogisticsTransportTaskStatusEnum.PENDING.getStatus());
         if (hasVehicle) {
-            // 带车带人创建 = 直接完成派车，落到「已分配」
-            fillAssignment(task, createReqVO.getVehicleId(), createReqVO.getDriverId());
+            // 带车带人创建 = 直接完成派车，落到「已分配」。创建路径不做授权放行：
+            // 要带过期证件出车，先建任务再走 assignTaskWithOverride，让授权那一步显式发生。
+            fillAssignment(task, createReqVO.getVehicleId(), createReqVO.getDriverId(), false);
             task.setStatus(LogisticsTransportTaskStatusEnum.ASSIGNED.getStatus());
         }
         logisticsTransportTaskMapper.insert(task);
@@ -97,9 +101,39 @@ public class LogisticsTransportTaskServiceImpl implements LogisticsTransportTask
         }
         LogisticsTransportTaskDO update = new LogisticsTransportTaskDO();
         update.setId(task.getId());
-        fillAssignment(update, assignReqVO.getVehicleId(), assignReqVO.getDriverId());
+        fillAssignment(update, assignReqVO.getVehicleId(), assignReqVO.getDriverId(), false);
         update.setStatus(LogisticsTransportTaskStatusEnum.ASSIGNED.getStatus());
         update.setAssignTime(LocalDateTime.now());
+        logisticsTransportTaskMapper.updateById(update);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void assignTaskWithOverride(LogisticsTransportTaskOverrideAssignReqVO overrideReqVO) {
+        if (StrUtil.isBlank(overrideReqVO.getOverrideReason())) {
+            throw exception(TRANSPORT_TASK_OVERRIDE_REASON_REQUIRED);
+        }
+        LogisticsTransportTaskDO task = getTask(overrideReqVO.getId());
+        if (!Objects.equals(task.getStatus(), LogisticsTransportTaskStatusEnum.PENDING.getStatus())) {
+            throw exception(TRANSPORT_TASK_STATUS_NOT_ALLOW_UPDATE);
+        }
+        LogisticsTransportTaskDO update = new LogisticsTransportTaskDO();
+        update.setId(task.getId());
+        try {
+            fillAssignment(update, overrideReqVO.getVehicleId(), overrideReqVO.getDriverId(), true);
+        } catch (ServiceException ex) {
+            // 硬门禁走这条路也拦：换个说法告诉调用者「这不是能授权的那一类」
+            if (TRANSPORT_TASK_VEHICLE_NOT_AVAILABLE.getCode().equals(ex.getCode())
+                    || TRANSPORT_TASK_DRIVER_NOT_ACTIVE.getCode().equals(ex.getCode())) {
+                throw exception(TRANSPORT_TASK_OVERRIDE_NOT_APPLICABLE);
+            }
+            throw ex;
+        }
+        update.setStatus(LogisticsTransportTaskStatusEnum.ASSIGNED.getStatus());
+        update.setAssignTime(LocalDateTime.now());
+        update.setOverrideReason(overrideReqVO.getOverrideReason());
+        update.setOverrideBy(SecurityFrameworkUtils.getLoginUserId());
+        update.setOverrideTime(LocalDateTime.now());
         logisticsTransportTaskMapper.updateById(update);
     }
 
@@ -193,12 +227,14 @@ public class LogisticsTransportTaskServiceImpl implements LogisticsTransportTask
      *
      * <p>快照是给一票一档用的：档案改名或删档都不该让历史单据变样（ADR 0032 第 7 条）。
      */
-    private void fillAssignment(LogisticsTransportTaskDO target, Long vehicleId, Long driverId) {
-        LogisticsVehicleDO vehicle = logisticsVehicleService.getAssignableVehicle(vehicleId);
-        LogisticsDriverDO driver = logisticsDriverService.getDriver(driverId);
-        if (!LogisticsDriverStatusEnum.ACTIVE.getStatus().equals(driver.getStatus())) {
-            throw exception(TRANSPORT_TASK_DRIVER_NOT_ACTIVE);
-        }
+    private void fillAssignment(LogisticsTransportTaskDO target, Long vehicleId, Long driverId,
+                                boolean allowExpiredDocuments) {
+        LogisticsVehicleDO vehicle = allowExpiredDocuments
+                ? logisticsVehicleService.getAssignableVehicleAllowingExpiredDocuments(vehicleId)
+                : logisticsVehicleService.getAssignableVehicle(vehicleId);
+        LogisticsDriverDO driver = allowExpiredDocuments
+                ? logisticsDriverService.getAssignableDriverAllowingExpiredDocuments(driverId)
+                : logisticsDriverService.getAssignableDriver(driverId);
         target.setVehicleId(vehicle.getId());
         target.setPlateNo(vehicle.getPlateNo());
         target.setDriverId(driver.getId());

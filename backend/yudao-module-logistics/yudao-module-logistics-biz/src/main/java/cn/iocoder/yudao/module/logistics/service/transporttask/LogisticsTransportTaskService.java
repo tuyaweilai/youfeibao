@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.logistics.service.transporttask;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskOverrideAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
@@ -33,9 +34,18 @@ public interface LogisticsTransportTaskService {
     void updateTask(@Valid LogisticsTransportTaskSaveReqVO updateReqVO);
 
     /**
-     * 派车：给待分配的任务安排车与司机。
+     * 派车：给待分配的任务安排车与司机。**门禁**：车辆不得维修中、司机必须在职，
+     * 且证件都未过期；任何一条不过就拒绝。
      */
     void assignTask(@Valid LogisticsTransportTaskAssignReqVO assignReqVO);
+
+    /**
+     * 授权放行派车：证件过期时由管理员带着原因放行，**并把原因 / 授权人 / 时间落到任务上**。
+     *
+     * <p>只放行软门禁（证件过期）。车辆维修中、司机离职这类硬门禁即便走这条路也拦——
+     * 那不是在办手续，是在无证运营。
+     */
+    void assignTaskWithOverride(@Valid LogisticsTransportTaskOverrideAssignReqVO overrideReqVO);
 
     /**
      * 接单（V2c 由司机端点；本票由调度在 PC 上代记）。

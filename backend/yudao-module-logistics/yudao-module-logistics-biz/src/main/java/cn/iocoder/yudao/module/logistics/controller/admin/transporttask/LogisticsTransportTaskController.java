@@ -5,6 +5,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskOverrideAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskRespVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
@@ -66,6 +67,16 @@ public class LogisticsTransportTaskController {
     @PreAuthorize("@ss.hasPermission('" + LogisticsPermission.TRANSPORT_TASK_ASSIGN + "')")
     public CommonResult<Boolean> assign(@Valid @RequestBody LogisticsTransportTaskAssignReqVO assignReqVO) {
         logisticsTransportTaskService.assignTask(assignReqVO);
+        return success(true);
+    }
+
+    @PutMapping("/assign-override")
+    @Operation(summary = "授权放行派车",
+            description = "证件过期时由管理员带着原因放行，留痕原因/授权人/时间；车辆维修中、司机离职这类硬门禁不可绕过")
+    @PreAuthorize("@ss.hasPermission('" + LogisticsPermission.TRANSPORT_TASK_OVERRIDE + "')")
+    public CommonResult<Boolean> assignOverride(
+            @Valid @RequestBody LogisticsTransportTaskOverrideAssignReqVO overrideReqVO) {
+        logisticsTransportTaskService.assignTaskWithOverride(overrideReqVO);
         return success(true);
     }
 

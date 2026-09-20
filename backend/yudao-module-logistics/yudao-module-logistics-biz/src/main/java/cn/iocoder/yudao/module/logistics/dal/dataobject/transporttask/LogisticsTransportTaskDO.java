@@ -78,6 +78,19 @@ public class LogisticsTransportTaskDO extends TenantBaseDO {
 
     /** 派车时间 */
     private LocalDateTime assignTime;
+    /**
+     * 授权放行原因（证件过期时由管理员带着原因放行，留痕；正常派车为空）
+     *
+     * <p>门禁可以绕，但绕过必须留名：没有这条留痕，服务端不放行（见 `logistics-archive-gate.sql`）。
+     */
+    private String overrideReason;
+
+    /** 授权放行人（系统用户编号） */
+    private Long overrideBy;
+
+    /** 授权放行时间 */
+    private LocalDateTime overrideTime;
+
     /** 接单时间 */
     private LocalDateTime acceptTime;
     /** 起运时间（上报「起运」节点时落） */

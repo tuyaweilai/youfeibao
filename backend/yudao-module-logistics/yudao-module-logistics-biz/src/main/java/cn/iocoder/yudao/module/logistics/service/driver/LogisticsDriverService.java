@@ -39,6 +39,26 @@ public interface LogisticsDriverService {
      */
     LogisticsDriverDO getDriverByUserId(Long userId);
 
+    /**
+     * 获得可派的司机：**硬门禁**（在职）+ **软门禁**（驾驶证与从业资格证未过期）。
+     */
+    LogisticsDriverDO getAssignableDriver(Long driverId);
+
+    /**
+     * 同上，但**不查证件是否过期**——授权放行走这条路；**离职照样拦**。
+     */
+    LogisticsDriverDO getAssignableDriverAllowingExpiredDocuments(Long driverId);
+
+    /**
+     * 证件是否过期（驾驶证或从业资格证任一到期日早于今天）。
+     */
+    boolean isDocumentExpired(LogisticsDriverDO driver);
+
     PageResult<LogisticsDriverDO> getDriverPage(LogisticsDriverPageReqVO pageReqVO);
+
+    /**
+     * 导出司机列表（不分页）。
+     */
+    java.util.List<LogisticsDriverDO> getDriverList(LogisticsDriverPageReqVO exportReqVO);
 
 }

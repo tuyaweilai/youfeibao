@@ -36,6 +36,15 @@ public class LogisticsTransportTaskRespVO extends LogisticsTransportTaskSaveReqV
     @Schema(description = "派车时间")
     private LocalDateTime assignTime;
 
+    @Schema(description = "授权放行原因（证件过期时管理员带着原因放行，正常派车为空）")
+    private String overrideReason;
+
+    @Schema(description = "授权放行人（系统用户编号）")
+    private Long overrideBy;
+
+    @Schema(description = "授权放行时间")
+    private LocalDateTime overrideTime;
+
     @Schema(description = "接单时间")
     private LocalDateTime acceptTime;
 

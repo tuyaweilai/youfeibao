@@ -9,6 +9,9 @@ import cn.iocoder.yudao.module.logistics.dal.dataobject.driver.LogisticsDriverDO
 import cn.iocoder.yudao.module.logistics.dal.mysql.driver.LogisticsDriverMapper;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsDriverSourceEnum;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsDriverStatusEnum;
+import cn.iocoder.yudao.module.logistics.controller.admin.carrier.vo.LogisticsCarrierSaveReqVO;
+import cn.iocoder.yudao.module.logistics.service.carrier.LogisticsCarrierService;
+import cn.iocoder.yudao.module.logistics.service.carrier.impl.LogisticsCarrierServiceImpl;
 import cn.iocoder.yudao.module.logistics.service.driver.impl.LogisticsDriverServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
@@ -27,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>断言的是外部可观察行为：一个租户内一个用户只能建一份司机档案、查不到时的错、
  * 以及司机端登录要靠的「按用户查司机」。
  */
-@Import({LogisticsDriverServiceImpl.class, UnitTestConfiguration.class})
+@Import({LogisticsDriverServiceImpl.class, LogisticsCarrierServiceImpl.class, UnitTestConfiguration.class})
 @Sql(scripts = "/sql/create_tables.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Transactional
 public class LogisticsDriverServiceImplTest extends BaseDbUnitTest {
@@ -36,6 +39,18 @@ public class LogisticsDriverServiceImplTest extends BaseDbUnitTest {
     private LogisticsDriverService logisticsDriverService;
     @Resource
     private LogisticsDriverMapper logisticsDriverMapper;
+    @Resource
+    private LogisticsCarrierService logisticsCarrierService;
+
+    /**
+     * 承运商来源的司机必须落到一个合作中的承运商上（V3 #70 起）：测试里现造一个。
+     */
+    private Long carrierId() {
+        LogisticsCarrierSaveReqVO carrier = new LogisticsCarrierSaveReqVO();
+        carrier.setName("某某物流-" + System.nanoTime());
+        carrier.setStatus(0);
+        return logisticsCarrierService.createCarrier(carrier);
+    }
 
     @Test
     public void testCreateDriver_success() {
@@ -53,9 +68,9 @@ public class LogisticsDriverServiceImplTest extends BaseDbUnitTest {
     public void testCreateDriver_sameUserTwice_isRejected() {
         logisticsDriverService.createDriver(newDriver(1024L, "张三", LogisticsDriverSourceEnum.SELF.getSource()));
 
-        assertServiceException(
-                () -> logisticsDriverService.createDriver(newDriver(1024L, "李四", LogisticsDriverSourceEnum.CARRIER.getSource())),
-                DRIVER_USER_DUPLICATE);
+        LogisticsDriverSaveReqVO another = newDriver(1024L, "李四", LogisticsDriverSourceEnum.CARRIER.getSource());
+        another.setCarrierId(carrierId());
+        assertServiceException(() -> logisticsDriverService.createDriver(another), DRIVER_USER_DUPLICATE);
     }
 
     @Test
@@ -64,6 +79,7 @@ public class LogisticsDriverServiceImplTest extends BaseDbUnitTest {
 
         LogisticsDriverSaveReqVO updateReqVO = newDriver(1024L, "张三丰", LogisticsDriverSourceEnum.CARRIER.getSource());
         updateReqVO.setId(id);
+        updateReqVO.setCarrierId(carrierId());
         logisticsDriverService.updateDriver(updateReqVO);
 
         LogisticsDriverDO driver = logisticsDriverMapper.selectById(id);
@@ -100,7 +116,9 @@ public class LogisticsDriverServiceImplTest extends BaseDbUnitTest {
     @Test
     public void testGetDriverPage_filterBySource() {
         logisticsDriverService.createDriver(newDriver(1024L, "张三", LogisticsDriverSourceEnum.SELF.getSource()));
-        logisticsDriverService.createDriver(newDriver(2048L, "李四", LogisticsDriverSourceEnum.CARRIER.getSource()));
+        LogisticsDriverSaveReqVO carrierDriver = newDriver(2048L, "李四", LogisticsDriverSourceEnum.CARRIER.getSource());
+        carrierDriver.setCarrierId(carrierId());
+        logisticsDriverService.createDriver(carrierDriver);
 
         LogisticsDriverPageReqVO pageReqVO = new LogisticsDriverPageReqVO();
         pageReqVO.setSource(LogisticsDriverSourceEnum.CARRIER.getSource());

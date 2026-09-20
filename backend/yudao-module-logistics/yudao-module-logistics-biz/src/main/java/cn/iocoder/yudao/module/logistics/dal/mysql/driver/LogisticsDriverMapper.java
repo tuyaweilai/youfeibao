@@ -7,8 +7,10 @@ import cn.iocoder.yudao.module.logistics.controller.admin.driver.vo.LogisticsDri
 import cn.iocoder.yudao.module.logistics.dal.dataobject.driver.LogisticsDriverDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.List;
+
 /**
- * 司机档案 Mapper。
+ * 司机档案 Mapper。分页与导出共用同一条件（见 {@link #buildQuery}）。
  */
 @Mapper
 public interface LogisticsDriverMapper extends BaseMapperX<LogisticsDriverDO> {
@@ -21,12 +23,21 @@ public interface LogisticsDriverMapper extends BaseMapperX<LogisticsDriverDO> {
     }
 
     default PageResult<LogisticsDriverDO> selectPage(LogisticsDriverPageReqVO reqVO) {
-        return selectPage(reqVO, new LambdaQueryWrapperX<LogisticsDriverDO>()
+        return selectPage(reqVO, buildQuery(reqVO));
+    }
+
+    default List<LogisticsDriverDO> selectList(LogisticsDriverPageReqVO reqVO) {
+        return selectList(buildQuery(reqVO));
+    }
+
+    default LambdaQueryWrapperX<LogisticsDriverDO> buildQuery(LogisticsDriverPageReqVO reqVO) {
+        return new LambdaQueryWrapperX<LogisticsDriverDO>()
                 .likeIfPresent(LogisticsDriverDO::getName, reqVO.getName())
                 .likeIfPresent(LogisticsDriverDO::getMobile, reqVO.getMobile())
                 .eqIfPresent(LogisticsDriverDO::getSource, reqVO.getSource())
+                .eqIfPresent(LogisticsDriverDO::getCarrierId, reqVO.getCarrierId())
                 .eqIfPresent(LogisticsDriverDO::getStatus, reqVO.getStatus())
-                .orderByDesc(LogisticsDriverDO::getId));
+                .orderByDesc(LogisticsDriverDO::getId);
     }
 
 }

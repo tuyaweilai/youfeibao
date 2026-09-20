@@ -21,16 +21,29 @@ public interface ErrorCodeConstants {
     ErrorCode TRANSPORT_TASK_VEHICLE_NOT_AVAILABLE = new ErrorCode(1_030_200_005, "车辆当前不可派（维护中或已在其它任务上）");
     ErrorCode TRANSPORT_TASK_DRIVER_NOT_ACTIVE = new ErrorCode(1_030_200_006, "司机不在职，不能派车");
     ErrorCode TRANSPORT_TASK_NOT_BELONG_TO_DRIVER = new ErrorCode(1_030_200_007, "这不是派给你的任务");
+    ErrorCode TRANSPORT_TASK_OVERRIDE_REASON_REQUIRED = new ErrorCode(1_030_200_008, "授权放行必须填原因");
+    ErrorCode TRANSPORT_TASK_OVERRIDE_NOT_APPLICABLE = new ErrorCode(1_030_200_009, "该情况不能授权放行（车辆维修中、司机离职这类硬门禁不可绕过）");
 
     // ========== 车辆 1-030-201-000 ==========
     ErrorCode VEHICLE_NOT_EXISTS = new ErrorCode(1_030_201_000, "车辆不存在");
     ErrorCode VEHICLE_PLATE_NO_DUPLICATE = new ErrorCode(1_030_201_001, "车牌号已存在");
     ErrorCode VEHICLE_STATUS_NOT_ALLOW_UPDATE = new ErrorCode(1_030_201_002, "车辆状态不允许修改");
+    /** 软门禁：可授权放行（证件过期） */
+    ErrorCode VEHICLE_DOCUMENT_EXPIRED = new ErrorCode(1_030_201_100, "车辆证件（行驶证 / 保险）已过期，不能派车；确需派出请由管理员带原因授权放行");
 
     // ========== 司机 1-030-202-000 ==========
     ErrorCode DRIVER_NOT_EXISTS = new ErrorCode(1_030_202_000, "司机不存在");
     ErrorCode DRIVER_USER_DUPLICATE = new ErrorCode(1_030_202_001, "该用户已建过司机档案");
     ErrorCode DRIVER_PROFILE_NOT_FOUND = new ErrorCode(1_030_202_002, "当前登录账号还不是司机，请让管理员建司机档案");
+    /** 软门禁：可授权放行（证件过期） */
+    ErrorCode DRIVER_DOCUMENT_EXPIRED = new ErrorCode(1_030_202_100, "司机证件（驾驶证 / 从业资格证）已过期，不能派车；确需派出请由管理员带原因授权放行");
+    /** 硬门禁：不可用授权绕过 */
+    ErrorCode DRIVER_CARRIER_REQUIRED = new ErrorCode(1_030_202_101, "来源为承运商的司机必须选择所属承运商");
+
+    // ========== 承运商 1-030-205-000 ==========
+    ErrorCode CARRIER_NOT_EXISTS = new ErrorCode(1_030_205_000, "承运商不存在");
+    ErrorCode CARRIER_NAME_DUPLICATE = new ErrorCode(1_030_205_001, "承运商名称已存在");
+    ErrorCode CARRIER_NOT_ACTIVE = new ErrorCode(1_030_205_002, "承运商已停用");
 
     // ========== 运输节点 1-030-203-000 ==========
     ErrorCode TRANSPORT_NODE_TYPE_NOT_SUPPORTED_YET =

@@ -92,11 +92,37 @@ public class LogisticsVehicleServiceImpl implements LogisticsVehicleService {
 
     @Override
     public LogisticsVehicleDO getAssignableVehicle(Long vehicleId) {
+        LogisticsVehicleDO vehicle = getAssignableVehicleAllowingExpiredDocuments(vehicleId);
+        if (isDocumentExpired(vehicle)) {
+            throw exception(VEHICLE_DOCUMENT_EXPIRED);
+        }
+        return vehicle;
+    }
+
+    @Override
+    public LogisticsVehicleDO getAssignableVehicleAllowingExpiredDocuments(Long vehicleId) {
         LogisticsVehicleDO vehicle = getVehicle(vehicleId);
         if (LogisticsVehicleStatusEnum.MAINTENANCE.getStatus().equals(vehicle.getStatus())) {
             throw exception(TRANSPORT_TASK_VEHICLE_NOT_AVAILABLE);
         }
         return vehicle;
+    }
+
+    @Override
+    public boolean isDocumentExpired(LogisticsVehicleDO vehicle) {
+        java.time.LocalDate today = java.time.LocalDate.now();
+        return isBeforeToday(vehicle.getDrivingLicenseExpiryDate(), today)
+                || isBeforeToday(vehicle.getInsuranceExpiryDate(), today);
+    }
+
+    @Override
+    public java.util.List<LogisticsVehicleDO> getVehicleList(LogisticsVehiclePageReqVO exportReqVO) {
+        return logisticsVehicleMapper.selectList(exportReqVO);
+    }
+
+    /** 到期日早于今天即过期；没填到期日视为「未登记」，不拦（一期允许先建档后补证） */
+    private boolean isBeforeToday(java.time.LocalDate expiryDate, java.time.LocalDate today) {
+        return expiryDate != null && expiryDate.isBefore(today);
     }
 
     @Override

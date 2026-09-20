@@ -60,6 +60,12 @@
             <version>${revision}</version>
         </dependency>
 
+        <!-- 导出 Excel（车辆 / 司机 / 承运商）-->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-spring-boot-starter-excel</artifactId>
+        </dependency>
+
         <!-- Test 测试相关 -->
         <dependency>
             <groupId>cn.iocoder.boot</groupId>

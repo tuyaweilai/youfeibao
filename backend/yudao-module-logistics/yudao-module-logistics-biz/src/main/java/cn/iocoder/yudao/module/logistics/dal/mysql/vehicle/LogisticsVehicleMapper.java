@@ -7,8 +7,13 @@ import cn.iocoder.yudao.module.logistics.controller.admin.vehicle.vo.LogisticsVe
 import cn.iocoder.yudao.module.logistics.dal.dataobject.vehicle.LogisticsVehicleDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.List;
+
 /**
  * 车辆档案 Mapper。
+ *
+ * <p>分页与导出**共用同一个条件构造函数**：各写一套的话，「导出和列表看到的不是一回事」
+ * 迟早会发生，而这种错在导出文件里几乎不会被发现。
  */
 @Mapper
 public interface LogisticsVehicleMapper extends BaseMapperX<LogisticsVehicleDO> {
@@ -21,11 +26,22 @@ public interface LogisticsVehicleMapper extends BaseMapperX<LogisticsVehicleDO> 
     }
 
     default PageResult<LogisticsVehicleDO> selectPage(LogisticsVehiclePageReqVO reqVO) {
-        return selectPage(reqVO, new LambdaQueryWrapperX<LogisticsVehicleDO>()
+        return selectPage(reqVO, buildQuery(reqVO));
+    }
+
+    /**
+     * 导出用：同条件的全量列表（不分页）。
+     */
+    default List<LogisticsVehicleDO> selectList(LogisticsVehiclePageReqVO reqVO) {
+        return selectList(buildQuery(reqVO));
+    }
+
+    default LambdaQueryWrapperX<LogisticsVehicleDO> buildQuery(LogisticsVehiclePageReqVO reqVO) {
+        return new LambdaQueryWrapperX<LogisticsVehicleDO>()
                 .likeIfPresent(LogisticsVehicleDO::getPlateNo, reqVO.getPlateNo())
                 .eqIfPresent(LogisticsVehicleDO::getVehicleType, reqVO.getVehicleType())
                 .eqIfPresent(LogisticsVehicleDO::getStatus, reqVO.getStatus())
-                .orderByDesc(LogisticsVehicleDO::getId));
+                .orderByDesc(LogisticsVehicleDO::getId);
     }
 
 }

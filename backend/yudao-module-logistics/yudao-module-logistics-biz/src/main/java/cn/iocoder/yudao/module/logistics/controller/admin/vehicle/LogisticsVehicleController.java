@@ -11,13 +11,18 @@ import cn.iocoder.yudao.module.logistics.enums.LogisticsPermission;
 import cn.iocoder.yudao.module.logistics.service.vehicle.LogisticsVehicleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import cn.iocoder.yudao.framework.common.pojo.PageParam;
+import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
+import java.io.IOException;
+import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
@@ -34,6 +39,12 @@ public class LogisticsVehicleController {
 
     @Resource
     private LogisticsVehicleService logisticsVehicleService;
+
+    /** 状态名：列表与详情都要给，页面直接显示，不让前端各自维护一份文案 */
+    private String statusName(Integer status) {
+        return cn.iocoder.yudao.module.logistics.enums.LogisticsVehicleStatusEnum.ofStatus(status)
+                .map(cn.iocoder.yudao.module.logistics.enums.LogisticsVehicleStatusEnum::getName).orElse(null);
+    }
 
     @PostMapping("/create")
     @Operation(summary = "创建车辆")
@@ -68,12 +79,26 @@ public class LogisticsVehicleController {
         return success(BeanUtils.toBean(vehicle, LogisticsVehicleRespVO.class));
     }
 
+    @GetMapping("/export-excel")
+    @Operation(summary = "导出车辆 Excel")
+    @PreAuthorize("@ss.hasPermission('" + LogisticsPermission.VEHICLE_EXPORT + "')")
+    public void exportExcel(@Valid LogisticsVehiclePageReqVO exportReqVO,
+                            HttpServletResponse response) throws IOException {
+        exportReqVO.setPageSize(PageParam.PAGE_SIZE_NONE);
+        List<LogisticsVehicleDO> list = logisticsVehicleService.getVehicleList(exportReqVO);
+        List<LogisticsVehicleRespVO> rows = BeanUtils.toBean(list, LogisticsVehicleRespVO.class);
+        rows.forEach(row -> row.setStatusName(statusName(row.getStatus())));
+        ExcelUtils.write(response, "车辆.xls", "数据", LogisticsVehicleRespVO.class, rows);
+    }
+
     @GetMapping("/page")
     @Operation(summary = "获得车辆分页")
     @PreAuthorize("@ss.hasPermission('" + LogisticsPermission.VEHICLE_QUERY + "')")
     public CommonResult<PageResult<LogisticsVehicleRespVO>> page(@Valid LogisticsVehiclePageReqVO pageReqVO) {
         PageResult<LogisticsVehicleDO> page = logisticsVehicleService.getVehiclePage(pageReqVO);
-        return success(BeanUtils.toBean(page, LogisticsVehicleRespVO.class));
+        PageResult<LogisticsVehicleRespVO> result = BeanUtils.toBean(page, LogisticsVehicleRespVO.class);
+        result.getList().forEach(resp -> resp.setStatusName(statusName(resp.getStatus())));
+        return success(result);
     }
 
 }

@@ -21,6 +21,9 @@ public class LogisticsDriverPageReqVO extends PageParam {
     @Schema(description = "司机来源：1-自有，2-承运商", example = "1")
     private Integer source;
 
+    @Schema(description = "所属承运商编号", example = "1")
+    private Long carrierId;
+
     @Schema(description = "司机状态：0-在职，1-离职，2-请假", example = "0")
     private Integer status;
 

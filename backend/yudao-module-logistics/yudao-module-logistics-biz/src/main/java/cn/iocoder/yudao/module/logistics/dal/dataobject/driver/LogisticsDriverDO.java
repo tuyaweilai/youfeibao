@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.*;
 
+import java.time.LocalDate;
+
 /**
  * 司机档案 DO（V2a #77）。
  *
@@ -47,6 +49,28 @@ public class LogisticsDriverDO extends TenantBaseDO {
      * 枚举 {@link cn.iocoder.yudao.module.logistics.enums.LogisticsDriverSourceEnum}
      */
     private Integer source;
+
+    /**
+     * 所属承运商编号
+     *
+     * <p>来源为承运商时非空（V2a 只存了来源标记，V3 起落到承运商档案上，运费才知道付给谁）。
+     */
+    private Long carrierId;
+
+    /** 驾驶证号码 */
+    private String drivingLicenseNo;
+
+    /** 准驾车型（如 A2 / B2） */
+    private String drivingLicenseType;
+
+    /** 驾驶证到期日（**过期不得派出**；软门禁，可由管理员带原因授权放行） */
+    private LocalDate drivingLicenseExpiryDate;
+
+    /** 从业资格证号码 */
+    private String qualificationCertNo;
+
+    /** 从业资格证到期日（同上） */
+    private LocalDate qualificationCertExpiryDate;
 
     /**
      * 司机状态

@@ -49,12 +49,29 @@ public interface LogisticsVehicleService {
     void releaseByTask(Long vehicleId);
 
     /**
-     * 获得可派的车（状态不是维护中）。派车时用。
+     * 获得可派的车：**硬门禁**（不是维护中）+ **软门禁**（行驶证与保险未过期）。
      *
      * @param vehicleId 车辆编号
      * @return 车辆
      */
     LogisticsVehicleDO getAssignableVehicle(Long vehicleId);
+
+    /**
+     * 同上，但**不查证件是否过期**——授权放行走这条路（见 V3 #70 的门禁与逃生门）。
+     *
+     * <p>硬门禁（维护中）照样拦：证件过期可以「正在换证」，维修中的车开出去是无证运营。
+     */
+    LogisticsVehicleDO getAssignableVehicleAllowingExpiredDocuments(Long vehicleId);
+
+    /**
+     * 证件是否过期（行驶证或保险任一到期日早于今天）。
+     */
+    boolean isDocumentExpired(LogisticsVehicleDO vehicle);
+
+    /**
+     * 导出车辆列表（不分页）。
+     */
+    java.util.List<LogisticsVehicleDO> getVehicleList(LogisticsVehiclePageReqVO exportReqVO);
 
     PageResult<LogisticsVehicleDO> getVehiclePage(LogisticsVehiclePageReqVO pageReqVO);
 

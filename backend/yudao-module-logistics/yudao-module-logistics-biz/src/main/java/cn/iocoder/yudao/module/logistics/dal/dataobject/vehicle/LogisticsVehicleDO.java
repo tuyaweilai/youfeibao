@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * 车辆档案 DO（V2a #77）。
@@ -39,6 +40,18 @@ public class LogisticsVehicleDO extends TenantBaseDO {
 
     /** 载重能力（吨） */
     private BigDecimal capacityTon;
+
+    /** 行驶证到期日（**过期不得派出**；软门禁，可由管理员带原因授权放行） */
+    private LocalDate drivingLicenseExpiryDate;
+
+    /** 保险到期日（同上） */
+    private LocalDate insuranceExpiryDate;
+
+    /** 车辆照片 URL 列表（JSON 数组文本） */
+    private String photos;
+
+    /** 车载定位设备号（一期只登记；轨迹接入另行立项，见 #76） */
+    private String gpsDeviceId;
 
     /**
      * 车辆状态

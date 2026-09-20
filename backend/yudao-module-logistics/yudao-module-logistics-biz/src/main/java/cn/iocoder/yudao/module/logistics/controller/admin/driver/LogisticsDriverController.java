@@ -11,13 +11,20 @@ import cn.iocoder.yudao.module.logistics.enums.LogisticsPermission;
 import cn.iocoder.yudao.module.logistics.service.driver.LogisticsDriverService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import cn.iocoder.yudao.framework.common.pojo.PageParam;
+import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
+import cn.iocoder.yudao.module.logistics.enums.LogisticsDriverSourceEnum;
+import cn.iocoder.yudao.module.logistics.enums.LogisticsDriverStatusEnum;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
+import java.io.IOException;
+import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
@@ -34,6 +41,14 @@ public class LogisticsDriverController {
 
     @Resource
     private LogisticsDriverService logisticsDriverService;
+
+    /** 来源名 / 状态名：列表与导出都要给，别让前端各自维护一份文案 */
+    private void fillNames(LogisticsDriverRespVO resp) {
+        resp.setSourceName(LogisticsDriverSourceEnum.ofSource(resp.getSource())
+                .map(LogisticsDriverSourceEnum::getName).orElse(null));
+        resp.setStatusName(LogisticsDriverStatusEnum.ofStatus(resp.getStatus())
+                .map(LogisticsDriverStatusEnum::getName).orElse(null));
+    }
 
     @PostMapping("/create")
     @Operation(summary = "创建司机")
@@ -68,12 +83,26 @@ public class LogisticsDriverController {
         return success(BeanUtils.toBean(driver, LogisticsDriverRespVO.class));
     }
 
+    @GetMapping("/export-excel")
+    @Operation(summary = "导出司机 Excel")
+    @PreAuthorize("@ss.hasPermission('" + LogisticsPermission.DRIVER_EXPORT + "')")
+    public void exportExcel(@Valid LogisticsDriverPageReqVO exportReqVO,
+                            HttpServletResponse response) throws IOException {
+        exportReqVO.setPageSize(PageParam.PAGE_SIZE_NONE);
+        List<LogisticsDriverDO> list = logisticsDriverService.getDriverList(exportReqVO);
+        List<LogisticsDriverRespVO> rows = BeanUtils.toBean(list, LogisticsDriverRespVO.class);
+        rows.forEach(this::fillNames);
+        ExcelUtils.write(response, "司机.xls", "数据", LogisticsDriverRespVO.class, rows);
+    }
+
     @GetMapping("/page")
     @Operation(summary = "获得司机分页")
     @PreAuthorize("@ss.hasPermission('" + LogisticsPermission.DRIVER_QUERY + "')")
     public CommonResult<PageResult<LogisticsDriverRespVO>> page(@Valid LogisticsDriverPageReqVO pageReqVO) {
         PageResult<LogisticsDriverDO> page = logisticsDriverService.getDriverPage(pageReqVO);
-        return success(BeanUtils.toBean(page, LogisticsDriverRespVO.class));
+        PageResult<LogisticsDriverRespVO> result = BeanUtils.toBean(page, LogisticsDriverRespVO.class);
+        result.getList().forEach(this::fillNames);
+        return success(result);
     }
 
 }
