@@ -586,7 +586,8 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - **规格**：[#38](https://github.com/tuyaweilai/youfeibao/issues/38)（`ready-for-agent`），56 条 user story、12 条实现决策、测试决策、out of scope、further notes。
 - **19 张票**：`#39`–`#57`，边用 GitHub 原生 issue dependencies 连（21 条）。
 - **frontier：无。`#39`–`#57` 十九张全部完成并合并进 `main`**（第一轮到第五轮，五轮并行）。规格 #38 的 user story 全部落地。
-- **唯一开着的跟进票**：`#58`（关联采购订单的收购单进履约口径与交货门禁）——卡在 `net_weight` vs `settlement_weight` 的口径选择上，定完再接。
+- **跟进票 `#58` 也已接完**（提交 `dbf7ea1`）：关联采购订单的收购单现在会落成交记录（验收 / 结算分列）并走交货门禁。
+- **已知限制（待确认是否要收）**：成交记录写在**收购登记**那一刻，而接收结论（`recordAcceptance`，拒收 / 部分接收）可以在这之后、结束本次收货之前改。也就是说：登记后拒收的部分，订单的「验收」不会自动跟着降；要么在 `recordAcceptance` 里补一条差额成交（需定幂等键），要么把成交改到「结束本次收货」时写。见本节末。
 - **另需人工确认的遗留项**（各票 handoff 小节里有细节）：#54 的期初并发（服务层校验，未上唯一约束）；#55 的节点级上下游字段；#57 的「超入库量 / 重复关联」判定口径。
 
 ### 第五轮并行约定（#54 / #55 / #57）—— 已完成并合并（最后一轮）
@@ -1238,3 +1239,21 @@ icbc 不直接碰 `erp_stock*`（ADR 0027 / 0028）。分支 `t16-stock-ops`，�
 >
 > **未做（不属本票）**：异常表的导出与批量处理动作（只读清单）；P1 经营分析（品类 / 场站 / 出售者贡献 /
 > 运输费用）；`create_tables.sql` / `clean.sql` 未动（**没有新表**）。
+
+## #58 收购单关联采购订单后进履约口径与交货门禁（已完成，提交 `dbf7ea1`）
+
+第二轮与第三轮合起来留下的最后一处跨票缺口，按**口径 C** 接（成交记录把「验收量」与「结算量」分开）：
+
+1. **`icbc_purchase_order_deal` 加 `accepted_quantity`**（迁移 `icbc-deal-accepted-quantity.sql`，幂等；为空时按 `quantity` 计，兼容历史）。验收口径取它，结算口径仍取 `quantity`（计价基准，ADR 0019）。
+2. **关联采购安排的收购单，登记时落一条成交记录**（`AcquisitionServiceImpl#syncPurchaseDeal`，`sign=1`）：
+   - `quantity`（结算量）= 结算重量 − 退回量 − 余货出场量（与 #53 的应付口径一致）；没录重量时回退申报数量；
+   - `acceptedQuantity`（验收量）= 接收量优先、无接收结论取净重、都没录取申报数量；
+   - `stationId` 透传给交货门禁：`PurchaseOrderDealReqVO` 补了 `stationId`，`recordDeal` 里把它带进 `assertDeliveryAllowed`——**超量 / 过期 / 跨场站现在对收购来的货也生效**；
+   - 单价与订单参考价不一致时自动带原因「按收购单成交价」。
+3. **收购单作废时按相反方向扣回**（`SettlementServiceImpl#cancelAcquisition` → `syncPurchaseDeal(acq, -1)`）：来源类型用 `ACQUISITION_CANCEL`（与 `ACQUISITION` 分开，各自幂等），重复作废只扣一次。
+4. **幂等**：登记路径不需要额外幂等——收购单本身按 `clientRequestId` 幂等，重复补传返回既有单据、根本走不到写成交；只有作废反冲需要显式查重（`PurchaseOrderService#selectDealsBySource`）。
+5. **测试**：`AcquisitionServiceImplTest` 新增 3 例（验收 / 结算分列、离线补传不重复计、作废反冲幂等）。icbc 679 全绿。
+
+> **踩到的坑**：一开始给 `recordDeal` 加了「按来源幂等」，结果把同一张收购单的多次成交 / 退货全挡掉了（`PurchaseOrderServiceTest#testProgress_returnDeductsFromTheChosenMeasure` 红）。成交记录是**追加式**的，同一来源可以有多条；幂等只属于「同一次登记」，而那层幂等已经由收购单的 `clientRequestId` 保证。
+
+> **已知限制（待确认是否要收）**：成交写在登记那一刻，而接收结论（拒收 / 部分接收）可以在这之后改。登记后拒收的部分，订单「验收」不会自动跟着降。要收的话二选一：在 `recordAcceptance` 里补一条差额成交（需定幂等键），或把成交挪到「结束本次收货」时写。
