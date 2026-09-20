@@ -16,6 +16,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.stockops.IcbcStockOpeningMapper;
 import cn.iocoder.yudao.module.icbc.enums.StockOpsStatusEnum;
 import cn.iocoder.yudao.module.icbc.service.stockops.StockOpeningService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
@@ -44,6 +45,9 @@ import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 public class StockOpeningServiceImpl implements StockOpeningService {
 
     private static final DateTimeFormatter NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
+    /** 生效标记：1 = 生效中（换成 null 才是作废）。 */
+    private static final Integer ACTIVE_KEY = 1;
 
     @Resource
     private IcbcStockOpeningMapper stockOpeningMapper;
@@ -81,10 +85,17 @@ public class StockOpeningServiceImpl implements StockOpeningService {
                     .batchId(normalizeZero(item.getBatchId()))
                     .quantity(item.getQuantity())
                     .status(StockOpsStatusEnum.POSTED.getStatus())
+                    .activeKey(ACTIVE_KEY)
                     .postedTime(LocalDateTime.now())
                     .remark(item.getRemark() != null ? item.getRemark() : reqVO.getRemark())
                     .build();
-            stockOpeningMapper.insert(opening);
+            try {
+                stockOpeningMapper.insert(opening);
+            } catch (DuplicateKeyException e) {
+                // 并发的同一维度导入靠唯一索引 uk_stock_opening_dimension_active 坍缩到一条；
+                // 慢了的那次报成业务错误，不留下半份期初（整批回滚）
+                throw exception(STOCK_OPENING_DIMENSION_DUPLICATED);
+            }
             stockApi.in(buildChangeReq(opening, ErpStockRecordBizTypeEnum.OPENING_IN.getType()));
         }
         log.info("期初已导入 - openingNo: {}, 行数: {}", openingNo, reqVO.getItems().size());
@@ -108,6 +119,8 @@ public class StockOpeningServiceImpl implements StockOpeningService {
         IcbcStockOpeningDO update = new IcbcStockOpeningDO();
         update.setId(opening.getId());
         update.setStatus(StockOpsStatusEnum.CANCELLED.getStatus());
+        // 置 null 让出唯一索引位：作废后同一维度可以重导
+        update.setActiveKey(null);
         update.setCancelReason(reqVO.getReason());
         update.setCancelledTime(LocalDateTime.now());
         stockOpeningMapper.updateById(update);

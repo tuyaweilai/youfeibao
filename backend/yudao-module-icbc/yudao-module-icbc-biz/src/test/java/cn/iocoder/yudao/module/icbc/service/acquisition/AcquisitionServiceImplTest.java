@@ -858,6 +858,35 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testRecordAcceptance_updatesLinkedOrderDeal() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138212");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long orderId = createPurchaseOrder(payee.getId(), config.getId(), "100", "2000");
+        Long itemId = purchaseOrderService.getDetail(orderId).getItems().get(0).getId();
+
+        AcquisitionCreateReqVO create = baseReq(payee.getId(), config.getId());
+        create.setQuantity(new BigDecimal("10"));
+        create.setUnitPrice(new BigDecimal("2000.00"));
+        create.setGrossWeight(new BigDecimal("12"));
+        create.setTareWeight(new BigDecimal("2"));
+        create.setPurchaseOrderId(orderId);
+        create.setPurchaseOrderItemId(itemId);
+        Long id = acquisitionService.createAcquisition(create).getId();
+
+        // 拒收 2：接收量 8，关联订单的成交要跟着降（不追加新的一条）
+        AcquisitionAcceptanceReqVO acceptance = acceptanceReq(id, "8", "2", null);
+        acceptance.setRejectReason("杂质多");
+        acquisitionService.recordAcceptance(acceptance);
+
+        List<IcbcPurchaseOrderDealDO> deals = purchaseOrderService.selectDealsBySource(
+                PurchaseDealSourceTypeEnum.ACQUISITION.getType(), id);
+        assertEquals(1, deals.size());
+        assertEquals(0, new BigDecimal("8").compareTo(deals.get(0).getAcceptedQuantity()));
+        assertEquals(0, new BigDecimal("8").compareTo(
+                purchaseOrderService.getProgress(orderId).getAcceptedQuantity()));
+    }
+
+    @Test
     public void testSyncPurchaseDeal_cancelReversesOnceAndIsIdempotent() {
         PayeeInfoDO payee = insertPayee("张三", "13800138211");
         IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");

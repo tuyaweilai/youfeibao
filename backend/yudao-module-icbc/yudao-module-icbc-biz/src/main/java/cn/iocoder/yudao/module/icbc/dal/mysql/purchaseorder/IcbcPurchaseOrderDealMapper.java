@@ -9,7 +9,10 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 采购订单成交记录 Mapper（#46 T08）。记录只追加，不改不删。
+ * 采购订单成交记录 Mapper（#46 T08）。
+ *
+ * <p>成交记录只追加，不改不删——唯一例外是 #58：由收购单产生的成交，在接收结论（#53 拒收 / 部分接收）
+ * 变更时就地修正数量（`correctAcquisitionDeal`），因为那是同一笔收购的修正，不是新的一笔成交。
  */
 @Mapper
 public interface IcbcPurchaseOrderDealMapper extends BaseMapperX<IcbcPurchaseOrderDealDO> {

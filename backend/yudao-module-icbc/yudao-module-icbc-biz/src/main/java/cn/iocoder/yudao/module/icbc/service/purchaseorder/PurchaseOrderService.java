@@ -207,4 +207,10 @@ public interface PurchaseOrderService {
      */
     List<IcbcPurchaseOrderDealDO> selectDealsBySource(String sourceType, Long sourceId);
 
+    /**
+     * 修正由收购单产生的成交的数量（#58）：接收结论（#53 拒收 / 部分接收）变更时，
+     * 同一笔收购的成交就地改数量；未关联订单 / 没有对应成交时什么也不做。
+     */
+    void correctAcquisitionDeal(Long sourceId, BigDecimal quantity, BigDecimal acceptedQuantity);
+
 }

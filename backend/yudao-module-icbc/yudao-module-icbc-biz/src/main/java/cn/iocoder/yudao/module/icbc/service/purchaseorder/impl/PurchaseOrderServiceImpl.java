@@ -560,6 +560,18 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     }
 
     @Override
+    public void correctAcquisitionDeal(Long sourceId, BigDecimal quantity, BigDecimal acceptedQuantity) {
+        for (IcbcPurchaseOrderDealDO deal : dealMapper.selectListBySource(
+                PurchaseDealSourceTypeEnum.ACQUISITION.getType(), sourceId)) {
+            IcbcPurchaseOrderDealDO update = new IcbcPurchaseOrderDealDO();
+            update.setId(deal.getId());
+            update.setQuantity(quantity);
+            update.setAcceptedQuantity(acceptedQuantity);
+            dealMapper.updateById(update);
+        }
+    }
+
+    @Override
     public List<PurchaseArrangementRespVO> getUsableArrangements(Long payeeId) {
         if (payeeId == null) {
             return Collections.emptyList();

@@ -1,7 +1,9 @@
 package cn.iocoder.yudao.module.icbc.dal.dataobject.stockops;
 
 import cn.iocoder.yudao.framework.tenant.core.db.TenantBaseDO;
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.KeySequence;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.*;
@@ -54,6 +56,18 @@ public class IcbcStockOpeningDO extends TenantBaseDO {
 
     /** 状态，枚举 {@link cn.iocoder.yudao.module.icbc.enums.StockOpsStatusEnum}：1-已过账，2-已作废 */
     private Integer status;
+    /**
+     * 生效标记：1 = 生效中，{@code null} = 已作废。
+     *
+     * <p>「同一维度只允许一条生效」的并发兜底：唯一索引
+     * {@code (tenant_id, goods_config_id, warehouse_id, location_id, batch_id, active_key)}
+     * 里 NULL 互不相等，所以作废后（置 null）可以重导同一维度。
+     *
+     * <p>{@code updateStrategy = ALWAYS}：作废时要把 {@code active_key} 真正写成 NULL，
+     * 否则 MyBatis-Plus 默认忽略 null 字段，索引位让不出来。
+     */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private Integer activeKey;
 
     /** 过账时间 */
     private LocalDateTime postedTime;

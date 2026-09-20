@@ -169,3 +169,42 @@ CREATE TABLE IF NOT EXISTS `icbc_stock_opening` (
   PRIMARY KEY (`id`),
   KEY `idx_stock_opening_dimension` (`tenant_id`, `goods_config_id`, `warehouse_id`, `location_id`, `batch_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='期初（一个维度一行，导入即过账）';
+
+-- ========================================
+-- #54 收口：期初「同一维度只允许一条生效」的并发兜底
+-- 生效中 active_key = 1；作废 active_key = NULL（唯一索引里 NULL 互不相等，可留多条作废记录）。
+-- 服务层已有前置校验，这里加数据库约束，避免并发导入各写一条。
+-- 幂等：先查 information_schema。
+-- ========================================
+DROP PROCEDURE IF EXISTS `icbc_t54_add_opening_active_key`;
+DROP PROCEDURE IF EXISTS `icbc_t54_add_opening_unique`;
+
+DELIMITER $$
+CREATE PROCEDURE `icbc_t54_add_opening_active_key`()
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = DATABASE() AND table_name = 'icbc_stock_opening'
+                   AND column_name = 'active_key') THEN
+    ALTER TABLE `icbc_stock_opening`
+      ADD COLUMN `active_key` tinyint NULL COMMENT '生效标记：1=生效中，NULL=已作废（唯一索引里 NULL 互不相等）' AFTER `status`;
+    UPDATE `icbc_stock_opening` SET `active_key` = CASE WHEN `status` = 1 THEN 1 ELSE NULL END;
+  END IF;
+END$$
+
+CREATE PROCEDURE `icbc_t54_add_opening_unique`()
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics
+                 WHERE table_schema = DATABASE() AND table_name = 'icbc_stock_opening'
+                   AND index_name = 'uk_stock_opening_dimension_active') THEN
+    ALTER TABLE `icbc_stock_opening`
+      ADD UNIQUE KEY `uk_stock_opening_dimension_active`
+        (`tenant_id`, `goods_config_id`, `warehouse_id`, `location_id`, `batch_id`, `active_key`);
+  END IF;
+END$$
+DELIMITER ;
+
+CALL `icbc_t54_add_opening_active_key`();
+CALL `icbc_t54_add_opening_unique`();
+
+DROP PROCEDURE IF EXISTS `icbc_t54_add_opening_active_key`;
+DROP PROCEDURE IF EXISTS `icbc_t54_add_opening_unique`;

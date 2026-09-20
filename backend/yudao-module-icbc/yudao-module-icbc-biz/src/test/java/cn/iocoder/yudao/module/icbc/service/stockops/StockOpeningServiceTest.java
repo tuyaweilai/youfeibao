@@ -128,6 +128,27 @@ public class StockOpeningServiceTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testUniqueIndex_blocksSecondActiveOpeningOnSameDimension() {
+        // 并发导入的兼容性：服务层的前置校验挡不住两个请求同时“没看到对方”，
+        // 所以同一维度的生效期初由唯一索引 uk_stock_opening_dimension_active 兜底
+        stockOpeningMapper.insert(activeOpening("OPEN_A", 1L, 10L));
+
+        assertThrows(org.springframework.dao.DuplicateKeyException.class,
+                () -> stockOpeningMapper.insert(activeOpening("OPEN_B", 1L, 10L)));
+    }
+
+    @Test
+    public void testUniqueIndex_allowsReimportAfterCancel() {
+        stockOpeningMapper.insert(activeOpening("OPEN_A", 1L, 10L));
+        Long id = stockOpeningMapper.selectList().get(0).getId();
+        stockOpeningService.cancelOpening(buildCancelReq(id, "录错"));
+
+        // 作废后 active_key = NULL（唯一索引里 NULL 互不相等），同一维度可重新导入
+        stockOpeningService.importOpening(buildReq(buildItem(1L, 10L, "4800")));
+        assertEquals(1L, stockOpeningMapper.selectActiveCount().longValue());
+    }
+
+    @Test
     public void testCancelOpening_twiceRejected() {
         stockOpeningService.importOpening(buildReq(buildItem(1L, 10L, "5000")));
         Long id = stockOpeningMapper.selectList().get(0).getId();
@@ -183,6 +204,19 @@ public class StockOpeningServiceTest extends BaseDbUnitTest {
         item.setBatchId(0L);
         item.setQuantity(new BigDecimal(quantity));
         return item;
+    }
+
+    private static IcbcStockOpeningDO activeOpening(String no, Long goodsConfigId, Long warehouseId) {
+        return IcbcStockOpeningDO.builder()
+                .openingNo(no)
+                .goodsConfigId(goodsConfigId)
+                .warehouseId(warehouseId)
+                .locationId(0L)
+                .batchId(0L)
+                .quantity(new BigDecimal("1000"))
+                .status(StockOpsStatusEnum.POSTED.getStatus())
+                .activeKey(1)
+                .build();
     }
 
     private static StockOpeningCancelReqVO buildCancelReq(Long id, String reason) {

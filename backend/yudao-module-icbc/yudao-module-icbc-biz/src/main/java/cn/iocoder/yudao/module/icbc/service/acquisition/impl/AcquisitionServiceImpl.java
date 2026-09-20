@@ -660,6 +660,10 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         applyAcceptancePricing(acquisition);
         applyWeightDiff(acquisition);
         acquisitionMapper.updateById(acquisition);
+        // 关联了采购安排的，把订单上的成交数量跟着修正（#58）：接收结论是同一笔收购的修正，
+        // 不追加新的一条成交（拒收 / 部分接收后，订单的「验收」要跟着降）
+        purchaseOrderService.correctAcquisitionDeal(acquisition.getId(),
+                pricedQuantityOf(acquisition), physicalQuantityOf(acquisition));
     }
 
     @Override

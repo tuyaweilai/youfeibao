@@ -1582,6 +1582,7 @@ CREATE TABLE IF NOT EXISTS icbc_stock_opening (
     batch_id BIGINT NOT NULL DEFAULT 0,
     quantity DECIMAL(14,4) NOT NULL,
     status TINYINT NOT NULL DEFAULT 1,
+    active_key TINYINT,
     posted_time DATETIME,
     cancel_reason VARCHAR(500),
     cancelled_time DATETIME,
@@ -1592,7 +1593,9 @@ CREATE TABLE IF NOT EXISTS icbc_stock_opening (
     updater VARCHAR(64) DEFAULT '',
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT uk_stock_opening_dimension_active
+        UNIQUE (tenant_id, goods_config_id, warehouse_id, location_id, batch_id, active_key)
 );
 
 CREATE INDEX IF NOT EXISTS idx_stock_opening_dimension
