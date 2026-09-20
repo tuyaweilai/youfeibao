@@ -14,6 +14,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOr
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderSettingSaveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderStatusUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderDealDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderItemDO;
 
 import java.math.BigDecimal;
@@ -200,5 +201,10 @@ public interface PurchaseOrderService {
      * @return 单号与金额
      */
     PurchaseOrderAmountDTO getOrderAmount(Long id);
+
+    /**
+     * 按来源单据查成交记录（#58）：收购单作废时用它判断是否已经反冲过，避免重复扣回。
+     */
+    List<IcbcPurchaseOrderDealDO> selectDealsBySource(String sourceType, Long sourceId);
 
 }

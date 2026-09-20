@@ -1266,6 +1266,7 @@ CREATE TABLE IF NOT EXISTS icbc_purchase_order_deal (
     deal_time DATETIME,
     delivery_date DATE,
     quantity DECIMAL(16,4) NOT NULL,
+    accepted_quantity DECIMAL(16,4),
     unit_price DECIMAL(16,4) NOT NULL,
     reference_unit_price DECIMAL(16,4),
     price_adjusted BOOLEAN NOT NULL DEFAULT FALSE,

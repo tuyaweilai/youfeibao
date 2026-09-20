@@ -33,6 +33,9 @@ import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
 import cn.iocoder.yudao.module.icbc.service.acquisition.impl.AcquisitionServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.acquisition.recognition.AcquisitionRecognitionPort;
 import cn.iocoder.yudao.module.icbc.service.handover.HandoverBatchService;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderProgressRespVO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderDealDO;
+import cn.iocoder.yudao.module.icbc.enums.PurchaseDealSourceTypeEnum;
 import cn.iocoder.yudao.module.icbc.service.purchaseorder.PurchaseOrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -795,6 +798,88 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
         assertEquals(orderId, saved.getPurchaseOrderId());
         assertEquals(itemId, saved.getPurchaseOrderItemId());
+    }
+
+    @Test
+    public void testCreateAcquisition_linkedToOrder_recordsDealWithAcceptedAndPricedQuantity() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138209");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long orderId = createPurchaseOrder(payee.getId(), config.getId(), "100", "2000");
+        Long itemId = purchaseOrderService.getDetail(orderId).getItems().get(0).getId();
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("2000.00"));
+        reqVO.setGrossWeight(new BigDecimal("12"));
+        reqVO.setTareWeight(new BigDecimal("2"));
+        reqVO.setDeduction(new BigDecimal("1"));
+        reqVO.setDeductionMethod("WEIGHT");
+        reqVO.setPurchaseOrderId(orderId);
+        reqVO.setPurchaseOrderItemId(itemId);
+
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
+
+        // #58：结算量取计价基准（毛 12 − 皮 2 − 扣杂 1 = 9），验收量取实物量（净重 10）
+        List<IcbcPurchaseOrderDealDO> deals = purchaseOrderService.selectDealsBySource(
+                PurchaseDealSourceTypeEnum.ACQUISITION.getType(), id);
+        assertEquals(1, deals.size());
+        assertEquals(0, new BigDecimal("9").compareTo(deals.get(0).getQuantity()));
+        assertEquals(0, new BigDecimal("10").compareTo(deals.get(0).getAcceptedQuantity()));
+
+        // 订单的验收口径看到的是实物量（不是计价基准）
+        PurchaseOrderProgressRespVO progress = purchaseOrderService.getProgress(orderId);
+        assertEquals(0, new BigDecimal("10").compareTo(progress.getAcceptedQuantity()));
+        assertEquals(0, new BigDecimal("90").compareTo(progress.getUnperformedQuantity()));
+    }
+
+    @Test
+    public void testCreateAcquisition_offlineRetryDoesNotRecordSecondDeal() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138210");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long orderId = createPurchaseOrder(payee.getId(), config.getId(), "100", "2000");
+        Long itemId = purchaseOrderService.getDetail(orderId).getItems().get(0).getId();
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setClientRequestId("CLIENT_RETRY_1");
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("2000.00"));
+        reqVO.setPurchaseOrderId(orderId);
+        reqVO.setPurchaseOrderItemId(itemId);
+
+        Long first = acquisitionService.createAcquisition(reqVO).getId();
+        Long second = acquisitionService.createAcquisition(reqVO).getId();
+
+        assertEquals(first, second);
+        // 重复补传不产生第二条成交（收购单本身按 clientRequestId 幂等，根本走不到写成交）
+        assertEquals(1, purchaseOrderService.selectDealsBySource(
+                PurchaseDealSourceTypeEnum.ACQUISITION.getType(), first).size());
+        assertEquals(0, new BigDecimal("10").compareTo(
+                purchaseOrderService.getProgress(orderId).getAcceptedQuantity()));
+    }
+
+    @Test
+    public void testSyncPurchaseDeal_cancelReversesOnceAndIsIdempotent() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138211");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long orderId = createPurchaseOrder(payee.getId(), config.getId(), "100", "2000");
+        Long itemId = purchaseOrderService.getDetail(orderId).getItems().get(0).getId();
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("2000.00"));
+        reqVO.setPurchaseOrderId(orderId);
+        reqVO.setPurchaseOrderItemId(itemId);
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
+
+        // 作废反冲：重复调用只扣一次
+        acquisitionService.syncPurchaseDeal(saved, -1);
+        acquisitionService.syncPurchaseDeal(saved, -1);
+
+        assertEquals(1, purchaseOrderService.selectDealsBySource(
+                PurchaseDealSourceTypeEnum.ACQUISITION_CANCEL.getType(), id).size());
+        PurchaseOrderProgressRespVO progress = purchaseOrderService.getProgress(orderId);
+        assertEquals(0, BigDecimal.ZERO.compareTo(progress.getAcceptedQuantity()));
     }
 
     @Test

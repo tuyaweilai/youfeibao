@@ -50,6 +50,13 @@ public interface AcquisitionService {
     void recordAcceptance(@Valid AcquisitionAcceptanceReqVO reqVO);
 
     /**
+     * 把收购单同步成采购订单的成交记录（#58，仅关联了采购安排的单）：
+     * {@code sign=1} 登记时计入，{@code sign=-1} 作废时按相反方向扣回。
+     * 验收量取实物接收量、结算量取计价基准；超量 / 过期 / 跨场站的交货门禁在 recordDeal 里。
+     */
+    void syncPurchaseDeal(IcbcAcquisitionDO acquisition, int sign);
+
+    /**
      * 称量差异清单（只读）：结算重量 vs 实物量（接收量优先，无则净重），供异常表（#57）消费。
      */
     PageResult<IcbcAcquisitionDO> getWeightDiffPage(AcquisitionWeightDiffPageReqVO reqVO);

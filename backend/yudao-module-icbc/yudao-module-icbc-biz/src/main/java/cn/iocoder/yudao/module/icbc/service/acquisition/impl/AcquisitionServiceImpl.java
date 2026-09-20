@@ -15,6 +15,8 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcWeighingDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderItemDO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealReqVO;
+import cn.iocoder.yudao.module.icbc.enums.PurchaseDealSourceTypeEnum;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.goodscfg.IcbcGoodsConfigMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
@@ -38,6 +40,7 @@ import javax.validation.Valid;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -147,7 +150,66 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         }
         log.info("收购登记成功 - acquisitionNo: {}, payeeId: {}, plate: {}",
                 acquisition.getAcquisitionNo(), payee.getId(), acquisition.getVehiclePlateNo());
+        // 9. 关联了采购安排的，把这一车落成订单的成交记录（#58）：
+        //    验收量取实物接收量、结算量取计价基准；超量 / 过期 / 跨场站的交货门禁在 recordDeal 里
+        syncPurchaseDeal(acquisition, 1);
         return acquisition;
+    }
+
+    /**
+     * 把收购单落成采购订单的成交记录（#58；作废时传 {@code sign=-1} 按相反方向扣回）。
+     *
+     * <p>不关联订单（「直接收购」）的直接返回。{@code recordDeal} 按「来源类型 + 来源编号」幂等，
+     * 所以重复登记 / 离线补传不会重复计入履约。
+     */
+    public void syncPurchaseDeal(IcbcAcquisitionDO acquisition, int sign) {
+        if (acquisition.getPurchaseOrderId() == null || acquisition.getPurchaseOrderId() == 0L
+                || acquisition.getPurchaseOrderItemId() == null
+                || acquisition.getPurchaseOrderItemId() == 0L) {
+            return;
+        }
+        // 作废反冲按「来源类型 + 来源编号」幂等：重复作废不会扣两次。
+        // 正常登记不需要这层：收购单本身就按 clientRequestId 幂等，重复提交根本走不到这里。
+        if (sign < 0 && !purchaseOrderService.selectDealsBySource(
+                PurchaseDealSourceTypeEnum.ACQUISITION_CANCEL.getType(), acquisition.getId()).isEmpty()) {
+            return;
+        }
+        PurchaseOrderDealReqVO reqVO = new PurchaseOrderDealReqVO();
+        reqVO.setOrderId(acquisition.getPurchaseOrderId());
+        reqVO.setItemId(acquisition.getPurchaseOrderItemId());
+        reqVO.setDeliveryDate(acquisition.getTradeTime() == null
+                ? LocalDate.now() : acquisition.getTradeTime().toLocalDate());
+        reqVO.setQuantity(pricedQuantityOf(acquisition).multiply(BigDecimal.valueOf(sign)));
+        reqVO.setAcceptedQuantity(physicalQuantityOf(acquisition).multiply(BigDecimal.valueOf(sign)));
+        reqVO.setUnitPrice(acquisition.getUnitPrice() == null ? BigDecimal.ZERO : acquisition.getUnitPrice());
+        // 收购单价与订单参考价不一致时 recordDeal 要求给原因：这里就是「按收购单成交价」
+        reqVO.setAdjustReason("按收购单成交价");
+        reqVO.setStationId(acquisition.getStationId());
+        reqVO.setSourceType(sign < 0
+                ? PurchaseDealSourceTypeEnum.ACQUISITION_CANCEL.getType()
+                : PurchaseDealSourceTypeEnum.ACQUISITION.getType());
+        reqVO.setSourceId(acquisition.getId());
+        reqVO.setSourceNo(acquisition.getAcquisitionNo());
+        purchaseOrderService.recordDeal(reqVO);
+    }
+
+    /** 计价量（结算口径） = 结算重量 − 退回量 − 余货出场量（与 #53 的应付口径一致）；没录重量时用申报数量。 */
+    private static BigDecimal pricedQuantityOf(IcbcAcquisitionDO acquisition) {
+        BigDecimal base = acquisition.getSettlementWeight() != null
+                ? acquisition.getSettlementWeight() : physicalQuantityOf(acquisition);
+        BigDecimal priced = base
+                .subtract(nullToZero(acquisition.getRejectedWeight()))
+                .subtract(nullToZero(acquisition.getResidualWeight()));
+        return priced.signum() < 0 ? BigDecimal.ZERO : priced;
+    }
+
+    /** 实物量（验收口径） = 接收量优先，无接收结论时取净重；都没录就用申报数量。 */
+    private static BigDecimal physicalQuantityOf(IcbcAcquisitionDO acquisition) {
+        BigDecimal physical = acquisition.resolvePhysicalWeight();
+        if (physical == null || physical.signum() == 0) {
+            physical = acquisition.getQuantity();
+        }
+        return physical == null ? BigDecimal.ZERO : physical;
     }
 
     /**

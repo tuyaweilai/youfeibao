@@ -50,7 +50,17 @@ public class IcbcPurchaseOrderDealDO extends TenantBaseDO {
     private LocalDate deliveryDate;
 
     /** 成交数量 */
+    /**
+     * 成交数量 = 结算量（计价基准，ADR 0019）
+     */
     private BigDecimal quantity;
+    /**
+     * 验收量（实物接收量，ADR 0028）：为空时按 {@link #quantity} 计，兼容历史数据。
+     *
+     * <p>关联收购单的成交（#58）会同时写：{@code acceptedQuantity} 取收购单的接收量，
+     * {@code quantity} 取结算重量——扣杂、拒收、余货出场都只影响各自那个口径。
+     */
+    private BigDecimal acceptedQuantity;
 
     /** 成交单价（价格快照） */
     private BigDecimal unitPrice;

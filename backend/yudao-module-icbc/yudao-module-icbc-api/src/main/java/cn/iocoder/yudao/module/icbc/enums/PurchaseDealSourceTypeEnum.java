@@ -16,6 +16,9 @@ public enum PurchaseDealSourceTypeEnum {
     /** 收购单：成交记录由收购登记产生（#51 接入后走这条）。 */
     ACQUISITION("ACQUISITION", "收购单"),
 
+    /** 收购单作废：按相反方向扣回（#58），与 {@link #ACQUISITION} 分开，好各自幂等。 */
+    ACQUISITION_CANCEL("ACQUISITION_CANCEL", "收购单作废"),
+
     /** 手工登记：没有下游单据的成交（仅用于补录历史价格，结算口径不计入）。 */
     MANUAL("MANUAL", "手工登记");
 

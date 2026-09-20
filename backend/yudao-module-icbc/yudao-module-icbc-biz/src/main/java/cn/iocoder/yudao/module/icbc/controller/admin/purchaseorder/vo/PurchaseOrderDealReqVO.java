@@ -28,9 +28,12 @@ public class PurchaseOrderDealReqVO {
     @Schema(description = "交货日（按交货日价格表取价用）")
     private LocalDate deliveryDate;
 
-    @Schema(description = "成交数量", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "成交数量（结算量 / 计价基准）", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "成交数量不能为空")
     private BigDecimal quantity;
+
+    @Schema(description = "验收量（实物接收量）；不传则与成交数量相同")
+    private BigDecimal acceptedQuantity;
 
     @Schema(description = "成交单价", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "成交单价不能为空")
@@ -38,6 +41,9 @@ public class PurchaseOrderDealReqVO {
 
     @Schema(description = "调整原因（成交价与参考价不一致时必填）")
     private String adjustReason;
+
+    @Schema(description = "交货场站编号（跨场站交货校验用；不传则不校验跨场站）")
+    private Long stationId;
 
     @Schema(description = "关联业务来源类型（可空，如 ACQUISITION）")
     private String sourceType;

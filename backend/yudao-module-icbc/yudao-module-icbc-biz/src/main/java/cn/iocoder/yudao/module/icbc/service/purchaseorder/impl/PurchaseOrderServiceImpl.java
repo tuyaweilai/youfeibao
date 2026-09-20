@@ -225,6 +225,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             deliveryCheck.setOrderId(order.getId());
             deliveryCheck.setItemId(reqVO.getItemId());
             deliveryCheck.setQuantity(reqVO.getQuantity());
+            deliveryCheck.setStationId(reqVO.getStationId());
             assertDeliveryAllowed(deliveryCheck);
         } else if (PurchaseOrderStatusEnum.DRAFT.getStatus().equals(order.getStatus())) {
             // 退货（负数）是扣回已发生的业务，草稿单还没有任何业务可言；
@@ -248,10 +249,12 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                 .dealTime(LocalDateTime.now())
                 .deliveryDate(reqVO.getDeliveryDate())
                 .quantity(reqVO.getQuantity())
+                .acceptedQuantity(reqVO.getAcceptedQuantity() == null
+                        ? reqVO.getQuantity() : reqVO.getAcceptedQuantity())
                 .unitPrice(reqVO.getUnitPrice())
                 .referenceUnitPrice(reference)
                 .priceAdjusted(adjusted)
-                .adjustReason(StrUtil.trim(reqVO.getAdjustReason()))
+                .adjustReason(adjusted ? StrUtil.trim(reqVO.getAdjustReason()) : null)
                 .sourceType(StrUtil.trim(reqVO.getSourceType()))
                 .sourceId(reqVO.getSourceId())
                 .sourceNo(StrUtil.trim(reqVO.getSourceNo()))
@@ -301,9 +304,10 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         Map<Long, List<IcbcPurchaseOrderDealDO>> dealsByItem = deals.stream()
                 .collect(Collectors.groupingBy(IcbcPurchaseOrderDealDO::getItemId));
 
-        // 整单五口径。验收 = 全部成交记录；结算 = 其中来源收购单已归入结算单的那部分
+        // 整单五口径。验收 = 全部成交记录的**验收量**（实物接收量，ADR 0028）；
+        // 结算 = 其中来源收购单已归入结算单的那部分**成交数量**（计价基准，ADR 0019）
         BigDecimal plan = zeroIfNull(order.getTotalQuantity());
-        BigDecimal accepted = sumDealQuantity(deals);
+        BigDecimal accepted = sumDealAcceptedQuantity(deals);
         BigDecimal settled = sumDealQuantity(settledDeals(deals, settledAcquisitionIds));
         BigDecimal stocked = stockedByItem.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal basisQuantity = basis == PurchasePerformanceBasisEnum.SETTLED ? settled : accepted;
@@ -332,7 +336,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         for (IcbcPurchaseOrderItemDO item : items) {
             List<IcbcPurchaseOrderDealDO> itemDeals = dealsByItem.getOrDefault(item.getId(), Collections.emptyList());
             BigDecimal itemPlan = zeroIfNull(item.getQuantity());
-            BigDecimal itemAccepted = sumDealQuantity(itemDeals);
+            BigDecimal itemAccepted = sumDealAcceptedQuantity(itemDeals);
             BigDecimal itemSettled = sumDealQuantity(settledDeals(itemDeals, settledAcquisitionIds));
             BigDecimal itemBasis = basis == PurchasePerformanceBasisEnum.SETTLED ? itemSettled : itemAccepted;
             boolean over = itemAccepted.compareTo(itemPlan) > 0;
@@ -548,6 +552,11 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         dto.setUsableAsPurchaseBasis(
                 PurchaseOrderStatusEnum.EXECUTING.getStatus().equals(order.getStatus()) && !isExpired(order));
         return dto;
+    }
+
+    @Override
+    public List<IcbcPurchaseOrderDealDO> selectDealsBySource(String sourceType, Long sourceId) {
+        return dealMapper.selectListBySource(sourceType, sourceId);
     }
 
     @Override
@@ -897,6 +906,16 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     private BigDecimal sumDealQuantity(List<IcbcPurchaseOrderDealDO> deals) {
         return deals.stream()
                 .map(IcbcPurchaseOrderDealDO::getQuantity)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * 成交记录的验收量合计（#58）：{@code acceptedQuantity} 为空时回退 {@code quantity}（兼容历史数据）。
+     */
+    private BigDecimal sumDealAcceptedQuantity(List<IcbcPurchaseOrderDealDO> deals) {
+        return deals.stream()
+                .map(deal -> deal.getAcceptedQuantity() == null ? deal.getQuantity() : deal.getAcceptedQuantity())
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }

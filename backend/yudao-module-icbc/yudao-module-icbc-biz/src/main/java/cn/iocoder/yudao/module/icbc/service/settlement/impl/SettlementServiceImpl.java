@@ -305,6 +305,9 @@ public class SettlementServiceImpl implements SettlementService {
         update.setStatus(AcquisitionStatusEnum.CANCELLED.getStatus());
         update.setCancelReason(reqVO.getReason());
         acquisitionMapper.updateById(update);
+        // 关联了采购安排的，把这一车的成交按相反方向扣回（#58）：作废的计量不再成立，
+        // 订单的验收 / 结算口径要跟着退回去（按来源幂等，重复作废不会扣两次）
+        acquisitionService.syncPurchaseDeal(acquisition, -1);
     }
 
     // ==================== 自然人侧 ====================

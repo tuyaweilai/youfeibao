@@ -32,4 +32,18 @@ public interface IcbcPurchaseOrderDealMapper extends BaseMapperX<IcbcPurchaseOrd
                 .orderByAsc(IcbcPurchaseOrderDealDO::getId));
     }
 
+    /**
+     * 按来源单据取成交记录（#58 幂等）：同一张收购单只允许写一条同类型的成交，
+     * 重复登记 / 离线补传直接返回既有那条。
+     */
+    default List<IcbcPurchaseOrderDealDO> selectListBySource(String sourceType, Long sourceId) {
+        if (sourceType == null || sourceId == null) {
+            return Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<IcbcPurchaseOrderDealDO>()
+                .eq(IcbcPurchaseOrderDealDO::getSourceType, sourceType)
+                .eq(IcbcPurchaseOrderDealDO::getSourceId, sourceId)
+                .orderByAsc(IcbcPurchaseOrderDealDO::getId));
+    }
+
 }
