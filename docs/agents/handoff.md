@@ -1307,4 +1307,8 @@ icbc 不直接碰 `erp_stock*`（ADR 0027 / 0028）。分支 `t16-stock-ops`，�
 2. **`~/.m2` 里早就躺着 vendored 版的两个 artifact**（`yudao-module-logistics-api` 是 1.9KB 的空壳 jar、`-biz` 是 308KB，都是 9 月 18 装的）。停编并不会把它们从 m2 清掉：**如果不先把新模块 install 一遍就 `spring-boot:run`，Maven 会静默解析到旧的 vendored jar**，表现是「物流模块像不存在」或类找不到。改完新模块必须 `install` 再起服务（与 icbc/erp 同一条纪律）。`yudao-module-waste-biz` 的旧 jar 也还留在 m2，但没有模块再声明它，不会被拉进来。
 3. **Spring 拒绝「只含注释」的 SQL 脚本**（`'script' must not be null or empty`）。V1 还没有业务表，`create_tables.sql` / `clean.sql` 里各留了一条 `SELECT 1;` 占位（文件里已写明首次真实建表时删掉）。新增表的票别忘了给 `clean.sql` 补 `DELETE`。
 
-frontier 随之推进到 **#69（V2 一趟活跑通）**。
+**V2 又拆了一次（同日）**：#69 按「一张票要能在一个上下文窗口里做完」拆成三张垂直切片——**#77（V2a 车辆与司机最小档案 + 物流域菜单与权限机制）→ #78（V2b 运输任务与节点）→ #79（V2c 司机端工程与接单）**。依据是实测：ADR 0026 之后权限行与角色-菜单由同步服务从枚举幂等生成，而物流不得依赖 icbc（ADR 0032），这套要在物流侧从零镜像一套；司机端又是一整个新工程；再加上 4 张表，原票是其他票的 3–4 倍。下游依赖已改接：#70 → #77，#71 / #72 / #73 / #76 → #78，#74 → #79。
+
+**物流的菜单 ID 不要用固定段**：原本打算用 5400–5499，但 V2a 实测发现固定段本身就不可行——`system_menu` 里同步服务插的权限行是**自增 id**，而显式 id 插入并不推高 InnoDB 计数器（本地库实测 `MAX(id)=5328` 而 `AUTO_INCREMENT=5210`），任何固定段都会与下一次自增撞号。物流改为「按标记删 → 自增插 → `LAST_INSERT_ID()` 串父子 → 子树 id 并进套餐」，见 `backend/sql/mysql/logistics-menu.sql`。另外**无论用哪一段都不能是 5300–5399**：`icbc-menu.sql` 会 `DELETE ... BETWEEN 5100 AND 5399`。
+
+frontier 随之推进到 **#77（V2a）**。
