@@ -585,11 +585,11 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 - **规格**：[#38](https://github.com/tuyaweilai/youfeibao/issues/38)（`ready-for-agent`），56 条 user story、12 条实现决策、测试决策、out of scope、further notes。
 - **19 张票**：`#39`–`#57`，边用 GitHub 原生 issue dependencies 连（21 条）。
-- **frontier（现在就能 grab）**：`#54` T16 非销售出库、调拨与盘点调整 / `#55` T17 关联单据查询 / `#57` T19 经营报表与异常表——**最后三张**。
-- 依赖链：无剩余阻塞。
-- **待决策的跟进票**：`#58`（关联采购订单的收购单进履约口径与交货门禁）——卡在 `net_weight` vs `settlement_weight` 的口径选择上，定完再接。
+- **frontier：无。`#39`–`#57` 十九张全部完成并合并进 `main`**（第一轮到第五轮，五轮并行）。规格 #38 的 user story 全部落地。
+- **唯一开着的跟进票**：`#58`（关联采购订单的收购单进履约口径与交货门禁）——卡在 `net_weight` vs `settlement_weight` 的口径选择上，定完再接。
+- **另需人工确认的遗留项**（各票 handoff 小节里有细节）：#54 的期初并发（服务层校验，未上唯一约束）；#55 的节点级上下游字段；#57 的「超入库量 / 重复关联」判定口径。
 
-### 第五轮并行约定（#54 / #55 / #57）—— 最后三张
+### 第五轮并行约定（#54 / #55 / #57）—— 已完成并合并（最后一轮）
 
 | 票 | 分支 | 菜单 ID 段 | 错误码段 |
 |---|---|---|---|
