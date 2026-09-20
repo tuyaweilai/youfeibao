@@ -20,6 +20,8 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseExceptionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseSettingDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.stockin.IcbcStockInDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.stockin.IcbcStockInItemDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.appointment.IcbcAppointmentMapper;
@@ -34,6 +36,8 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.purchaseorder.IcbcPurchaseExceptionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.purchaseorder.IcbcPurchaseOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.purchaseorder.IcbcPurchaseSettingMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.stockin.IcbcStockInItemMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.stockin.IcbcStockInMapper;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.impl.NaturalPersonServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
@@ -108,6 +112,10 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
     private IcbcPurchaseExceptionMapper purchaseExceptionMapper;
     @Resource
     private IcbcInputInvoiceMapper inputInvoiceMapper;
+    @Resource
+    private IcbcStockInMapper stockInMapper;
+    @Resource
+    private IcbcStockInItemMapper stockInItemMapper;
     @Resource
     private PlatformInvoiceQueryService platformInvoiceQueryService;
 
@@ -540,6 +548,38 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
             assertNull(purchaseSettingMapper.selectById(settingId));
             assertNull(purchaseExceptionMapper.selectById(exceptionId));
             assertTrue(purchaseExceptionMapper.selectList().isEmpty());
+        });
+    }
+
+    @Test
+    public void testStockInIsolatedByTenant() {
+        // 入库单与明细是租户表：甲企业的入库记录（含库存流水写入依据），乙企业看不到
+        Long stockInId = TenantUtils.execute(1L, () -> {
+            IcbcStockInDO stockIn = IcbcStockInDO.builder()
+                    .stockInNo("SI_TENANT_1")
+                    .acquisitionId(1L)
+                    .acquisitionNo("ACQ_TENANT_1")
+                    .goodsConfigId(1L)
+                    .totalQuantity(new BigDecimal("60"))
+                    .status(1)
+                    .build();
+            stockInMapper.insert(stockIn);
+            stockInItemMapper.insert(IcbcStockInItemDO.builder()
+                    .stockInId(stockIn.getId())
+                    .warehouseId(1L)
+                    .quantity(new BigDecimal("60"))
+                    .build());
+            return stockIn.getId();
+        });
+
+        TenantUtils.execute(1L, () -> {
+            assertNotNull(stockInMapper.selectById(stockInId));
+            assertEquals(1, stockInItemMapper.selectListByStockInId(stockInId).size());
+        });
+        TenantUtils.execute(2L, () -> {
+            assertNull(stockInMapper.selectById(stockInId));
+            assertTrue(stockInMapper.selectList().isEmpty());
+            assertTrue(stockInItemMapper.selectListByStockInId(stockInId).isEmpty());
         });
     }
 

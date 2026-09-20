@@ -1373,3 +1373,56 @@ CREATE TABLE IF NOT EXISTS icbc_purchase_exception (
     PRIMARY KEY (id),
     CONSTRAINT uk_purchase_exception_no UNIQUE (tenant_id, exception_no)
 );
+
+-- ===== 待入库 → 入库单 → 库存流水（#52 T14）=====
+
+-- icbc_stock_in table（入库单；租户表）
+CREATE TABLE IF NOT EXISTS icbc_stock_in (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    stock_in_no VARCHAR(64) NOT NULL,
+    acquisition_id BIGINT NOT NULL,
+    acquisition_no VARCHAR(64),
+    payee_id BIGINT,
+    seller_name VARCHAR(100),
+    goods_config_id BIGINT,
+    category_name VARCHAR(100),
+    unit VARCHAR(20),
+    available_quantity DECIMAL(14,4),
+    total_quantity DECIMAL(14,4),
+    status TINYINT NOT NULL DEFAULT 0,
+    posted_time DATETIME,
+    cancel_reason VARCHAR(500),
+    cancelled_time DATETIME,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_stock_in_no UNIQUE (stock_in_no)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_in_acquisition ON icbc_stock_in(tenant_id, acquisition_id);
+CREATE INDEX IF NOT EXISTS idx_stock_in_status ON icbc_stock_in(tenant_id, status);
+
+-- icbc_stock_in_item table（入库单明细；租户表）
+CREATE TABLE IF NOT EXISTS icbc_stock_in_item (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    stock_in_id BIGINT NOT NULL,
+    warehouse_id BIGINT NOT NULL,
+    location_id BIGINT NOT NULL DEFAULT 0,
+    batch_id BIGINT NOT NULL DEFAULT 0,
+    quantity DECIMAL(14,4) NOT NULL,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_in_item_stock_in ON icbc_stock_in_item(tenant_id, stock_in_id);

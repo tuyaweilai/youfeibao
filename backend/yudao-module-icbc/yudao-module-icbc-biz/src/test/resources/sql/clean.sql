@@ -44,3 +44,6 @@ DELETE FROM icbc_input_invoice_link;
 DELETE FROM icbc_input_invoice;
 DELETE FROM icbc_purchase_exception;
 DELETE FROM icbc_purchase_setting;
+
+DELETE FROM icbc_stock_in_item;
+DELETE FROM icbc_stock_in;

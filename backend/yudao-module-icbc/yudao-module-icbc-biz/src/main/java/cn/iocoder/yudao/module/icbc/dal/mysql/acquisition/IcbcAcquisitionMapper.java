@@ -178,4 +178,39 @@ public interface IcbcAcquisitionMapper extends BaseMapperX<IcbcAcquisitionDO> {
                 .last("LIMIT " + limit));
     }
 
+    // ==================== 待入库（#52 T14） ====================
+
+    /**
+     * 待入库候选：**已验收**（已归入结算单）、未作废的收购单，倒序；带可选筛选。
+     *
+     * <p>只做「验收后」这一步粗筛；可入库实物量与剩余可入库在服务层按**唯一取数点**
+     * （{@code StockInService#resolveAvailableQuantity}）计算，不在 SQL 里再写一份重量口径。
+     */
+    default List<IcbcAcquisitionDO> selectListPendingStockIn(
+            cn.iocoder.yudao.module.icbc.controller.admin.stockin.vo.StockInPendingPageReqVO reqVO) {
+        return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .likeIfPresent(IcbcAcquisitionDO::getAcquisitionNo, reqVO.getAcquisitionNo())
+                .likeIfPresent(IcbcAcquisitionDO::getSellerName, reqVO.getSellerName())
+                .eqIfPresent(IcbcAcquisitionDO::getGoodsConfigId, reqVO.getGoodsConfigId())
+                .isNotNull(IcbcAcquisitionDO::getSettlementId)
+                .ne(IcbcAcquisitionDO::getStatus, AcquisitionStatusEnum.CANCELLED.getStatus())
+                .orderByDesc(IcbcAcquisitionDO::getId));
+    }
+
+    /**
+     * 锁住收购单行（{@code SELECT ... FOR UPDATE}）。
+     *
+     * <p>同一收购单的并发入库在此串行化：入库单先落待过账，过账时才写库存，
+     * 「读累计入库 → 校验上限 → 写流水」需要一个共同的串行点，就是这行收购单。
+     * 上限本身仍由 {@code StockApi} 的 {@code maxCount} 兜底（跨入库单累计）。
+     *
+     * <p><b>必须作为事务的第一条语句</b>：InnoDB 可重复读的快照建立在第一条普通读上，
+     * 先普通读再加锁读会让后续的累计校验用旧快照，白锁一场。
+     */
+    default IcbcAcquisitionDO selectByIdForUpdate(Long id) {
+        return selectOne(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .eq(IcbcAcquisitionDO::getId, id)
+                .last("FOR UPDATE"));
+    }
+
 }
