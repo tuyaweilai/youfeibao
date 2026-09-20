@@ -1257,3 +1257,16 @@ icbc 不直接碰 `erp_stock*`（ADR 0027 / 0028）。分支 `t16-stock-ops`，�
 > **踩到的坑**：一开始给 `recordDeal` 加了「按来源幂等」，结果把同一张收购单的多次成交 / 退货全挡掉了（`PurchaseOrderServiceTest#testProgress_returnDeductsFromTheChosenMeasure` 红）。成交记录是**追加式**的，同一来源可以有多条；幂等只属于「同一次登记」，而那层幂等已经由收购单的 `clientRequestId` 保证。
 
 > **原先的已知限制已收**（提交 `a5b1d06`）：成交写在登记那一刻，而接收结论（拒收 / 部分接收）可以在这之后改——现在 `recordAcceptance` 会调 `PurchaseOrderService#correctAcquisitionDeal` **就地修正**那条成交的数量（同一笔收购的修正，不追加新成交），订单的「验收」跟着降。于是 `icbc_purchase_order_deal` 的唯一例外就是这条：由收购单产生的成交会被就地修正，其余仍然只追加。
+
+## 整机启动的 bean 名冲突：第五轮之后又冒了两次（2026-09-20 修）
+
+`#45`–`#58` 合并后重启整机，暴露两处**单测发现不了、只有 `spring-boot:run` 才会炸**的注入冲突（与 2026-09-19 那次同类）：
+
+1. **`contractMapper`**：`PurchaseContractServiceImpl`（#45）的 `@Resource` 字段名撞 `yudao-module-contract` 的 `ContractMapper` bean（`@Resource` 先按名字找）。报 `BeanNotOfRequiredTypeException: Bean named 'contractMapper' ... but was actually of type jdk.proxy2.$Proxy...`。已改名 `icbcPurchaseContractMapper`。
+2. **`appointmentMapper`**：`WorkbenchServiceImpl`（#56）的字段名撞 `yudao-module-waste` 的 `AppointmentMapper`。已改名 `icbcAppointmentMapper`。
+
+**教训（写进排查清单）**：icbc 侧凡是 `@Resource` 字段名写成通用名（`xxxMapper` / `xxxService`），都可能撞上同仓库里别的模块的同名 bean。**重命名的字段名要带 `icbc` 前缀**（历史已有 `icbcAppointmentServiceImpl` / `icbcAppointmentMapper` 的做法）。
+
+**排查脚本**（本次用的思路，可复用）：扫 icbc 的 `@Resource` 字段名，与其它模块里带 `@Mapper/@Service/@Component/...` 的类的 decapitalize 简单名取交集；再扫 icbc 与其它模块是否有一对同名且都带 spring 注解的类。
+
+**顺带**：跑着的后端 jar 旧了也会让人误判成前端问题——`GET /admin-api/icbc/purchase-contract/page` 在旧进程里是 404，而菜单接口是**读库**的、照样正常，于是「菜单里有、页面打不开」看起来像前端缓存。**改完 icbc/erp 等模块，必须 `mvn -pl yudao-server -am -DskipTests install` 再 `spring-boot:run`**（`AGENTS.md` 已有，但这次又踩了）。

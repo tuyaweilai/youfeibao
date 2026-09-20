@@ -63,7 +63,7 @@ public class PurchaseContractServiceImpl implements PurchaseContractService {
     private static final DateTimeFormatter NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Resource
-    private IcbcPurchaseContractMapper contractMapper;
+    private IcbcPurchaseContractMapper icbcPurchaseContractMapper;
     @Resource
     private IcbcPurchaseContractCategoryMapper categoryMapper;
     @Resource
@@ -86,7 +86,7 @@ public class PurchaseContractServiceImpl implements PurchaseContractService {
         contract.setStatus(PurchaseContractStatusEnum.DRAFT.getStatus());
         contract.setVersionNo(0);
         applyCounterparty(contract, createReqVO);
-        contractMapper.insert(contract);
+        icbcPurchaseContractMapper.insert(contract);
         replaceCategories(contract.getId(), createReqVO.getCategoryIds());
         return contract.getId();
     }
@@ -123,7 +123,7 @@ public class PurchaseContractServiceImpl implements PurchaseContractService {
         if (effective) {
             markPendingAudit(contract);
         }
-        contractMapper.updateById(contract);
+        icbcPurchaseContractMapper.updateById(contract);
         replaceCategories(contract.getId(), updateReqVO.getCategoryIds());
         if (effective) {
             createVersion(contract, updateReqVO.getChangeReason());
@@ -139,7 +139,7 @@ public class PurchaseContractServiceImpl implements PurchaseContractService {
                     PurchaseContractStatusEnum.nameOf(contract.getStatus()));
         }
         markPendingAudit(contract);
-        contractMapper.updateById(contract);
+        icbcPurchaseContractMapper.updateById(contract);
         createVersion(contract, submitReqVO.getChangeReason());
     }
 
@@ -160,7 +160,7 @@ public class PurchaseContractServiceImpl implements PurchaseContractService {
         contract.setAuditedBy(SecurityFrameworkUtils.getLoginUserId());
         contract.setAuditedTime(LocalDateTime.now());
         contract.setAuditRemark(auditReqVO.getRemark());
-        contractMapper.updateById(contract);
+        icbcPurchaseContractMapper.updateById(contract);
 
         // 审核结论写在被审的那一版上，历史版本仍可回查
         IcbcPurchaseContractVersionDO latest = versionMapper.selectLatest(contract.getId());
@@ -186,7 +186,7 @@ public class PurchaseContractServiceImpl implements PurchaseContractService {
         contract.setClosedBy(SecurityFrameworkUtils.getLoginUserId());
         contract.setClosedTime(LocalDateTime.now());
         contract.setCloseReason(closeReqVO.getReason());
-        contractMapper.updateById(contract);
+        icbcPurchaseContractMapper.updateById(contract);
     }
 
     @Override
@@ -199,14 +199,14 @@ public class PurchaseContractServiceImpl implements PurchaseContractService {
         }
         categoryMapper.deleteByContractId(id);
         versionMapper.deleteByContractId(id);
-        contractMapper.deleteById(id);
+        icbcPurchaseContractMapper.deleteById(id);
     }
 
     // ==================== 查询 ====================
 
     @Override
     public IcbcPurchaseContractDO getContract(Long id) {
-        IcbcPurchaseContractDO contract = contractMapper.selectById(id);
+        IcbcPurchaseContractDO contract = icbcPurchaseContractMapper.selectById(id);
         if (contract == null) {
             throw exception(PURCHASE_CONTRACT_NOT_EXISTS);
         }
@@ -225,7 +225,7 @@ public class PurchaseContractServiceImpl implements PurchaseContractService {
 
     @Override
     public PageResult<PurchaseContractRespVO> getContractPage(PurchaseContractPageReqVO pageReqVO) {
-        PageResult<IcbcPurchaseContractDO> page = contractMapper.selectPage(pageReqVO);
+        PageResult<IcbcPurchaseContractDO> page = icbcPurchaseContractMapper.selectPage(pageReqVO);
         return new PageResult<>(page.getList().stream().map(this::toResp).toList(), page.getTotal());
     }
 

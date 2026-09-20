@@ -81,7 +81,7 @@ public class WorkbenchServiceImpl implements WorkbenchService {
     private static final Integer EXPIRY_WARNING_OPEN = 0;
 
     @Resource
-    private IcbcAppointmentMapper appointmentMapper;
+    private IcbcAppointmentMapper icbcAppointmentMapper;
     @Resource
     private IcbcAcquisitionMapper acquisitionMapper;
     @Resource
@@ -207,8 +207,8 @@ public class WorkbenchServiceImpl implements WorkbenchService {
     /** 今日到场 / 上门：待到站的预约里，预计到站时间不晚于今日的（含已逾期）。 */
     private TodoPreview arrivalToday() {
         LocalDateTime deadline = LocalDate.now().atTime(LocalTime.MAX);
-        long total = appointmentMapper.selectCountPendingArrivalBefore(deadline);
-        List<WorkbenchItemRespVO> items = appointmentMapper
+        long total = icbcAppointmentMapper.selectCountPendingArrivalBefore(deadline);
+        List<WorkbenchItemRespVO> items = icbcAppointmentMapper
                 .selectListPendingArrivalBefore(deadline, PREVIEW_LIMIT)
                 .stream().map(this::toItem).collect(Collectors.toList());
         return TodoPreview.of(total, items);
