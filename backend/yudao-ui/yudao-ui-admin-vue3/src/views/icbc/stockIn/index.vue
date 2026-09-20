@@ -7,10 +7,10 @@
       title="入库是收购单派生的单向动作：验收后的货进待入库，仓管选仓库 / 库位 / 批次确认实际入库量。"
     />
     <el-alert
-      type="warning"
+      type="info"
       :closable="false"
       class="mb-10px"
-      title="现在只有入库流水（出库 / 调拨 / 盘点尚未落地），所以页面上只称「累计入库」，不称「当前库存」。只有过账的入库才增加正式库存，当前库存要等出库 / 调拨 / 盘点落地后才可称。"
+      title="只有过账的入库才增加正式库存。出库 / 调拨 / 盘点已落地（#54）：库存查询页在「已导期初 + 四项能力齐备」时按「当前库存」展示，否则只称「累计入库」。"
     />
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
       <el-tab-pane label="待入库" name="pending" />

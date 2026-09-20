@@ -1,6 +1,14 @@
 <!-- ERP 品类库存列表：按品类 / 仓库 / 库位 / 批次查询 -->
 <template>
   <ContentWrap>
+    <el-alert
+      :type="readiness?.currentStockReady ? 'success' : 'warning'"
+      :closable="false"
+      :title="readiness?.notice || '正在读取库存口径…'"
+    />
+  </ContentWrap>
+
+  <ContentWrap>
     <!-- 搜索工作栏 -->
     <el-form
       class="-mb-15px"
@@ -110,7 +118,7 @@
         </template>
       </el-table-column>
       <el-table-column
-        label="库存量"
+        :label="stockLabel"
         align="center"
         prop="count"
         :formatter="erpCountTableColumnFormatter"
@@ -133,12 +141,20 @@ import { WarehouseApi, WarehouseVO } from '@/api/erp/stock/warehouse'
 import { StockLocationApi, StockLocationVO } from '@/api/erp/stock/location'
 import { StockBatchApi, StockBatchVO } from '@/api/erp/stock/batch'
 import { GoodsConfigApi, GoodsConfigVO } from '@/api/icbc/goodsConfig'
+import { StockOpsReadinessApi, StockOpsReadinessVO } from '@/api/icbc/stockOps'
 import { erpCountTableColumnFormatter } from '@/utils'
 
 /** ERP 品类库存列表 */
 defineOptions({ name: 'ErpStock' })
 
 const message = useMessage() // 消息弹窗
+
+/**
+ * 「当前库存」口径就绪（#54 T16）：四项能力齐备且已导期初才敢称当前库存，
+ * 否则只称累计入库。判定在后端，页面只展示。
+ */
+const readiness = ref<StockOpsReadinessVO>()
+const stockLabel = computed(() => readiness.value?.label || '累计入库')
 
 const loading = ref(true) // 列表的加载中
 const list = ref<StockVO[]>([]) // 列表的数据
@@ -216,5 +232,11 @@ onMounted(async () => {
   goodsConfigList.value = await GoodsConfigApi.getEnabledList()
   warehouseList.value = await WarehouseApi.getWarehouseSimpleList()
   batchList.value = await StockBatchApi.getStockBatchSimpleList()
+  // 口径就绪拿不到时保守地显示「累计入库」，不因一个提示接口把整页拖挂
+  try {
+    readiness.value = await StockOpsReadinessApi.getReadiness()
+  } catch {
+    readiness.value = undefined
+  }
 })
 </script>

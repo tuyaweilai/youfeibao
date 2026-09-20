@@ -45,6 +45,17 @@ public enum ErpStockRecordBizTypeEnum implements ArrayValuable<Integer> {
 
     RECEIPT_IN(90, "收货入库"),
     RECEIPT_IN_CANCEL(91, "收货入库（作废）"),
+
+    // ===== 非销售出库与期初（#54 T16，ADR 0025：stock_out 只用于非销售出库，不挂客户）=====
+    SCRAP_OUT(100, "报损出库"),
+    SCRAP_OUT_CANCEL(101, "报损出库（作废）"),
+    RETURN_OUT(102, "退货出库"),
+    RETURN_OUT_CANCEL(103, "退货出库（作废）"),
+    INTERNAL_USE_OUT(104, "内部领用出库"),
+    INTERNAL_USE_OUT_CANCEL(105, "内部领用出库（作废）"),
+
+    OPENING_IN(110, "期初入库"),
+    OPENING_IN_CANCEL(111, "期初入库（作废）"),
     ;
 
     public static final Integer[] ARRAYS = Arrays.stream(values()).map(ErpStockRecordBizTypeEnum::getType).toArray(Integer[]::new);

@@ -1084,3 +1084,63 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
    退回无原因拒、超净重拒、负重量拒、已挂开票拒、已归结算拒、扣杂差异不抹平、差异清单过滤、
    修正识别重算差异）；`RecyclingRoleEnumTest` 新增接收结论 / 差异清单权限一例。
    **icbc 572 测试全绿**；PC `pnpm build:local` 通过。
+
+## #54 T16 非销售出库、跨仓调拨、盘点调整与期初（已完成）
+
+补上让余额能被称作「当前库存」的其余能力。库存写入只经 ERP 的 stock 域（`StockApi`），
+icbc 不直接碰 `erp_stock*`（ADR 0027 / 0028）。分支 `t16-stock-ops`，菜单段 5259–5299（用了
+5259–5273），错误码段 `1_030_037_xxx`（用了 000–034）。
+
+1. **扩 `StockApi`（erp-api + erp-biz）**：新增 `move(StockMoveReqDTO)`（跨仓调拨：源减目标加，
+   一次写 `MOVE_OUT(32)` + `MOVE_IN(30)` 两条流水）与 `adjustTo(StockAdjustReqDTO)`（盘点对齐实盘数：
+   ERP 在同一个事务里加行锁读余额、算差额，盘盈写 `CHECK_MORE_IN(40)`、盘亏写 `CHECK_LESS_OUT(42)`，
+   账实相符不写流水），两者都按「业务类型 + 业务编号 + 业务项编号」幂等。期初复用 `in`。
+   余额行加锁读收在 `ErpStockService#getStockForUpdate`（`StockApiImpl` 不碰 DAL）。
+   `ErpStockRecordBizTypeEnum` **追加** `SCRAP_OUT(100)` / `RETURN_OUT(102)` / `INTERNAL_USE_OUT(104)` /
+   `OPENING_IN(110)` 及各自的 `*_CANCEL(101/103/105/111)`。
+2. **四类单据（icbc 侧，`backend/sql/mysql/icbc-stock-ops.sql`，幂等；测试建表与 `clean.sql` 同步）**：
+   `icbc_stock_out`（报损 / 退货出库 / 内部领用，**不挂客户**，AC1）+ 明细、`icbc_stock_move`（源 / 目标
+   都带仓库 + 库位 + 批次）+ 明细、`icbc_stock_check`（明细存实盘数，账面 / 差额过账时落库）、
+   `icbc_stock_opening`（一个「品类 + 仓库 + 库位 + 批次」一行，导入即过账）。四类共用
+   `StockOpsStatusEnum`（0-待过账 / 1-已过账 / 2-已作废）与 `StockOutTypeEnum`。
+3. **登记 / 过账 / 作废**：登记不动库存；过账才经 `StockApi` 写流水；作废已过账的按**相反方向**冲销
+   （出库用 `*_CANCEL`、调拨源加回目标减掉、盘点按**记录的差额**冲销而不是重算、期初用
+   `OPENING_IN_CANCEL`）。作废都必须写原因。盘点差额由 ERP 算，icbc 只把实盘数递过去。
+4. **期初的两条规矩**：同一维度只允许一条**生效**期初（重复导入整批拒绝，先校验全批再写，不留半份）；
+   作废后该维度可重新导入。录错了走作废重导或盘点调整。
+5. **AC2「余额与流水始终一致」由 ERP 侧断言**：`StockApiImplTest` 断言调拨后两个仓库各自
+   「余额 = 该维度全部流水重算」，盘点后「盘盈 / 盘亏流水之和 = 余额」。
+6. **AC4「页面才显示当前库存」**：新增 `GET /icbc/stock-ops/readiness`
+   （`StockOpsReadinessServiceImpl`，权限 `icbc:stock:readiness:query`）返回四项能力位、
+   `openingImported`、`capabilitiesReady`、`currentStockReady`、`label`（当前库存 / 累计入库）与 `notice`。
+   判定写成两层：四项能力齐备（#54 落地后为 true）**且已导入期初**才 `label=当前库存`；没导期初时余额
+   漏掉启用平台之前的存量，只能说“累计入库”。「库存查询」页（`views/erp/stock/stock/index.vue`）
+   按 `label` 渲染列名并显示 `notice`；#52 页面上那句「出库 / 调拨 / 盘点尚未落地」的告警已相应改写。
+7. **权限 / 菜单**：`RecyclingPermission` 追加 9 个（`STOCK_OUT_QUERY|MANAGE`、`STOCK_MOVE_QUERY|MANAGE`、
+   `STOCK_CHECK_QUERY|MANAGE`、`STOCK_OPENING_QUERY|MANAGE`、`STOCK_READINESS_QUERY`，只追加未重排）；
+   `RecyclingRoleEnum` 挂到管理员 / 收货员（可管理）与开票员 / 财务（只读 + 就绪查询）；
+   `icbc-menu.sql` 在「仓储管理」（5205）下追加 5259 非销售出库 / 5263 跨仓调拨 / 5267 盘点调整 /
+   5271 期初导入及其按钮（随套餐递归进回收企业套餐）。
+8. **前端**：`api/icbc/stockOps` + `views/icbc/{stockOut,stockMove,stockCheck,stockOpening}`（登记 / 过账 /
+   作废 / 详情；期初页支持多行录入与「从 Excel 粘贴」按名称解析维度）。`pnpm build:local` 通过。
+9. **测试**：ERP 34 全绿（`StockApiImplTest` 新增 6 例：调拨余额与流水一致、调拨幂等、调拨源不足整单拒、
+   盘点盘盈盘亏、账实相符不写流水、盘点幂等）；icbc 634 全绿（新增 `StockOutServiceTest` 12、
+   `StockMoveServiceTest` 9、`StockCheckServiceTest` 10、`StockOpeningServiceTest` 9、
+   `StockOpsReadinessServiceTest` 2，`RecyclingRoleEnumTest` / `IcbcTenantIsolationTest` 各补一例）。
+   本地库（临时 scratch 库）整份跑 `icbc-stock-ops.sql` 与 `icbc-menu.sql` 通过、迁移重跑幂等、
+   5259–5273 落库正确并进套餐 `menu_ids`。
+
+> **与 ADR 0025 §1 的有意偏差（留档）**：ADR 0025 原写「`stock_out` 保留但只用于非销售出库」、
+> 「重造调拨 / 盘点没有意义」。本票按第五轮并行约定（「库存只经 ERP 的 stock 域写；`StockApi` 不够时
+> 扩 `StockApi` + 业务类型枚举追加」）把四类**业务单据**建在 icbc 侧、**库存余额与流水仍归 ERP**：
+> ERP 的 `erp_stock_out/move/check` 单据服务与前端页面自 #42 删掉 product 域后已不可达（前端仍在用
+> `productId`），且 `erp_stock_out` 强制挂客户、缺「报损 / 退货出库 / 内部领用」类型，与 AC1 直接冲突。
+> 「重造调拨 / 盘点没有意义」读作「余额 + 流水的记账机制不重造」——本票没有自己的余额表，全部经
+> `StockApi` 写 `erp_stock` / `erp_stock_record`。**ADR 0025 已补 2026-09-20 修订注**。
+
+> **遗留**：①`icbc_stock_opening` 的「同一维度一条生效期初」是服务层校验 + 普通索引，并发导入
+> （两个管理员同时导同一维度）理论上可能各写一条；期初是 go-live 前的一次性动作，没上唯一约束
+> （作废后要允许重导）。②盘点的「对齐到实盘数」在余额行**不存在**时没有行可锁，靠
+> `updateStockCountIncrement` 的并发插入兜底，极端并发下差额可能按旧账面算；icbc 侧的单据状态
+> 串行化了同一单据的重复过账。③#55（一票一档 / 链路追溯）与 #57（经营报表）要把这四类库存作业
+> 纳入追溯与报表口径时，直接读 `icbc_stock_*` 单号即可。

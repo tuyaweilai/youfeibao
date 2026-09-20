@@ -259,7 +259,25 @@ VALUES
 (5255, '待入库与入库单', 'icbc:stock-in:query', 2, 4, 5205, 'stock-in', '', 'icbc/stockIn/index', 'IcbcStockIn', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5256, '确认入库', 'icbc:stock-in:manage', 3, 1, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5257, '过账入库单', 'icbc:stock-in:manage', 3, 2, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5258, '作废入库单', 'icbc:stock-in:manage', 3, 3, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5258, '作废入库单', 'icbc:stock-in:manage', 3, 3, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+
+-- ===== 仓储管理：非销售出库 / 跨仓调拨 / 盘点调整 / 期初导入（#54 T16，ADR 0025）=====
+-- 四类仓管自主发起的库存作业，都只经 StockApi 写 erp_stock*；过账才动库存。
+(5259, '非销售出库', 'icbc:stock-out:query', 2, 5, 5205, 'stock-out', '', 'icbc/stockOut/index', 'IcbcStockOut', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5260, '登记出库', 'icbc:stock-out:manage', 3, 1, 5259, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5261, '过账出库单', 'icbc:stock-out:manage', 3, 2, 5259, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5262, '作废出库单', 'icbc:stock-out:manage', 3, 3, 5259, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5263, '跨仓调拨', 'icbc:stock-move:query', 2, 6, 5205, 'stock-move', '', 'icbc/stockMove/index', 'IcbcStockMove', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5264, '登记调拨', 'icbc:stock-move:manage', 3, 1, 5263, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5265, '过账调拨单', 'icbc:stock-move:manage', 3, 2, 5263, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5266, '作废调拨单', 'icbc:stock-move:manage', 3, 3, 5263, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5267, '盘点调整', 'icbc:stock-check:query', 2, 7, 5205, 'stock-check', '', 'icbc/stockCheck/index', 'IcbcStockCheck', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5268, '登记盘点', 'icbc:stock-check:manage', 3, 1, 5267, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5269, '过账盘点单', 'icbc:stock-check:manage', 3, 2, 5267, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5270, '作废盘点单', 'icbc:stock-check:manage', 3, 3, 5267, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5271, '期初导入', 'icbc:stock-opening:query', 2, 8, 5205, 'stock-opening', '', 'icbc/stockOpening/index', 'IcbcStockOpening', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5272, '导入期初', 'icbc:stock-opening:manage', 3, 1, 5271, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5273, '作废期初', 'icbc:stock-opening:manage', 3, 2, 5271, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
 
 -- =====================================================================
 -- 3. 回收企业租户套餐

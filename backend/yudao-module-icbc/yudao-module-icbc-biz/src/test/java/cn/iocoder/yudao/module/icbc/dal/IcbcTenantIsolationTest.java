@@ -22,6 +22,13 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrd
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseSettingDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.stockin.IcbcStockInDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.stockin.IcbcStockInItemDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.stockops.IcbcStockCheckDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.stockops.IcbcStockCheckItemDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.stockops.IcbcStockMoveDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.stockops.IcbcStockMoveItemDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.stockops.IcbcStockOpeningDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.stockops.IcbcStockOutDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.stockops.IcbcStockOutItemDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.appointment.IcbcAppointmentMapper;
@@ -38,6 +45,13 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.purchaseorder.IcbcPurchaseOrderMap
 import cn.iocoder.yudao.module.icbc.dal.mysql.purchaseorder.IcbcPurchaseSettingMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.stockin.IcbcStockInItemMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.stockin.IcbcStockInMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.stockops.IcbcStockCheckItemMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.stockops.IcbcStockCheckMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.stockops.IcbcStockMoveItemMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.stockops.IcbcStockMoveMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.stockops.IcbcStockOpeningMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.stockops.IcbcStockOutItemMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.stockops.IcbcStockOutMapper;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.impl.NaturalPersonServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
@@ -116,6 +130,20 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
     private IcbcStockInMapper stockInMapper;
     @Resource
     private IcbcStockInItemMapper stockInItemMapper;
+    @Resource
+    private IcbcStockOutMapper stockOutMapper;
+    @Resource
+    private IcbcStockOutItemMapper stockOutItemMapper;
+    @Resource
+    private IcbcStockMoveMapper stockMoveMapper;
+    @Resource
+    private IcbcStockMoveItemMapper stockMoveItemMapper;
+    @Resource
+    private IcbcStockCheckMapper stockCheckMapper;
+    @Resource
+    private IcbcStockCheckItemMapper stockCheckItemMapper;
+    @Resource
+    private IcbcStockOpeningMapper stockOpeningMapper;
     @Resource
     private PlatformInvoiceQueryService platformInvoiceQueryService;
 
@@ -580,6 +608,78 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
             assertNull(stockInMapper.selectById(stockInId));
             assertTrue(stockInMapper.selectList().isEmpty());
             assertTrue(stockInItemMapper.selectListByStockInId(stockInId).isEmpty());
+        });
+    }
+
+    @Test
+    public void testStockOpsIsolatedByTenant() {
+        // 库存作业四类单据都是租户表：甲企业的出库 / 调拨 / 盘点 / 期初记录，乙企业看不到
+        Long stockOutId = TenantUtils.execute(1L, () -> {
+            IcbcStockOutDO stockOut = IcbcStockOutDO.builder()
+                    .stockOutNo("SO_TENANT_1")
+                    .outType(10)
+                    .totalQuantity(new BigDecimal("20"))
+                    .status(1)
+                    .build();
+            stockOutMapper.insert(stockOut);
+            stockOutItemMapper.insert(IcbcStockOutItemDO.builder()
+                    .stockOutId(stockOut.getId()).goodsConfigId(1L).warehouseId(1L)
+                    .quantity(new BigDecimal("20")).build());
+            return stockOut.getId();
+        });
+        Long stockCheckId = TenantUtils.execute(1L, () -> {
+            IcbcStockCheckDO stockCheck = IcbcStockCheckDO.builder()
+                    .checkNo("SC_TENANT_1")
+                    .status(1)
+                    .build();
+            stockCheckMapper.insert(stockCheck);
+            stockCheckItemMapper.insert(IcbcStockCheckItemDO.builder()
+                    .checkId(stockCheck.getId()).goodsConfigId(1L).warehouseId(1L)
+                    .actualQuantity(new BigDecimal("80")).build());
+            return stockCheck.getId();
+        });
+        Long openingId = TenantUtils.execute(1L, () -> {
+            IcbcStockOpeningDO opening = IcbcStockOpeningDO.builder()
+                    .openingNo("OP_TENANT_1")
+                    .goodsConfigId(1L).warehouseId(1L).locationId(0L).batchId(0L)
+                    .quantity(new BigDecimal("100"))
+                    .status(1)
+                    .build();
+            stockOpeningMapper.insert(opening);
+            return opening.getId();
+        });
+        Long moveId = TenantUtils.execute(1L, () -> {
+            IcbcStockMoveDO move = IcbcStockMoveDO.builder()
+                    .moveNo("SM_TENANT_1")
+                    .totalQuantity(new BigDecimal("30"))
+                    .status(1)
+                    .build();
+            stockMoveMapper.insert(move);
+            stockMoveItemMapper.insert(IcbcStockMoveItemDO.builder()
+                    .moveId(move.getId()).goodsConfigId(1L)
+                    .fromWarehouseId(1L).toWarehouseId(2L)
+                    .quantity(new BigDecimal("30")).build());
+            return move.getId();
+        });
+
+        TenantUtils.execute(1L, () -> {
+            assertNotNull(stockOutMapper.selectById(stockOutId));
+            assertEquals(1, stockOutItemMapper.selectListByStockOutId(stockOutId).size());
+            assertNotNull(stockMoveMapper.selectById(moveId));
+            assertEquals(1, stockMoveItemMapper.selectListByMoveId(moveId).size());
+            assertNotNull(stockCheckMapper.selectById(stockCheckId));
+            assertEquals(1, stockCheckItemMapper.selectListByCheckId(stockCheckId).size());
+            assertNotNull(stockOpeningMapper.selectById(openingId));
+        });
+        TenantUtils.execute(2L, () -> {
+            assertNull(stockOutMapper.selectById(stockOutId));
+            assertNull(stockMoveMapper.selectById(moveId));
+            assertNull(stockCheckMapper.selectById(stockCheckId));
+            assertNull(stockOpeningMapper.selectById(openingId));
+            assertTrue(stockOutItemMapper.selectListByStockOutId(stockOutId).isEmpty());
+            assertTrue(stockMoveItemMapper.selectListByMoveId(moveId).isEmpty());
+            assertTrue(stockCheckItemMapper.selectListByCheckId(stockCheckId).isEmpty());
+            assertTrue(stockOpeningMapper.selectList().isEmpty());
         });
     }
 

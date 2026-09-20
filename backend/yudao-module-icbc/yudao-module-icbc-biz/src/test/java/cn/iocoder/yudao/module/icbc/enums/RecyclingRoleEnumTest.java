@@ -345,6 +345,34 @@ public class RecyclingRoleEnumTest {
     }
 
     @Test
+    public void testStockOpsPermissions() {
+        // 库存作业（非销售出库 / 调拨 / 盘点 / 期初）是仓管的事：管理员全量，收货员兼做收尾
+        for (String permission : java.util.List.of(
+                RecyclingPermission.STOCK_OUT_MANAGE, RecyclingPermission.STOCK_MOVE_MANAGE,
+                RecyclingPermission.STOCK_CHECK_MANAGE, RecyclingPermission.STOCK_OPENING_MANAGE)) {
+            assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(), permission));
+            assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(), permission));
+        }
+        // 开票员 / 财务对账要看库存，但不登记出库 / 调拨 / 盘点 / 期初；「当前库存」口径谁都能读
+        for (String permission : java.util.List.of(
+                RecyclingPermission.STOCK_OUT_QUERY, RecyclingPermission.STOCK_MOVE_QUERY,
+                RecyclingPermission.STOCK_CHECK_QUERY, RecyclingPermission.STOCK_OPENING_QUERY,
+                RecyclingPermission.STOCK_READINESS_QUERY)) {
+            assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.INVOICER.getCode(), permission));
+            assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(), permission));
+        }
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.INVOICER.getCode(),
+                RecyclingPermission.STOCK_CHECK_MANAGE));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.STOCK_OPENING_MANAGE));
+        // 平台运营不参与租户内的库存作业
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.STOCK_OUT_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.STOCK_READINESS_QUERY));
+    }
+
+    @Test
     public void testOfCode() {
         assertEquals(RecyclingRoleEnum.ADMIN,
                 RecyclingRoleEnum.ofCode(RecyclingRoleEnum.ADMIN.getCode()).orElseThrow());

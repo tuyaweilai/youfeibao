@@ -439,4 +439,45 @@ public interface ErrorCodeConstants {
             "该收购单已挂开票申请，金额口径已固定，不能再改接收结论；如需修正请先红冲发票或作废重开");
     ErrorCode ACQUISITION_ACCEPTANCE_AFTER_SETTLEMENT = new ErrorCode(1_030_036_004,
             "该收购单已归入结算单，接收结论请在「结束本次收货」前记录（已确认的结算金额不能靠改接收结论静默变化）；如需修正请走结算异议");
+
+    // ========== 非销售出库 / 跨仓调拨 / 盘点调整 / 期初导入（#54 T16，ADR 0025 / 0027） 1-030-037-000 ==========
+    ErrorCode STOCK_OUT_NOT_EXISTS = new ErrorCode(1_030_037_000, "非销售出库单不存在");
+    ErrorCode STOCK_OUT_STATUS_NOT_ALLOW = new ErrorCode(1_030_037_001,
+            "出库单当前状态不允许该操作：{}");
+    ErrorCode STOCK_OUT_ITEM_INVALID = new ErrorCode(1_030_037_002,
+            "出库明细不合法：{}");
+    ErrorCode STOCK_OUT_TYPE_INVALID = new ErrorCode(1_030_037_003,
+            "非销售出库类型不合法：{}（只能是报损 / 退货出库 / 内部领用）");
+    ErrorCode STOCK_OUT_CANCEL_REASON_REQUIRED = new ErrorCode(1_030_037_004,
+            "作废出库单必须说明原因（已过账的会同时冲销库存）");
+
+    ErrorCode STOCK_MOVE_NOT_EXISTS = new ErrorCode(1_030_037_010, "跨仓调拨单不存在");
+    ErrorCode STOCK_MOVE_STATUS_NOT_ALLOW = new ErrorCode(1_030_037_011,
+            "调拨单当前状态不允许该操作：{}");
+    ErrorCode STOCK_MOVE_ITEM_INVALID = new ErrorCode(1_030_037_012,
+            "调拨明细不合法：{}");
+    ErrorCode STOCK_MOVE_SAME_POSITION = new ErrorCode(1_030_037_013,
+            "调拨的源与目标是同一个仓库 / 库位 / 批次，没有可移动的货");
+    ErrorCode STOCK_MOVE_CANCEL_REASON_REQUIRED = new ErrorCode(1_030_037_014,
+            "作废调拨单必须说明原因（已过账的会按相反方向调回）");
+
+    ErrorCode STOCK_CHECK_NOT_EXISTS = new ErrorCode(1_030_037_020, "盘点单不存在");
+    ErrorCode STOCK_CHECK_STATUS_NOT_ALLOW = new ErrorCode(1_030_037_021,
+            "盘点单当前状态不允许该操作：{}");
+    ErrorCode STOCK_CHECK_ITEM_INVALID = new ErrorCode(1_030_037_022,
+            "盘点明细不合法：{}");
+    ErrorCode STOCK_CHECK_ACTUAL_NEGATIVE = new ErrorCode(1_030_037_023,
+            "盘点实盘数不能为负（负数盘亏请先查清货去哪了）");
+    ErrorCode STOCK_CHECK_CANCEL_REASON_REQUIRED = new ErrorCode(1_030_037_024,
+            "作废盘点单必须说明原因（已过账的会按记录的差额冲销）");
+
+    ErrorCode STOCK_OPENING_NOT_EXISTS = new ErrorCode(1_030_037_030, "期初记录不存在");
+    ErrorCode STOCK_OPENING_ITEM_INVALID = new ErrorCode(1_030_037_031,
+            "期初明细不合法：{}");
+    ErrorCode STOCK_OPENING_DIMENSION_DUPLICATED = new ErrorCode(1_030_037_032,
+            "该「品类 + 仓库 + 库位 + 批次」已有生效期初，不能重复导入；如要修正请先作废原期初，或走盘点调整");
+    ErrorCode STOCK_OPENING_ALREADY_CANCELLED = new ErrorCode(1_030_037_033,
+            "期初已作废，不能重复作废");
+    ErrorCode STOCK_OPENING_CANCEL_REASON_REQUIRED = new ErrorCode(1_030_037_034,
+            "作废期初必须说明原因（会同时冲销入库的库存）");
 }

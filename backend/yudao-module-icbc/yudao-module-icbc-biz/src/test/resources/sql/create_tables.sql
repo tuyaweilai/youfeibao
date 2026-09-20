@@ -1434,3 +1434,165 @@ CREATE TABLE IF NOT EXISTS icbc_stock_in_item (
 );
 
 CREATE INDEX IF NOT EXISTS idx_stock_in_item_stock_in ON icbc_stock_in_item(tenant_id, stock_in_id);
+
+-- ===== 非销售出库 / 跨仓调拨 / 盘点调整 / 期初导入（#54 T16，ADR 0025）=====
+
+-- icbc_stock_out table（非销售出库单：报损 / 退货出库 / 内部领用，不挂客户）
+CREATE TABLE IF NOT EXISTS icbc_stock_out (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    stock_out_no VARCHAR(64) NOT NULL,
+    out_type TINYINT NOT NULL,
+    total_quantity DECIMAL(14,4),
+    status TINYINT NOT NULL DEFAULT 0,
+    posted_time DATETIME,
+    cancel_reason VARCHAR(500),
+    cancelled_time DATETIME,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_stock_out_no UNIQUE (stock_out_no)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_out_status ON icbc_stock_out(tenant_id, status);
+
+-- icbc_stock_out_item table（非销售出库单明细）
+CREATE TABLE IF NOT EXISTS icbc_stock_out_item (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    stock_out_id BIGINT NOT NULL,
+    goods_config_id BIGINT NOT NULL,
+    warehouse_id BIGINT NOT NULL,
+    location_id BIGINT NOT NULL DEFAULT 0,
+    batch_id BIGINT NOT NULL DEFAULT 0,
+    quantity DECIMAL(14,4) NOT NULL,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_out_item_out ON icbc_stock_out_item(tenant_id, stock_out_id);
+
+-- icbc_stock_move table（跨仓调拨单：源减目标加）
+CREATE TABLE IF NOT EXISTS icbc_stock_move (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    move_no VARCHAR(64) NOT NULL,
+    total_quantity DECIMAL(14,4),
+    status TINYINT NOT NULL DEFAULT 0,
+    posted_time DATETIME,
+    cancel_reason VARCHAR(500),
+    cancelled_time DATETIME,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_stock_move_no UNIQUE (move_no)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_move_status ON icbc_stock_move(tenant_id, status);
+
+-- icbc_stock_move_item table（跨仓调拨单明细：源 / 目标都带仓库 + 库位 + 批次）
+CREATE TABLE IF NOT EXISTS icbc_stock_move_item (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    move_id BIGINT NOT NULL,
+    goods_config_id BIGINT NOT NULL,
+    from_warehouse_id BIGINT NOT NULL,
+    from_location_id BIGINT NOT NULL DEFAULT 0,
+    from_batch_id BIGINT NOT NULL DEFAULT 0,
+    to_warehouse_id BIGINT NOT NULL,
+    to_location_id BIGINT NOT NULL DEFAULT 0,
+    to_batch_id BIGINT NOT NULL DEFAULT 0,
+    quantity DECIMAL(14,4) NOT NULL,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_move_item_move ON icbc_stock_move_item(tenant_id, move_id);
+
+-- icbc_stock_check table（盘点单：把余额对齐到实盘数）
+CREATE TABLE IF NOT EXISTS icbc_stock_check (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    check_no VARCHAR(64) NOT NULL,
+    status TINYINT NOT NULL DEFAULT 0,
+    posted_time DATETIME,
+    cancel_reason VARCHAR(500),
+    cancelled_time DATETIME,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_stock_check_no UNIQUE (check_no)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_check_status ON icbc_stock_check(tenant_id, status);
+
+-- icbc_stock_check_item table（盘点单明细：实盘录入，账面 / 差额过账时落库）
+CREATE TABLE IF NOT EXISTS icbc_stock_check_item (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    check_id BIGINT NOT NULL,
+    goods_config_id BIGINT NOT NULL,
+    warehouse_id BIGINT NOT NULL,
+    location_id BIGINT NOT NULL DEFAULT 0,
+    batch_id BIGINT NOT NULL DEFAULT 0,
+    actual_quantity DECIMAL(14,4) NOT NULL,
+    book_quantity DECIMAL(14,4),
+    difference_quantity DECIMAL(14,4),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_check_item_check ON icbc_stock_check_item(tenant_id, check_id);
+
+-- icbc_stock_opening table（期初：一个维度一行，导入即过账；同一维度只允许一条生效期初）
+CREATE TABLE IF NOT EXISTS icbc_stock_opening (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    opening_no VARCHAR(64) NOT NULL,
+    goods_config_id BIGINT NOT NULL,
+    warehouse_id BIGINT NOT NULL,
+    location_id BIGINT NOT NULL DEFAULT 0,
+    batch_id BIGINT NOT NULL DEFAULT 0,
+    quantity DECIMAL(14,4) NOT NULL,
+    status TINYINT NOT NULL DEFAULT 1,
+    posted_time DATETIME,
+    cancel_reason VARCHAR(500),
+    cancelled_time DATETIME,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_opening_dimension
+    ON icbc_stock_opening(tenant_id, goods_config_id, warehouse_id, location_id, batch_id);

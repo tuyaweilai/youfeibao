@@ -40,6 +40,22 @@ public interface ErpStockMapper extends BaseMapperX<ErpStockDO> {
                 .eq(ErpStockDO::getBatchId, batchId));
     }
 
+    /**
+     * 基于四个维度加行锁读余额行（盘点调整用）。
+     *
+     * <p>余额行不存在时返回 null（此时没有行可锁）。盘点正在同一维度上并发发生时，先抢到锁的那个
+     * 会看到最新余额、算差额、写流水；后一个再读到的就是已调整后的余额。
+     */
+    default ErpStockDO selectByGoodsConfigIdAndWarehouseIdAndLocationIdAndBatchIdForUpdate(
+            Long goodsConfigId, Long warehouseId, Long locationId, Long batchId) {
+        return selectOne(new LambdaQueryWrapperX<ErpStockDO>()
+                .eq(ErpStockDO::getGoodsConfigId, goodsConfigId)
+                .eq(ErpStockDO::getWarehouseId, warehouseId)
+                .eq(ErpStockDO::getLocationId, locationId)
+                .eq(ErpStockDO::getBatchId, batchId)
+                .last("FOR UPDATE"));
+    }
+
     default Long selectCountByLocationId(Long locationId) {
         return selectCount(ErpStockDO::getLocationId, locationId);
     }

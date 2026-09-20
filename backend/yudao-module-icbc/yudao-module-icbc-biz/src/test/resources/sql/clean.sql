@@ -47,3 +47,10 @@ DELETE FROM icbc_purchase_setting;
 
 DELETE FROM icbc_stock_in_item;
 DELETE FROM icbc_stock_in;
+DELETE FROM icbc_stock_out_item;
+DELETE FROM icbc_stock_out;
+DELETE FROM icbc_stock_move_item;
+DELETE FROM icbc_stock_move;
+DELETE FROM icbc_stock_check_item;
+DELETE FROM icbc_stock_check;
+DELETE FROM icbc_stock_opening;
