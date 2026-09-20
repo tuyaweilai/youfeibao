@@ -16,6 +16,8 @@ import cn.iocoder.yudao.module.icbc.enums.InputInvoiceBizTypeEnum;
 import cn.iocoder.yudao.module.icbc.enums.InputInvoiceStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.InputInvoiceTypeEnum;
 import cn.iocoder.yudao.module.icbc.service.inputinvoice.InputInvoiceService;
+import cn.iocoder.yudao.module.icbc.service.purchaseorder.PurchaseOrderAmountDTO;
+import cn.iocoder.yudao.module.icbc.service.purchaseorder.PurchaseOrderService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +42,8 @@ public class InputInvoiceServiceImpl implements InputInvoiceService {
     private IcbcInputInvoiceMapper invoiceMapper;
     @Resource
     private IcbcInputInvoiceLinkMapper linkMapper;
+    @Resource
+    private PurchaseOrderService purchaseOrderService;
 
     // ==================== 登记 ====================
 
@@ -104,13 +108,24 @@ public class InputInvoiceServiceImpl implements InputInvoiceService {
         if (linkedAmount == null || linkedAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw exception(INPUT_INVOICE_LINK_AMOUNT_INVALID);
         }
+        // 单据号与单据金额以单据事实为准：采购订单按 id 取（#46 的只读视图 getOrderAmount），
+        // 不采用调用方传入的值——金额上限的口径只有一处，客户端的值只做展示。
+        String bizNo = StrUtil.trimToNull(reqVO.getBizNo());
+        BigDecimal bizAmount = reqVO.getBizAmount();
+        if (bizType == InputInvoiceBizTypeEnum.PURCHASE_ORDER) {
+            PurchaseOrderAmountDTO order = purchaseOrderService.getOrderAmount(reqVO.getBizId());
+            bizNo = order.getOrderNo();
+            bizAmount = order.getTotalAmount();
+        }
+        if (bizAmount == null) {
+            throw exception(INPUT_INVOICE_LINK_AMOUNT_INVALID);
+        }
         if (linkMapper.selectByInvoiceAndBiz(invoice.getId(), bizType.getType(), reqVO.getBizId()) != null) {
             throw exception(INPUT_INVOICE_LINK_ALREADY_EXISTS,
-                    StrUtil.blankToDefault(reqVO.getBizNo(), String.valueOf(reqVO.getBizId())));
+                    StrUtil.blankToDefault(bizNo, String.valueOf(reqVO.getBizId())));
         }
 
-        // 单据侧上限：同一张单据上的累计勾稽金额不得超过调用方给出的单据金额
-        BigDecimal bizAmount = reqVO.getBizAmount();
+        // 单据侧上限：同一张单据上的累计勾稽金额不得超过单据金额
         BigDecimal linkedOnBiz = sumLinkedAmount(linkMapper.selectListByBiz(bizType.getType(), reqVO.getBizId()));
         if (linkedAmount.compareTo(bizAmount.subtract(linkedOnBiz)) > 0) {
             throw exception(INPUT_INVOICE_LINK_EXCEED_BIZ_AMOUNT,
@@ -127,7 +142,7 @@ public class InputInvoiceServiceImpl implements InputInvoiceService {
                 .invoiceId(invoice.getId())
                 .bizType(bizType.getType())
                 .bizId(reqVO.getBizId())
-                .bizNo(StrUtil.trimToNull(reqVO.getBizNo()))
+                .bizNo(bizNo)
                 .bizAmount(bizAmount)
                 .linkedAmount(linkedAmount)
                 .remark(reqVO.getRemark())

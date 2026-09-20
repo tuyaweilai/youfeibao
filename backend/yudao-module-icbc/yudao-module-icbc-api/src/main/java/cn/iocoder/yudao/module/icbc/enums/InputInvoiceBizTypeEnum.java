@@ -12,10 +12,9 @@ import java.util.Optional;
  * <p><b>联调边界（第二轮并行约定）</b>：
  * <ul>
  *     <li>{@link #ACQUISITION}：本分支已存在的收购单（退货 / 收购场景）；</li>
- *     <li>{@link #PURCHASE_ORDER}：采购订单由 #46（T08）并行落地。本分支**不 import 它的类**，
- *         单据号（{@code bizNo}）与单据金额（{@code bizAmount}）一律由调用方传入，
- *         金额上限只按调用方给出的 {@code bizAmount} 校验，保证本分支独立可编译可测；
- *         #46 合并后由人工把 {@code bizAmount} 的查数接到采购订单的只读方法上；</li>
+ *     <li>{@link #PURCHASE_ORDER}：采购订单由 #46（T08）落地。单据号与单据金额以订单事实为准，
+ *         由 {@code InputInvoiceServiceImpl} 经 {@code PurchaseOrderService.getOrderAmount(id)} 取，
+ *         不采用调用方传入的值；调用方传的 {@code bizNo} / {@code bizAmount} 只做展示，会被覆盖；</li>
  *     <li>{@link #STOCK_IN}：入库单由 #52（T14）落地，这里先预留编码。</li>
  * </ul>
  */

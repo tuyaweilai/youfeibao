@@ -10,8 +10,8 @@ import java.math.BigDecimal;
  * 管理后台 - 进项发票勾稽 Request VO（#49 T11）。
  *
  * <p>勾稽到哪张单据由调用方指明：{@code bizType} 是稳定编码（收购单 / 采购订单 / 入库单），
- * {@code bizId} + {@code bizNo} 定位单据，{@code bizAmount} 是调用方给出的单据金额——
- * 本模块不 import 采购订单 / 入库单的类，金额上限只认这个值（第二轮并行约定）。
+ * {@code bizId} 定位单据；{@code bizNo} / {@code bizAmount} 是展示用快照——**采购订单以服务端取到的
+ * 订单事实为准**，传进来的值会被覆盖，金额上限也只认服务端取到的单据金额。
  */
 @Schema(description = "管理后台 - 进项发票勾稽 Request VO")
 @Data

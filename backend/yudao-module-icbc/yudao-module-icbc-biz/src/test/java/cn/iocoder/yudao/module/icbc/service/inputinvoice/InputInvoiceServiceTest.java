@@ -13,7 +13,10 @@ import cn.iocoder.yudao.module.icbc.enums.InputInvoiceBizTypeEnum;
 import cn.iocoder.yudao.module.icbc.enums.InputInvoiceStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.InputInvoiceTypeEnum;
 import cn.iocoder.yudao.module.icbc.service.inputinvoice.impl.InputInvoiceServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.purchaseorder.PurchaseOrderAmountDTO;
+import cn.iocoder.yudao.module.icbc.service.purchaseorder.PurchaseOrderService;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.jdbc.Sql;
@@ -27,6 +30,7 @@ import java.util.List;
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
 
 /**
  * {@link InputInvoiceServiceImpl} 的单元测试（#49 T11）。
@@ -43,6 +47,8 @@ public class InputInvoiceServiceTest extends BaseDbUnitTest {
 
     @Resource
     private InputInvoiceService inputInvoiceService;
+    @MockBean
+    private PurchaseOrderService purchaseOrderService;
 
     // ==================== 登记 ====================
 
@@ -121,6 +127,8 @@ public class InputInvoiceServiceTest extends BaseDbUnitTest {
     @Test
     public void testLink_partialThenFullUpdatesStatus() {
         Long invoiceId = createInvoice("1001", new BigDecimal("1000.00"), new BigDecimal("0.00"));
+        stubOrder(501L, "PO20260601", "1000.00");
+        stubOrder(502L, "PO20260602", "600.00");
 
         InputInvoiceLinkRespVO first = inputInvoiceService.linkToBiz(linkReq(invoiceId,
                 InputInvoiceBizTypeEnum.PURCHASE_ORDER.getType(), 501L, "PO20260601",
@@ -142,6 +150,7 @@ public class InputInvoiceServiceTest extends BaseDbUnitTest {
     @Test
     public void testLink_exceedBizAmountRejected() {
         Long invoiceId = createInvoice("1002", new BigDecimal("1000.00"), BigDecimal.ZERO);
+        stubOrder(601L, "PO601", "100.00");
         assertServiceException(() -> inputInvoiceService.linkToBiz(linkReq(invoiceId,
                         InputInvoiceBizTypeEnum.PURCHASE_ORDER.getType(), 601L, "PO601",
                         new BigDecimal("100.00"), new BigDecimal("120.00"))),
@@ -155,6 +164,7 @@ public class InputInvoiceServiceTest extends BaseDbUnitTest {
         Long second = createInvoice("1004", new BigDecimal("1000.00"), BigDecimal.ZERO);
 
         // 两张票各勾到同一张单据，累计不得超过单据金额 1000
+        stubOrder(701L, "PO701", "1000.00");
         inputInvoiceService.linkToBiz(linkReq(first, InputInvoiceBizTypeEnum.PURCHASE_ORDER.getType(),
                 701L, "PO701", new BigDecimal("1000.00"), new BigDecimal("800.00")));
         assertServiceException(() -> inputInvoiceService.linkToBiz(linkReq(second,
@@ -205,6 +215,7 @@ public class InputInvoiceServiceTest extends BaseDbUnitTest {
     @Test
     public void testUnlink_recomputesStatus() {
         Long invoiceId = createInvoice("1009", new BigDecimal("1000.00"), BigDecimal.ZERO);
+        stubOrder(1001L, "PO1001", "1000.00");
         InputInvoiceLinkRespVO link = inputInvoiceService.linkToBiz(linkReq(invoiceId,
                 InputInvoiceBizTypeEnum.PURCHASE_ORDER.getType(), 1001L, "PO1001",
                 new BigDecimal("1000.00"), new BigDecimal("1000.00")));
@@ -243,6 +254,7 @@ public class InputInvoiceServiceTest extends BaseDbUnitTest {
     @Test
     public void testUpdate_linkedInvoiceRejected() {
         Long invoiceId = createInvoice("1011", new BigDecimal("1000.00"), BigDecimal.ZERO);
+        stubOrder(1101L, "PO1101", "1000.00");
         inputInvoiceService.linkToBiz(linkReq(invoiceId, InputInvoiceBizTypeEnum.PURCHASE_ORDER.getType(),
                 1101L, "PO1101", new BigDecimal("1000.00"), new BigDecimal("100.00")));
 
@@ -260,6 +272,7 @@ public class InputInvoiceServiceTest extends BaseDbUnitTest {
         assertServiceException(() -> inputInvoiceService.getInvoice(invoiceId), INPUT_INVOICE_NOT_EXISTS);
 
         Long linkedId = createInvoice("1013", new BigDecimal("1000.00"), BigDecimal.ZERO);
+        stubOrder(1201L, "PO1201", "1000.00");
         inputInvoiceService.linkToBiz(linkReq(linkedId, InputInvoiceBizTypeEnum.PURCHASE_ORDER.getType(),
                 1201L, "PO1201", new BigDecimal("1000.00"), new BigDecimal("100.00")));
         assertServiceException(() -> inputInvoiceService.deleteInvoice(linkedId),
@@ -292,6 +305,7 @@ public class InputInvoiceServiceTest extends BaseDbUnitTest {
     public void testPage_filterByStatusAndSeller() {
         Long linkedId = createInvoice("1015", new BigDecimal("1000.00"), BigDecimal.ZERO, "甲公司");
         createInvoice("1016", new BigDecimal("1000.00"), BigDecimal.ZERO, "乙公司");
+        stubOrder(1401L, "PO1401", "1000.00");
         inputInvoiceService.linkToBiz(linkReq(linkedId, InputInvoiceBizTypeEnum.PURCHASE_ORDER.getType(),
                 1401L, "PO1401", new BigDecimal("1000.00"), new BigDecimal("1000.00")));
 
@@ -308,8 +322,33 @@ public class InputInvoiceServiceTest extends BaseDbUnitTest {
 
     // ==================== 辅助 ====================
 
+    @Test
+    public void testLink_purchaseOrderUsesOrderAmountNotClientValues() {
+        Long invoiceId = createInvoice("1017", new BigDecimal("1000.00"), BigDecimal.ZERO);
+        // 订单侧事实：PO-9001，单据金额 800；客户端传的单号与金额一律忽略
+        stubOrder(9001L, "PO-9001", "800.00");
+
+        InputInvoiceLinkReqVO reqVO = linkReq(invoiceId, InputInvoiceBizTypeEnum.PURCHASE_ORDER.getType(),
+                9001L, "客户端乱填的号", new BigDecimal("999999.00"), new BigDecimal("900.00"));
+        assertServiceException(() -> inputInvoiceService.linkToBiz(reqVO),
+                INPUT_INVOICE_LINK_EXCEED_BIZ_AMOUNT, new BigDecimal("900.00"),
+                new BigDecimal("800.00"), BigDecimal.ZERO);
+
+        reqVO.setLinkedAmount(new BigDecimal("500.00"));
+        InputInvoiceLinkRespVO link = inputInvoiceService.linkToBiz(reqVO);
+        assertEquals("PO-9001", link.getBizNo());
+        assertEquals(0, new BigDecimal("800.00").compareTo(link.getBizAmount()));
+    }
+
     private Long createInvoice(String invoiceNo, BigDecimal amount, BigDecimal taxAmount) {
         return createInvoice(invoiceNo, amount, taxAmount, "销方" + invoiceNo);
+    }
+
+    /** 采购订单侧的事实（#46 T08 只读视图）：勾稽时单号与单据金额以它为准，客户端传值被忽略。 */
+    private void stubOrder(Long orderId, String orderNo, String totalAmount) {
+        when(purchaseOrderService.getOrderAmount(orderId)).thenReturn(
+                new PurchaseOrderAmountDTO().setOrderId(orderId).setOrderNo(orderNo)
+                        .setTotalAmount(new BigDecimal(totalAmount)).setUsableAsPurchaseBasis(true));
     }
 
     private Long createInvoice(String invoiceNo, BigDecimal amount, BigDecimal taxAmount, String sellerName) {
