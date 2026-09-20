@@ -489,4 +489,7 @@ public interface ErrorCodeConstants {
             "收购单不存在，无法追溯：{}（跨租户的单据在本企业不可见）");
     ErrorCode TRACE_EXPORT_LIMIT_EXCEEDED = new ErrorCode(1_030_038_003,
             "本次筛选命中 {} 条，超过导出上限 {}；请缩小筛选范围后再导出");
+    // ========== 经营报表与异常表（#57 T19：只读聚合，口径不混） 1_030_039_000 ==========
+    ErrorCode REPORT_ANOMALY_TYPE_UNKNOWN = new ErrorCode(1_030_039_000,
+            "未知的异常类型：{}（可选值见异常表口径，磅差 / 超采购量 / 超入库量 / 重复关联 / 长期未确认 / 资料缺失）");
 }

@@ -1191,3 +1191,50 @@ icbc 不直接碰 `erp_stock*`（ADR 0027 / 0028）。分支 `t16-stock-ops`，�
 > **与 #57 的边界**：本票只展示链路自身的状态与差异，不做异常汇总表、不做按期间报表；
 > 「磅差 / 超采购量 / 超入库量 / 重复关联 / 长期未确认 / 资料缺失」的权威判定仍在 #57（T19）。
 > **未做**：节点级显式的「上下游」字段（由四栏顺序表达）；导出只出当前筛选结果，不做按期间批量。
+
+## #57 T19 经营报表与异常表（已完成）
+
+给回收企业自己的经营视角：采购履约 / 收购台账 / 库存 / 结算付款四张表 + 一张异常表。全部
+**只读聚合**，聚合放在 `service/report`，不 import #55 的追溯类；异常表是**派生清单、不新建表**
+（同额度台账 ADR 0014）。分支 `t19-reports`，菜单段 5322–5399（用了 5322），错误码段 `1_030_039_xxx`（用了 000）。
+
+1. **四张表（口径随响应返回，前端只展示、不重算）**：
+   - **采购履约** ← 消费 `PurchaseOrderService#getProgress`（#47 五口径的唯一来源，本包不重算）：
+     计划量 / 实际履约量（= 完成比例口径量，验收或结算）/ 余额 / 验收 / 入库 / 结算 / 到期日 / 完成比例
+     与超量、过期异常；
+   - **收购台账** ← `icbc_acquisition`：交易对方 / 场站 / 回收方式（直接收购或采购订单）/ 品类与等级 /
+     毛皮净重、结算重量、接收量、退回量、余货出场量、称量差异 / 成交金额 / 对应结算单与发票；
+   - **库存** ← 新开的 ERP 只读端口 `StockReportApi`（在库量与入出流水，带仓库 / 库位 / 批次名与
+     批次入库时间算库龄）；**只给数量口径，不带金额**（ADR 0027）；
+   - **结算付款** ← `icbc_settlement` + 该结算单下未作废收购单金额 + 逐笔付款单：结算金额 / 办理进度 /
+     回单状态 / 失败原因 / 未办理时长。
+2. **异常表 = 六类派生清单**（`ReportAnomalyTypeEnum` 是判定口径的唯一来源，含严重程度与建议下钻入口）：
+   - **磅差** ← 直接读 #53 已落库的 `icbc_acquisition.weight_diff`（≠ 0）；
+   - **超采购量** ← #47 `getProgress` 明细的 `overQuantity`（消费口径，不重算）；
+   - **超入库量** ← 同一收购单累计**已过账**入库量 > 可入库实物量（`resolvePhysicalWeight()`，#52 的上限）；
+   - **重复关联** ← 同一收购单关联多张未作废付款单（重复付款风险）；
+   - **长期未确认** ← 结算单未确认且已过 `deadline_time`（未设时按生成时间 + 48h）；
+   - **资料缺失** ← 未作废收购单缺五流骨架要件（品类 / 交易时间 / 地点 / 出售者 / 净重 / 单价 / 磅单号）。
+   `type` 为空时六类合并、按时间倒序、内存分页；未知类型报 `REPORT_ANOMALY_TYPE_UNKNOWN`。
+3. **AC6「口径不混」**：收购台账只取收购单**已发生的计量结果**，预约约量（`icbc_appointment.expected_quantity`）
+   与采购计划量（`icbc_purchase_order_item.quantity`）不混入；`ReportTableEnum` 把每张表的口径写死并随
+   `/icbc/report/tables` 返回。测试里专门造了「只有预约与计划、没有收购单」的场合并断言台账为空。
+4. **跨域只读端口**：`erp-api` 新增 `StockReportApi`（`getStockBalancePage` / `getStockRecordPage`），
+   `erp-biz` 的 `StockReportApiImpl` 复用 `ErpStockService` / `ErpStockRecordService` 的分页并补名称与库龄。
+   **没有动 `StockApi`**（写入端口归 #54），避免与并行票抢文件；icbc 依旧不直接碰 `erp_stock*`。
+5. **权限 / 菜单**：`RecyclingPermission` 追加 `REPORT_QUERY`（只追加、未重排），挂到管理员 / 财务；
+   `icbc-menu.sql` 追加 5322「经营报表查询」按钮行（经营报表页 5209 下）。
+6. **前端**：`api/icbc/report` + 重写 `views/icbc/report/index.vue`（五页签、每张表带口径条、来源单据与
+   下钻入口）；采购履约下钻复用 `PurchaseOrderApi#getProgress` 展示五口径明细。`pnpm build:local` 与
+   `pnpm ts:check` 均通过（0 error）。
+7. **测试**：`ReportServiceTest` 17 例（五张表带口径、履约五口径来自 getProgress、台账带各重量口径且排除
+   作废、AC6 不混预约 / 计划、库存委派 ERP 并算库龄、结算金额与派生进度 / 回单 / 失败原因 / 未办理时长、
+   派生筛选 total 正确、六类异常各自命中与合并排序、未知类型报错、出售者筛选）；`RecyclingRoleEnumTest`
+   新增报表权限一例。**icbc 607 测试全绿**（1 skipped 为既有）。
+
+> **接线提醒**：`ReportServiceImpl` 依赖 `PurchaseOrderService`（#47）与 `StockReportApi`（ERP 只读端口）。
+> 测试用 `@MockBean` 顶替两者（跨模块 / 跨票只消费口径）。库存要覆盖 #54 的非销售出库 / 调拨 / 盘点后，
+> 入出流水会经 `ErpStockRecordBizTypeEnum` 的新业务类型自然出现，报表无需改。
+>
+> **未做（不属本票）**：异常表的导出与批量处理动作（只读清单）；P1 经营分析（品类 / 场站 / 出售者贡献 /
+> 运输费用）；`create_tables.sql` / `clean.sql` 未动（**没有新表**）。

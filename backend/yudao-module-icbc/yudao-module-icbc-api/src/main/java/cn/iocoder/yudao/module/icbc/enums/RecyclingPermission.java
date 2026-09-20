@@ -288,5 +288,9 @@ public interface RecyclingPermission {
     String TRACE_SENSITIVE_VIEW = "icbc:trace:sensitive:view";
     /** 导出关联单据查询结果（同样受脱敏限制，并留导出记录） */
     String TRACE_EXPORT = "icbc:trace:export";
+    // ========== 经营报表与异常表（#57 T19：只读聚合，口径不混） ==========
+
+    /** 查看采购履约 / 收购台账 / 库存 / 结算付款四张经营报表与异常表（所有指标可下钻到来源明细） */
+    String REPORT_QUERY = "icbc:report:query";
 
 }
