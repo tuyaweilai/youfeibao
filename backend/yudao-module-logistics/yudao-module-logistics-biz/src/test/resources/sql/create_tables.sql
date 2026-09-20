@@ -1,10 +1,42 @@
 -- 物流模块的测试建表脚本（H2，MODE=MYSQL）。
 --
--- #68（V1）只立模块骨架，还没有业务表。车辆、司机、承运商与承运合同、运输任务与节点、
--- 运费对账的建表语句由 #69（V2 一趟活跑通）起逐票追加到这里，并与 backend/sql/mysql/ 下的
--- 增量脚本保持同步（先有测试表，再有真实表）。
+-- 与 backend/sql/mysql/logistics-vehicle-driver.sql 保持一致（先有测试表，再有真实表）。
+-- 新增表的票别忘了同时更新本文件与 clean.sql，否则测试之间会互相污染。
 --
--- 下面这条 SELECT 是**占位**，不是业务语句：Spring 的脚本执行器会拒绝只含注释的 SQL 文件
--- （报 'script' must not be null or empty），而 UnitTestConfiguration 必须加载本文件来证明
--- 测试底座可用。**首次真实建表时把这条 SELECT 删掉**，它没有别的作用。
-SELECT 1;
+-- 注意：脚本里必须有真实语句，Spring 会拒绝只含注释的文件
+--（'script' must not be null or empty）。
+
+-- 车辆档案（V2a #77）
+CREATE TABLE IF NOT EXISTS logistics_vehicle (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    plate_no VARCHAR(32) NOT NULL,
+    vehicle_type VARCHAR(64),
+    capacity_ton DECIMAL(10,3),
+    status TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- 司机档案（V2a #77）
+CREATE TABLE IF NOT EXISTS logistics_driver (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    name VARCHAR(64) NOT NULL,
+    mobile VARCHAR(32),
+    source TINYINT NOT NULL DEFAULT 1,
+    status TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);

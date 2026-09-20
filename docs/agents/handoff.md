@@ -1311,4 +1311,24 @@ icbc 不直接碰 `erp_stock*`（ADR 0027 / 0028）。分支 `t16-stock-ops`，�
 
 **物流的菜单 ID 不要用固定段**：原本打算用 5400–5499，但 V2a 实测发现固定段本身就不可行——`system_menu` 里同步服务插的权限行是**自增 id**，而显式 id 插入并不推高 InnoDB 计数器（本地库实测 `MAX(id)=5328` 而 `AUTO_INCREMENT=5210`），任何固定段都会与下一次自增撞号。物流改为「按标记删 → 自增插 → `LAST_INSERT_ID()` 串父子 → 子树 id 并进套餐」，见 `backend/sql/mysql/logistics-menu.sql`。另外**无论用哪一段都不能是 5300–5399**：`icbc-menu.sql` 会 `DELETE ... BETWEEN 5100 AND 5399`。
 
-frontier 随之推进到 **#77（V2a）**。
+frontier 随之推进到 **#77（V2a）**。### V2a #77 车辆与司机最小档案 + 物流域菜单与权限机制（已完成）
+
+物流第一次有用户可见的东西：能建车、建司机，并从 PC 后台的「物流管理」进去。
+
+1. **档案两张表**：`logistics_vehicle`（车牌、类型、载重、状态）、`logistics_driver`（关联租户内系统用户、姓名、手机号、自有/承运商来源、状态）。**唯一性只在 Service 层校验**（车牌租户内唯一、一个用户一份司机档案），因为两张表都是逻辑删除，建 DB 唯一键就「删掉的车牌再也建不回来」——理由写在 `logistics-vehicle-driver.sql` 文件头。车辆状态里「运输中」不接受手工设置（由运输任务驱动）。
+2. **物流域自己的权限机制**：`LogisticsPermission`（11 条：车辆 5 + 司机 5 + 本租户角色初始化 1）、`LogisticsRoleEnum`（管理员 / 调度 / 司机，司机本票无权限、待 V2b 补）、`LogisticsPermissionSyncService` + 开机 runner（`@Profile("!unit-test")`）+ `POST /logistics/permission/init`。与 icbc **完全各建各的**（ADR 0032），互不依赖。
+3. **菜单**：`logistics-menu.sql` 落一级「物流管理」+ 车辆档案 / 司机档案，并并进「回收企业套餐」（200）。按钮权限行由同步服务生成，不手写 SQL。
+4. **PC 页面**：`views/logistics/vehicle|driver/index.vue` + `api/logistics/*`。
+
+**验收实测**：物流模块 27 个测试全绿（V1 的 9 个 + V2a 的 18 个）；icbc **682 个测试全绿**；`yudao-server` install + 启动通过；实测接口链路为——runner 启动即建 11 条权限行、`init` 建 `logistics_dispatcher`（2 个菜单）/`logistics_driver`（0 个菜单）且**再跑一次全 0**、菜单树出现「物流管理 → 车辆档案 / 司机档案」、建车返回 id、重复车牌回 `1030201001`、手工设「运输中」回 `1030201002`、司机重复用户回 `1030202001`。前端 `vue-tsc` 下**新增文件零错误**（仓库既有基线 1254 条，都是 vendored 的 erp/mall/pay/crm 视图）。
+
+**这一票踩到的坑（后续票照做）**：
+
+1. **`system_menu` 不能用固定 ID 段**：实测本地库 `MAX(id)=5328` 而 `AUTO_INCREMENT=5210`——显式 ID 插入并不推高 InnoDB 计数器，而同步服务插的权限行是自增的，任何固定段（比如原计划的 5400–5499）都可能与下一次自增撞号。物流改为：**按标记删 → 自增插 → `LAST_INSERT_ID()` 串父子 → 子树 id 并进套餐**。icbc 那套 5100–5399 固定段是历史包袱，别照抄。
+2. **菜单脚本有两个「越导越多」的坑，都已处理**：① 根菜单的 `permission` 是空串、`component` 是 NULL，只用 `permission LIKE 'logistics:%' OR component LIKE 'logistics/%'` 会**漏掉根节点**，于是每次导入多出一棵树——要从**所有** `path='/logistics'` 的根递归展开来认领旧树（这样也能自愈已脏的库）；② 套餐菜单用「并集」会**累积已删除的 id**，要改成「丢掉 system_menu 里已不存在的 id」再整体写回。
+3. **H2 测试建表脚本里 `deleted` 必须是 `BOOLEAN`**：单测配置是 `logic-delete-value: true`，写成 `TINYINT` 会在每次查询炸 `Values of types "TINYINT" and "BOOLEAN" are not comparable`。
+4. **PC 前端做类型检查要先补两样**（worktree 里没有）：`node_modules`（可软链主工作树）与 `src/types/auto-imports.d.ts` / `auto-components.d.ts`（vite 插件生成物，被 gitignore），并且要 `NODE_OPTIONS=--max_old_space_size=8192`，否则 vue-tsc 直接 OOM。**本仓库的 admin 前端本来就有 1254 条类型错误**（vendored 的 erp/mall/pay/crm/ai），所以判断标准只能是「新增文件零错误」，不是「ts:check 通过」。
+
+> 本地库里留了 V2a 的演示数据（车辆「浙A88888」、司机「张三」、物流菜单与两个角色），要在页面上删掉随时可以。
+
+frontier 推进到 **#78（V2b 运输任务与节点）**。

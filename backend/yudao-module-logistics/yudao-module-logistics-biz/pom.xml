@@ -52,6 +52,14 @@
             <artifactId>yudao-spring-boot-starter-mybatis</artifactId>
         </dependency>
 
+        <!-- 物流域的权限行与角色-菜单由同步服务从角色枚举幂等生成（ADR 0026 的物流侧实现），
+             因此要能调 system 的菜单 / 角色 / 权限 / 租户 API。依赖方向仍与 icbc 无关（ADR 0032）。 -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-module-system-api</artifactId>
+            <version>${revision}</version>
+        </dependency>
+
         <!-- Test 测试相关 -->
         <dependency>
             <groupId>cn.iocoder.boot</groupId>
