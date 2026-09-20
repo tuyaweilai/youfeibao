@@ -1317,3 +1317,53 @@ CREATE TABLE IF NOT EXISTS icbc_input_invoice_link (
     PRIMARY KEY (id),
     CONSTRAINT uk_input_invoice_link UNIQUE (tenant_id, invoice_id, biz_type, biz_id)
 );
+
+-- ===== 采购订单履约五口径与执行进度（#47 T09）=====
+
+-- icbc_purchase_setting table（采购履约配置，租户级单行；租户表）
+CREATE TABLE IF NOT EXISTS icbc_purchase_setting (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    performance_basis VARCHAR(32) NOT NULL DEFAULT 'ACCEPTED',
+    over_quantity_rule VARCHAR(16) NOT NULL DEFAULT 'BLOCK',
+    expired_rule VARCHAR(16) NOT NULL DEFAULT 'BLOCK',
+    cross_station_rule VARCHAR(16) NOT NULL DEFAULT 'BLOCK',
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- icbc_purchase_exception table（履约异常授权单；租户表）
+CREATE TABLE IF NOT EXISTS icbc_purchase_exception (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    exception_no VARCHAR(64) NOT NULL,
+    order_id BIGINT NOT NULL,
+    order_no VARCHAR(64),
+    item_id BIGINT,
+    category_name VARCHAR(100),
+    exception_type VARCHAR(32) NOT NULL,
+    station_id BIGINT,
+    station_name VARCHAR(100),
+    requested_quantity DECIMAL(16,4) NOT NULL,
+    approved_quantity DECIMAL(16,4),
+    valid_until DATE,
+    reason VARCHAR(500) NOT NULL,
+    status TINYINT NOT NULL DEFAULT 0,
+    requested_by BIGINT,
+    requested_time DATETIME,
+    reviewed_by BIGINT,
+    reviewed_time DATETIME,
+    review_remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_purchase_exception_no UNIQUE (tenant_id, exception_no)
+);

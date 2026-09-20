@@ -4,10 +4,14 @@ import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDeliveryCheckReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDeliveryCheckRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderProgressRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderSaveReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderSettingRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderSettingSaveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderStatusUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import cn.iocoder.yudao.module.icbc.service.purchaseorder.PurchaseOrderService;
@@ -97,11 +101,34 @@ public class PurchaseOrderController {
     }
 
     @GetMapping("/progress")
-    @Operation(summary = "获得采购订单执行进度（本票：计划 / 已收；五口径见 #47）")
+    @Operation(summary = "获得采购订单执行进度（计划 / 验收 / 入库 / 结算 / 未履行五口径分列）")
     @Parameter(name = "id", description = "订单编号", required = true)
     @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PURCHASE_ORDER_QUERY + "')")
     public CommonResult<PurchaseOrderProgressRespVO> progress(@RequestParam("id") Long id) {
         return success(purchaseOrderService.getProgress(id));
+    }
+
+    @PostMapping("/delivery-check")
+    @Operation(summary = "校验一次交货是否被允许（超量 / 过期 / 跨场站，按企业配置拦截或要求授权审核）")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PURCHASE_ORDER_QUERY + "')")
+    public CommonResult<PurchaseOrderDeliveryCheckRespVO> deliveryCheck(
+            @Valid @RequestBody PurchaseOrderDeliveryCheckReqVO reqVO) {
+        return success(purchaseOrderService.checkDelivery(reqVO));
+    }
+
+    @GetMapping("/setting")
+    @Operation(summary = "获得采购履约配置（完成比例口径与三类异常的处理方式）")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PURCHASE_SETTING_QUERY + "')")
+    public CommonResult<PurchaseOrderSettingRespVO> getSetting() {
+        return success(purchaseOrderService.getSetting());
+    }
+
+    @PutMapping("/setting/update")
+    @Operation(summary = "修改采购履约配置")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PURCHASE_SETTING_MANAGE + "')")
+    public CommonResult<Boolean> updateSetting(@Valid @RequestBody PurchaseOrderSettingSaveReqVO reqVO) {
+        purchaseOrderService.updateSetting(reqVO);
+        return success(true);
     }
 
     @GetMapping("/deal/list")

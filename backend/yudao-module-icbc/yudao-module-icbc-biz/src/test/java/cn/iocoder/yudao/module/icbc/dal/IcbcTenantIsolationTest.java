@@ -17,7 +17,9 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPers
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.IcbcPayeeBankCardChangeDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseExceptionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseSettingDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.appointment.IcbcAppointmentMapper;
@@ -29,7 +31,9 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeBankCardChangeMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.purchaseorder.IcbcPurchaseExceptionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.purchaseorder.IcbcPurchaseOrderMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.purchaseorder.IcbcPurchaseSettingMapper;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.impl.NaturalPersonServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
@@ -98,6 +102,10 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
     private IcbcWeighingMapper weighingMapper;
     @Resource
     private IcbcPurchaseOrderMapper purchaseOrderMapper;
+    @Resource
+    private IcbcPurchaseSettingMapper purchaseSettingMapper;
+    @Resource
+    private IcbcPurchaseExceptionMapper purchaseExceptionMapper;
     @Resource
     private IcbcInputInvoiceMapper inputInvoiceMapper;
     @Resource
@@ -494,6 +502,44 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
         TenantUtils.execute(2L, () -> {
             assertNull(inputInvoiceMapper.selectById(invoiceId1));
             assertNotNull(inputInvoiceMapper.selectById(invoiceId2));
+        });
+    }
+
+    @Test
+    public void testPurchaseSettingAndExceptionIsolatedByTenant() {
+        // 履约配置与异常授权单都是租户表：甲企业的口径与授权，乙企业看不到
+        Long settingId = TenantUtils.execute(1L, () -> {
+            IcbcPurchaseSettingDO setting = IcbcPurchaseSettingDO.builder()
+                    .performanceBasis("SETTLED")
+                    .overQuantityRule("APPROVAL")
+                    .expiredRule("APPROVAL")
+                    .crossStationRule("APPROVAL")
+                    .build();
+            purchaseSettingMapper.insert(setting);
+            return setting.getId();
+        });
+        Long exceptionId = TenantUtils.execute(1L, () -> {
+            IcbcPurchaseExceptionDO exception = IcbcPurchaseExceptionDO.builder()
+                    .exceptionNo("PE_TENANT_1")
+                    .orderId(1L)
+                    .orderNo("PO_TENANT_1")
+                    .exceptionType("EXPIRED")
+                    .requestedQuantity(new BigDecimal("10"))
+                    .reason("合同还没续签")
+                    .status(0)
+                    .build();
+            purchaseExceptionMapper.insert(exception);
+            return exception.getId();
+        });
+
+        TenantUtils.execute(1L, () -> {
+            assertNotNull(purchaseSettingMapper.selectById(settingId));
+            assertNotNull(purchaseExceptionMapper.selectById(exceptionId));
+        });
+        TenantUtils.execute(2L, () -> {
+            assertNull(purchaseSettingMapper.selectById(settingId));
+            assertNull(purchaseExceptionMapper.selectById(exceptionId));
+            assertTrue(purchaseExceptionMapper.selectList().isEmpty());
         });
     }
 

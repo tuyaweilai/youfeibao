@@ -147,6 +147,13 @@ VALUES
 (5234, '删除采购订单', 'icbc:purchase-order:manage', 3, 7, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5235, '登记成交与价格快照', 'icbc:purchase-order:manage', 3, 8, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5236, '查看执行进度', 'icbc:purchase-order:query', 3, 9, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 履约五口径与执行进度（#47 T09）：五口径分列见采购订单的「执行进度」；
+-- 超量 / 过期 / 跨场站交货按企业配置拦截或提交授权审核，授权单在这里查与审。
+(5250, '履约异常授权', 'icbc:purchase-exception:query', 2, 3, 5203, 'purchase-exception', '', 'icbc/purchaseOrder/exception', 'IcbcPurchaseOrderException', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5251, '提交授权审核', 'icbc:purchase-exception:request', 3, 1, 5250, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5252, '审核授权', 'icbc:purchase-exception:audit', 3, 2, 5250, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5253, '采购履约配置', 'icbc:purchase-setting:query', 2, 4, 5203, 'purchase-setting', '', 'icbc/purchaseOrder/setting', 'IcbcPurchaseOrderSetting', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5254, '修改采购履约配置', 'icbc:purchase-setting:manage', 3, 1, 5253, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 回收作业 =====
 (5179, '到站预约', 'icbc:appointment:query', 2, 1, 5204, 'appointment', '', 'icbc/appointment/index', 'IcbcAppointment', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),

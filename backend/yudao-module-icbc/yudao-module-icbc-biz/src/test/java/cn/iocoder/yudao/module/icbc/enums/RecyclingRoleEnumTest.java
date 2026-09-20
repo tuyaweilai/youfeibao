@@ -239,6 +239,42 @@ public class RecyclingRoleEnumTest {
     }
 
     @Test
+    public void testPurchaseProgressAndExceptionPermissions() {
+        // 履约配置与异常授权是管理员的事：口径与拦截规则由企业负责人定，授权也由他审
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.PURCHASE_SETTING_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.PURCHASE_SETTING_MANAGE));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.PURCHASE_EXCEPTION_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.PURCHASE_EXCEPTION_REQUEST));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.PURCHASE_EXCEPTION_AUDIT));
+        // 现场碰到超量 / 过期 / 跨场站时能提交授权申请、能查，但不能自己审、也不能改配置
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.PURCHASE_EXCEPTION_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.PURCHASE_EXCEPTION_REQUEST));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.PURCHASE_EXCEPTION_AUDIT));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.PURCHASE_SETTING_MANAGE));
+        // 财务能看配置与授权（对账要看），但不提交也不审
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.PURCHASE_SETTING_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.PURCHASE_EXCEPTION_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.PURCHASE_EXCEPTION_AUDIT));
+        // 平台运营不参与租户内的履约配置与授权
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.PURCHASE_EXCEPTION_QUERY));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.PURCHASE_SETTING_QUERY));
+    }
+
+    @Test
     public void testInputInvoicePermissions() {
         // 进项收票是财务的事：登记与勾稽归财务，管理员全量
         assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),

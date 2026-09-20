@@ -233,4 +233,17 @@ public interface RecyclingPermission {
     /** 登记 / 修改 / 删除进项票，勾稽与取消勾稽到采购单据 */
     String INPUT_INVOICE_MANAGE = "icbc:input-invoice:manage";
 
+    // ========== 采购订单履约五口径与执行进度（#47 T09） ==========
+
+    /** 查看采购履约配置（完成比例口径与三类异常的处理方式） */
+    String PURCHASE_SETTING_QUERY = "icbc:purchase-setting:query";
+    /** 修改采购履约配置 */
+    String PURCHASE_SETTING_MANAGE = "icbc:purchase-setting:manage";
+    /** 查看履约异常授权单 */
+    String PURCHASE_EXCEPTION_QUERY = "icbc:purchase-exception:query";
+    /** 提交履约异常授权审核（超量 / 过期 / 跨场站交货） */
+    String PURCHASE_EXCEPTION_REQUEST = "icbc:purchase-exception:request";
+    /** 审核履约异常授权单（通过 / 拒绝） */
+    String PURCHASE_EXCEPTION_AUDIT = "icbc:purchase-exception:audit";
+
 }

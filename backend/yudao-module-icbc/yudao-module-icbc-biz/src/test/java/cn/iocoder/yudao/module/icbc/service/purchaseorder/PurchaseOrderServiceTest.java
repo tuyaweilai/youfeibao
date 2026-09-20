@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.icbc.service.purchaseorder;
 
+import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchasecontract.vo.PurchaseContractAuditReqVO;
@@ -7,22 +8,36 @@ import cn.iocoder.yudao.module.icbc.controller.admin.purchasecontract.vo.Purchas
 import cn.iocoder.yudao.module.icbc.controller.admin.purchasecontract.vo.PurchaseContractSubmitReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDealRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDeliveryCheckReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderDeliveryCheckRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderItemReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderPriceReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderProgressRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderSaveReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderSettingRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderSettingSaveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderStatusUpdateReqVO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseExceptionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.station.IcbcStationDO;
+import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.goodscfg.IcbcGoodsConfigMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.purchaseorder.IcbcPurchaseExceptionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.station.IcbcStationMapper;
+import cn.iocoder.yudao.module.icbc.enums.PurchaseDealSourceTypeEnum;
+import cn.iocoder.yudao.module.icbc.enums.PurchaseDeliveryRuleEnum;
+import cn.iocoder.yudao.module.icbc.enums.PurchaseExceptionStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PurchaseExceptionTypeEnum;
+import cn.iocoder.yudao.module.icbc.enums.PurchasePerformanceBasisEnum;
 import cn.iocoder.yudao.module.icbc.enums.PurchaseOrderPriceModeEnum;
 import cn.iocoder.yudao.module.icbc.enums.PurchaseOrderStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PurchaseProgressMeasureEnum;
 import cn.iocoder.yudao.module.icbc.service.purchasecontract.PurchaseContractService;
 import cn.iocoder.yudao.module.icbc.service.purchasecontract.impl.PurchaseContractServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.purchaseorder.impl.PurchaseOrderServiceImpl;
@@ -65,6 +80,10 @@ public class PurchaseOrderServiceTest extends BaseDbUnitTest {
     private IcbcGoodsConfigMapper goodsConfigMapper;
     @Resource
     private IcbcStationMapper stationMapper;
+    @Resource
+    private IcbcAcquisitionMapper acquisitionMapper;
+    @Resource
+    private IcbcPurchaseExceptionMapper purchaseExceptionMapper;
 
     // ==================== 建单与明细 ====================
 
@@ -363,13 +382,13 @@ public class PurchaseOrderServiceTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testRecordDeal_requiresExecutingOrder() {
+    public void testRecordDeal_requiresDeliverableOrder() {
         OrderFixture fixture = createDefaultOrder();
-        // 草稿不能有成交
-        assertServiceException(() -> purchaseOrderService.recordDeal(
-                dealReq(fixture.orderId, fixture.itemId, "10", "2000", null, null)),
-                PURCHASE_ORDER_NOT_EFFECTIVE, purchaseOrderService.getOrder(fixture.orderId).getOrderNo());
-        // 数量必须大于 0
+        // 草稿不是有效采购依据：成交（收货）进不来
+        ServiceException draft = assertThrows(ServiceException.class, () -> purchaseOrderService.recordDeal(
+                dealReq(fixture.orderId, fixture.itemId, "10", "2000", null, null)));
+        assertEquals(PURCHASE_ORDER_NOT_DELIVERABLE.getCode(), draft.getCode());
+        // 数量不能为 0
         purchaseOrderService.updateStatus(statusReq(fixture.orderId,
                 PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
         assertServiceException(() -> purchaseOrderService.recordDeal(
@@ -426,19 +445,332 @@ public class PurchaseOrderServiceTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testProgress_plannedReceivedRemaining() {
+    public void testProgress_fiveMeasuresDoNotMixScopes() {
+        OrderFixture fixture = createDefaultOrder();
+        purchaseOrderService.updateStatus(statusReq(fixture.orderId,
+                PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
+        // 手工成交 40（无来源单据）：验收算、结算不算
+        purchaseOrderService.recordDeal(dealReq(fixture.orderId, fixture.itemId, "40", "2000", null, null));
+        // 来源收购单、尚未归入结算：验收 30、结算 0
+        Long unsettled = insertAcquisition(fixture.payeeId, null);
+        purchaseOrderService.recordDeal(sourceDealReq(fixture.orderId, fixture.itemId, "30", unsettled));
+        // 来源收购单、已归入结算：验收 10、结算 10
+        Long settled = insertAcquisition(fixture.payeeId, 9001L);
+        purchaseOrderService.recordDeal(sourceDealReq(fixture.orderId, fixture.itemId, "10", settled));
+
+        PurchaseOrderProgressRespVO progress = purchaseOrderService.getProgress(fixture.orderId);
+        assertEquals(0, new BigDecimal("100").compareTo(progress.getPlanQuantity()));
+        assertEquals(0, new BigDecimal("80").compareTo(progress.getAcceptedQuantity()));
+        assertEquals(0, new BigDecimal("10").compareTo(progress.getSettledQuantity()));
+        assertNull(progress.getStockedQuantity());
+        assertEquals(0, new BigDecimal("20").compareTo(progress.getUnperformedQuantity()));
+        // 完成比例必须带口径，默认验收口径
+        assertEquals(PurchasePerformanceBasisEnum.ACCEPTED.getCode(), progress.getCompletionBasis());
+        assertEquals("验收口径", progress.getCompletionBasisName());
+        assertEquals(0, new BigDecimal("0.8").compareTo(progress.getCompletionRatio()));
+
+        // 五口径清单：顺序固定、入库标「待接入」且不出数字
+        assertEquals(5, progress.getMeasures().size());
+        assertEquals(PurchaseProgressMeasureEnum.PLAN.getCode(), progress.getMeasures().get(0).getCode());
+        PurchaseOrderProgressRespVO.Measure stockedIn = progress.getMeasures().stream()
+                .filter(measure -> PurchaseProgressMeasureEnum.STOCKED_IN.getCode().equals(measure.getCode()))
+                .findFirst().orElseThrow(AssertionError::new);
+        assertFalse(stockedIn.getAvailable());
+        assertNull(stockedIn.getQuantity());
+        assertNotNull(stockedIn.getUnavailableReason());
+        assertNotNull(stockedIn.getDefinition());
+        assertNotNull(stockedIn.getSource());
+        assertEquals(PurchaseProgressMeasureEnum.SETTLED.getCode(), progress.getMeasures().get(3).getCode());
+
+        // 明细也是同一套口径
+        assertEquals(0, new BigDecimal("80").compareTo(progress.getItems().get(0).getAcceptedQuantity()));
+        assertEquals(0, new BigDecimal("10").compareTo(progress.getItems().get(0).getSettledQuantity()));
+        assertNull(progress.getItems().get(0).getStockedQuantity());
+        assertEquals(0, new BigDecimal("20").compareTo(progress.getItems().get(0).getUnperformedQuantity()));
+        assertFalse(progress.getItems().get(0).getOverQuantity());
+    }
+
+    @Test
+    public void testProgress_returnDeductsFromTheChosenMeasure() {
         OrderFixture fixture = createDefaultOrder();
         purchaseOrderService.updateStatus(statusReq(fixture.orderId,
                 PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
         purchaseOrderService.recordDeal(dealReq(fixture.orderId, fixture.itemId, "40", "2000", null, null));
+        // 退货记负数：按验收口径扣回
+        purchaseOrderService.recordDeal(dealReq(fixture.orderId, fixture.itemId, "-15", "2000", null, "部分退回"));
 
         PurchaseOrderProgressRespVO progress = purchaseOrderService.getProgress(fixture.orderId);
-        assertEquals(fixture.orderNo, progress.getOrderNo());
-        assertEquals(0, new BigDecimal("100").compareTo(progress.getTotalQuantity()));
-        assertEquals(0, new BigDecimal("40").compareTo(progress.getReceivedQuantity()));
-        assertEquals(0, new BigDecimal("60").compareTo(progress.getRemainingQuantity()));
-        assertEquals(1, progress.getItems().size());
-        assertNotNull(progress.getScopeNote());
+        assertEquals(0, new BigDecimal("25").compareTo(progress.getAcceptedQuantity()));
+        assertEquals(0, new BigDecimal("75").compareTo(progress.getUnperformedQuantity()));
+        assertEquals(0, new BigDecimal("0.25").compareTo(progress.getCompletionRatio()));
+
+        // 换成结算口径后，退货同样从结算口径扣回
+        purchaseOrderService.updateSetting(settingReq(PurchasePerformanceBasisEnum.SETTLED.getCode(),
+                PurchaseDeliveryRuleEnum.BLOCK.getCode(), PurchaseDeliveryRuleEnum.BLOCK.getCode(),
+                PurchaseDeliveryRuleEnum.BLOCK.getCode()));
+        Long settled = insertAcquisition(fixture.payeeId, 9001L);
+        purchaseOrderService.recordDeal(sourceDealReq(fixture.orderId, fixture.itemId, "60", settled));
+        purchaseOrderService.recordDeal(sourceDealReq(fixture.orderId, fixture.itemId, "-10", settled));
+        PurchaseOrderProgressRespVO bySettled = purchaseOrderService.getProgress(fixture.orderId);
+        assertEquals(PurchasePerformanceBasisEnum.SETTLED.getCode(), bySettled.getCompletionBasis());
+        assertEquals(0, new BigDecimal("50").compareTo(bySettled.getSettledQuantity()));
+        assertEquals(0, new BigDecimal("50").compareTo(bySettled.getUnperformedQuantity()));
+        // 结算口径不改变验收口径的数字
+        assertEquals(0, new BigDecimal("75").compareTo(bySettled.getAcceptedQuantity()));
+    }
+
+    @Test
+    public void testProgress_anomalies_overQuantityAndPendingAuthorization() {
+        OrderFixture fixture = createDefaultOrder();
+        purchaseOrderService.updateStatus(statusReq(fixture.orderId,
+                PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
+        purchaseOrderService.recordDeal(dealReq(fixture.orderId, fixture.itemId, "100", "2000", null, null));
+        // 超量的成交要被授权才录得进来（看下一个用例）；这里先给配置与授权
+        purchaseOrderService.updateSetting(settingReq(PurchasePerformanceBasisEnum.ACCEPTED.getCode(),
+                PurchaseDeliveryRuleEnum.APPROVAL.getCode(), PurchaseDeliveryRuleEnum.APPROVAL.getCode(),
+                PurchaseDeliveryRuleEnum.APPROVAL.getCode()));
+        insertApprovedException(fixture.orderId, fixture.itemId, PurchaseExceptionTypeEnum.OVER_QUANTITY,
+                "20", null, null);
+        purchaseOrderService.recordDeal(dealReq(fixture.orderId, fixture.itemId, "20", "2000", null, null));
+        insertPendingException(fixture.orderId, fixture.itemId, PurchaseExceptionTypeEnum.OVER_QUANTITY);
+
+        PurchaseOrderProgressRespVO progress = purchaseOrderService.getProgress(fixture.orderId);
+        assertEquals(0, new BigDecimal("120").compareTo(progress.getAcceptedQuantity()));
+        assertTrue(progress.getItems().get(0).getOverQuantity());
+        List<String> codes = progress.getAnomalies().stream()
+                .map(PurchaseOrderProgressRespVO.Anomaly::getCode).toList();
+        assertTrue(codes.contains("OVER_QUANTITY"));
+        assertTrue(codes.contains("PENDING_EXCEPTION"));
+        assertFalse(codes.contains("EXPIRED_EXECUTING"));
+        // 超量时未履行量为负（不是 0，也不是被截断）
+        assertEquals(0, new BigDecimal("-20").compareTo(progress.getUnperformedQuantity()));
+    }
+
+    @Test
+    public void testProgress_anomalies_expiredExecutingOrder() {
+        PayeeInfoDO payee = insertPayee("张三");
+        Long goodsId = insertGoodsConfig("废钢", "吨");
+        PurchaseOrderSaveReqVO req = naturalReq(payee.getId(), List.of(fixedItem(goodsId, "100", "2000")));
+        req.setStartDate(LocalDate.now().minusDays(10));
+        req.setEndDate(LocalDate.now().minusDays(1));
+        Long orderId = purchaseOrderService.createOrder(req);
+        purchaseOrderService.updateStatus(statusReq(orderId, PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
+
+        PurchaseOrderProgressRespVO progress = purchaseOrderService.getProgress(orderId);
+        assertEquals("过期", progress.getStatusName());
+        assertEquals(1, progress.getAnomalies().stream()
+                .filter(anomaly -> "EXPIRED_EXECUTING".equals(anomaly.getCode())).count());
+        assertEquals(0, new BigDecimal("100").compareTo(progress.getUnperformedQuantity()));
+        // 验收量还是 0（不是拿计划量凑）
+        assertEquals(0, BigDecimal.ZERO.compareTo(progress.getAcceptedQuantity()));
+    }
+
+    @Test
+    public void testDeliveryCheck_blockedByDefaultConfig() {
+        OrderFixture fixture = createDefaultOrder();
+        purchaseOrderService.updateStatus(statusReq(fixture.orderId,
+                PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
+        purchaseOrderService.recordDeal(dealReq(fixture.orderId, fixture.itemId, "95", "2000", null, null));
+
+        PurchaseOrderDeliveryCheckReqVO req = deliveryReq(fixture.orderId, fixture.itemId, "10", null);
+        PurchaseOrderDeliveryCheckRespVO check = purchaseOrderService.checkDelivery(req);
+        assertFalse(check.getAllowed());
+        assertEquals("BLOCKED", check.getResolution());
+        assertEquals(1, check.getViolations().size());
+        assertEquals(PurchaseExceptionTypeEnum.OVER_QUANTITY.getCode(),
+                check.getViolations().get(0).getExceptionType());
+        assertEquals(PurchaseDeliveryRuleEnum.BLOCK.getCode(), check.getViolations().get(0).getRule());
+        assertFalse(check.getViolations().get(0).getResolved());
+        assertEquals(0, new BigDecimal("5").compareTo(check.getViolations().get(0).getOverageQuantity()));
+
+        ServiceException blocked = assertThrows(ServiceException.class,
+                () -> purchaseOrderService.assertDeliveryAllowed(req));
+        assertEquals(PURCHASE_ORDER_DELIVERY_BLOCKED.getCode(), blocked.getCode());
+        // 成交登记本身走同一条门禁：超量的成交根本记不到订单上
+        ServiceException cannotRecord = assertThrows(ServiceException.class, () -> purchaseOrderService.recordDeal(
+                dealReq(fixture.orderId, fixture.itemId, "10", "2000", null, null)));
+        assertEquals(PURCHASE_ORDER_DELIVERY_BLOCKED.getCode(), cannotRecord.getCode());
+
+        // 不超量则放行
+        PurchaseOrderDeliveryCheckRespVO ok = purchaseOrderService.checkDelivery(
+                deliveryReq(fixture.orderId, fixture.itemId, "5", null));
+        assertTrue(ok.getAllowed());
+        assertEquals("OK", ok.getResolution());
+        assertTrue(ok.getViolations().isEmpty());
+    }
+
+    @Test
+    public void testDeliveryCheck_approvalRuleNeedsEffectiveAuthorization() {
+        OrderFixture fixture = createDefaultOrder();
+        purchaseOrderService.updateStatus(statusReq(fixture.orderId,
+                PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
+        purchaseOrderService.recordDeal(dealReq(fixture.orderId, fixture.itemId, "95", "2000", null, null));
+        purchaseOrderService.updateSetting(settingReq(PurchasePerformanceBasisEnum.ACCEPTED.getCode(),
+                PurchaseDeliveryRuleEnum.APPROVAL.getCode(), PurchaseDeliveryRuleEnum.APPROVAL.getCode(),
+                PurchaseDeliveryRuleEnum.APPROVAL.getCode()));
+
+        PurchaseOrderDeliveryCheckReqVO req = deliveryReq(fixture.orderId, fixture.itemId, "10", null);
+        PurchaseOrderDeliveryCheckRespVO check = purchaseOrderService.checkDelivery(req);
+        assertFalse(check.getAllowed());
+        assertEquals("NEEDS_APPROVAL", check.getResolution());
+        assertEquals(PurchaseDeliveryRuleEnum.APPROVAL.getCode(), check.getViolations().get(0).getRule());
+        ServiceException needsApproval = assertThrows(ServiceException.class,
+                () -> purchaseOrderService.assertDeliveryAllowed(req));
+        assertEquals(PURCHASE_ORDER_DELIVERY_NEEDS_APPROVAL.getCode(), needsApproval.getCode());
+
+        // 授权追加量不够：仍然拦住
+        Long firstAuthorization = insertApprovedException(fixture.orderId, fixture.itemId,
+                PurchaseExceptionTypeEnum.OVER_QUANTITY, "4", null, null);
+        assertFalse(purchaseOrderService.checkDelivery(req).getAllowed());
+        // 追加量是累加的（4 + 5 ≥ 超量 5）：放行，并指出是哪张授权单放行的
+        Long secondAuthorization = insertApprovedException(fixture.orderId, fixture.itemId,
+                PurchaseExceptionTypeEnum.OVER_QUANTITY, "5", null, null);
+        PurchaseOrderDeliveryCheckRespVO allowed = purchaseOrderService.checkDelivery(req);
+        assertTrue(allowed.getAllowed());
+        assertEquals("OK", allowed.getResolution());
+        assertTrue(allowed.getViolations().get(0).getResolved());
+        assertTrue(List.of(firstAuthorization, secondAuthorization)
+                .contains(allowed.getViolations().get(0).getResolvedByExceptionId()));
+        purchaseOrderService.assertDeliveryAllowed(req);
+
+        // 待审核的申请会被带出来，告诉用户先等它审完
+        Long pendingId = insertPendingException(fixture.orderId, fixture.itemId,
+                PurchaseExceptionTypeEnum.OVER_QUANTITY);
+        PurchaseOrderDeliveryCheckReqVO bigger = deliveryReq(fixture.orderId, fixture.itemId, "30", null);
+        assertEquals(pendingId, purchaseOrderService.checkDelivery(bigger).getViolations().get(0)
+                .getPendingExceptionId());
+    }
+
+    @Test
+    public void testDeliveryCheck_expiredAndCrossStation() {
+        PayeeInfoDO payee = insertPayee("张三");
+        Long goodsId = insertGoodsConfig("废钢", "吨");
+        IcbcStationDO home = insertStation("城东场站");
+        IcbcStationDO other = insertStation("城西场站");
+        PurchaseOrderSaveReqVO req = naturalReq(payee.getId(), List.of(fixedItem(goodsId, "100", "2000")));
+        req.setStationId(home.getId());
+        req.setStartDate(LocalDate.now().minusDays(10));
+        req.setEndDate(LocalDate.now().minusDays(1));
+        Long orderId = purchaseOrderService.createOrder(req);
+        Long itemId = purchaseOrderService.getDetail(orderId).getItems().get(0).getId();
+        purchaseOrderService.updateStatus(statusReq(orderId, PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
+
+        PurchaseOrderDeliveryCheckRespVO check = purchaseOrderService.checkDelivery(
+                deliveryReq(orderId, itemId, "10", other.getId()));
+        assertFalse(check.getAllowed());
+        assertEquals(2, check.getViolations().size());
+        List<String> types = check.getViolations().stream()
+                .map(PurchaseOrderDeliveryCheckRespVO.Violation::getExceptionType).toList();
+        assertTrue(types.contains(PurchaseExceptionTypeEnum.EXPIRED.getCode()));
+        assertTrue(types.contains(PurchaseExceptionTypeEnum.CROSS_STATION.getCode()));
+        // 报错里给场站名而不是编号
+        assertTrue(check.getViolations().stream()
+                .anyMatch(violation -> PurchaseExceptionTypeEnum.CROSS_STATION.getCode()
+                        .equals(violation.getExceptionType())
+                        && violation.getMessage().contains("城西场站")
+                        && violation.getMessage().contains("城东场站")));
+
+        // 先授权跨场站那一件：过期仍未放行，两条异常分开放宽、互不代替
+        insertApprovedException(orderId, null, PurchaseExceptionTypeEnum.CROSS_STATION, "10", null, other.getId());
+        PurchaseOrderDeliveryCheckRespVO onlyCrossStation = purchaseOrderService.checkDelivery(
+                deliveryReq(orderId, itemId, "10", other.getId()));
+        assertFalse(onlyCrossStation.getAllowed());
+        assertEquals(PurchaseExceptionTypeEnum.EXPIRED.getCode(),
+                onlyCrossStation.getViolations().stream().filter(v -> !Boolean.TRUE.equals(v.getResolved()))
+                        .findFirst().orElseThrow(AssertionError::new).getExceptionType());
+
+        // 再过期授权（不设有效期）：两条都放行
+        insertApprovedException(orderId, null, PurchaseExceptionTypeEnum.EXPIRED, "10", null, null);
+        assertTrue(purchaseOrderService.checkDelivery(deliveryReq(orderId, itemId, "10", other.getId())).getAllowed());
+        // 同一场站的交货不构成跨场站异常，过期授权照样管用
+        PurchaseOrderDeliveryCheckRespVO atHome = purchaseOrderService.checkDelivery(
+                deliveryReq(orderId, itemId, "10", home.getId()));
+        assertTrue(atHome.getAllowed());
+        assertTrue(atHome.getViolations().stream().noneMatch(violation ->
+                PurchaseExceptionTypeEnum.CROSS_STATION.getCode().equals(violation.getExceptionType())));
+
+        // 换一张订单：只有一张已到期的过期授权，不放行
+        Long secondOrderId = purchaseOrderService.createOrder(req);
+        Long secondItemId = purchaseOrderService.getDetail(secondOrderId).getItems().get(0).getId();
+        purchaseOrderService.updateStatus(statusReq(secondOrderId,
+                PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
+        insertApprovedException(secondOrderId, null, PurchaseExceptionTypeEnum.CROSS_STATION, "10", null,
+                other.getId());
+        insertApprovedException(secondOrderId, null, PurchaseExceptionTypeEnum.EXPIRED, "10",
+                LocalDate.now().minusDays(1), null);
+        assertFalse(purchaseOrderService.checkDelivery(
+                deliveryReq(secondOrderId, secondItemId, "10", other.getId())).getAllowed());
+    }
+
+    @Test
+    public void testDeliveryCheck_orderStatusHardBlock() {
+        OrderFixture fixture = createDefaultOrder();
+        // 草稿：不是有效采购依据，授权也放宽不了
+        PurchaseOrderDeliveryCheckRespVO draftCheck = purchaseOrderService.checkDelivery(
+                deliveryReq(fixture.orderId, fixture.itemId, "10", null));
+        assertFalse(draftCheck.getAllowed());
+        assertEquals("NOT_DELIVERABLE", draftCheck.getResolution());
+        ServiceException notDeliverable = assertThrows(ServiceException.class,
+                () -> purchaseOrderService.assertDeliveryAllowed(
+                        deliveryReq(fixture.orderId, fixture.itemId, "10", null)));
+        assertEquals(PURCHASE_ORDER_NOT_DELIVERABLE.getCode(), notDeliverable.getCode());
+
+        // 关闭：不再接受交货，但已发生的业务仍在（#47 AC4）
+        purchaseOrderService.updateStatus(statusReq(fixture.orderId,
+                PurchaseOrderStatusEnum.EXECUTING.getStatus(), null));
+        purchaseOrderService.recordDeal(dealReq(fixture.orderId, fixture.itemId, "20", "2000", null, null));
+        purchaseOrderService.updateStatus(statusReq(fixture.orderId,
+                PurchaseOrderStatusEnum.CLOSED.getStatus(), "结清关闭"));
+        PurchaseOrderDeliveryCheckRespVO closedCheck = purchaseOrderService.checkDelivery(
+                deliveryReq(fixture.orderId, fixture.itemId, "10", null));
+        assertEquals("NOT_DELIVERABLE", closedCheck.getResolution());
+        ServiceException closed = assertThrows(ServiceException.class,
+                () -> purchaseOrderService.assertDeliveryAllowed(
+                        deliveryReq(fixture.orderId, fixture.itemId, "10", null)));
+        assertEquals(PURCHASE_ORDER_CLOSED_NOT_DELIVERABLE.getCode(), closed.getCode());
+        // 已发生的成交不因关闭而消失
+        assertEquals(1, purchaseOrderService.getDealList(fixture.orderId).size());
+        assertEquals(0, new BigDecimal("20").compareTo(
+                purchaseOrderService.getProgress(fixture.orderId).getAcceptedQuantity()));
+        assertServiceException(() -> purchaseOrderService.deleteOrder(fixture.orderId),
+                PURCHASE_ORDER_ONLY_DRAFT_DELETABLE);
+    }
+
+    @Test
+    public void testSetting_defaultsAndUpdate() {
+        // 没配过：默认按验收口径、三类异常都拦截
+        PurchaseOrderSettingRespVO defaults = purchaseOrderService.getSetting();
+        assertEquals(PurchasePerformanceBasisEnum.ACCEPTED.getCode(), defaults.getPerformanceBasis());
+        assertEquals("验收口径", defaults.getPerformanceBasisName());
+        assertEquals(PurchaseDeliveryRuleEnum.BLOCK.getCode(), defaults.getOverQuantityRule());
+        assertEquals(PurchaseDeliveryRuleEnum.BLOCK.getCode(), defaults.getExpiredRule());
+        assertEquals(PurchaseDeliveryRuleEnum.BLOCK.getCode(), defaults.getCrossStationRule());
+        assertNotNull(defaults.getPerformanceBasisDefinition());
+        assertNotNull(defaults.getScopeNote());
+
+        // 改一次
+        purchaseOrderService.updateSetting(settingReq(PurchasePerformanceBasisEnum.SETTLED.getCode(),
+                PurchaseDeliveryRuleEnum.APPROVAL.getCode(), PurchaseDeliveryRuleEnum.APPROVAL.getCode(),
+                PurchaseDeliveryRuleEnum.APPROVAL.getCode()));
+        PurchaseOrderSettingRespVO updated = purchaseOrderService.getSetting();
+        assertEquals(PurchasePerformanceBasisEnum.SETTLED.getCode(), updated.getPerformanceBasis());
+        assertEquals("提交授权审核", updated.getOverQuantityRuleName());
+        // 再改一次是覆盖同一行，不是新增
+        purchaseOrderService.updateSetting(settingReq(PurchasePerformanceBasisEnum.ACCEPTED.getCode(),
+                PurchaseDeliveryRuleEnum.BLOCK.getCode(), PurchaseDeliveryRuleEnum.BLOCK.getCode(),
+                PurchaseDeliveryRuleEnum.BLOCK.getCode()));
+        assertEquals(PurchasePerformanceBasisEnum.ACCEPTED.getCode(),
+                purchaseOrderService.getSetting().getPerformanceBasis());
+
+        // 非法值：既不是能取到数的口径、也不是处理方式
+        assertServiceException(() -> purchaseOrderService.updateSetting(settingReq("STOCKED_IN",
+                PurchaseDeliveryRuleEnum.BLOCK.getCode(), PurchaseDeliveryRuleEnum.BLOCK.getCode(),
+                PurchaseDeliveryRuleEnum.BLOCK.getCode())),
+                PURCHASE_SETTING_PERFORMANCE_BASIS_INVALID, "STOCKED_IN");
+        assertServiceException(() -> purchaseOrderService.updateSetting(settingReq(
+                PurchasePerformanceBasisEnum.ACCEPTED.getCode(), "ALLOW",
+                PurchaseDeliveryRuleEnum.BLOCK.getCode(), PurchaseDeliveryRuleEnum.BLOCK.getCode())),
+                PURCHASE_SETTING_RULE_INVALID, "ALLOW");
     }
 
     // ==================== 删除 / 只读金额 / 分页 ====================
@@ -497,6 +829,7 @@ public class PurchaseOrderServiceTest extends BaseDbUnitTest {
     private static class OrderFixture {
         Long orderId;
         Long itemId;
+        Long payeeId;
         String orderNo;
     }
 
@@ -508,6 +841,7 @@ public class PurchaseOrderServiceTest extends BaseDbUnitTest {
         OrderFixture fixture = new OrderFixture();
         fixture.orderId = orderId;
         fixture.itemId = purchaseOrderService.getDetail(orderId).getItems().get(0).getId();
+        fixture.payeeId = payee.getId();
         fixture.orderNo = purchaseOrderService.getOrder(orderId).getOrderNo();
         return fixture;
     }
@@ -593,6 +927,96 @@ public class PurchaseOrderServiceTest extends BaseDbUnitTest {
         reqVO.setAdjustReason(adjustReason);
         return reqVO;
     }
+
+    /**
+     * 来源为收购单的成交（#51 接入后的形态）：结算口径顺着 sourceId 去看收购单有没有归入结算单。
+     */
+    private PurchaseOrderDealReqVO sourceDealReq(Long orderId, Long itemId, String quantity, Long acquisitionId) {
+        PurchaseOrderDealReqVO reqVO = dealReq(orderId, itemId, quantity, "2000", null, null);
+        reqVO.setSourceType(PurchaseDealSourceTypeEnum.ACQUISITION.getType());
+        reqVO.setSourceId(acquisitionId);
+        reqVO.setSourceNo("ACQ" + acquisitionId);
+        return reqVO;
+    }
+
+    private PurchaseOrderDeliveryCheckReqVO deliveryReq(Long orderId, Long itemId, String quantity, Long stationId) {
+        PurchaseOrderDeliveryCheckReqVO reqVO = new PurchaseOrderDeliveryCheckReqVO();
+        reqVO.setOrderId(orderId);
+        reqVO.setItemId(itemId);
+        reqVO.setQuantity(new BigDecimal(quantity));
+        reqVO.setStationId(stationId);
+        return reqVO;
+    }
+
+    private PurchaseOrderSettingSaveReqVO settingReq(String basis, String overQuantityRule, String expiredRule,
+                                                     String crossStationRule) {
+        PurchaseOrderSettingSaveReqVO reqVO = new PurchaseOrderSettingSaveReqVO();
+        reqVO.setPerformanceBasis(basis);
+        reqVO.setOverQuantityRule(overQuantityRule);
+        reqVO.setExpiredRule(expiredRule);
+        reqVO.setCrossStationRule(crossStationRule);
+        return reqVO;
+    }
+
+    /**
+     * 直接落一张「已通过」的授权单：交货门禁只看授权单的授权范围，不经审核流程。
+     */
+    private Long insertApprovedException(Long orderId, Long itemId, PurchaseExceptionTypeEnum type,
+                                        String approvedQuantity, LocalDate validUntil, Long stationId) {
+        IcbcPurchaseExceptionDO exceptionDO = IcbcPurchaseExceptionDO.builder()
+                .exceptionNo("PE" + EXCEPTION_SEQ.incrementAndGet())
+                .orderId(orderId)
+                .orderNo(purchaseOrderService.getOrder(orderId).getOrderNo())
+                .itemId(itemId)
+                .exceptionType(type.getCode())
+                .stationId(stationId)
+                .requestedQuantity(new BigDecimal("10"))
+                .approvedQuantity(new BigDecimal(approvedQuantity))
+                .validUntil(validUntil)
+                .reason("测试用授权")
+                .status(PurchaseExceptionStatusEnum.APPROVED.getStatus())
+                .build();
+        purchaseExceptionMapper.insert(exceptionDO);
+        return exceptionDO.getId();
+    }
+
+    /**
+     * 直接落一张「待审核」的授权申请（用于验证异常可见与「先等它审完」的提示）。
+     */
+    private Long insertPendingException(Long orderId, Long itemId, PurchaseExceptionTypeEnum type) {
+        IcbcPurchaseExceptionDO exceptionDO = IcbcPurchaseExceptionDO.builder()
+                .exceptionNo("PE" + EXCEPTION_SEQ.incrementAndGet())
+                .orderId(orderId)
+                .orderNo(purchaseOrderService.getOrder(orderId).getOrderNo())
+                .itemId(itemId)
+                .exceptionType(type.getCode())
+                .requestedQuantity(new BigDecimal("10"))
+                .reason("测试用申请")
+                .status(PurchaseExceptionStatusEnum.PENDING.getStatus())
+                .build();
+        purchaseExceptionMapper.insert(exceptionDO);
+        return exceptionDO.getId();
+    }
+
+    /**
+     * 落一张收购单；settlementId 非空表示已归入结算单（结算口径据此计入）。
+     */
+    private Long insertAcquisition(Long payeeId, Long settlementId) {
+        int seq = ACQUISITION_SEQ.incrementAndGet();
+        IcbcAcquisitionDO acquisition = IcbcAcquisitionDO.builder()
+                .acquisitionNo("ACQ" + seq)
+                .payeeId(payeeId)
+                .sellerName("张三")
+                .settlementWeight(new BigDecimal("10"))
+                .settlementId(settlementId)
+                .status(0)
+                .build();
+        acquisitionMapper.insert(acquisition);
+        return acquisition.getId();
+    }
+
+    private static final AtomicInteger EXCEPTION_SEQ = new AtomicInteger();
+    private static final AtomicInteger ACQUISITION_SEQ = new AtomicInteger();
 
     private static final AtomicInteger PAYEE_SEQ = new AtomicInteger();
 
