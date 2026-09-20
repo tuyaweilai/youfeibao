@@ -40,3 +40,5 @@ DELETE FROM icbc_purchase_order_deal;
 DELETE FROM icbc_purchase_order_price;
 DELETE FROM icbc_purchase_order_item;
 DELETE FROM icbc_purchase_order;
+DELETE FROM icbc_input_invoice_link;
+DELETE FROM icbc_input_invoice;

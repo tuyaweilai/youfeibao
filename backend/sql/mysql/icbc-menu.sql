@@ -231,7 +231,16 @@ VALUES
 -- ===== 工作台（#56 T18）=====
 -- 工作台页（5200）的查询权限行。其余权限行由 RecyclingPermissionSyncService 依据
 -- RecyclingRoleEnum 幂等补齐；这一行显式落库，便于读 SQL 就能看懂工作台有哪些入口。
-(5210, '工作台待办查询', 'icbc:workbench:query', 3, 1, 5200, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5210, '工作台待办查询', 'icbc:workbench:query', 3, 1, 5200, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+
+-- ===== 财务票务：进项收票（#49 T11，ADR 0029）=====
+-- 登记单位供货方开给回收企业的进项发票，并勾稽到采购单据。自然人出售者不在本链路（他们走反向开票）。
+(5244, '进项收票', 'icbc:input-invoice:query', 2, 7, 5207, 'input-invoice', '', 'icbc/inputInvoice/index', 'IcbcInputInvoice', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5245, '登记进项票', 'icbc:input-invoice:manage', 3, 1, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5246, '修改进项票', 'icbc:input-invoice:manage', 3, 2, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5247, '删除进项票', 'icbc:input-invoice:manage', 3, 3, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5248, '勾稽到单据', 'icbc:input-invoice:manage', 3, 4, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5249, '取消勾稽', 'icbc:input-invoice:manage', 3, 5, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
 
 -- =====================================================================
 -- 3. 回收企业租户套餐

@@ -350,4 +350,23 @@ public interface ErrorCodeConstants {
             "成交价与参考价不一致时必须填写调整原因");
     ErrorCode PURCHASE_ORDER_DEAL_PRICE_INVALID = new ErrorCode(1_030_031_020,
             "成交单价不能为负");
+
+    // ========== 进项收票登记与勾稽（#49 T11，ADR 0029：非自然人卖方由对方开票、我们收票） 1-030-032-000 ==========
+    ErrorCode INPUT_INVOICE_NOT_EXISTS = new ErrorCode(1_030_032_000, "进项发票不存在");
+    ErrorCode INPUT_INVOICE_DUPLICATED = new ErrorCode(1_030_032_001,
+            "同一销方（{}）的发票号码 {} 已登记过，不能重复登记");
+    ErrorCode INPUT_INVOICE_TYPE_INVALID = new ErrorCode(1_030_032_002, "票种不合法：{}");
+    ErrorCode INPUT_INVOICE_AMOUNT_INVALID = new ErrorCode(1_030_032_003,
+            "金额与税额必须为非负，且发票价税合计必须大于 0");
+    ErrorCode INPUT_INVOICE_STATUS_NOT_ALLOW = new ErrorCode(1_030_032_004,
+            "进项发票当前状态不允许该操作：{}（已勾稽的票不能改，请先取消勾稽）");
+    ErrorCode INPUT_INVOICE_LINK_NOT_EXISTS = new ErrorCode(1_030_032_005, "勾稽记录不存在");
+    ErrorCode INPUT_INVOICE_LINK_BIZ_TYPE_INVALID = new ErrorCode(1_030_032_006, "可勾稽的单据类型不合法：{}");
+    ErrorCode INPUT_INVOICE_LINK_AMOUNT_INVALID = new ErrorCode(1_030_032_007, "勾稽金额必须大于 0");
+    ErrorCode INPUT_INVOICE_LINK_ALREADY_EXISTS = new ErrorCode(1_030_032_008,
+            "这张进项票已勾稽到单据 {}，不能重复勾稽；如需调整请先取消勾稽");
+    ErrorCode INPUT_INVOICE_LINK_EXCEED_BIZ_AMOUNT = new ErrorCode(1_030_032_009,
+            "勾稽金额 {} 超过单据可勾稽额度（单据金额 {}，已勾稽 {}）");
+    ErrorCode INPUT_INVOICE_LINK_EXCEED_INVOICE_AMOUNT = new ErrorCode(1_030_032_010,
+            "勾稽金额 {} 超过发票可勾稽金额（价税合计 {}，已勾稽 {}）");
 }
