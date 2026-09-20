@@ -585,25 +585,29 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 - **规格**：[#38](https://github.com/tuyaweilai/youfeibao/issues/38)（`ready-for-agent`），56 条 user story、12 条实现决策、测试决策、out of scope、further notes。
 - **19 张票**：`#39`–`#57`，边用 GitHub 原生 issue dependencies 连（21 条）。
-- **frontier（现在就能 grab）**：`#45` T07 采购合同 / `#48` T10 卖方主体准入 / `#50` T12 交接批次与有效磅次 / `#56` T18 工作台。四张互不阻塞（代码前置 `#39`–`#44` 已完成并已关票），可并发。
-- 依赖链：`#45→#46→#47`；`#44→#48→#49`；`#39→#50→#51`；`#46/#50→#51→#52→#54/#55`；`#47/#52→#57`；`#41→#56`。
+- **frontier（现在就能 grab）**：`#46` T08 采购订单 / `#49` T11 进项收票登记与勾稽。四张并行票（`#45`/`#48`/`#50`/`#56`）已合并进 `main`。
+- 依赖链（已完成票已删）：`#46→#47`；`#46/#50→#51→#52→#54/#55`；`#46/#50→#51→#53`；`#47/#52→#57`。
 
-### 并行开工约定（2026-09-20）
+### 并行开工约定（2026-09-20，已完成一轮）
 
-四张 frontier 票会在同一批「脊柱文件」上相遇，合并前先约定好，能省掉大部分冲突：
+`#56`/`#45`/`#48`/`#50` 四张已用 `git worktree` 并行跑完并合入 `main`（合并顺序 #45 → #48 → #50 → #56，每合一个跑一次 icbc 测试，最终 491 测试全绿）。当时的分工与菜单 ID 段：
 
 | 票 | 分支 | 菜单 ID 段 | 主要抢的文件 |
 |---|---|---|---|
-| #56 T18 工作台 | `t18-workbench` | 5210–5219 | `RecyclingPermission`/`RecyclingRoleEnum`、`create_tables.sql`/`clean.sql`、`icbc-menu.sql`、`handoff.md` |
+| #56 T18 工作台 | `t18-workbench` | 5210–5219 | `RecyclingPermission`/`RecyclingRoleEnum`、`icbc-menu.sql`、`handoff.md` |
 | #45 T07 采购合同 | `t07-purchase-contract` | 5220–5229 | `icbc-menu.sql`、`README.md`、`handoff.md` |
-| #48 T10 卖方主体准入 | `t10-seller-admission` | 5230–5239 | `RecyclingPermission`/`RecyclingRoleEnum`、`create_tables.sql`/`clean.sql`、`handoff.md` |
+| #48 T10 卖方主体准入 | `t10-seller-admission` | 5230–5239（本票未用） | `RecyclingPermission`/`RecyclingRoleEnum`、`create_tables.sql`/`clean.sql`、`handoff.md` |
 | #50 T12 交接批次与有效磅次 | `t12-handover-batch` | 5240–5249 | 上述全部 + `icbc-menu.sql`、`README.md` |
 
-- **工作目录**：`git worktree`，一票一目录一分支（`../youfeibao-t07` 等），**不要在同一目录多开窗口**。各 worktree 首次用时先 `mvn -pl yudao-server -am -DskipTests install`（各自 `target/`，互不干扰）。
-- **菜单 ID**：`icbc-menu.sql` 的清理范围是 5100–5299，`5210` 往后全空；按上表分段，别抢号。
-- **权限枚举**：`RecyclingPermission` / `RecyclingRoleEnum` 只追加、不重排；一致性测试 `RecyclingPermissionAnnotationConsistencyTest` 会锁死「注解 = 枚举」，两边必须同一次提交。
-- **测试建表**：`create_tables.sql` / `clean.sql` 各票只追加自己的表 / DELETE，不重排。
-- **`handoff.md`**：每票只在自己的小节里追加，别动别人的。
+合并时实际撞到的「脊柱文件」与解法（下一轮并行照做）：
+
+- **错误码段**：`ErrorCodeConstants` 两边都从 `1_030_028_000` 起，必撞。**开票前先定段**：本轮定为 #45 → 028、#48 → 029、#50 → 030。
+- **`icbc-menu.sql`**：ID 分段后不撞号，自动合并；但仍会删 5100–5299 重建，**谁跑谁清掉别人的段**，合并后重跑一次并重登刷新菜单缓存。
+- **`RecyclingPermission` / `RecyclingRoleEnum`**：只追加、不重排，一致性测试会锁死「注解 = 枚举」，同一次提交改齐。
+- **`icbc_acquisition`（DO / VO / Service / 测试建表）**：#48（六态）与 #50（磅次）都改，是冲突最密的地方；各票只追加自己的列 / 分支。
+- **`create_tables.sql` / `clean.sql` / `README.md` / `handoff.md`**：追加式，合并时按段收口即可。
+- **`.m2` 共享**：四个 worktree 共用 `~/.m2`，`-am install` 会互相覆盖 SNAPSHOT。改 `-api` 又要同轮测 `-biz` 时，用一条 reactor 命令：`mvn -pl yudao-module-icbc/yudao-module-icbc-api,yudao-module-icbc/yudao-module-icbc-biz test`。
+- **工作目录**：一票一目录一分支（`../youfeibao-t07` 等），**不要在同一目录多开窗口**。
 
 | 票 | 标题 | blocked by |
 |---|---|---|
