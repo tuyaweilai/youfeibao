@@ -973,3 +973,52 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
   二选一或把 deal 拆成两列，是**产品决策**，不在实现票范围里，所以没擅自接。
 - 另有两处待定：收购单**作废**时是否落负数 deal（AC3 退货扣回）；离线补传的幂等（同一收购单不能产生两条 deal）。
 - 已开跟进票记录选项，决策后再接（改动范围：`AcquisitionServiceImpl#applyPurchaseArrangement` + 作废路径 + 测试）。
+
+## #52 T14 待入库 → 入库单 → 库存流水（已完成）
+
+验收后的货进待入库，仓管选仓库 / 库位 / 批次确认实际入库量；入库是从收购单派生的**单向动作**，
+库存写入只经 #43 的 `StockApi`，**icbc 不直接碰 `erp_stock*`**（ADR 0027 / 0028）。分支
+`t14-stock-in`，菜单段 5255–5319（用了 5255–5258），错误码段 `1_030_035_xxx`。
+
+1. **两张租户表**（`backend/sql/mysql/icbc-stock-in.sql`，幂等；测试建表与 `clean.sql` 同步）：
+   `icbc_stock_in`（入库单：`status` 0-待过账 / 1-已过账 / 2-已作废，`available_quantity` 是确认时
+   的可入库实物量快照）与 `icbc_stock_in_item`（明细：仓库 / 库位 / 批次编号 + 数量，0 = 未指定；
+    **只存维度编号不存名称**——icbc 只依赖 `erp-api`，拿不到 ERP 仓库表，名称由前端用 ERP 的
+   simple-list 解析）。
+2. **只有过账才加库存**：`createStockIn` 落待过账（不动库存），`postStockIn` 才逐条调
+   `StockApi.in`（`RECEIPT_IN(90)`）写流水；`confirmStockIn` = 建单 + 过账（仓管一次成型）。
+   作废已过账的单走 `RECEIPT_IN_CANCEL(91)` 冲销。**幂等**：业务项编号 = 入库明细编号，
+   重复确认直接返回（不重复加库存）；同一收购单分多次入库时业务编号同为收购单编号。
+3. **累计入库不超可入库实物量（含并发）**：`StockApi.in` 传 `maxCount`，
+   **跨入库单**按「业务类型 + 收购单 + 品类」累计校验；作废后把已冲销量加回上限
+   （`maxCount = 可入库实物量 + 已冲销量`），使净效果是「累计入库（已过账）≤ 可入库量」。
+   过账前用 `IcbcAcquisitionMapper#selectByIdForUpdate`（`SELECT ... FOR UPDATE`）锁住收购单行，
+   把同一收购单的并发过账串行化；`sumReversed` 用 `postedTime != null` 区分「已过账后作废」
+   与「待过账直接作废」（后者从未写 `RECEIPT_IN`，不能当冲销）。
+4. **可入库实物量只有一个取数点**：`StockInService#resolveAvailableQuantity(acquisition)`，
+   现在取净重（实物口径）。**#53 落地 `accepted_weight` 后只改这一个方法**（有接收量优先取接收量），
+   待入库列表的 SQL 只做「已归入结算单 + 未作废」的粗筛，不在 SQL 里再写一份重量口径。
+5. **待入库口径**：已验收（`settlement_id` 非空）、未作废、且「可入库实物量 − 累计入库 > 0」的收购单。
+   累计入库 = 当前已过账入库单合计（作废的自然不在其中）。列表在工作队列规模上按 id 倒序在内存里分页。
+6. **权限 / 菜单**：新增 `icbc:stock-in:query|manage` 登记进 `RecyclingPermission` + `RecyclingRoleEnum`
+   （管理员 / 收货员可管理；开票员 / 财务只读；平台运营不参与）。`icbc-menu.sql` 追加
+   5255 待入库与入库单 + 5256–5258 按钮（挂在「仓储管理」5205 下，随套餐递归进回收企业套餐；
+   已在临时库整份跑通并确认 5255 在套餐 `menu_ids` 里后删库）。
+7. **前端**：`api/icbc/stockIn` + `views/icbc/stockIn/index.vue`（待入库列表 + 确认入库弹窗可加多条
+   库位明细；入库单列表 + 过账 / 作废 / 详情）。AC5 的「只有入库记录时只称累计入库，不称当前库存」
+   在页面顶部用告警写明。`pnpm build:local` 通过。
+8. **测试**：`StockInServiceTest` 14 例（唯一取数点、待入库筛选与三个数量、建单不动库存、
+   拆库位过账与与 `StockApi` 的契约、跨入库单累计、累计越界拒、冲销后上限加回、重复过账幂等、
+   待过账 / 已过账作废、未验收 / 已作废 / 无重量门禁、分页与详情）；`IcbcTenantIsolationTest` 补两表
+   租户隔离；`RecyclingRoleEnumTest` 补权限。**icbc 578 测试全绿**（1 skipped 为既有）。
+
+> **遗留（#52 落地后的人工接线，本票未做）**：
+> 1. `WorkbenchTodoCodeEnum.PENDING_STOCK_IN` 的 `unavailableReason` 可清空，并在
+>    `WorkbenchServiceImpl.loadTodo` 加分支，按「已验收且未入库」取数（见「第四轮并行约定」）；
+> 2. `PurchaseProgressMeasureEnum.STOCKED_IN` 可清空 `unavailableReason`，在
+>    `PurchaseOrderService#getProgress` 按「来源收购单已入库」补入库口径取数（见 #47 小节）。
+> 两处都属跨票接线，避免与并行票抢文件，留给合并后人工接。
+>
+> **未做（不属本票）**：结算重量与入库重量的差异清单 / 异常表（#53 / #57）；
+> 采购订单履约的入库口径（#47 预留）；`InputInvoiceBizTypeEnum.STOCK_IN` 的勾稽接入
+> （入库单无金额，暂不接）。

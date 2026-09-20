@@ -408,4 +408,23 @@ public interface ErrorCodeConstants {
             "采购订单明细的品类（{}）与本次收购的品类不一致，不能关联");
     ErrorCode ACQUISITION_PURCHASE_ORDER_COUNTERPARTY_MISMATCH = new ErrorCode(1_030_034_002,
             "采购订单的交易对方（{}）与本次收购的出售者不是同一个主体，不能关联");
+
+    // ========== 待入库 → 入库单 → 库存流水（#52 T14，ADR 0027 / 0028） 1-030-035-000 ==========
+    ErrorCode STOCK_IN_NOT_EXISTS = new ErrorCode(1_030_035_000, "入库单不存在");
+    ErrorCode STOCK_IN_ACQUISITION_CANCELLED = new ErrorCode(1_030_035_001,
+            "收购单已作废，不能入库（作废的计量不再成立）");
+    ErrorCode STOCK_IN_AVAILABLE_QUANTITY_EMPTY = new ErrorCode(1_030_035_002,
+            "收购单没有可入库实物量（{}尚未录重量），无法入库");
+    ErrorCode STOCK_IN_ITEM_REQUIRED = new ErrorCode(1_030_035_003,
+            "确认入库至少需要一条「仓库 + 库位 / 批次 + 数量」明细");
+    ErrorCode STOCK_IN_ITEM_INVALID = new ErrorCode(1_030_035_004,
+            "入库明细不合法：{}");
+    ErrorCode STOCK_IN_EXCEED_AVAILABLE = new ErrorCode(1_030_035_005,
+            "累计入库 {} 超过可入库实物量 {}（本次 {}）：同一收购单的货可拆多个库位、分多次入库，合计不得越界");
+    ErrorCode STOCK_IN_STATUS_NOT_ALLOW = new ErrorCode(1_030_035_006,
+            "入库单当前状态不允许该操作：{}");
+    ErrorCode STOCK_IN_CANCEL_REASON_REQUIRED = new ErrorCode(1_030_035_007,
+            "作废入库单必须说明原因（已过账的会同时冲销库存）");
+    ErrorCode STOCK_IN_ACQUISITION_NOT_ACCEPTED = new ErrorCode(1_030_035_008,
+            "收购单尚未验收（未归入结算单），不能入库：先在现场「结束本次收货」");
 }

@@ -247,7 +247,15 @@ VALUES
 (5246, '修改进项票', 'icbc:input-invoice:manage', 3, 2, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5247, '删除进项票', 'icbc:input-invoice:manage', 3, 3, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5248, '勾稽到单据', 'icbc:input-invoice:manage', 3, 4, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5249, '取消勾稽', 'icbc:input-invoice:manage', 3, 5, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5249, '取消勾稽', 'icbc:input-invoice:manage', 3, 5, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+
+-- ===== 仓储管理：待入库与入库单（#52 T14，ADR 0027）=====
+-- 入库是收购单派生的单向动作：验收后的货进待入库，仓管选仓库 / 库位 / 批次确认实际入库量。
+-- 只有过账的入库才增加正式库存；按钮权限 icbc:stock-in:manage。
+(5255, '待入库与入库单', 'icbc:stock-in:query', 2, 4, 5205, 'stock-in', '', 'icbc/stockIn/index', 'IcbcStockIn', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5256, '确认入库', 'icbc:stock-in:manage', 3, 1, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5257, '过账入库单', 'icbc:stock-in:manage', 3, 2, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5258, '作废入库单', 'icbc:stock-in:manage', 3, 3, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
 
 -- =====================================================================
 -- 3. 回收企业租户套餐

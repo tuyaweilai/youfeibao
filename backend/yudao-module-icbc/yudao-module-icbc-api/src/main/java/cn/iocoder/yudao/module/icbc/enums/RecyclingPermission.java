@@ -246,4 +246,11 @@ public interface RecyclingPermission {
     /** 审核履约异常授权单（通过 / 拒绝） */
     String PURCHASE_EXCEPTION_AUDIT = "icbc:purchase-exception:audit";
 
+    // ========== 待入库 → 入库单（#52 T14，ADR 0027：入库是收购单派生的单向动作） ==========
+
+    /** 查看待入库收购单与入库单 */
+    String STOCK_IN_QUERY = "icbc:stock-in:query";
+    /** 确认入库（建单并过账）、作废入库单 */
+    String STOCK_IN_MANAGE = "icbc:stock-in:manage";
+
 }
