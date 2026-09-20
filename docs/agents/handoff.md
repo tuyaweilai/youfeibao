@@ -947,3 +947,14 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 > **未做**：批次级采购订单的 UI 选择（`icbc_handover_batch.purchase_order_id` 只做带出，不在交接批次页选）；
 > 收购单创建后改挂 / 解绑采购安排（登记后即固定）。
+
+## 已知跨票缺口：收购单关联采购安排未进履约口径与交货门禁（待决策）
+
+- **现象**：#47 把「验收 / 结算」取数与超量 / 过期 / 跨场站门禁都收敛到 `PurchaseOrderService#recordDeal`
+  （「成交记录就是这一车验收了多少落到订单上的唯一入口」）；#51 让收购单可关联采购订单明细，但**只调了
+  `assertUsableAsPurchaseBasis`，没调 `recordDeal`**。结果：关联了订单的收购单，不进「验收」口径、也不过交货门禁。
+- **根因是口径没定**：`recordDeal` 只有一个 `quantity`，而平台有两个重量口径（ADR 0028）——
+  `net_weight`（毛 − 皮）= 实物收到多少；`settlement_weight`（毛 − 皮 − 扣杂）= 计价基准（ADR 0019）。
+  二选一或把 deal 拆成两列，是**产品决策**，不在实现票范围里，所以没擅自接。
+- 另有两处待定：收购单**作废**时是否落负数 deal（AC3 退货扣回）；离线补传的幂等（同一收购单不能产生两条 deal）。
+- 已开跟进票记录选项，决策后再接（改动范围：`AcquisitionServiceImpl#applyPurchaseArrangement` + 作废路径 + 测试）。
