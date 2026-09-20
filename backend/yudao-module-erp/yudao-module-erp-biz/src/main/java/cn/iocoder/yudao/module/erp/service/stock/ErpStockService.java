@@ -44,6 +44,20 @@ public interface ErpStockService {
     ErpStockDO getStock(Long goodsConfigId, Long warehouseId, Long locationId, Long batchId);
 
     /**
+     * 基于品类 + 仓库 + 库位 + 批次，**加行锁**获得品类库存（盘点调整用）。
+     *
+     * <p>余额行不存在时返回 null（此时没有行可锁）。盘点在同一维度上并发时，先抢到锁的那个会看到最新余额、
+     * 算差额、写流水；后一个再读到的就是已调整后的余额。
+     *
+     * @param goodsConfigId 品类编号
+     * @param warehouseId   仓库编号
+     * @param locationId    库位编号（null / 0 表示未指定）
+     * @param batchId       批次编号（null / 0 表示未指定）
+     * @return 品类库存（加锁读）
+     */
+    ErpStockDO getStockForUpdate(Long goodsConfigId, Long warehouseId, Long locationId, Long batchId);
+
+    /**
      * 获得品类库存数量
      *
      * 如果不存在库存记录，则返回 0

@@ -2,6 +2,8 @@
 
 > **2026-09-20 修订（#38 / #39 落地）**：本文原定启用 `product` / `purchase` / `stock` 三个域。规格 #38 改为**只启用 `stock` 域**：品类主数据权威留在 `icbc_goods_config`（`product` 域排除，见 ADR 0028），采购履约链（采购合同 / 订单 / 交接批次 / 入库单 / 进项收票）建在 `icbc` 模块，因为采购订单必须与收购单、结算单在同一模块内做关联追溯；启用 `purchase` 域会让 `erp` 反向依赖 `icbc`。其余结论不变。
 
+> **2026-09-20 修订（#54 T16 落地）**：决策细则第 1 条原话「`stock_out` 保留但只用于非销售出库（报损 / 退货出库 / 内部领用），`customerId` 留空」与第 2 条「重造调拨 / 盘点没有意义」**作部分修订**。非销售出库 / 跨仓调拨 / 盘点调整 / 期初四类**业务单据**改在 `icbc` 侧（`icbc_stock_out` / `icbc_stock_move` / `icbc_stock_check` / `icbc_stock_opening`），理由：ERP 的 `erp_stock_out/move/check` 单据服务与前端页面自 #42 删除 `product` 域后已不可达（前端仍在用 `productId`），且 `erp_stock_out` 强制挂客户、缺「报损 / 退货出库 / 内部领用」类型，与验收「不挂客户」直接冲突。**第 2 条的核心结论不变**：余额 + 流水的记账机制仍在 ERP（`erp_stock` / `erp_stock_record`），icbc 不建自己的余额表、不直接碰 `erp_stock*`，全部经 `StockApi`（#54 追加 `move` / `adjustTo` 两个原语与出库 / 期初的业务类型）。菜单段与权限见 handoff 的「#54」小节。
+
 平台从"反向开票工具"扩成回收企业的经营作业系统后，缺的那一层是**采购履约与库存台账**。仓库里已经躺着 `yudao-module-erp`（33 张表、23 个 Controller、前端 63 个页面），我们**放开它、按需收敛**，而不是自建一套同形的采购/库存。一期只启用 `stock` 域，`product` / `purchase` / `sale` / `finance` / `statistics` 都不分配菜单。
 
 **背景**

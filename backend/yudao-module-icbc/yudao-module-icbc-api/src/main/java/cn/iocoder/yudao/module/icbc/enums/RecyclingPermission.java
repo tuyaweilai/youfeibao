@@ -260,4 +260,25 @@ public interface RecyclingPermission {
     /** 查看称量差异清单（结算重量 vs 实物量，只读，供异常表消费） */
     String ACQUISITION_WEIGHT_DIFF_QUERY = "icbc:acquisition:weight-diff:query";
 
+    // ========== 非销售出库 / 跨仓调拨 / 盘点调整 / 期初导入（#54 T16，ADR 0025 / 0027） ==========
+
+    /** 查看非销售出库单（报损 / 退货出库 / 内部领用，不挂客户） */
+    String STOCK_OUT_QUERY = "icbc:stock-out:query";
+    /** 登记 / 过账 / 作废非销售出库单 */
+    String STOCK_OUT_MANAGE = "icbc:stock-out:manage";
+    /** 查看跨仓调拨单 */
+    String STOCK_MOVE_QUERY = "icbc:stock-move:query";
+    /** 登记 / 过账 / 作废跨仓调拨单 */
+    String STOCK_MOVE_MANAGE = "icbc:stock-move:manage";
+    /** 查看盘点单 */
+    String STOCK_CHECK_QUERY = "icbc:stock-check:query";
+    /** 登记 / 过账 / 作废盘点单（余额对齐到实盘数） */
+    String STOCK_CHECK_MANAGE = "icbc:stock-check:manage";
+    /** 查看期初记录 */
+    String STOCK_OPENING_QUERY = "icbc:stock-opening:query";
+    /** 导入 / 作废期初 */
+    String STOCK_OPENING_MANAGE = "icbc:stock-opening:manage";
+    /** 查看「当前库存」口径就绪（期初 / 出库 / 调拨 / 盘点四项能力是否具备） */
+    String STOCK_READINESS_QUERY = "icbc:stock:readiness:query";
+
 }

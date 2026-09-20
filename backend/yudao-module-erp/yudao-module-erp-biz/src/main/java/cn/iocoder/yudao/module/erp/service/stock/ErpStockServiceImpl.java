@@ -56,6 +56,12 @@ public class ErpStockServiceImpl implements ErpStockService {
     }
 
     @Override
+    public ErpStockDO getStockForUpdate(Long goodsConfigId, Long warehouseId, Long locationId, Long batchId) {
+        return stockMapper.selectByGoodsConfigIdAndWarehouseIdAndLocationIdAndBatchIdForUpdate(
+                goodsConfigId, warehouseId, normalizeZero(locationId), normalizeZero(batchId));
+    }
+
+    @Override
     public BigDecimal getStockCount(Long goodsConfigId) {
         BigDecimal count = stockMapper.selectSumByGoodsConfigId(goodsConfigId);
         return count != null ? count : BigDecimal.ZERO;
