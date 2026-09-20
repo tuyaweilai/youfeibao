@@ -6,7 +6,7 @@ import cn.iocoder.yudao.module.logistics.api.transport.LogisticsTransportApi;
 import cn.iocoder.yudao.module.logistics.api.transport.LogisticsTransportApiImpl;
 import cn.iocoder.yudao.module.logistics.controller.admin.demo.vo.LogisticsTransportTrackDemoRespVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeReportReqVO;
-import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCreateReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
 import cn.iocoder.yudao.module.logistics.dal.mysql.transportnode.LogisticsTransportNodeMapper;
 import cn.iocoder.yudao.module.logistics.dal.mysql.transporttask.LogisticsTransportTaskMapper;
@@ -201,7 +201,7 @@ public class LogisticsTrackDemoServiceImplTest extends BaseDbUnitTest {
         driver.setStatus(LogisticsDriverStatusEnum.ACTIVE.getStatus());
         Long driverId = logisticsDriverService.createDriver(driver);
 
-        LogisticsTransportTaskSaveReqVO task = new LogisticsTransportTaskSaveReqVO();
+        LogisticsTransportTaskCreateReqVO task = new LogisticsTransportTaskCreateReqVO();
         task.setDepartureAddress("城东场站");
         task.setPickupAddress("某某路 1 号");
         task.setVehicleId(vehicleId);

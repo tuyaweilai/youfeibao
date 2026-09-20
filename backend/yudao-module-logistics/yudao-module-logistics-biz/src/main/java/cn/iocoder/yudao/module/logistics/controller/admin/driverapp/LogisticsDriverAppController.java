@@ -16,6 +16,7 @@ import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportTaskStatusEnum;
 import cn.iocoder.yudao.module.logistics.service.driverapp.LogisticsDriverAppService;
 import cn.iocoder.yudao.module.logistics.service.transportnode.LogisticsTransportNodeService;
 import cn.iocoder.yudao.module.logistics.service.transportnode.TransportNodeGaps;
+import cn.iocoder.yudao.module.logistics.service.transportstop.LogisticsTransportStopService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,8 +26,10 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.validation.Valid;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
@@ -50,6 +53,14 @@ public class LogisticsDriverAppController {
     private LogisticsDriverAppService logisticsDriverAppService;
     @Resource
     private LogisticsTransportNodeService logisticsTransportNodeService;
+    @Resource
+    private LogisticsTransportStopService logisticsTransportStopService;
+
+    /**
+     * 口径说明：**不得暗示「整车复磅可以合并结算」**（ADR 0031）。司机端也要看到这句话。
+     */
+    private static final String SCOPE_NOTE =
+            "一次集货不构成把几个出售者合并结算的依据：每个停靠点各自交接、各自复磅、各自结算，整车复磅只核对总运输量。";
 
     @GetMapping("/profile")
     @Operation(summary = "我是谁", description = "当前登录账号对应的司机档案；没建档会明确提示找管理员")
@@ -73,9 +84,14 @@ public class LogisticsDriverAppController {
         PageResult<LogisticsTransportTaskDO> page = logisticsDriverAppService.getMyTaskPage(pageReqVO);
         PageResult<LogisticsTransportTaskRespVO> result = PageResult.empty();
         result.setTotal(page.getTotal());
+        Map<Long, Integer> pendingStopCounts = logisticsTransportStopService.getPendingStopCounts(
+                page.getList().stream().map(LogisticsTransportTaskDO::getId).collect(Collectors.toList()));
         result.setList(page.getList().stream().map(task -> {
             LogisticsTransportTaskRespVO resp = new LogisticsTransportTaskRespVO();
             copyForDriver(task, resp);
+            // 司机在列表上就要看到「这趟还剩几家没提」
+            resp.setPendingStopCount(pendingStopCounts.getOrDefault(task.getId(), 0));
+            resp.setScopeNote(SCOPE_NOTE);
             return resp;
         }).toList());
         return success(result);
@@ -93,6 +109,12 @@ public class LogisticsDriverAppController {
         resp.setNodes(logisticsTransportNodeService.toRespList(nodes));
         resp.setMissingNodeNames(TransportNodeGaps.missingNodeNames(nodes));
         resp.setMissingEvidenceNames(TransportNodeGaps.missingEvidenceNames(nodes));
+        // 停靠点：司机按点逐个处理，每点带自己的节点与进度
+        resp.setStops(logisticsTransportStopService.getStopRespListByTaskId(task.getId()));
+        resp.setPendingStopCount(logisticsTransportStopService
+                .getPendingStopCounts(Collections.singletonList(task.getId()))
+                .getOrDefault(task.getId(), 0));
+        resp.setScopeNote(SCOPE_NOTE);
         return success(resp);
     }
 

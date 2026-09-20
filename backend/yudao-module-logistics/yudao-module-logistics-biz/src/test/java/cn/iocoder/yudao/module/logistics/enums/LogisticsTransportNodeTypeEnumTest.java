@@ -58,4 +58,14 @@ public class LogisticsTransportNodeTypeEnumTest {
         }
     }
 
+    @Test
+    public void testStopScopedTypes() {
+        // V5 #72：到提货点 / 交接完成 / 起运 发生在某一个停靠点上；到达场站 / 卸货完成是整趟收尾
+        assertTrue(LogisticsTransportNodeTypeEnum.ARRIVED_PICKUP.isStopScoped());
+        assertTrue(LogisticsTransportNodeTypeEnum.HANDOVER_CONFIRMED.isStopScoped());
+        assertTrue(LogisticsTransportNodeTypeEnum.DEPARTED.isStopScoped());
+        assertFalse(LogisticsTransportNodeTypeEnum.ARRIVED_STATION.isStopScoped());
+        assertFalse(LogisticsTransportNodeTypeEnum.UNLOADED.isStopScoped());
+    }
+
 }

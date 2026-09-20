@@ -3,7 +3,6 @@ package cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-import javax.validation.constraints.NotEmpty;
 import java.time.LocalDateTime;
 
 @Schema(description = "管理后台 - 运输任务新增/修改 Request VO")
@@ -22,8 +21,7 @@ public class LogisticsTransportTaskSaveReqVO {
     @Schema(description = "出发地", example = "城东场站")
     private String departureAddress;
 
-    @Schema(description = "提货点地址", requiredMode = Schema.RequiredMode.REQUIRED, example = "某某路 1 号")
-    @NotEmpty(message = "提货点地址不能为空")
+    @Schema(description = "提货点地址（V5 起推荐用 stops 传多个停靠点；这里保留给单点 / 历史口径）", example = "某某路 1 号")
     private String pickupAddress;
 
     @Schema(description = "提货点联系人", example = "张三")

@@ -53,6 +53,12 @@
           </text>
         </view>
         <view class="card__line">
+          <text class="card__label">待提</text>
+          <text class="card__value">
+            {{ (task.pendingStopCount ?? 0) > 0 ? `还剩 ${task.pendingStopCount} 家没提` : '—' }}
+          </text>
+        </view>
+        <view class="card__line">
           <text class="card__label">时间窗</text>
           <text class="card__value">{{ timeRange(task.expectedStartTime, task.expectedEndTime) }}</text>
         </view>

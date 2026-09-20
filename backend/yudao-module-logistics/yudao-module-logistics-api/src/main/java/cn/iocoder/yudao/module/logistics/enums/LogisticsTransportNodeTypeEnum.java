@@ -25,11 +25,11 @@ import java.util.Optional;
 @Getter
 public enum LogisticsTransportNodeTypeEnum implements IntArrayValuable {
 
-    ARRIVED_PICKUP(1, "到达提货点", false),
-    HANDOVER_CONFIRMED(2, "交接完成", true),
-    DEPARTED(3, "起运", false),
-    ARRIVED_STATION(4, "到达场站", false),
-    UNLOADED(5, "卸货完成", true);
+    ARRIVED_PICKUP(1, "到达提货点", false, true),
+    HANDOVER_CONFIRMED(2, "交接完成", true, true),
+    DEPARTED(3, "起运", false, true),
+    ARRIVED_STATION(4, "到达场站", false, false),
+    UNLOADED(5, "卸货完成", true, false);
 
     public static final int[] ARRAYS = Arrays.stream(values()).mapToInt(LogisticsTransportNodeTypeEnum::getType).toArray();
 
@@ -45,6 +45,13 @@ public enum LogisticsTransportNodeTypeEnum implements IntArrayValuable {
      * 是否必须有照片（货物流关键凭证）
      */
     private final boolean photoRequired;
+    /**
+     * 是否**按停靠点**上报（V5 #72）
+     *
+     * <p>到提货点 / 交接完成 / 起运都发生在**某一个停靠点**上（一车提三家时，到达的是 B 家而不是 A 家）；
+     * 到达场站 / 卸货完成是**整趟活**的收尾，不属于任何单个停靠点。
+     */
+    private final boolean stopScoped;
 
     @Override
     public int[] array() {

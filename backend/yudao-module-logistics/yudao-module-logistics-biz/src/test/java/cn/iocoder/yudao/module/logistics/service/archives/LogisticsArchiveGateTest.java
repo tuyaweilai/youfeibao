@@ -8,7 +8,7 @@ import cn.iocoder.yudao.module.logistics.controller.admin.driver.vo.LogisticsDri
 import cn.iocoder.yudao.module.logistics.controller.admin.expiry.vo.LogisticsExpiryWarningItemVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskOverrideAssignReqVO;
-import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCreateReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.vehicle.vo.LogisticsVehicleSaveReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
 import cn.iocoder.yudao.module.logistics.dal.mysql.transporttask.LogisticsTransportTaskMapper;
@@ -338,7 +338,7 @@ public class LogisticsArchiveGateTest extends BaseDbUnitTest {
     }
 
     private Long createPendingTask() {
-        LogisticsTransportTaskSaveReqVO task = new LogisticsTransportTaskSaveReqVO();
+        LogisticsTransportTaskCreateReqVO task = new LogisticsTransportTaskCreateReqVO();
         task.setDepartureAddress("城东场站");
         task.setPickupAddress("某某路 1 号");
         return logisticsTransportTaskService.createTask(task);

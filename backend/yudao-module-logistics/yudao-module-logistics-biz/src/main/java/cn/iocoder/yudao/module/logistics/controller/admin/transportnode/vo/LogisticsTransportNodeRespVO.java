@@ -20,6 +20,9 @@ public class LogisticsTransportNodeRespVO {
     @Schema(description = "运输任务单号")
     private String taskNo;
 
+    @Schema(description = "停靠点编号（提货相关节点非空；到达场站/卸货完成为整趟收尾，为空）")
+    private Long stopId;
+
     @Schema(description = "节点类型：1-到达提货点，2-交接完成，3-起运，4-到达场站，5-卸货完成")
     private Integer nodeType;
 

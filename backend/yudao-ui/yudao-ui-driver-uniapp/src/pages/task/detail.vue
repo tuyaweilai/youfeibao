@@ -9,19 +9,155 @@
         </view>
         <view class="line"><text class="line__label">车牌号</text><text class="line__value">{{ task.plateNo || '—' }}</text></view>
         <view class="line"><text class="line__label">出发地</text><text class="line__value">{{ task.departureAddress || '—' }}</text></view>
-        <view class="line"><text class="line__label">提货点</text><text class="line__value">{{ task.pickupAddress }}</text></view>
-        <view class="line"><text class="line__label">联系人</text><text class="line__value">{{ task.pickupContactName || '—' }}</text></view>
-        <view class="line">
-          <text class="line__label">电话</text>
-          <text class="line__value" @click="callContact">{{ task.pickupContactPhone || '—' }}</text>
-        </view>
+        <view class="line"><text class="line__label">提货点</text><text class="line__value">{{ task.pickupAddress || '—' }}</text></view>
         <view class="line"><text class="line__label">货物</text><text class="line__value">{{ cargoText }}</text></view>
         <view class="line"><text class="line__label">时间窗</text><text class="line__value">{{ timeRange }}</text></view>
+        <view v-if="hasStops" class="line">
+          <text class="line__label">待提</text>
+          <text class="line__value line__value--warn">还剩 {{ pendingStopCount }} 家没提</text>
+        </view>
         <view v-if="task.cancelReason" class="line"><text class="line__label">取消原因</text><text class="line__value">{{ task.cancelReason }}</text></view>
       </view>
 
+      <view v-if="task.scopeNote" class="tip tip--note">{{ task.scopeNote }}</view>
+
       <view v-if="task.status === 1" class="actions">
         <button class="btn btn--primary" :loading="busy" @click="onAccept">接单</button>
+      </view>
+
+      <!-- 停靠点：一车提多家，各自处理、各自推进 -->
+      <view v-if="hasStops" class="card">
+        <view class="card__title">停靠点（还剩 {{ pendingStopCount }} 家没提）</view>
+        <view v-for="stop in task.stops" :key="stop.id" class="stop" :class="{ 'stop--done': stop.status === 2, 'stop--cancel': stop.status === 3 }">
+          <view class="stop__head">
+            <text class="stop__name">第 {{ stop.stopNo }} 站 · {{ stop.payeeName || '未署出售者' }}</text>
+            <text class="stop__status">{{ stop.statusName }}</text>
+          </view>
+          <view class="node__line">{{ stop.address }}</view>
+          <view v-if="stop.cargoName" class="node__line">
+            货物：{{ stop.cargoName }}{{ stop.estimatedQuantity ? ` · 约 ${stop.estimatedQuantity}${stop.quantityUnit || ''}` : '' }}
+          </view>
+          <view class="chips chips--tight">
+            <text
+              v-for="type in STOP_SCOPED_TYPES"
+              :key="type"
+              :class="['chip', 'chip--mini', { 'chip--active': stopNodeReported(stop, type) }]"
+            >{{ nodeTypeName(type) }}</text>
+          </view>
+          <view v-if="stop.cancelReason" class="node__line node__line--warn">已取消：{{ stop.cancelReason }}</view>
+        </view>
+      </view>
+
+      <!-- 按停靠点上报（提货相关三类） -->
+      <view v-if="canReport && hasStops" class="card">
+        <view class="card__title">按停靠点上报</view>
+        <view class="tip">选一家停靠点，再报走到哪一步。**每家各自的进度互不相串**。</view>
+        <view class="chips">
+          <text
+            v-for="stop in reportableStops"
+            :key="stop.id"
+            :class="['chip', { 'chip--active': stopId === stop.id }]"
+            @click="stopId = stop.id"
+          >{{ stop.payeeName || `第 ${stop.stopNo} 站` }}</text>
+        </view>
+        <view class="chips">
+          <text
+            v-for="type in STOP_SCOPED_TYPES"
+            :key="type"
+            :class="['chip', { 'chip--active': nodeType === type }]"
+            @click="nodeType = type"
+          >{{ nodeTypeName(type) }}</text>
+        </view>
+        <view v-if="nodePhotoRequired" class="tip tip--warn">这一步必须有照片（货物流凭证）。</view>
+        <view class="photos">
+          <view v-for="(path, idx) in photoPaths" :key="idx" class="photos__item">
+            <image :src="path" mode="aspectFill" class="photos__img" />
+            <view class="photos__del" @click="removePhoto(idx)">×</view>
+          </view>
+          <view class="photos__add" @click="addPhotos">+ 拍照</view>
+        </view>
+        <button class="btn btn--primary" :loading="busy" @click="onReport">上报节点</button>
+      </view>
+
+      <!-- 整趟收尾：到达场站 / 卸货完成（不属于任何单个停靠点） -->
+      <view v-if="canReport && hasStops" class="card">
+        <view class="card__title">整趟收尾</view>
+        <view class="tip">回到场站 / 卸完货报这里。它是整趟活的收尾，**不归到任何一家停靠点**。</view>
+        <view class="chips">
+          <text
+            v-for="type in TASK_SCOPED_TYPES"
+            :key="type"
+            :class="['chip', { 'chip--active': taskNodeType === type }]"
+            @click="taskNodeType = type"
+          >{{ nodeTypeName(type) }}</text>
+        </view>
+        <view v-if="taskNodePhotoRequired" class="tip tip--warn">这一步必须有照片（货物流凭证）。</view>
+        <view class="photos">
+          <view v-for="(path, idx) in taskPhotoPaths" :key="idx" class="photos__item">
+            <image :src="path" mode="aspectFill" class="photos__img" />
+            <view class="photos__del" @click="removeTaskPhoto(idx)">×</view>
+          </view>
+          <view class="photos__add" @click="addTaskPhotos">+ 拍照</view>
+        </view>
+        <button class="btn btn--primary" :loading="busy" @click="onReportTaskNode">上报收尾节点</button>
+      </view>
+
+      <!-- 单点 / 历史口径：没有停靠点时五类都可报 -->
+      <view v-if="canReport && !hasStops" class="card">
+        <view class="card__title">上报运输节点</view>
+        <view class="tip">这趟任务没有停靠点（单点 / 历史口径），五类节点都可上报。</view>
+        <view class="chips">
+          <text
+            v-for="type in ALL_NODE_TYPES"
+            :key="type"
+            :class="['chip', { 'chip--active': nodeType === type }]"
+            @click="nodeType = type"
+          >{{ nodeTypeName(type) }}</text>
+        </view>
+        <view v-if="nodePhotoRequired" class="tip tip--warn">这一步必须有照片（货物流凭证）。</view>
+        <view class="photos">
+          <view v-for="(path, idx) in photoPaths" :key="idx" class="photos__item">
+            <image :src="path" mode="aspectFill" class="photos__img" />
+            <view class="photos__del" @click="removePhoto(idx)">×</view>
+          </view>
+          <view class="photos__add" @click="addPhotos">+ 拍照</view>
+        </view>
+        <button class="btn btn--primary" :loading="busy" @click="onReport">上报节点</button>
+      </view>
+
+      <!-- 上报异常（独立标记，不改任务状态） -->
+      <view v-if="canReport" class="card card--abnormal">
+        <view class="card__title">上报异常</view>
+        <view class="tip">异常是**独立标记**，不改变任务状态；调度会根据它决定是否改派。</view>
+        <view v-if="hasStops" class="chips">
+          <text
+            :class="['chip', { 'chip--active': abnormalStopId === undefined }]"
+            @click="abnormalStopId = undefined"
+          >路上 / 不带停靠点</text>
+          <text
+            v-for="stop in reportableStops"
+            :key="stop.id"
+            :class="['chip', { 'chip--active': abnormalStopId === stop.id }]"
+            @click="abnormalStopId = stop.id"
+          >{{ stop.payeeName || `第 ${stop.stopNo} 站` }}</text>
+        </view>
+        <view class="chips">
+          <text
+            v-for="item in abnormalTypeOptions"
+            :key="item.value"
+            :class="['chip', { 'chip--danger': abnormalType === item.value }]"
+            @click="abnormalType = item.value"
+          >{{ item.label }}</text>
+        </view>
+        <textarea v-model="abnormalReason" class="textarea" placeholder="说明发生了什么（必填）" maxlength="200" />
+        <view class="photos">
+          <view v-for="(path, idx) in abnormalPhotoPaths" :key="idx" class="photos__item">
+            <image :src="path" mode="aspectFill" class="photos__img" />
+            <view class="photos__del" @click="removeAbnormalPhoto(idx)">×</view>
+          </view>
+          <view class="photos__add" @click="addAbnormalPhotos">+ 拍照</view>
+        </view>
+        <button class="btn btn--danger" :loading="busy" @click="onReportAbnormal">上报异常</button>
       </view>
 
       <view class="card">
@@ -65,55 +201,6 @@
         <button class="btn btn--ghost" @click="goOnboarding">为出售者建档</button>
       </view>
 
-      <view v-if="canReport" class="card">
-        <view class="card__title">上报运输节点</view>
-        <view class="tip">
-          先选走到哪一步，再上报；发生时间与上报时间分开留痕（补录晚到不代表业务倒序）。
-          交接完成与卸货完成是货物流的关键凭证，必须有照片。
-        </view>
-        <view class="chips">
-          <view
-            v-for="item in nodeTypeOptions"
-            :key="item.value"
-            :class="['chip', { 'chip--active': nodeType === item.value }]"
-            @click="nodeType = item.value"
-          >{{ item.label }}</view>
-        </view>
-        <view v-if="nodePhotoRequired" class="tip tip--warn">这一步必须有照片。</view>
-        <view class="photos">
-          <view v-for="(path, idx) in photoPaths" :key="idx" class="photos__item">
-            <image :src="path" mode="aspectFill" class="photos__img" />
-            <view class="photos__del" @click="removePhoto(idx)">×</view>
-          </view>
-          <view class="photos__add" @click="addPhotos">+ 拍照</view>
-        </view>
-        <button class="btn btn--primary" :loading="busy" @click="onReport">上报节点</button>
-      </view>
-
-      <view v-if="canReport" class="card card--abnormal">
-        <view class="card__title">上报异常</view>
-        <view class="tip">
-          异常是**独立标记**，不改变任务状态；调度会根据它决定是否改派。
-        </view>
-        <view class="chips">
-          <view
-            v-for="item in abnormalTypeOptions"
-            :key="item.value"
-            :class="['chip', { 'chip--danger': abnormalType === item.value }]"
-            @click="abnormalType = item.value"
-          >{{ item.label }}</view>
-        </view>
-        <textarea v-model="abnormalReason" class="textarea" placeholder="说明发生了什么（必填）" maxlength="200" />
-        <view class="photos">
-          <view v-for="(path, idx) in abnormalPhotoPaths" :key="idx" class="photos__item">
-            <image :src="path" mode="aspectFill" class="photos__img" />
-            <view class="photos__del" @click="removeAbnormalPhoto(idx)">×</view>
-          </view>
-          <view class="photos__add" @click="addAbnormalPhotos">+ 拍照</view>
-        </view>
-        <button class="btn btn--danger" :loading="busy" @click="onReportAbnormal">上报异常</button>
-      </view>
-
       <view v-if="task.status === 4" class="tip tip--bottom">
         这趟活已完成；如发现凭证缺失，请联系调度在后台补录。
       </view>
@@ -124,26 +211,28 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { DriverTaskVO, getTask, acceptTask, reportNode, reportAbnormal } from '@/api/task'
+import { DriverStopVO, DriverTaskVO, getTask, acceptTask, reportNode, reportAbnormal } from '@/api/task'
 import { chooseImage, pathToDataUrl, uploadImage } from '@/utils/upload'
 import { saveDraft } from '@/utils/draft'
 
 const task = ref<DriverTaskVO>()
 const taskId = ref<number>(0)
 const busy = ref(false)
-const photoPaths = ref<string[]>([])
-const abnormalPhotoPaths = ref<string[]>([])
 
 // 五类节点（与后端 LogisticsTransportNodeTypeEnum 对齐）
-const nodeTypeOptions = [
-  { value: 1, label: '到达提货点' },
-  { value: 2, label: '交接完成' },
-  { value: 3, label: '起运' },
-  { value: 4, label: '到达场站' },
-  { value: 5, label: '卸货完成' }
-]
+const ALL_NODE_TYPES = [1, 2, 3, 4, 5]
+// 按停靠点上报的三类；整趟收尾的两类（V5 #72）
+const STOP_SCOPED_TYPES = [1, 2, 3]
+const TASK_SCOPED_TYPES = [4, 5]
 // 照片必填的两类：交接完成与卸货完成
 const NODE_PHOTO_REQUIRED_TYPES = [2, 5]
+const NODE_TYPE_NAME: Record<number, string> = {
+  1: '到达提货点',
+  2: '交接完成',
+  3: '起运',
+  4: '到达场站',
+  5: '卸货完成'
+}
 // 八类异常（与后端 LogisticsTransportAbnormalTypeEnum 对齐）
 const abnormalTypeOptions = [
   { value: 1, label: '车辆故障' },
@@ -155,12 +244,38 @@ const abnormalTypeOptions = [
   { value: 7, label: '地址错误' },
   { value: 8, label: '其他' }
 ]
-const nodeType = ref<number>(3)
+
+// 按停靠点上报：选中的停靠点与节点类型
+const stopId = ref<number>()
+const nodeType = ref<number>(1)
+// 整趟收尾
+const taskNodeType = ref<number>(4)
+const taskPhotoPaths = ref<string[]>([])
+// 单点口径
+const photoPaths = ref<string[]>([])
+// 异常
+const abnormalStopId = ref<number>()
 const abnormalType = ref<number>(1)
 const abnormalReason = ref('')
+const abnormalPhotoPaths = ref<string[]>([])
 
-const canReport = computed(() => !!task.value && (task.value.status === 2 || task.value.status === 3))
+const hasStops = computed(() => (task.value?.stops?.length || 0) > 0)
+const reportableStops = computed<DriverStopVO[]>(() =>
+  (task.value?.stops || []).filter((stop) => stop.status !== 2 && stop.status !== 3)
+)
+const pendingStopCount = computed(() => task.value?.pendingStopCount ?? reportableStops.value.length)
 const nodePhotoRequired = computed(() => NODE_PHOTO_REQUIRED_TYPES.includes(nodeType.value))
+const taskNodePhotoRequired = computed(() => NODE_PHOTO_REQUIRED_TYPES.includes(taskNodeType.value))
+const canReport = computed(() => !!task.value && (task.value.status === 2 || task.value.status === 3))
+const cargoText = computed(() => {
+  if (!task.value?.cargoName) return '以现场交接为准'
+  const qty = task.value.estimatedQuantity ? ` · 约 ${task.value.estimatedQuantity}${task.value.quantityUnit || ''}` : ''
+  return task.value.cargoName + qty
+})
+const timeRange = computed(() => {
+  if (!task.value?.expectedStartTime && !task.value?.expectedEndTime) return '未指定'
+  return `${fmt(task.value?.expectedStartTime)} ~ ${fmt(task.value?.expectedEndTime)}`
+})
 const brokenPointText = computed(() => {
   const parts: string[] = []
   if (task.value?.missingNodeNames?.length) {
@@ -171,15 +286,14 @@ const brokenPointText = computed(() => {
   }
   return parts.length ? `断点 · ${parts.join('；')}` : ''
 })
-const cargoText = computed(() => {
-  if (!task.value?.cargoName) return '以现场交接为准'
-  const qty = task.value.estimatedQuantity ? ` · 约 ${task.value.estimatedQuantity}${task.value.quantityUnit || ''}` : ''
-  return task.value.cargoName + qty
-})
-const timeRange = computed(() => {
-  if (!task.value?.expectedStartTime && !task.value?.expectedEndTime) return '未指定'
-  return `${fmt(task.value?.expectedStartTime)} ~ ${fmt(task.value?.expectedEndTime)}`
-})
+
+function nodeTypeName(type: number) {
+  return NODE_TYPE_NAME[type] || '节点'
+}
+
+function stopNodeReported(stop: DriverStopVO, type: number) {
+  return (stop.nodes || []).some((node) => node.nodeType === type)
+}
 
 function fmt(ms?: number) {
   if (!ms) return '—'
@@ -190,6 +304,10 @@ function fmt(ms?: number) {
 
 async function load() {
   task.value = await getTask(taskId.value)
+  // 默认选中第一家还没提的停靠点
+  if (!stopId.value || !reportableStops.value.some((s) => s.id === stopId.value)) {
+    stopId.value = reportableStops.value[0]?.id
+  }
 }
 
 async function onAccept() {
@@ -213,11 +331,20 @@ async function addPhotos() {
     uni.showToast({ title: (e as Error).message || '选择照片失败', icon: 'none' })
   }
 }
-
 function removePhoto(idx: number) {
   photoPaths.value.splice(idx, 1)
 }
-
+async function addTaskPhotos() {
+  try {
+    const paths = await chooseImage(3)
+    taskPhotoPaths.value = [...taskPhotoPaths.value, ...paths].slice(0, 6)
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message || '选择照片失败', icon: 'none' })
+  }
+}
+function removeTaskPhoto(idx: number) {
+  taskPhotoPaths.value.splice(idx, 1)
+}
 async function addAbnormalPhotos() {
   try {
     const paths = await chooseImage(3)
@@ -226,7 +353,6 @@ async function addAbnormalPhotos() {
     uni.showToast({ title: (e as Error).message || '选择照片失败', icon: 'none' })
   }
 }
-
 function removeAbnormalPhoto(idx: number) {
   abnormalPhotoPaths.value.splice(idx, 1)
 }
@@ -259,59 +385,76 @@ function getLocationSnapshot(): Promise<{ latitude?: number; longitude?: number 
   })
 }
 
-async function onReport() {
-  const photosInFlight = photoPaths.value
-  if (nodePhotoRequired.value && photosInFlight.length === 0) {
+async function uploadPhotos(paths: string[]): Promise<string[]> {
+  const photos: string[] = []
+  for (const path of paths) {
+    photos.push(await uploadImage(path))
+  }
+  return photos
+}
+
+async function saveNodeDraft(clientRequestId: string, nodeTime: number, nodeTypeValue: number,
+                            stopIdValue: number | undefined, paths: string[], location: object) {
+  const drafts = []
+  for (let i = 0; i < paths.length; i++) {
+    drafts.push({ key: `photo-${i}`, dataUrl: await pathToDataUrl(paths[i]) })
+  }
+  const stop = (task.value?.stops || []).find((s) => s.id === stopIdValue)
+  saveDraft({
+    clientRequestId,
+    createdAt: nodeTime,
+    kind: 'NODE',
+    summary: `${task.value?.taskNo || ''} ${stop?.payeeName ? stop.payeeName + '·' : ''}${nodeTypeName(nodeTypeValue)}`,
+    payload: {
+      taskId: taskId.value,
+      stopId: stopIdValue,
+      nodeType: nodeTypeValue,
+      nodeTime,
+      clientRequestId,
+      ...location
+    },
+    photos: drafts,
+    photoUrls: {}
+  })
+}
+
+async function doReportNode(nodeTypeValue: number, stopIdValue: number | undefined, paths: string[]) {
+  if (NODE_PHOTO_REQUIRED_TYPES.includes(nodeTypeValue) && paths.length === 0) {
     uni.showToast({ title: '这一步必须有照片', icon: 'none' })
     return
   }
   busy.value = true
-  // 发生时间取点击这一刻；上报时间由服务端落，两者分开留痕
   const nodeTime = Date.now()
   const clientRequestId = `driver-${nodeTime}-${Math.floor(Math.random() * 1e6)}`
   const location = await getLocationSnapshot()
-  const nodeTypeValue = nodeType.value
   try {
-    const photos: string[] = []
-    for (const path of photosInFlight) {
-      photos.push(await uploadImage(path))
-    }
     await reportNode({
       taskId: taskId.value,
+      stopId: stopIdValue,
       nodeType: nodeTypeValue,
       nodeTime,
-      photos,
+      photos: await uploadPhotos(paths),
       clientRequestId,
       ...location
     })
-    photoPaths.value = []
     uni.showToast({ title: '已上报节点', icon: 'none' })
     await load()
   } catch (e) {
-    // 弱网：把照片一起暂存到本机（base64），恢复后在「待补传」里重传
-    const drafts = []
-    for (let i = 0; i < photosInFlight.length; i++) {
-      drafts.push({ key: `photo-${i}`, dataUrl: await pathToDataUrl(photosInFlight[i]) })
-    }
-    saveDraft({
-      clientRequestId,
-      createdAt: nodeTime,
-      kind: 'NODE',
-      summary: `${task.value?.taskNo || ''} ${nodeTypeLabel(nodeTypeValue)}`,
-      payload: {
-        taskId: taskId.value,
-        nodeType: nodeTypeValue,
-        nodeTime,
-        clientRequestId,
-        ...location
-      },
-      photos: drafts,
-      photoUrls: {}
-    })
+    await saveNodeDraft(clientRequestId, nodeTime, nodeTypeValue, stopIdValue, paths, location)
     uni.showToast({ title: '网络不通，已暂存本机，稍后补传', icon: 'none' })
   } finally {
     busy.value = false
   }
+}
+
+async function onReport() {
+  await doReportNode(nodeType.value, hasStops.value ? stopId.value : undefined, photoPaths.value)
+  photoPaths.value = []
+}
+
+async function onReportTaskNode() {
+  await doReportNode(taskNodeType.value, undefined, taskPhotoPaths.value)
+  taskPhotoPaths.value = []
 }
 
 async function onReportAbnormal() {
@@ -319,24 +462,21 @@ async function onReportAbnormal() {
     uni.showToast({ title: '请填异常说明', icon: 'none' })
     return
   }
-  const photosInFlight = abnormalPhotoPaths.value
   busy.value = true
   const nodeTime = Date.now()
   const clientRequestId = `driver-abn-${nodeTime}-${Math.floor(Math.random() * 1e6)}`
   const location = await getLocationSnapshot()
   const abnormalTypeValue = abnormalType.value
   const reason = abnormalReason.value.trim()
+  const stopIdValue = abnormalStopId.value
   try {
-    const photos: string[] = []
-    for (const path of photosInFlight) {
-      photos.push(await uploadImage(path))
-    }
     await reportAbnormal({
       taskId: taskId.value,
+      stopId: stopIdValue,
       abnormalType: abnormalTypeValue,
       abnormalReason: reason,
       nodeTime,
-      photos,
+      photos: await uploadPhotos(abnormalPhotoPaths.value),
       clientRequestId,
       ...location
     })
@@ -346,16 +486,17 @@ async function onReportAbnormal() {
     await load()
   } catch (e) {
     const drafts = []
-    for (let i = 0; i < photosInFlight.length; i++) {
-      drafts.push({ key: `photo-${i}`, dataUrl: await pathToDataUrl(photosInFlight[i]) })
+    for (let i = 0; i < abnormalPhotoPaths.value.length; i++) {
+      drafts.push({ key: `photo-${i}`, dataUrl: await pathToDataUrl(abnormalPhotoPaths.value[i]) })
     }
     saveDraft({
       clientRequestId,
       createdAt: nodeTime,
       kind: 'ABNORMAL',
-      summary: `${task.value?.taskNo || ''} 异常·${abnormalTypeLabel(abnormalTypeValue)}`,
+      summary: `${task.value?.taskNo || ''} 异常·${abnormalTypeOptions.find((t) => t.value === abnormalTypeValue)?.label || ''}`,
       payload: {
         taskId: taskId.value,
+        stopId: stopIdValue,
         abnormalType: abnormalTypeValue,
         abnormalReason: reason,
         nodeTime,
@@ -369,14 +510,6 @@ async function onReportAbnormal() {
   } finally {
     busy.value = false
   }
-}
-
-function nodeTypeLabel(value: number) {
-  return nodeTypeOptions.find((item) => item.value === value)?.label || '节点'
-}
-
-function abnormalTypeLabel(value: number) {
-  return abnormalTypeOptions.find((item) => item.value === value)?.label || '异常'
 }
 
 onLoad((options) => {
@@ -427,6 +560,10 @@ onLoad((options) => {
 
   &__value {
     flex: 1;
+
+    &--warn {
+      color: #b45309;
+    }
   }
 }
 
@@ -440,6 +577,35 @@ onLoad((options) => {
 
 .actions {
   margin-bottom: 24rpx;
+}
+
+.stop {
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f1f5f9;
+
+  &--done {
+    opacity: 0.7;
+  }
+
+  &--cancel {
+    opacity: 0.5;
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__name {
+    font-size: 28rpx;
+    font-weight: 600;
+  }
+
+  &__status {
+    color: #6b7a72;
+    font-size: 24rpx;
+  }
 }
 
 .node {
@@ -466,6 +632,10 @@ onLoad((options) => {
     margin-top: 6rpx;
     color: #6b7a72;
     font-size: 24rpx;
+
+    &--warn {
+      color: #b45309;
+    }
   }
 
   &__photos {
@@ -523,26 +693,16 @@ onLoad((options) => {
   }
 }
 
-.tip {
-  color: #8a919f;
-  font-size: 24rpx;
-  line-height: 1.6;
-
-  &--warn {
-    color: #b45309;
-  }
-
-  &--bottom {
-    margin-top: 16rpx;
-    text-align: center;
-  }
-}
-
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
   margin: 16rpx 0;
+
+  &--tight {
+    gap: 8rpx;
+    margin: 8rpx 0 0;
+  }
 }
 
 .chip {
@@ -552,6 +712,11 @@ onLoad((options) => {
   border-radius: 999rpx;
   color: #4b5563;
   font-size: 24rpx;
+
+  &--mini {
+    padding: 4rpx 16rpx;
+    font-size: 22rpx;
+  }
 
   &--active {
     background-color: #16a34a;
@@ -593,6 +758,36 @@ onLoad((options) => {
     background-color: #dc2626;
     color: #fff;
     border-radius: 12rpx;
+  }
+
+  &--ghost {
+    background-color: transparent;
+    border: 1rpx solid #e5e7eb;
+    color: #6b7a72;
+    font-size: 26rpx;
+  }
+}
+
+.tip {
+  color: #8a919f;
+  font-size: 24rpx;
+  line-height: 1.6;
+
+  &--warn {
+    color: #b45309;
+  }
+
+  &--note {
+    margin-bottom: 20rpx;
+    padding: 16rpx 20rpx;
+    background-color: #eff6ff;
+    border-radius: 12rpx;
+    color: #1d4ed8;
+  }
+
+  &--bottom {
+    margin-top: 16rpx;
+    text-align: center;
   }
 }
 

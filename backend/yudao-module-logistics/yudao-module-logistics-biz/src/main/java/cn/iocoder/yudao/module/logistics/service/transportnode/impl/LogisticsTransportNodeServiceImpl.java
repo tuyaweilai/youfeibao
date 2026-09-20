@@ -9,12 +9,16 @@ import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.Logis
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeRespVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transportnode.LogisticsTransportNodeDO;
+import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportStopDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
 import cn.iocoder.yudao.module.logistics.dal.mysql.transportnode.LogisticsTransportNodeMapper;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportAbnormalTypeEnum;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportNodeTypeEnum;
+import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportStopStatusEnum;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportTaskStatusEnum;
 import cn.iocoder.yudao.module.logistics.service.transportnode.LogisticsTransportNodeService;
+import cn.iocoder.yudao.module.logistics.service.transportnode.TransportNodeConverter;
+import cn.iocoder.yudao.module.logistics.service.transportstop.LogisticsTransportStopService;
 import cn.iocoder.yudao.module.logistics.service.transporttask.LogisticsTransportTaskService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,20 +28,22 @@ import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.logistics.enums.ErrorCodeConstants.*;
 
 /**
- * 运输节点 Service 实现（V2b #78；V4 #71 开全五类并加异常）。
+ * 运输节点 Service 实现（V2b #78；V4 #71 开全五类并加异常；V5 #72 节点归到停靠点）。
  *
- * <p>三件事必须做对：
+ * <p>四件事必须做对：
  * <ol>
  *   <li><b>写入幂等</b>——弱网补传会重复提交同一条事实；</li>
  *   <li><b>两个时间分开</b>——发生时间是事情真的发生的那一刻，上报时间是客户端提交上来的那一刻；
  *       补录晚到不代表业务倒序（时间线按发生时间排）；</li>
- *   <li><b>异常是独立标记，不是状态</b>——异常只落事实，任务状态机由 {@link LogisticsTransportTaskService} 负责。</li>
+ *   <li><b>异常是独立标记，不是状态</b>——异常只落事实，任务状态机由 {@link LogisticsTransportTaskService} 负责；</li>
+ *   <li><b>集货时节点归到停靠点</b>——到达提货点 / 交接完成 / 起运必须带 {@code stopId}，
+ *       进度按停靠点各自收敛，互不相串（V5）。</li>
  * </ol>
  */
 @Service
@@ -48,6 +54,8 @@ public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNode
     private LogisticsTransportNodeMapper logisticsTransportNodeMapper;
     @Resource
     private LogisticsTransportTaskService logisticsTransportTaskService;
+    @Resource
+    private LogisticsTransportStopService logisticsTransportStopService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -73,11 +81,14 @@ public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNode
         if (nodeType.isPhotoRequired() && CollUtil.isEmpty(reportReqVO.getPhotos())) {
             throw exception(TRANSPORT_NODE_PHOTO_REQUIRED);
         }
+        // 4. 停靠点：集货时提货相关节点必须归到某一个停靠点，整趟收尾的两类不许带停靠点
+        LogisticsTransportStopDO stop = resolveStop(task, nodeType, reportReqVO.getStopId());
 
-        // 4. 落节点
+        // 5. 落节点
         LogisticsTransportNodeDO node = new LogisticsTransportNodeDO();
         node.setTaskId(task.getId());
         node.setTaskNo(task.getTaskNo());
+        node.setStopId(stop == null ? null : stop.getId());
         node.setNodeType(nodeType.getType());
         node.setNodeTime(reportReqVO.getNodeTime());
         node.setReportTime(LocalDateTime.now());
@@ -91,13 +102,17 @@ public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNode
         node.setRemark(reportReqVO.getRemark());
         logisticsTransportNodeMapper.insert(node);
 
-        // 5. 起运把任务推进到「执行中」（状态推进只经任务服务，状态机只有一处）
+        // 6. 起运把任务推进到「执行中」（状态推进只经任务服务，状态机只有一处）
         if (LogisticsTransportNodeTypeEnum.DEPARTED == nodeType) {
             LogisticsTransportTaskDO update = new LogisticsTransportTaskDO();
             update.setId(task.getId());
             update.setStartTime(reportReqVO.getNodeTime());
             logisticsTransportTaskService.transitStatusAndFill(
                     task, LogisticsTransportTaskStatusEnum.IN_TRANSIT, update);
+        }
+        // 7. 推进该停靠点自己的进度（只动这一个点）
+        if (stop != null) {
+            logisticsTransportStopService.onNodeReported(stop, nodeType);
         }
         return node.getId();
     }
@@ -123,11 +138,15 @@ public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNode
         }
         LogisticsTransportTaskDO task = logisticsTransportTaskService.getTask(reportReqVO.getTaskId());
         assertTaskReportable(task);
+        // 异常可以挂在某一个停靠点上（对方不在），也可以是路上的事（不带停靠点）
+        LogisticsTransportStopDO stop = reportReqVO.getStopId() == null ? null
+                : requireStopOfTask(task, reportReqVO.getStopId());
 
         // 3. 落一条**没有节点类型**的事实：异常是独立标记，不是「走到哪一步」
         LogisticsTransportNodeDO node = new LogisticsTransportNodeDO();
         node.setTaskId(task.getId());
         node.setTaskNo(task.getTaskNo());
+        node.setStopId(stop == null ? null : stop.getId());
         node.setNodeType(null);
         node.setNodeTime(reportReqVO.getNodeTime());
         node.setReportTime(LocalDateTime.now());
@@ -143,7 +162,7 @@ public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNode
         node.setClientRequestId(reportReqVO.getClientRequestId());
         node.setRemark(reportReqVO.getRemark());
         logisticsTransportNodeMapper.insert(node);
-        // 4. 刻意**不**调 transitStatus：异常不改变任务状态机
+        // 4. 刻意**不**调 transitStatus，也不改停靠点状态：异常是独立标记
         return node.getId();
     }
 
@@ -186,10 +205,46 @@ public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNode
 
     @Override
     public List<LogisticsTransportNodeRespVO> toRespList(List<LogisticsTransportNodeDO> nodes) {
-        if (CollUtil.isEmpty(nodes)) {
-            return Collections.emptyList();
+        return TransportNodeConverter.toRespList(nodes);
+    }
+
+    /**
+     * 停靠点规则（V5）：
+     * <ul>
+     *   <li>提货相关的三类节点（到达提货点 / 交接完成 / 起运）在**有停靠点的任务**上必须带 {@code stopId}；
+     *       没有停靠点的历史任务允许为空（单点、按老口径）。</li>
+     *   <li>整趟收尾的两类（到达场站 / 卸货完成）不许带 {@code stopId}。</li>
+     *   <li>带到已取消的停靠点上报直接拒。</li>
+     * </ul>
+     */
+    private LogisticsTransportStopDO resolveStop(LogisticsTransportTaskDO task,
+                                                 LogisticsTransportNodeTypeEnum nodeType, Long stopId) {
+        if (!nodeType.isStopScoped()) {
+            if (stopId != null) {
+                throw exception(TRANSPORT_STOP_NOT_ALLOWED_FOR_NODE);
+            }
+            return null;
         }
-        return nodes.stream().map(this::toResp).collect(Collectors.toList());
+        if (stopId == null) {
+            // 老任务（建在 V5 之前）没有停靠点，按单点口径放行；有停靠点的任务必须指明去的是哪一家
+            boolean hasStops = !logisticsTransportStopService.getStopListByTaskId(task.getId()).isEmpty();
+            if (hasStops) {
+                throw exception(TRANSPORT_STOP_REQUIRED_FOR_NODE);
+            }
+            return null;
+        }
+        return requireStopOfTask(task, stopId);
+    }
+
+    private LogisticsTransportStopDO requireStopOfTask(LogisticsTransportTaskDO task, Long stopId) {
+        LogisticsTransportStopDO stop = logisticsTransportStopService.getStop(stopId);
+        if (!Objects.equals(stop.getTaskId(), task.getId())) {
+            throw exception(TRANSPORT_STOP_NOT_BELONG_TO_TASK);
+        }
+        if (LogisticsTransportStopStatusEnum.CANCELLED.getStatus().equals(stop.getStatus())) {
+            throw exception(TRANSPORT_STOP_CANCELLED_NOT_REPORTABLE);
+        }
+        return stop;
     }
 
     /**
@@ -207,44 +262,8 @@ public class LogisticsTransportNodeServiceImpl implements LogisticsTransportNode
         }
     }
 
-    private LogisticsTransportNodeRespVO toResp(LogisticsTransportNodeDO node) {
-        LogisticsTransportNodeRespVO resp = new LogisticsTransportNodeRespVO();
-        resp.setId(node.getId());
-        resp.setTaskId(node.getTaskId());
-        resp.setTaskNo(node.getTaskNo());
-        resp.setNodeType(node.getNodeType());
-        resp.setNodeTypeName(LogisticsTransportNodeTypeEnum.ofType(node.getNodeType())
-                .map(LogisticsTransportNodeTypeEnum::getName).orElse(null));
-        resp.setNodeTime(node.getNodeTime());
-        resp.setReportTime(node.getReportTime());
-        resp.setLocation(node.getLocation());
-        resp.setLatitude(node.getLatitude());
-        resp.setLongitude(node.getLongitude());
-        resp.setPhotos(fromPhotosJson(node.getPhotos()));
-        resp.setOperatorId(node.getOperatorId());
-        resp.setOperatorName(node.getOperatorName());
-        resp.setAbnormalType(node.getAbnormalType());
-        resp.setAbnormalTypeName(LogisticsTransportAbnormalTypeEnum.nameOf(node.getAbnormalType()));
-        resp.setAbnormalReason(node.getAbnormalReason());
-        resp.setAbnormalResolved(node.getAbnormalResolved());
-        resp.setAbnormalResolvedAt(node.getAbnormalResolvedAt());
-        resp.setAbnormalResolvedName(node.getAbnormalResolvedName());
-        resp.setAbnormalResolvedRemark(node.getAbnormalResolvedRemark());
-        resp.setRemark(node.getRemark());
-        resp.setCreateTime(node.getCreateTime());
-        return resp;
-    }
-
     private String toPhotosJson(List<String> photos) {
         return CollUtil.isEmpty(photos) ? null : JsonUtils.toJsonString(photos);
-    }
-
-    private List<String> fromPhotosJson(String photosJson) {
-        if (StrUtil.isBlank(photosJson)) {
-            return Collections.emptyList();
-        }
-        List<String> photos = JsonUtils.parseArray(photosJson, String.class);
-        return photos == null ? Collections.emptyList() : photos;
     }
 
     /**

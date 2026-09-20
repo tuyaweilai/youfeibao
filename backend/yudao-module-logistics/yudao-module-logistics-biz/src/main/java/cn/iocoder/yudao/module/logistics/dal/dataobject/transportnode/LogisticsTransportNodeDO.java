@@ -41,6 +41,14 @@ public class LogisticsTransportNodeDO extends TenantBaseDO {
     private String taskNo;
 
     /**
+     * 停靠点编号（V5 #72）
+     *
+     * <p>到提货点 / 交接完成 / 起运都发生在**某一个停靠点**上；到达场站 / 卸货完成是整趟活的收尾，为空。
+     * 集货（一车提三家）时靠它把节点归到各家，进度互不相串。
+     */
+    private Long stopId;
+
+    /**
      * 节点类型
      *
      * 枚举 {@link cn.iocoder.yudao.module.logistics.enums.LogisticsTransportNodeTypeEnum}

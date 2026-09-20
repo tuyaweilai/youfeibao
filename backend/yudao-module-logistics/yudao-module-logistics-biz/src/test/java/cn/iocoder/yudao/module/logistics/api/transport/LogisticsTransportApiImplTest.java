@@ -4,7 +4,7 @@ import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.logistics.UnitTestConfiguration;
 import cn.iocoder.yudao.module.logistics.api.transport.dto.LogisticsTransportNodeRespDTO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeReportReqVO;
-import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCreateReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
 import cn.iocoder.yudao.module.logistics.dal.mysql.transporttask.LogisticsTransportTaskMapper;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportNodeTypeEnum;
@@ -83,7 +83,7 @@ public class LogisticsTransportApiImplTest extends BaseDbUnitTest {
         // 建一个带车与司机的任务，再上报一个节点
         Long vehicleId = createVehicle();
         Long driverId = createDriver();
-        LogisticsTransportTaskSaveReqVO taskReqVO = new LogisticsTransportTaskSaveReqVO();
+        LogisticsTransportTaskCreateReqVO taskReqVO = new LogisticsTransportTaskCreateReqVO();
         taskReqVO.setDepartureAddress("城东场站");
         taskReqVO.setPickupAddress("某某路 1 号");
         taskReqVO.setVehicleId(vehicleId);

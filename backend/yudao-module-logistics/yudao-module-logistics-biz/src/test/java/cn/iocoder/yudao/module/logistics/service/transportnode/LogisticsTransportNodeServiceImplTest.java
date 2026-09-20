@@ -9,7 +9,7 @@ import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.Logis
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeRespVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
-import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCreateReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.vehicle.vo.LogisticsVehicleSaveReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transportnode.LogisticsTransportNodeDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
@@ -486,8 +486,8 @@ public class LogisticsTransportNodeServiceImplTest extends BaseDbUnitTest {
         return reqVO;
     }
 
-    private static LogisticsTransportTaskSaveReqVO newTask(Long vehicleId, Long driverId) {
-        LogisticsTransportTaskSaveReqVO task = new LogisticsTransportTaskSaveReqVO();
+    private static LogisticsTransportTaskCreateReqVO newTask(Long vehicleId, Long driverId) {
+        LogisticsTransportTaskCreateReqVO task = new LogisticsTransportTaskCreateReqVO();
         task.setVehicleId(vehicleId);
         task.setDriverId(driverId);
         task.setDepartureAddress("城东场站");

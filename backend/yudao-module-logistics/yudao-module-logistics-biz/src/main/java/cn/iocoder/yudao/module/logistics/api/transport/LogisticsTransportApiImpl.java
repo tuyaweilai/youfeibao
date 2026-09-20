@@ -56,6 +56,7 @@ public class LogisticsTransportApiImpl implements LogisticsTransportApi {
         dto.setId(node.getId());
         dto.setTransportTaskId(node.getTaskId());
         dto.setTaskNo(node.getTaskNo());
+        dto.setStopId(node.getStopId());
         dto.setNodeType(node.getNodeType());
         dto.setAbnormalType(node.getAbnormalType());
         dto.setAbnormalTypeName(LogisticsTransportAbnormalTypeEnum.nameOf(node.getAbnormalType()));

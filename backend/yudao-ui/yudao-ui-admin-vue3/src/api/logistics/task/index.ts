@@ -1,11 +1,12 @@
 import request from '@/config/axios'
 
-// 运输任务（#78 V2b）：一车 + 一司机 + 一次执行；节点是过程事实与货物流凭证。
-// 本票只开放「起运」一类节点的上报，其余四类与异常归 #71。
+// 运输任务（#78 V2b；#71 V4 五类节点 + 异常 + 改派；#72 V5 多停靠点集货）：一车 + 一司机 + 一次执行。
+// 一次集货不构成把几个出售者合并结算的依据：每个停靠点各自交接、各自复磅、各自结算（ADR 0031）。
 export interface LogisticsTransportNodeVO {
   id?: number
   taskId?: number
   taskNo?: string
+  stopId?: number // 提货相关节点非空；到达场站/卸货完成为整趟收尾，为空（V5 #72）
   nodeType?: number // 1-到达提货点，2-交接完成，3-起运，4-到达场站，5-卸货完成；空=异常事件
   nodeTypeName?: string
   nodeTime?: Date
@@ -46,6 +47,38 @@ export interface LogisticsTransportTaskReassignVO {
   reassignTime?: Date
 }
 
+// 停靠点保存（建任务时一起带 / 事后追加）
+export interface LogisticsTransportStopSaveVO {
+  taskId?: number
+  stopType?: number // 1-提货，2-送货
+  payeeId?: number
+  payeeName?: string
+  payeeMobile?: string
+  address?: string
+  contactName?: string
+  contactPhone?: string
+  cargoName?: string
+  estimatedQuantity?: number
+  quantityUnit?: string
+  expectedArrivalTime?: Date
+  remark?: string
+}
+
+// 停靠点（带各自的节点、进度与断点）
+export interface LogisticsTransportStopVO extends LogisticsTransportStopSaveVO {
+  id?: number
+  taskNo?: string
+  stopNo?: number
+  stopTypeName?: string
+  status?: number // 0-待处理，1-进行中，2-已完成，3-已取消
+  statusName?: string
+  cancelReason?: string
+  cancelTime?: Date
+  nodes?: LogisticsTransportNodeVO[]
+  missingNodeNames?: string[]
+  missingEvidenceNames?: string[]
+}
+
 export interface LogisticsTransportTaskVO {
   id?: number
   taskNo?: string
@@ -64,6 +97,9 @@ export interface LogisticsTransportTaskVO {
   expectedEndTime?: Date
   purchaseOrderId?: number
   purchaseOrderNo?: string
+  cargoName?: string
+  estimatedQuantity?: number
+  quantityUnit?: string
   assignTime?: Date
   acceptTime?: Date
   startTime?: Date
@@ -79,14 +115,23 @@ export interface LogisticsTransportTaskVO {
   missingNodeNames?: string[]
   missingEvidenceNames?: string[]
   reassigns?: LogisticsTransportTaskReassignVO[]
+  stops?: LogisticsTransportStopVO[]
+  pendingStopCount?: number
+  scopeNote?: string
 }
+
+// 建任务时可一次带多个停靠点（保存态，不是带进度的响应态）
+export type LogisticsTransportTaskCreateVO = Omit<
+  LogisticsTransportTaskVO,
+  'stops' | 'nodes' | 'reassigns' | 'pendingStopCount' | 'scopeNote' | 'missingNodeNames' | 'missingEvidenceNames'
+> & { stops?: LogisticsTransportStopSaveVO[] }
 
 export const LogisticsTransportTaskApi = {
   getTaskPage: async (params: any) =>
     await request.get({ url: `/logistics/transport-task/page`, params }),
   getTask: async (id: number) =>
     await request.get({ url: `/logistics/transport-task/get?id=` + id }),
-  createTask: async (data: LogisticsTransportTaskVO) =>
+  createTask: async (data: LogisticsTransportTaskCreateVO) =>
     await request.post({ url: `/logistics/transport-task/create`, data }),
   updateTask: async (data: LogisticsTransportTaskVO) =>
     await request.put({ url: `/logistics/transport-task/update`, data }),
@@ -116,9 +161,22 @@ export const LogisticsTransportTaskApi = {
     await request.put({ url: `/logistics/transport-task/cancel`, data })
 }
 
+export const LogisticsTransportStopApi = {
+  /** 给任务追加一个停靠点（停靠顺序接在最后） */
+  createStop: async (data: LogisticsTransportStopSaveVO) =>
+    await request.post({ url: `/logistics/transport-stop/create`, data }),
+  /** 取消一个停靠点：只取消这一个，其它停靠点不受影响 */
+  cancelStop: async (data: { id: number; cancelReason: string }) =>
+    await request.put({ url: `/logistics/transport-stop/cancel`, data }),
+  /** 按任务取停靠点及其各自的进度与断点 */
+  getStopListByTask: async (taskId: number) =>
+    await request.get({ url: `/logistics/transport-stop/list-by-task?taskId=` + taskId })
+}
+
 export const LogisticsTransportNodeApi = {
   reportNode: async (data: {
     taskId: number
+    stopId?: number
     nodeType: number
     nodeTime: Date
     location?: string
@@ -129,6 +187,7 @@ export const LogisticsTransportNodeApi = {
   /** 上报异常：独立标记，不改任务状态（V4 #71） */
   reportAbnormal: async (data: {
     taskId: number
+    stopId?: number
     abnormalType: number
     abnormalReason: string
     nodeTime: Date

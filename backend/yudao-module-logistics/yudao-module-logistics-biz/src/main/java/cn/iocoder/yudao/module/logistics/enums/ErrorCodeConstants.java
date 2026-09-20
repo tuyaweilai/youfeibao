@@ -25,6 +25,7 @@ public interface ErrorCodeConstants {
     ErrorCode TRANSPORT_TASK_OVERRIDE_NOT_APPLICABLE = new ErrorCode(1_030_200_009, "该情况不能授权放行（车辆维修中、司机离职这类硬门禁不可绕过）");
     ErrorCode TRANSPORT_TASK_REASSIGN_REASON_REQUIRED = new ErrorCode(1_030_200_010, "改派必须填原因");
     ErrorCode TRANSPORT_TASK_REASSIGN_NOT_ALLOWED = new ErrorCode(1_030_200_011, "当前状态不允许改派（只有已分配 / 已接单 / 执行中可以改派）");
+    ErrorCode TRANSPORT_TASK_STOP_REQUIRED = new ErrorCode(1_030_200_012, "任务至少需要一个停靠点，或一个提货点地址");
 
     // ========== 车辆 1-030-201-000 ==========
     ErrorCode VEHICLE_NOT_EXISTS = new ErrorCode(1_030_201_000, "车辆不存在");
@@ -71,5 +72,18 @@ public interface ErrorCodeConstants {
             new ErrorCode(1_030_203_103, "该异常记录不存在");
     ErrorCode TRANSPORT_ABNORMAL_ALREADY_RESOLVED =
             new ErrorCode(1_030_203_104, "该异常已经解决过了");
+
+    // ========== 运输停靠点 1-030-204-000（V5 #72） ==========
+    ErrorCode TRANSPORT_STOP_NOT_EXISTS = new ErrorCode(1_030_204_000, "运输停靠点不存在");
+    ErrorCode TRANSPORT_STOP_NOT_BELONG_TO_TASK = new ErrorCode(1_030_204_001, "该停靠点不属于这趟运输任务");
+    ErrorCode TRANSPORT_STOP_CANCEL_REASON_REQUIRED = new ErrorCode(1_030_204_002, "取消停靠点必须填原因");
+    ErrorCode TRANSPORT_STOP_STATUS_NOT_ALLOW_CANCEL =
+            new ErrorCode(1_030_204_003, "已完成或已取消的停靠点不能再取消");
+    ErrorCode TRANSPORT_STOP_CANCELLED_NOT_REPORTABLE =
+            new ErrorCode(1_030_204_004, "该停靠点已取消，不能再上报节点");
+    ErrorCode TRANSPORT_STOP_REQUIRED_FOR_NODE =
+            new ErrorCode(1_030_204_005, "到达提货点 / 交接完成 / 起运必须指定停靠点（集货时不能混报）");
+    ErrorCode TRANSPORT_STOP_NOT_ALLOWED_FOR_NODE =
+            new ErrorCode(1_030_204_006, "到达场站 / 卸货完成是整趟活的收尾，不属于单个停靠点");
 
 }

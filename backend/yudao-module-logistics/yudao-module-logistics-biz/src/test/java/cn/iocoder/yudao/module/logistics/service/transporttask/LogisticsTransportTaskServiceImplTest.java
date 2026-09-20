@@ -6,6 +6,7 @@ import cn.iocoder.yudao.module.logistics.UnitTestConfiguration;
 import cn.iocoder.yudao.module.logistics.controller.admin.driver.vo.LogisticsDriverSaveReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCreateReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskReassignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.vehicle.vo.LogisticsVehicleSaveReqVO;
@@ -479,8 +480,8 @@ public class LogisticsTransportTaskServiceImplTest extends BaseDbUnitTest {
         return driver;
     }
 
-    private static LogisticsTransportTaskSaveReqVO newTask(Long vehicleId, Long driverId) {
-        LogisticsTransportTaskSaveReqVO task = new LogisticsTransportTaskSaveReqVO();
+    private static LogisticsTransportTaskCreateReqVO newTask(Long vehicleId, Long driverId) {
+        LogisticsTransportTaskCreateReqVO task = new LogisticsTransportTaskCreateReqVO();
         task.setVehicleId(vehicleId);
         task.setDriverId(driverId);
         task.setDepartureAddress("城东场站");

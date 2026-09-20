@@ -3,10 +3,12 @@ package cn.iocoder.yudao.module.logistics.service.transporttask;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCreateReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskOverrideAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskReassignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transportstop.vo.LogisticsTransportStopSaveReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskReassignDO;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportTaskStatusEnum;
@@ -27,8 +29,16 @@ public interface LogisticsTransportTaskService {
 
     /**
      * 建任务。带车与司机即等于派车（直接到「已分配」）；都不带则停在「待分配」。
+     *
+     * <p>可一次带多个停靠点（集货）。停靠点非空时，任务的提货点地址取**第一个停靠点**的快照，
+     * 便于列表展示；停靠点为空且提货点地址也为空则拒。
      */
-    Long createTask(@Valid LogisticsTransportTaskSaveReqVO createReqVO);
+    Long createTask(@Valid LogisticsTransportTaskCreateReqVO createReqVO);
+
+    /**
+     * 给已有任务追加一个停靠点（V5）。终态任务不接受追加；已取消的任务也不行。
+     */
+    Long addStop(@Valid LogisticsTransportStopSaveReqVO addStopReqVO);
 
     /**
      * 改任务的基本信息（地址、时间窗、联系人、备注）。**不改状态、不改车与人**——

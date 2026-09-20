@@ -1,15 +1,18 @@
 package cn.iocoder.yudao.module.logistics.service.transporttask.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCreateReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskOverrideAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskReassignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transportstop.vo.LogisticsTransportStopSaveReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.driver.LogisticsDriverDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskReassignDO;
@@ -21,6 +24,7 @@ import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportTaskStatusEnum;
 import cn.iocoder.yudao.module.logistics.service.driver.LogisticsDriverService;
+import cn.iocoder.yudao.module.logistics.service.transportstop.LogisticsTransportStopService;
 import cn.iocoder.yudao.module.logistics.service.transporttask.LogisticsTransportTaskService;
 import cn.iocoder.yudao.module.logistics.service.vehicle.LogisticsVehicleService;
 import org.springframework.stereotype.Service;
@@ -57,20 +61,31 @@ public class LogisticsTransportTaskServiceImpl implements LogisticsTransportTask
     private LogisticsVehicleService logisticsVehicleService;
     @Resource
     private LogisticsDriverService logisticsDriverService;
+    @Resource
+    private LogisticsTransportStopService logisticsTransportStopService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long createTask(LogisticsTransportTaskSaveReqVO createReqVO) {
+    public Long createTask(LogisticsTransportTaskCreateReqVO createReqVO) {
         boolean hasVehicle = createReqVO.getVehicleId() != null;
         boolean hasDriver = createReqVO.getDriverId() != null;
         // 可以都不给（待分配），但不能只给一个：半套派车没有意义，只会让页面显示一辆没人的车
         if (hasVehicle != hasDriver) {
             throw exception(TRANSPORT_TASK_ASSIGN_REQUIRED);
         }
+        boolean hasStops = CollUtil.isNotEmpty(createReqVO.getStops());
+        // 至少要有一个去处：一个停靠点，或一个提货点地址（V5 之前的单点口径）
+        if (!hasStops && StrUtil.isBlank(createReqVO.getPickupAddress())) {
+            throw exception(TRANSPORT_TASK_STOP_REQUIRED);
+        }
 
         LogisticsTransportTaskDO task = BeanUtils.toBean(createReqVO, LogisticsTransportTaskDO.class);
         task.setTaskNo(generateTaskNo());
         task.setStatus(LogisticsTransportTaskStatusEnum.PENDING.getStatus());
+        if (hasStops) {
+            // 任务的提货点地址取**第一个停靠点**快照：列表/筛选仍能看到「去哪儿」，权威在停靠点上
+            task.setPickupAddress(createReqVO.getStops().get(0).getAddress());
+        }
         if (hasVehicle) {
             // 带车带人创建 = 直接完成派车，落到「已分配」。创建路径不做授权放行：
             // 要带过期证件出车，先建任务再走 assignTaskWithOverride，让授权那一步显式发生。
@@ -78,7 +93,27 @@ public class LogisticsTransportTaskServiceImpl implements LogisticsTransportTask
             task.setStatus(LogisticsTransportTaskStatusEnum.ASSIGNED.getStatus());
         }
         logisticsTransportTaskMapper.insert(task);
+        // 集货：一次把多个停靠点建出来（每个停靠点各自推进、各自结算）
+        if (hasStops) {
+            logisticsTransportStopService.createStops(task.getId(), task.getTaskNo(), createReqVO.getStops());
+        }
         return task.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long addStop(LogisticsTransportStopSaveReqVO addStopReqVO) {
+        if (addStopReqVO.getTaskId() == null) {
+            throw exception(TRANSPORT_TASK_NOT_EXISTS);
+        }
+        LogisticsTransportTaskDO task = getTask(addStopReqVO.getTaskId());
+        LogisticsTransportTaskStatusEnum status = LogisticsTransportTaskStatusEnum.ofStatus(task.getStatus())
+                .orElseThrow(() -> exception(TRANSPORT_TASK_STATUS_NOT_ALLOW_UPDATE));
+        // 终态（已完成 / 已取消）不再接新去处；途中顺路再提一家是允许的
+        if (status.isTerminal()) {
+            throw exception(TRANSPORT_TASK_STATUS_NOT_ALLOW_UPDATE);
+        }
+        return logisticsTransportStopService.addStop(task.getId(), task.getTaskNo(), addStopReqVO);
     }
 
     @Override

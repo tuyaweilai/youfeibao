@@ -91,12 +91,14 @@ CREATE TABLE IF NOT EXISTS logistics_transport_task (
     PRIMARY KEY (id)
 );
 
--- 运输节点（V2b #78；异常字段 V4 #71）
+-- 运输节点（V2b #78；异常字段 V4 #71；stop_id V5 #72）
 -- node_type 可空：异常事件没有「走到哪一步」，它就是一条独立事实（#71 的「异常是独立标记」）
+-- stop_id 可空：到达场站/卸货完成为整趟收尾，不属于任何单个停靠点
 CREATE TABLE IF NOT EXISTS logistics_transport_node (
     id BIGINT NOT NULL AUTO_INCREMENT,
     task_id BIGINT NOT NULL,
     task_no VARCHAR(64) NOT NULL,
+    stop_id BIGINT,
     node_type TINYINT,
     node_time DATETIME NOT NULL,
     report_time DATETIME NOT NULL,
@@ -159,6 +161,36 @@ CREATE TABLE IF NOT EXISTS logistics_carrier (
     contact_name VARCHAR(64),
     contact_mobile VARCHAR(32),
     status TINYINT NOT NULL DEFAULT 0,
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- 运输停靠点（V5 #72）：一车可提多家，各自交接、各自推进、各自凭证
+CREATE TABLE IF NOT EXISTS logistics_transport_stop (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    task_id BIGINT NOT NULL,
+    task_no VARCHAR(64) NOT NULL,
+    stop_no INT NOT NULL,
+    stop_type TINYINT NOT NULL DEFAULT 1,
+    payee_id BIGINT,
+    payee_name VARCHAR(64),
+    payee_mobile VARCHAR(32),
+    address VARCHAR(255) NOT NULL,
+    contact_name VARCHAR(64),
+    contact_phone VARCHAR(32),
+    cargo_name VARCHAR(100),
+    estimated_quantity DECIMAL(16,4),
+    quantity_unit VARCHAR(16),
+    expected_arrival_time DATETIME,
+    status TINYINT NOT NULL DEFAULT 0,
+    cancel_reason VARCHAR(500),
+    cancel_time DATETIME,
     remark VARCHAR(500),
     tenant_id BIGINT NOT NULL DEFAULT 0,
     creator VARCHAR(64) DEFAULT '',

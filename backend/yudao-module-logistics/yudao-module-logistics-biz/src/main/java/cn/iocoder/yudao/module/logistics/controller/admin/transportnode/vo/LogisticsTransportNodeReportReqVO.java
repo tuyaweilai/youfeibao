@@ -17,6 +17,9 @@ public class LogisticsTransportNodeReportReqVO {
     @NotNull(message = "运输任务编号不能为空")
     private Long taskId;
 
+    @Schema(description = "停靠点编号（V5：集货时必填；到达场站/卸货完成为整趟收尾，不填）", example = "1")
+    private Long stopId;
+
     @Schema(description = "节点类型：3-起运（本票只支持起运，其余四类归 #71）",
             requiredMode = Schema.RequiredMode.REQUIRED, example = "3")
     @NotNull(message = "节点类型不能为空")

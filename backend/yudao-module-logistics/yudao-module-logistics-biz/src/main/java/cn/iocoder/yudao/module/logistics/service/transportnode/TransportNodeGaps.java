@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -28,11 +29,27 @@ public final class TransportNodeGaps {
      * 还没上报的节点类型（按流程顺序）。异常事实没有节点类型，不参与判定。
      */
     public static List<String> missingNodeNames(List<LogisticsTransportNodeDO> nodes) {
+        return missingNames(nodes, type -> true);
+    }
+
+    /**
+     * **某一个停靠点**还没上报的节点类型（V5 #72）：只看按停靠点上报的三类
+     *（到达提货点 / 交接完成 / 起运）。
+     *
+     * <p>集货时每个停靠点各自清算——不能拿 A 家的「到达提货点」给 B 家凑数。
+     */
+    public static List<String> missingStopNodeNames(List<LogisticsTransportNodeDO> stopNodes) {
+        return missingNames(stopNodes, LogisticsTransportNodeTypeEnum::isStopScoped);
+    }
+
+    private static List<String> missingNames(List<LogisticsTransportNodeDO> nodes,
+                                             Predicate<LogisticsTransportNodeTypeEnum> scope) {
         Set<Integer> reported = nodes.stream()
                 .map(LogisticsTransportNodeDO::getNodeType)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         return Arrays.stream(LogisticsTransportNodeTypeEnum.values())
+                .filter(scope)
                 .filter(type -> !reported.contains(type.getType()))
                 .map(LogisticsTransportNodeTypeEnum::getName)
                 .collect(Collectors.toList());

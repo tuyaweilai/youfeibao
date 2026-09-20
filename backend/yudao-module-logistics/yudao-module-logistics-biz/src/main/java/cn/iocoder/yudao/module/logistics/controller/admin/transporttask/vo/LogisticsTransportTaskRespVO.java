@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo;
 
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeRespVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transportstop.vo.LogisticsTransportStopRespVO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -74,5 +75,14 @@ public class LogisticsTransportTaskRespVO extends LogisticsTransportTaskSaveReqV
 
     @Schema(description = "改派承接记录（按改派时间正序；没有改派过则为空；详情接口才有）")
     private List<LogisticsTransportTaskReassignRespVO> reassigns;
+
+    @Schema(description = "停靠点（按停靠顺序；每个含自己的节点、进度与断点）")
+    private List<LogisticsTransportStopRespVO> stops;
+
+    @Schema(description = "还剩几家没提（未完成也未取消的停靠点数）")
+    private Integer pendingStopCount;
+
+    @Schema(description = "口径说明：一次集货不构成把几个出售者合并结算的依据（ADR 0031）")
+    private String scopeNote;
 
 }

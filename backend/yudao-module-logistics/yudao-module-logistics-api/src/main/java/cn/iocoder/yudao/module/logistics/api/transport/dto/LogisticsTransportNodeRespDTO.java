@@ -34,6 +34,13 @@ public class LogisticsTransportNodeRespDTO {
      */
     private String taskNo;
     /**
+     * 停靠点编号（V5 #72）
+     *
+     * <p>提货相关节点（到达提货点 / 交接完成 / 起运）非空；到达场站 / 卸货完成为整趟收尾，为空。
+     * icbc 的追溯页按它把凭证归到某一个出售者。
+     */
+    private Long stopId;
+    /**
      * 节点类型
      *
      * 枚举 {@link LogisticsTransportNodeTypeEnum}；**空 = 异常事实**（异常是独立标记，不是节点类型）

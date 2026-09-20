@@ -9,7 +9,7 @@ import cn.iocoder.yudao.module.logistics.controller.admin.driver.vo.LogisticsDri
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportAbnormalReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
-import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskSaveReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCreateReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.vehicle.vo.LogisticsVehicleSaveReqVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
 import cn.iocoder.yudao.module.logistics.dal.mysql.transporttask.LogisticsTransportTaskMapper;
@@ -244,7 +244,7 @@ public class LogisticsDriverAppServiceImplTest extends BaseDbUnitTest {
         vehicle.setStatus(LogisticsVehicleStatusEnum.AVAILABLE.getStatus());
         Long vehicleId = logisticsVehicleService.createVehicle(vehicle);
 
-        LogisticsTransportTaskSaveReqVO task = new LogisticsTransportTaskSaveReqVO();
+        LogisticsTransportTaskCreateReqVO task = new LogisticsTransportTaskCreateReqVO();
         task.setDepartureAddress("城东场站");
         task.setPickupAddress("某某路 1 号");
         task.setCargoName("废钢");

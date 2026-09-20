@@ -33,10 +33,40 @@ export interface DriverTaskVO {
   nodes?: DriverNodeVO[]
   missingNodeNames?: string[]
   missingEvidenceNames?: string[]
+  // 多停靠点集货（V5 #72）
+  stops?: DriverStopVO[]
+  pendingStopCount?: number
+  scopeNote?: string
+}
+
+export interface DriverStopVO {
+  id?: number
+  taskId?: number
+  stopNo?: number
+  stopType?: number // 1-提货，2-送货
+  stopTypeName?: string
+  payeeId?: number
+  payeeName?: string
+  payeeMobile?: string
+  address?: string
+  contactName?: string
+  contactPhone?: string
+  cargoName?: string
+  estimatedQuantity?: number
+  quantityUnit?: string
+  expectedArrivalTime?: number
+  status?: number // 0-待处理，1-进行中，2-已完成，3-已取消
+  statusName?: string
+  cancelReason?: string
+  cancelTime?: number
+  nodes?: DriverNodeVO[]
+  missingNodeNames?: string[]
+  missingEvidenceNames?: string[]
 }
 
 export interface DriverNodeVO {
   id?: number
+  stopId?: number
   nodeType?: number
   nodeTypeName?: string
   nodeTime?: number
@@ -65,6 +95,7 @@ export interface DriverProfileVO {
 
 export interface NodeReportReq {
   taskId: number
+  stopId?: number
   nodeType: number
   nodeTime: number
   location?: string
@@ -77,6 +108,7 @@ export interface NodeReportReq {
 
 export interface AbnormalReportReq {
   taskId: number
+  stopId?: number
   abnormalType: number
   abnormalReason: string
   nodeTime: number

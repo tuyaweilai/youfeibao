@@ -24,6 +24,9 @@ public class LogisticsTransportAbnormalReportReqVO {
     @NotNull(message = "运输任务编号不能为空")
     private Long taskId;
 
+    @Schema(description = "停靠点编号（异常发生在某一停靠点时填；路上发生可为空）", example = "1")
+    private Long stopId;
+
     @Schema(description = "异常类型：1-车辆故障，2-交通事故，3-天气延误，4-道路封闭，5-货物损坏，6-对方不在，7-地址错误，8-其他",
             requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     @NotNull(message = "异常类型不能为空")

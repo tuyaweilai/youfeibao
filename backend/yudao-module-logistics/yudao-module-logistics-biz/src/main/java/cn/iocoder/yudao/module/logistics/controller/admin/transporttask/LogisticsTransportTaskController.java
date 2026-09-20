@@ -5,6 +5,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCancelReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskCreateReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskOverrideAssignReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskReassignReqVO;
@@ -18,6 +19,7 @@ import cn.iocoder.yudao.module.logistics.enums.LogisticsPermission;
 import cn.iocoder.yudao.module.logistics.enums.LogisticsTransportTaskStatusEnum;
 import cn.iocoder.yudao.module.logistics.service.transportnode.LogisticsTransportNodeService;
 import cn.iocoder.yudao.module.logistics.service.transportnode.TransportNodeGaps;
+import cn.iocoder.yudao.module.logistics.service.transportstop.LogisticsTransportStopService;
 import cn.iocoder.yudao.module.logistics.service.transporttask.LogisticsTransportTaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -28,7 +30,10 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.validation.Valid;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
@@ -47,11 +52,21 @@ public class LogisticsTransportTaskController {
     private LogisticsTransportTaskService logisticsTransportTaskService;
     @Resource
     private LogisticsTransportNodeService logisticsTransportNodeService;
+    @Resource
+    private LogisticsTransportStopService logisticsTransportStopService;
+
+    /**
+     * 口径说明：**模型与文案都不得暗示「整车复磅可以合并结算」**（ADR 0031）。
+     *
+     * <p>一次集货不构成把几个出售者合并结算的依据；整车复磅只核对总运输量。
+     */
+    private static final String SCOPE_NOTE =
+            "一次集货不构成把几个出售者合并结算的依据：每个停靠点各自交接、各自复磅、各自结算，整车复磅只核对总运输量。";
 
     @PostMapping("/create")
-    @Operation(summary = "创建运输任务", description = "带车与司机即等于派车（直接到已分配）；都不带则停在待分配")
+    @Operation(summary = "创建运输任务", description = "带车与司机即等于派车（直接到已分配）；都不带则停在待分配。可一次带多个停靠点（集货）")
     @PreAuthorize("@ss.hasPermission('" + LogisticsPermission.TRANSPORT_TASK_CREATE + "')")
-    public CommonResult<Long> create(@Valid @RequestBody LogisticsTransportTaskSaveReqVO createReqVO) {
+    public CommonResult<Long> create(@Valid @RequestBody LogisticsTransportTaskCreateReqVO createReqVO) {
         return success(logisticsTransportTaskService.createTask(createReqVO));
     }
 
@@ -131,6 +146,12 @@ public class LogisticsTransportTaskController {
         resp.setReassigns(BeanUtils.toBean(
                 logisticsTransportTaskService.getReassignListByTaskId(task.getId()),
                 LogisticsTransportTaskReassignRespVO.class));
+        // 停靠点：每个点各自带节点、进度与断点（集货时互不相串）
+        resp.setStops(logisticsTransportStopService.getStopRespListByTaskId(task.getId()));
+        resp.setPendingStopCount(logisticsTransportStopService
+                .getPendingStopCounts(Collections.singletonList(task.getId()))
+                .getOrDefault(task.getId(), 0));
+        resp.setScopeNote(SCOPE_NOTE);
         return success(resp);
     }
 
@@ -141,7 +162,14 @@ public class LogisticsTransportTaskController {
             @Valid LogisticsTransportTaskPageReqVO pageReqVO) {
         PageResult<LogisticsTransportTaskDO> page = logisticsTransportTaskService.getTaskPage(pageReqVO);
         PageResult<LogisticsTransportTaskRespVO> result = BeanUtils.toBean(page, LogisticsTransportTaskRespVO.class);
-        result.getList().forEach(this::fillStatusName);
+        Map<Long, Integer> pendingStopCounts = logisticsTransportStopService.getPendingStopCounts(
+                result.getList().stream().map(LogisticsTransportTaskRespVO::getId).collect(Collectors.toList()));
+        result.getList().forEach(resp -> {
+            fillStatusName(resp);
+            // 列表只出「还剩几家没提」与口径说明；停靠点明细在详情里
+            resp.setPendingStopCount(pendingStopCounts.getOrDefault(resp.getId(), 0));
+            resp.setScopeNote(SCOPE_NOTE);
+        });
         return success(result);
     }
 
