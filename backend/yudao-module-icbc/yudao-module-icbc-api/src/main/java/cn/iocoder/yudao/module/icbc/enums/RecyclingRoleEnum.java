@@ -67,6 +67,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SELLER_NOTIFY_QUERY, RecyclingPermission.SELLER_NOTIFY_MANAGE,
             RecyclingPermission.PURCHASE_CONTRACT_QUERY, RecyclingPermission.PURCHASE_CONTRACT_MANAGE,
             RecyclingPermission.PURCHASE_CONTRACT_AUDIT,
+            RecyclingPermission.PURCHASE_ORDER_QUERY, RecyclingPermission.PURCHASE_ORDER_MANAGE,
             RecyclingPermission.HANDOVER_BATCH_QUERY, RecyclingPermission.HANDOVER_BATCH_MANAGE,
             RecyclingPermission.WORKBENCH_QUERY)),
 
@@ -90,6 +91,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SELLER_NOTIFY_QUERY, RecyclingPermission.SELLER_NOTIFY_MANAGE,
             RecyclingPermission.APPOINTMENT_QUERY, RecyclingPermission.APPOINTMENT_MANAGE,
             RecyclingPermission.PURCHASE_CONTRACT_QUERY,
+            RecyclingPermission.PURCHASE_ORDER_QUERY,
             RecyclingPermission.HANDOVER_BATCH_QUERY, RecyclingPermission.HANDOVER_BATCH_MANAGE,
             RecyclingPermission.WORKBENCH_QUERY)),
 
@@ -115,6 +117,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.TAX_DECLARATION_QUERY,
             RecyclingPermission.SETTLEMENT_QUERY,
             RecyclingPermission.SETTLEMENT_CONFIRM_QUERY,
+            RecyclingPermission.PURCHASE_ORDER_QUERY,
             RecyclingPermission.HANDOVER_BATCH_QUERY,
             RecyclingPermission.WORKBENCH_QUERY)),
 
@@ -136,6 +139,7 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SETTLEMENT_CONFIRM_QUERY,
             RecyclingPermission.SELLER_NOTIFY_QUERY,
             RecyclingPermission.PURCHASE_CONTRACT_QUERY,
+            RecyclingPermission.PURCHASE_ORDER_QUERY,
             RecyclingPermission.HANDOVER_BATCH_QUERY,
             RecyclingPermission.PUBLIC_TOKEN_CREATE,
             RecyclingPermission.WORKBENCH_QUERY)),

@@ -16,6 +16,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPers
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.IcbcPayeeBankCardChangeDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.purchaseorder.IcbcPurchaseOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.appointment.IcbcAppointmentMapper;
@@ -26,6 +27,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeBankCardChangeMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.purchaseorder.IcbcPurchaseOrderMapper;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.impl.NaturalPersonServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
@@ -92,6 +94,8 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
     private IcbcHandoverBatchMapper handoverBatchMapper;
     @Resource
     private IcbcWeighingMapper weighingMapper;
+    @Resource
+    private IcbcPurchaseOrderMapper purchaseOrderMapper;
     @Resource
     private PlatformInvoiceQueryService platformInvoiceQueryService;
 
@@ -437,6 +441,30 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
             assertNull(handoverBatchMapper.selectById(batchId));
             assertTrue(handoverBatchMapper.selectList().isEmpty());
             assertTrue(weighingMapper.selectListByBatchId(batchId).isEmpty());
+        });
+    }
+
+    @Test
+    public void testPurchaseOrderIsolatedByTenant() {
+        // 采购订单是租户表：甲企业的采购计划，乙企业看不到
+        Long orderId = TenantUtils.execute(1L, () -> {
+            IcbcPurchaseOrderDO order = IcbcPurchaseOrderDO.builder()
+                    .orderNo("PO_TENANT_1")
+                    .counterpartyType(1)
+                    .payeeId(1L)
+                    .counterpartyName("张三")
+                    .startDate(java.time.LocalDate.now().minusDays(1))
+                    .endDate(java.time.LocalDate.now().plusDays(10))
+                    .status(0)
+                    .build();
+            purchaseOrderMapper.insert(order);
+            return order.getId();
+        });
+
+        TenantUtils.execute(1L, () -> assertNotNull(purchaseOrderMapper.selectById(orderId)));
+        TenantUtils.execute(2L, () -> {
+            assertNull(purchaseOrderMapper.selectById(orderId));
+            assertTrue(purchaseOrderMapper.selectList().isEmpty());
         });
     }
 
