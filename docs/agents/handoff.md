@@ -585,11 +585,11 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 - **规格**：[#38](https://github.com/tuyaweilai/youfeibao/issues/38)（`ready-for-agent`），56 条 user story、12 条实现决策、测试决策、out of scope、further notes。
 - **19 张票**：`#39`–`#57`，边用 GitHub 原生 issue dependencies 连（21 条）。
-- **frontier（现在就能 grab）**：`#52` T14 待入库 → 入库单 → 库存流水 / `#53` T15 拒收 / 部分接收与余货出场。
-- 依赖链（已完成票已删）：`#52→#54/#55`；`#47/#52→#57`。
+- **frontier（现在就能 grab）**：`#54` T16 非销售出库、调拨与盘点调整 / `#55` T17 关联单据查询 / `#57` T19 经营报表与异常表。第一轮到第四轮（`#45`–`#53`）都已合并进 `main`。
+- 依赖链：无剩余阻塞（`#54` / `#55` / `#57` 的前置均已合并）。
 - **待决策的跟进票**：`#58`（关联采购订单的收购单进履约口径与交货门禁）——卡在 `net_weight` vs `settlement_weight` 的口径选择上，定完再接。
 
-### 第四轮并行约定（#52 / #53）
+### 第四轮并行约定（#52 / #53）—— 已完成并合并
 
 | 票 | 分支 | 菜单 ID 段 | 错误码段 |
 |---|---|---|---|
@@ -602,6 +602,14 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - **`#52` 拥有入库单与库存**：`icbc_stock_in` + 明细 + 走 #43 的 `StockApi`（业务类型 | `RECEIPT_IN(90)` / `RECEIPT_IN_CANCEL(91)`），不要直接碰 `erp_stock*`。
 - **可入库实物量只有一个取数点**：`#52` 把它抽成一个方法（先取 `net_weight`，实物口径）；`#53` 的 `accepted_weight` 落地后由人工改该方法优先取 `accepted_weight`（有值优先）。两票**不要**互相 `import` 对方新增的类。
 - **`#52` 落地后还要接一处**：`#56` 工作台的 `WorkbenchTodoCodeEnum.PENDING_STOCK_IN` 现在标了「待接入」，把 `unavailableReason` 清掉并在 `WorkbenchServiceImpl` 加一个分支（人工接线）。
+
+合并与接线结果：合并顺序 #52 → #53（每个合完跑一次 icbc 测试，最终 590 全绿）。**三处跨票接线已一次做完**（提交 `23c455b`）：
+
+1. **可入库实物量改取实物口径**：`StockInServiceImpl#resolveAvailableQuantity` 改调 `IcbcAcquisitionDO#resolvePhysicalWeight()`（接收量优先，无则净重）——拒收 / 退回 / 余货出场的部分不进库存。
+2. **工作台待入库接入**：`PENDING_STOCK_IN` 清掉「待接入」，`WorkbenchServiceImpl#pendingStockIn` 按「已验收且未入库」取数。
+3. **采购履约「入库」口径接入**：新增 `StockInService#getStockedQuantityByOrderItems`（只计已过账，入库单→收购单→订单明细），`getProgress` 汇总后填 `STOCKED_IN`，五个口径全部可算。
+
+踩到的坑：这些服务在测试里被 `@ComponentScan` 扫到，给 `PurchaseOrderServiceImpl` / `WorkbenchServiceImpl` 加了 `@Resource StockInService` 后，会连带实例化 `StockInServiceImpl` → 需要 `StockApi`；受影响上下文的测试类各补了一个 `@MockBean StockApi`（真实 `StockInServiceImpl` 对空库返回空结果）。
 
 ### 第三轮并行约定（#47 / #51）
 
