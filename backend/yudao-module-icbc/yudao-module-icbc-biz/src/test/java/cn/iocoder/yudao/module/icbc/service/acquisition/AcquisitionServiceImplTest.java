@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.service.acquisition;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.*;
+import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
@@ -92,6 +93,36 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         // 初始状态
         assertEquals(AcquisitionStatusEnum.REGISTERED.getStatus(), saved.getStatus());
         assertEquals("ONLINE", saved.getSource());
+    }
+
+    @Test
+    public void testCreateAcquisition_snapshotsSellerSubjectTypeAsNatural() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setAmount(new BigDecimal("1000.00"));
+
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
+
+        // 采购单据上留卖方主体类型快照（ADR 0029）：收购单只收自然人，默认即自然人出售者
+        assertEquals(SellerSubjectTypeEnum.NATURAL.getType(),
+                acquisitionMapper.selectById(id).getSellerSubjectType());
+    }
+
+    @Test
+    public void testCreateAcquisition_nonNaturalSellerRejected() {
+        PayeeInfoDO payee = insertPayee("某某个体工商户", "13800138000");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setAmount(new BigDecimal("1000.00"));
+        // 个体工商户不是自然人：反向开票通道（收购单）一律拦下，指向进项收票
+        reqVO.setSellerSubjectType(SellerSubjectTypeEnum.INDIVIDUAL_BUSINESS.getType());
+
+        assertServiceException(() -> acquisitionService.createAcquisition(reqVO),
+                SELLER_SUBJECT_TYPE_NOT_NATURAL, SellerSubjectTypeEnum.INDIVIDUAL_BUSINESS.getName());
+        assertEquals(0, acquisitionMapper.selectList().size());
     }
 
     @Test

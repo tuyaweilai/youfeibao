@@ -55,6 +55,8 @@ export interface AcquisitionVO {
   id?: number
   acquisitionNo?: string
   payeeId?: number
+  sellerSubjectType?: number
+  sellerSubjectTypeName?: string
   sellerName?: string
   sellerMobile?: string
   goodsConfigId?: number

@@ -49,6 +49,14 @@ public class IcbcAcquisitionDO extends TenantBaseDO {
     /** 出售者（收方）档案编号 */
     private Long payeeId;
 
+    /**
+     * 卖方主体类型快照，枚举 {@link cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum}（六态）。
+     *
+     * <p>反向开票通道只对自然人开放（ADR 0029）：自然人出售者走反向开票，其余五类由对方开票、
+     * 我们收票。该字段是采购单据上「走哪条取票链路」的判定依据，开票申请与预下单都会据此做硬校验。
+     */
+    private Integer sellerSubjectType;
+
     /** 出售者外部编号（合作方收方编号）快照 */
     private String partnerPayeeId;
 

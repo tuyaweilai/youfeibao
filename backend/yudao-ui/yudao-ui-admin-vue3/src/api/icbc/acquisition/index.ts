@@ -6,6 +6,8 @@ export interface AcquisitionVO {
   acquisitionNo?: string
   clientRequestId?: string
   payeeId?: number
+  sellerSubjectType?: number
+  sellerSubjectTypeName?: string
   sellerName?: string
   sellerMobile?: string
   goodsConfigId?: number

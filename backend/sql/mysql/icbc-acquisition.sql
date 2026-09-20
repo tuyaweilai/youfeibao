@@ -147,3 +147,14 @@ SET @idx := (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHE
              AND TABLE_NAME = 'icbc_acquisition' AND INDEX_NAME = 'idx_acquisition_settlement');
 SET @ddl := IF(@idx = 0, 'ALTER TABLE `icbc_acquisition` ADD INDEX `idx_acquisition_settlement` (`settlement_id`)', 'SELECT 1');
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- ========================================
+-- 卖方主体准入（#48，ADR 0029）：反向开票只对自然人开放。
+-- 采购单据（收购单）在卖方主体类型上留快照，六态见 erp-api 的 SellerSubjectTypeEnum。
+-- 幂等：仅当列不存在时 ALTER。历史数据默认 1（自然人出售者）。
+-- ========================================
+
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_acquisition' AND COLUMN_NAME = 'seller_subject_type');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_acquisition` ADD COLUMN `seller_subject_type` tinyint DEFAULT 1 COMMENT ''卖方主体类型：1-自然人出售者，2-个体工商户，3-个人独资企业，4-合伙企业，5-企业法人，6-农民专业合作社（ADR 0029 反向开票只对自然人）'' AFTER `payee_id`', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;

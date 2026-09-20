@@ -32,6 +32,9 @@ public class InvoicePreOrderReqVO {
     @Size(max = 20, message = "收方编号长度不能超过20个字符")
     private String outUserId;
 
+    @Schema(description = "卖方主体类型（平台侧字段，不上送工行）：1-自然人出售者，2~6-非自然人。反向开票只对自然人开放（ADR 0029）", example = "1")
+    private Integer sellerSubjectType;
+
     @Schema(description = "交易渠道：01-PC,02-移动端", example = "01")
     @Size(max = 2, message = "交易渠道长度不能超过2个字符")
     private String trxChannel;

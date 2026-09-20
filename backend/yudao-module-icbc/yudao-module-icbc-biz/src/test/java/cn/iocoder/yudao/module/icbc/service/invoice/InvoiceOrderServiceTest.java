@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.icbc.service.invoice;
 
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
+import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoicePreOrderReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoicePreOrderRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.invoice.vo.InvoiceQueryReqVO;
@@ -25,6 +26,7 @@ import java.math.BigDecimal;
 import java.util.Collections;
 
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
+import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.SELLER_SUBJECT_TYPE_NOT_NATURAL;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.SIMPLE_TAX_METHOD_NO_SPECIAL_INVOICE;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.TENANT_NOT_READY;
 import static org.junit.jupiter.api.Assertions.*;
@@ -168,6 +170,27 @@ public class InvoiceOrderServiceTest extends BaseDbUnitTest {
         goodsInfo.setMergedCode("1090101010000000000");
         reqVO.setGoodsInfo(Collections.singletonList(goodsInfo));
         return reqVO;
+    }
+
+    @Test
+    public void testCreatePreOrder_nonNaturalSellerRejectedAtGateway() {
+        // 反向开票通道的准入门禁在预下单这一层：非自然人一律不下发工行（ADR 0029）
+        for (SellerSubjectTypeEnum subjectType : SellerSubjectTypeEnum.values()) {
+            if (subjectType.isNatural()) {
+                continue;
+            }
+            InvoicePreOrderReqVO reqVO = buildValidPreOrder("02");
+            reqVO.setSellerSubjectType(subjectType.getType());
+            assertServiceException(() -> invoiceOrderService.createPreOrder(reqVO),
+                    SELLER_SUBJECT_TYPE_NOT_NATURAL, subjectType.getName());
+        }
+    }
+
+    @Test
+    public void testCreatePreOrder_naturalSellerAllowed() {
+        InvoicePreOrderReqVO reqVO = buildValidPreOrder("02");
+        reqVO.setSellerSubjectType(SellerSubjectTypeEnum.NATURAL.getType());
+        assertNotNull(invoiceOrderService.createPreOrder(reqVO));
     }
 
     @Test

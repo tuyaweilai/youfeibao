@@ -18,6 +18,7 @@ import cn.iocoder.yudao.module.icbc.enums.InvoiceConfirmStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.SellerQuotaTriggerSceneEnum;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
+import cn.iocoder.yudao.module.icbc.service.admission.SellerAdmissionService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceApplicationService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
@@ -50,6 +51,7 @@ import java.util.stream.Collectors;
 public class InvoiceApplicationServiceImpl implements InvoiceApplicationService {
 
     private static final String CHECK_TENANT_QUALIFICATION = "TENANT_QUALIFICATION";
+    private static final String CHECK_SELLER_SUBJECT_TYPE = "SELLER_SUBJECT_TYPE";
     private static final String CHECK_PAYER_INFO = "PAYER_INFO";
     private static final String CHECK_SELLER_AVAILABLE = "SELLER_AVAILABLE";
     private static final String CHECK_SELLER_QUOTA = "SELLER_QUOTA";
@@ -60,6 +62,7 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
     private static final String CHECK_ACQUISITION_STATUS = "ACQUISITION_STATUS";
 
     private static final String REMEDY_QUALIFICATION = "在「租户开票就绪 · 三层资质」录入税务侧反向开票资格、行业侧资质与公安侧备案，并由平台运营核实";
+    private static final String REMEDY_SELLER_SUBJECT_TYPE = "反向开票只对自然人出售者开放；请由对方（个体工商户 / 个人独资企业 / 合伙企业 / 企业法人 / 农民专业合作社）自行开具增值税发票，并在「进项收票」登记与勾稽";
     private static final String REMEDY_PAYER = "在「付方档案」补全企业名称、纳税人识别号与合作方付方编号";
     private static final String REMEDY_SELLER = "在「出售者建档」完成实人认证、收方入驻、框架收购协议与首次授权";
     private static final String REMEDY_QUOTA = "引导该出售者办理经营主体登记，由经营主体开票；若已开票金额有误，先走红冲把额度放出来";
@@ -75,6 +78,8 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
 
     @Resource
     private AcquisitionService acquisitionService;
+    @Resource
+    private SellerAdmissionService sellerAdmissionService;
     @Resource
     private InvoiceOrderService invoiceOrderService;
     @Resource
@@ -109,6 +114,7 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
     private List<InvoicePreCheckItemVO> runPreChecks(IcbcAcquisitionDO acquisition, String invoiceType) {
         List<InvoicePreCheckItemVO> items = new ArrayList<>();
         items.add(checkTenantQualification());
+        items.add(checkSellerSubjectType(acquisition));
         items.add(checkPayerInfo());
         items.add(checkSellerAvailable(acquisition));
         items.add(checkSellerQuota(acquisition));
@@ -131,6 +137,22 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
                 ready ? "税务侧 / 行业侧 / 公安侧三层资质均有效"
                         : "租户三层资质不齐或已失效，该租户当前不能开票",
                 REMEDY_QUALIFICATION);
+    }
+
+    /**
+     * 卖方主体准入硬约束（ADR 0029）：反向开票只对自然人出售者开放。
+     *
+     * <p>非自然人（个体工商户 / 个人独资企业 / 合伙企业 / 企业法人 / 农民专业合作社）一律拦下，
+     * 指向「由对方开票 + 进项收票」这条取票链路。与租户资格无关：个体工商户**可以**作为回收企业
+     * 去反向开票（5 号公告第二条），那是租户维度的事，不在本校验内。
+     */
+    private InvoicePreCheckItemVO checkSellerSubjectType(IcbcAcquisitionDO acquisition) {
+        Integer subjectType = acquisition.getSellerSubjectType();
+        boolean natural = sellerAdmissionService.isReverseInvoiceAllowed(subjectType);
+        return item(CHECK_SELLER_SUBJECT_TYPE, "卖方主体类型", natural,
+                natural ? "卖方主体是自然人，可以反向开票"
+                        : sellerAdmissionService.reverseInvoiceRejectionMessage(subjectType),
+                REMEDY_SELLER_SUBJECT_TYPE);
     }
 
     private InvoicePreCheckItemVO checkPayerInfo() {
@@ -422,6 +444,7 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
         req.setOutOrderId(acquisition.getAcquisitionNo());
         req.setOutVendorId(payer.getPartnerPayerId());
         req.setOutUserId(outUserIdOf(payee));
+        req.setSellerSubjectType(acquisition.getSellerSubjectType());
         req.setInvoiceType(base.getInvoiceType());
         req.setOrderAmount(acquisition.getAmount());
         req.setSpecificElements("24");

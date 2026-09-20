@@ -260,4 +260,8 @@ public interface ErrorCodeConstants {
             "只有「银行审核中」的变更可以取消，当前状态：{}");
     ErrorCode PAYEE_BANK_CARD_CHANGE_NOT_ONBOARDED = new ErrorCode(1_030_027_004,
             "该出售者尚未完成首次收方入驻，请先完成建档再变更银行卡");
+
+    // ========== 卖方主体准入（#48，ADR 0029：反向开票只对自然人） 1-030-028-000 ==========
+    ErrorCode SELLER_SUBJECT_TYPE_NOT_NATURAL = new ErrorCode(1_030_028_000,
+            "{}不是自然人，不能反向开票；请由对方自行开具增值税发票，并在「进项收票」登记与勾稽");
 }

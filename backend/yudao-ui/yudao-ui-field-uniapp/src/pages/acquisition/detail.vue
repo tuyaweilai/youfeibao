@@ -10,6 +10,7 @@
       <view class="card__title">收购确认书</view>
       <view class="kv"><text class="kv__k">收购单号</text><text>{{ acquisition.acquisitionNo }}</text></view>
       <view class="kv"><text class="kv__k">出售者</text><text>{{ acquisition.sellerName }} {{ acquisition.sellerMobile }}</text></view>
+      <view class="kv"><text class="kv__k">主体类型</text><text>{{ acquisition.sellerSubjectTypeName || '自然人出售者' }}</text></view>
       <view class="kv"><text class="kv__k">品类</text><text>{{ acquisition.categoryName }}</text></view>
       <view class="kv"><text class="kv__k">规格</text><text>{{ acquisition.specification || '-' }}</text></view>
       <view class="kv"><text class="kv__k">数量</text><text>{{ acquisition.quantity }} {{ acquisition.unit }}</text></view>

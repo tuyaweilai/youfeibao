@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.controller.admin.acquisition;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
+import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
@@ -101,6 +102,7 @@ public class IcbcAcquisitionController {
         AcquisitionRespVO vo = BeanUtils.toBean(acquisition, AcquisitionRespVO.class);
         AcquisitionStatusEnum.ofStatus(acquisition.getStatus())
                 .ifPresent(status -> vo.setStatusName(status.getName()));
+        vo.setSellerSubjectTypeName(SellerSubjectTypeEnum.nameOf(acquisition.getSellerSubjectType()));
         return vo;
     }
 
