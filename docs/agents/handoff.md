@@ -585,8 +585,8 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 - **规格**：[#38](https://github.com/tuyaweilai/youfeibao/issues/38)（`ready-for-agent`），56 条 user story、12 条实现决策、测试决策、out of scope、further notes。
 - **19 张票**：`#39`–`#57`，边用 GitHub 原生 issue dependencies 连（21 条）。
-- **frontier（现在就能 grab）**：`#46` T08 采购订单 / `#49` T11 进项收票登记与勾稽。四张并行票（`#45`/`#48`/`#50`/`#56`）已合并进 `main`。
-- 依赖链（已完成票已删）：`#46→#47`；`#46/#50→#51→#52→#54/#55`；`#46/#50→#51→#53`；`#47/#52→#57`。
+- **frontier（现在就能 grab）**：`#47` T09 履约五口径与执行进度 / `#51` T13 收购单关联采购安排与「直接收购」。四张第一轮（`#45`/`#48`/`#50`/`#56`）与两张第二轮（`#46`/`#49`）都已合并进 `main`。
+- 依赖链（已完成票已删）：`#51→#52→#54/#55`；`#51→#53`；`#47/#52→#57`。
 
 ### 并行开工约定（2026-09-20，已完成一轮）
 
@@ -609,18 +609,20 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - **`.m2` 共享**：四个 worktree 共用 `~/.m2`，`-am install` 会互相覆盖 SNAPSHOT。改 `-api` 又要同轮测 `-biz` 时，用一条 reactor 命令：`mvn -pl yudao-module-icbc/yudao-module-icbc-api,yudao-module-icbc/yudao-module-icbc-biz test`。
 - **工作目录**：一票一目录一分支（`../youfeibao-t07` 等），**不要在同一目录多开窗口**。
 
-### 第二轮并行约定（#46 / #49）
+### 第二轮并行约定（#46 / #49）—— 已完成并合并
 
 | 票 | 分支 | 菜单 ID 段 | 错误码段 |
 |---|---|---|---|
-| #46 T08 采购订单 | `t08-purchase-order` | 5227–5239 | `1_030_031_xxx` |
-| #49 T11 进项收票登记与勾稽 | `t11-input-invoice` | 5244–5259 | `1_030_032_xxx` |
+| #46 T08 采购订单 | `t08-purchase-order` | 5227–5239（用了 5227–5236） | `1_030_031_xxx` |
+| #49 T11 进项收票登记与勾稽 | `t11-input-invoice` | 5244–5259（用了 5244–5249） | `1_030_032_xxx` |
 
-脊柱文件规则同上（各票只追加、不重排）。额外约定：
+合并顺序 #46 → #49（每个合完跑一次 icbc 测试，最终 533 全绿）。实际撞点与解法：
 
-- **两票不要互相编译依赖**。`#46` 建 `icbc_purchase_order` + 明细，并在 `PurchaseOrderService` 上留一个只读方法供 `#49` 合并后按 `id` 取单据金额 / 单号。
-- **`#49` 的勾稽用通用关联表**：`icbc_input_invoice_link(biz_type, biz_id, biz_no, biz_amount, linked_amount, ...)`，`InputInvoiceBizTypeEnum` 先支持 `ACQUISITION`（已存在）与 `PURCHASE_ORDER`（#46 落地），`STOCK_IN` 等 #52 再加。金额上限按调用方给出的 `biz_amount` 校验，**不 `import` #46 / #52 的类**，保证本分支独立可编译可测。
-- 合并后由人工在 `#49` 里把 `PURCHASE_ORDER` 的 `biz_amount` 查数接到 `#46` 的只读方法（一小段）。
+- **`ErrorCodeConstants` 又撞**（插入点相同）：两票段不重叠，去标记保两边即可（本轮无重号，比第一轮轻）。
+- **两票不要互相编译依赖**（已按约定做到）：`#46` 在 `PurchaseOrderService` 上留 `getOrderAmount(id) → PurchaseOrderAmountDTO`（单号 + 单据金额 + 是否可作采购依据）；`#49` 的勾稽用通用关联表 `icbc_input_invoice_link(biz_type, biz_id, biz_no, biz_amount, linked_amount)`，`InputInvoiceBizTypeEnum` 含 `ACQUISITION` / `PURCHASE_ORDER`（已接）/ `STOCK_IN`（预留 #52）。
+- **合并后接线已完成**（提交 `2168273`）：`InputInvoiceServiceImpl` 在 `bizType=PURCHASE_ORDER` 时经 `getOrderAmount` 取单号与单据金额、忽略客户端传值，金额上限口径只有一处；测试补了 `stubOrder` 与「客户端夸大金额也无效」一例。
+- **其余脊柱文件**（`RecyclingPermission`/`RoleEnum`、`create_tables.sql` / `clean.sql` / `README.md` / `handoff.md`）：自动合或追加式手工合，与第一轮相同。
+- **合并时踩到的坑**：解 `IcbcTenantIsolationTest` 的字段冲突时漏了一个 `@Resource`，表现为注入为 null（`Cannot invoke ... because this.inputInvoiceMapper is null`）。追加字段时「注解也要跟着复制一份」。
 
 | 票 | 标题 | blocked by |
 |---|---|---|
