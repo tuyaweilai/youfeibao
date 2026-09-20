@@ -5,7 +5,7 @@
 -- 建表语句逐字保留，便于与上游比对。
 --
 -- 使用前提见 [ADR 0025](../../../docs/adr/0025-引入-yudao-ERP-作为采购与库存底座.md)：
--- 一期只启用 product / purchase / stock 三个域；sale、finance、statistics 的销售侧不分配菜单。
+-- 一期只启用 stock 域（product / purchase 排除，采购履约链建在 icbc 模块），sale、finance、statistics 不分配菜单。
 -- 即使不启用，表也一并建出来（避免后续加域时再改导入流程）。
 --
 -- 注意：33 张表都带 `tenant_id`，但 6 张单据表的 `no` 唯一索引**不含 tenant_id**

@@ -49,6 +49,28 @@ done
 > 中文会被双重编码存进库，界面上就是乱码。要用就必须带 `--default-character-set=utf8mb4`。
 > 现在这些文件自己以 `SET NAMES utf8mb4;` 开头，已经能顶住这种客户端；老库已脏的见下一节。
 
+## 构建与启动：ERP 已启用后的两个坑（#39）
+
+从 #39 起 `backend/pom.xml` 的 `yudao-module-erp` 与 `yudao-server/pom.xml` 的 `yudao-module-erp-biz` 不再注释，ERP 成为默认模块。两条命令上的坑：
+
+1. **先 `-am install` 再起服务**。`erp-biz` 是新模块，本地 `.m2` 里没有，直接 `mvn -pl yudao-server spring-boot:run` 会因找不到它失败。改完任何模块（尤其 `erp` / `icbc`）后：
+
+   ```bash
+   cd backend
+   mvn -pl yudao-server -am -DskipTests install
+   mvn -pl yudao-server spring-boot:run
+   ```
+
+2. **`-pl yudao-module-erp -am` 只构建父 pom，不进子模块**。要单独构建 ERP 时写全子模块路径：
+
+   ```bash
+   mvn -pl yudao-module-erp/yudao-module-erp-biz -am -DskipTests install
+   ```
+
+   （`icbc` 同理是 `-pl yudao-module-icbc/yudao-module-icbc-biz`，不要写 `-pl yudao-module-icbc`。）
+
+起服务后冒烟：用租户 1 的 `admin` 调 `GET /admin-api/erp/warehouse/page`，应返回 `{"list":[],"total":0}`；报 SQL 错就说明 `erp.sql` 没导。
+
 ## 排查：菜单 / 种子数据中文乱码
 
 症状是库里存着 `åå‘å¼€ç¥¨` 而不是 `反向开票`（`select hex(name)` 是 `C3A5C28F…` 而不是 `E58F8DE59091…`）。

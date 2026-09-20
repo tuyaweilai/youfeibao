@@ -36,9 +36,11 @@ set -a; source .env; set +a
 cd backend
 docker compose up -d                   # MySQL(13308) + Redis(16382)，避免与常见端口冲突
 # 首次：按 backend/sql/mysql/README.md 导入建表与种子数据
-mvn -pl yudao-server -am -DskipTests install   # 首次：安装依赖
+mvn -pl yudao-server -am -DskipTests install   # 每次改完 erp / icbc 等模块都要先装，erp-biz 不在 m2 里
 mvn -pl yudao-server spring-boot:run   # 端口 48080，默认 icbc.gateway.mode=fake 不触网
 ```
+
+> ERP 自 #39 起默认启用。两条脚手架坑：改了 `erp` / `icbc` 等模块必须先 `-am install` 再起服务；单独构建子模块要用全路径 `-pl yudao-module-erp/yudao-module-erp-biz -am`（`-pl yudao-module-erp -am` 只构建父 pom）。详见 [backend/sql/mysql/README.md](backend/sql/mysql/README.md#构建与启动erp-已启用后的两个坑39)。
 
 默认登录：请求头 `tenant-id: 1`，账号 `admin` / `admin123`。
 

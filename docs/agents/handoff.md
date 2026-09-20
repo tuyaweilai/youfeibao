@@ -410,6 +410,15 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 > 已知简化：只有管理后台（PC）与自然人端能看到「变更中」；现场端登记时不做提示（付款本来就从 PC 发起，挂起发生在发起那一刻）。「同一收方同时只允许一笔在途」由服务层校验，未加 DB 约束（MySQL 局部唯一索引与 H2 兼容性权衡）。
 
+## #39 T01 放开 ERP 并让本地能起（已完成）
+
+回收企业经营作业系统的地基：ERP 成为默认模块，本地库建好 33 张 `erp_*` 表，仓储分页接口不再报 SQL 错。
+
+1. **放开两个 pom**：`backend/pom.xml` 的 `<module>yudao-module-erp</module>`、`yudao-server/pom.xml` 的 `yudao-module-erp-biz` 依赖不再注释。
+2. **建表**：`backend/sql/mysql/erp.sql`（33 张表）已在 `ruoyi-vue-pro.sql` 之后导入，已往本地库导过；33 张表逐张核对均有 `tenant_id`。
+3. **冒烟**：`mvn -pl yudao-server -am -DskipTests install` + `spring-boot:run` 均成功（`Started YudaoServerApplication in 10.5s`，无 bean / 路由冲突）；租户 1 的 `admin` 调 `GET /admin-api/erp/warehouse/page` 与 `/erp/stock/page` 都返回 `{"list":[],"total":0}`。
+4. **ADR 0025 同步修订**：按 #38 规格，`purchase` 域不启用（采购履约链建在 `icbc`），实际只启用 `stock` 域。
+
 ## 下一步建议
 
 - **A.** #13 代办税费申报——**已完成**；
@@ -423,6 +432,7 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 - **工行 UI 页面**：预下单/付款/入驻返回的是自动提交表单 HTML，用 `src/views/icbc/util.ts` 的 `openIcbcForm()` 打新窗口，不能当 URL 跳。
 - **新增 icbc 表**：工行返回字段（如 `payee_no`/`payer_no`）在本地库应为可空；表放 `backend/sql/mysql/`，菜单用 `icbc-menu.sql` 幂等维护。**全局表**（无租户隔离语义，如 `icbc_scrap_code`、`icbc_billing_ledger`——后者的 `tenant_id` 是「被计费租户」这个数据列，不是隔离维度）必须登记进 `yudao-server/src/main/resources/application.yaml` 的 `yudao.tenant.ignore-tables`，否则会被拼上 `tenant_id`。租户隔离的单测要打开拦截器（`IcbcTenantTestConfiguration`），它那里同步维护了忽略表清单。单测表结构在 `yudao-module-icbc-biz/src/test/resources/sql/create_tables.sql`。
 - **测 icbc**：`mvn -pl yudao-module-icbc/yudao-module-icbc-biz test`；改了 `-api` 先 `mvn -pl ...-api -DskipTests install`。**不要**用 `-am test`（上游模块有既有失败会挡住 reactor）。
+- **ERP 已启用（#39）**：`erp-biz` 不在 `.m2` 里时 `mvn -pl yudao-server spring-boot:run` 直接失败，改完 `erp` / `icbc` / 任何模块都要先 `mvn -pl yudao-server -am -DskipTests install`。单独构建子模块必须写全路径：`mvn -pl yudao-module-erp/yudao-module-erp-biz -am`（`-pl yudao-module-erp -am` 只构建父 pom，不进子模块）。详见 [backend/sql/mysql/README.md](../../backend/sql/mysql/README.md#构建与启动erp-已启用后的两个坑39)。
 - **额度台账口径**：只在 `NaturalPersonQuotaServiceImpl` 一处；改口径（如是否算在途）不要散到调用方去。额度是**软上限**——平台自己的台账，跨平台累计不可见。
 - **前端**：`pnpm build:local` 验证编译；`pnpm ts:check` 有 1247 个既有 TS 错误，判断自己的改动看 `src/(views|api)/icbc` 有无新报错即可（跑 ts:check 需加 `NODE_OPTIONS=--max-old-space-size=6144`）。
 - **时间字段**：yudao 全局 Jackson 把 `LocalDateTime` 按**毫秒时间戳**序列化/反序列化（`TimestampLocalDateTimeSerializer/Deserializer`）。因此 `@RequestBody` 里的 `LocalDateTime` 字段，前端日期选择器必须用 `value-format="x"`，接口类型声明为 `number`；字段上的 `@DateTimeFormat` 对 JSON body **无效**（只作用于 query/form）。不要用 `YYYY-MM-DD HH:mm:ss`，否则反序列化会得到 0 或报错。
@@ -507,5 +517,5 @@ cd backend/yudao-ui/yudao-ui-admin-vue3 && pnpm install && pnpm dev   # 3100
 
 **两条落地时要记得改的东西**：
 
-1. **ADR 0025 的域取舍在规格里被修订**：`purchase` 域不启用（采购履约链建在 `icbc` 模块，因为采购订单必须与收购单在同一模块内做关联追溯；`erp` 侧反向依赖 icbc 是错的）。实际只启用 `stock` 域。`#39` 落地时把 ADR 0025 同步改掉。
+1. **ADR 0025 的域取舍在规格里被修订**：`purchase` 域不启用（采购履约链建在 `icbc` 模块，因为采购订单必须与收购单在同一模块内做关联追溯；`erp` 侧反向依赖 icbc 是错的）。实际只启用 `stock` 域。**#39 已把 ADR 0025 同步改掉**。
 2. **`yudao-module-erp-biz/src/test/` 是空的**，没有 `create_tables.sql` / `clean.sql`。凡涉及 ERP 库存能力的测试，先把这两份 H2 资源建起来（`#42` 起需要）。

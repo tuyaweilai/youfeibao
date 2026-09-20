@@ -1,6 +1,8 @@
-# 引入 yudao ERP 作为采购与库存底座，只启用 product / purchase / stock 三个域
+# 引入 yudao ERP 作为采购与库存底座，只启用 stock 域
 
-平台从"反向开票工具"扩成回收企业的经营作业系统后，缺的那一层是**采购履约与库存台账**。仓库里已经躺着 `yudao-module-erp`（33 张表、23 个 Controller、前端 63 个页面），我们**放开它、按需收敛**，而不是自建一套同形的采购/库存。一期只启用 `product` / `purchase` / `stock` 三个域，`sale`、`finance`、`statistics` 的销售侧不启用也不分配菜单。
+> **2026-09-20 修订（#38 / #39 落地）**：本文原定启用 `product` / `purchase` / `stock` 三个域。规格 #38 改为**只启用 `stock` 域**：品类主数据权威留在 `icbc_goods_config`（`product` 域排除，见 ADR 0028），采购履约链（采购合同 / 订单 / 交接批次 / 入库单 / 进项收票）建在 `icbc` 模块，因为采购订单必须与收购单、结算单在同一模块内做关联追溯；启用 `purchase` 域会让 `erp` 反向依赖 `icbc`。其余结论不变。
+
+平台从"反向开票工具"扩成回收企业的经营作业系统后，缺的那一层是**采购履约与库存台账**。仓库里已经躺着 `yudao-module-erp`（33 张表、23 个 Controller、前端 63 个页面），我们**放开它、按需收敛**，而不是自建一套同形的采购/库存。一期只启用 `stock` 域，`product` / `purchase` / `sale` / `finance` / `statistics` 都不分配菜单。
 
 **背景**
 
@@ -13,11 +15,11 @@
 
 - **自建采购与库存**。未采纳：ERP 已有余额表 + 流水表 + 调拨 + 盘点 + 采购履约的完整闭环，重造一遍只换来确定性更差的实现。
 - **整体引入 ERP 六个域**。未采纳：`sale` 域与 ADR 0004（不做交易撮合、正向开票不做）直接冲突；`finance` 域的收付款单会与 `icbc_payment_order` 形成**两个金额事实**，而平台的卖点正是单一口径可核验（ADR 0021）。
-- **放开 pom + 收敛到三个域**。采纳。
+- **放开 pom + 收敛到 `stock` 域**。采纳。
 
 **决策细则**
 
-1. **域取舍**：启用 `purchase` 全域（含采购退货）、`stock` 全域（含出库 / 调拨 / 盘点）、`statistics` 的采购侧。**不启用** `sale`、`finance`、`statistics` 的销售侧、`account`。`stock_out` 保留但只用于**非销售出库**（报损 / 退货出库 / 内部领用），`customerId` 留空——规划 M06 明确"只有入库记录时只能称累计入库，不能称当前库存"。
+1. **域取舍**：启用 `stock` 全域（含出库 / 调拨 / 盘点）。**不启用** `purchase`、`product`、`sale`、`finance`、`statistics`（采购履约链在 `icbc` 模块，见上方修订注）。`stock_out` 保留但只用于**非销售出库**（报损 / 退货出库 / 内部领用），`customerId` 留空——规划 M06 明确"只有入库记录时只能称累计入库，不能称当前库存"。
 2. **库存归 ERP**，`erp_stock` + `erp_stock_record` 是实物库存的事实源。重造调拨/盘点没有意义。
 3. **库存维度用 `goods_config_id`，不引入 `erp_product` 域**。品类主数据权威留在 `icbc_goods_config`（它带税率、计税方法、税收分类编码，且已被现场端、自然人端、开票三处消费）；等级/规格作为 `icbc_goods_config` 的一行，而不是新开一张等级表。**代价：`erp_*_item`、`erp_stock`、`erp_stock_record` 等约 12 张表把 `product_id` / `product_unit_id` 换成 `goods_config_id bigint`；`erp_product` / `erp_product_category` / `erp_product_unit` 三张表不导入。**这是对上游的一处**故意偏离**，升级 yudao ERP 时要维护。
 4. **收购单是唯一事实源，入库是它的派生动作**：
