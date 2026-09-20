@@ -58,9 +58,10 @@ public class RecyclingPermissionSyncDriverGrantTest extends BaseMockitoUnitTest 
 
         syncService.sync();
 
-        // 司机角色拿到了「准入四步 + 建自然人档案 + 签发一次性令牌」这几条
-        // 6 条：建自然人档案、查档案、实名/入驻、框架协议、首次授权、签发一次性令牌
-        verify(permissionApi).addRoleMenus(eq(99L), argThat(menuIds -> menuIds.size() == 6));
+        // 司机角色拿到了「准入四步 + 建自然人档案 + 签发一次性令牌 + 只读品类配置」这几条
+        // 7 条：建自然人档案、查档案、实名/入驻、框架协议、首次授权、签发一次性令牌、查品类配置
+        // 最后一条是 V6 #73 加的：交接登记要选权威品类（ADR 0028），只读
+        verify(permissionApi).addRoleMenus(eq(99L), argThat(menuIds -> menuIds.size() == 7));
     }
 
     @Test
@@ -97,6 +98,9 @@ public class RecyclingPermissionSyncDriverGrantTest extends BaseMockitoUnitTest 
             java.util.List<String> permissions = (java.util.List<String>) field.get(null);
             assertTrue(permissions.contains(RecyclingPermission.SELLER_ONBOARDING_EXECUTE));
             assertTrue(permissions.contains(RecyclingPermission.PAYEE_CREATE));
+            assertTrue(permissions.contains(RecyclingPermission.GOODS_CONFIG_QUERY), "交接登记要选品类");
+            assertFalse(permissions.contains(RecyclingPermission.GOODS_CONFIG_CREATE),
+                    "司机只能读品类配置，不能改它");
             // 现场不产生金额、确认由出售者本人做：这几类一个都不能给司机
             assertFalse(permissions.contains(RecyclingPermission.ACQUISITION_CREATE), "司机不该有收购登记权限");
             assertFalse(permissions.contains(RecyclingPermission.INVOICE_APPLICATION_APPLY), "司机不该有开票申请权限");

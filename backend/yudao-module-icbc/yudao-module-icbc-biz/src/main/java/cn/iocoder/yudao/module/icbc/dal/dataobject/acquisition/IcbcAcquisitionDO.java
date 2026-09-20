@@ -181,6 +181,52 @@ public class IcbcAcquisitionDO extends TenantBaseDO {
     /** 交接批次编号；为空表示这笔收购没有经过批次登记（历史数据与直接登记） */
     private Long handoverBatchId;
 
+    // ==================== 现场交接登记来源与要件状态（V6 #73） ====================
+
+    /**
+     * 物流侧交接登记编号：本笔收购的**现场交接来源**（上门提货才有）。
+     *
+     * <p>追溯时 icbc 按它反查物流的读取面，把这一趟的运输节点与现场凭证拉进一票一档
+     *（方向恒为 icbc → 物流，ADR 0032）。
+     */
+    private Long logisticsHandoverId;
+
+    /** 司机编号（物流侧编号；与 {@link #driverName} 快照并存） */
+    private Long driverId;
+
+    /** 车辆编号（物流侧编号；与 {@link #vehiclePlateNo} 快照并存） */
+    private Long vehicleId;
+
+    /**
+     * 要件状态：COMPLETE-已齐，PENDING-待补档（V6 #73，ADR 0030 第 4 条）
+     *
+     * <p>枚举 {@link cn.iocoder.yudao.module.icbc.enums.AcquisitionDocumentStatusEnum}。
+     * **待补档的收购单被付款与开票门禁拦住**：不进开票申请、不进台账口径、不计入额度；
+     * 补档后放行（{@link #documentCompletedAt} 留办理人与时间）。
+     */
+    private String documentStatus;
+
+    /** 缺什么（待补档时说明，如「缺身份证」） */
+    private String documentGap;
+
+    /** 现场参考量快照（**不是计量事实**：计量取有效磅次） */
+    private BigDecimal referenceQuantity;
+
+    /** 现场参考单价快照（未修正时即成交单价） */
+    private BigDecimal referenceUnitPrice;
+
+    /** 修正现场参考价 / 参考量的原因；修正必填（改动要被解释，不能被抹平） */
+    private String referenceFixReason;
+
+    /** 补档完成时间 */
+    private LocalDateTime documentCompletedAt;
+
+    /** 补档办理人（系统用户编号） */
+    private Long documentCompletedBy;
+
+    /** 补档说明 */
+    private String documentCompleteRemark;
+
     /**
      * 有效磅次编号：计量结果引用的就是它。
      * 为空表示这单的重量是人工录入的，不是从有效磅次取的。
@@ -261,6 +307,16 @@ public class IcbcAcquisitionDO extends TenantBaseDO {
      */
     public BigDecimal resolvePhysicalWeight() {
         return acceptedWeight != null ? acceptedWeight : netWeight;
+    }
+
+    /**
+     * 是否**待补档**（V6 #73）：缺身份证或银行卡的交接照记事实，但付款与开票要被门禁拦住。
+     *
+     * <p>历史数据（{@code documentStatus} 为空）视为「已齐」：不因新增字段把老单据变成走不通的。
+     */
+    public boolean isDocumentPending() {
+        return cn.iocoder.yudao.module.icbc.enums.AcquisitionDocumentStatusEnum.PENDING.getStatus()
+                .equals(documentStatus);
     }
 
 }

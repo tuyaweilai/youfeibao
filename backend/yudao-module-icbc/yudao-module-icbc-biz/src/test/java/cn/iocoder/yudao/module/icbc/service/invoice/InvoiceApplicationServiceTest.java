@@ -20,6 +20,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payer.PayerInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.quota.SellerQuotaGuidanceMapper;
+import cn.iocoder.yudao.module.icbc.enums.AcquisitionDocumentStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
@@ -226,6 +227,38 @@ public class InvoiceApplicationServiceTest extends BaseDbUnitTest {
         assertTrue(failures.stream().anyMatch(item -> "TAX_METHOD_INVOICE_TYPE".equals(item.getCode())));
         assertTrue(failures.stream().anyMatch(item -> "GOODS_CODE_CONFIGURED".equals(item.getCode())));
         assertTrue(failures.stream().anyMatch(item -> "ACQUISITION_ELEMENTS".equals(item.getCode())));
+    }
+
+
+    @Test
+    public void testPreCheck_pendingDocumentsBlockInvoiceAndNeverReachQuota() {
+        // 上门提货缺身份证 / 银行卡：事实照记，但付款与开票被门禁拦住（ADR 0030 第 4 条）
+        IcbcAcquisitionDO acquisition = stubAcquisition(110L, "ACQ110", "GENERAL", "1090101010000000000");
+        acquisition.setDocumentStatus(AcquisitionDocumentStatusEnum.PENDING.getStatus());
+        acquisition.setDocumentGap("缺身份证");
+        when(acquisitionService.getAcquisition(110L)).thenReturn(acquisition);
+
+        InvoicePreCheckRespVO resp = invoiceApplicationService.preCheck(110L, "02");
+        assertFalse(resp.getAllPassed());
+        InvoicePreCheckItemVO documents = resp.getItems().stream()
+                .filter(item -> "SELLER_DOCUMENTS".equals(item.getCode())).findFirst().orElseThrow();
+        assertFalse(documents.getPassed());
+        assertTrue(documents.getMessage().contains("缺身份证"), "实际：" + documents.getMessage());
+        assertNotNull(documents.getRemedy(), "不通过要同时给出怎么补");
+
+        // 不进开票申请：不下发工行预下单、不挂回收购单
+        InvoiceApplicationResultVO result = invoiceApplicationService.apply(buildApply(110L, "02"));
+        assertFalse(result.getSuccess());
+        assertEquals(0L, fakeIcbcGateway.countOperation(FakeIcbcGateway.OP_SUBMIT_PRE_ORDER));
+        verify(acquisitionService, never()).linkInvoice(anyLong(), anyString());
+        // 不进台账口径、不计入额度：额度台账派生自票据事实，没有票就没有占用
+        assertTrue(invoiceOrderMapper.selectList().isEmpty());
+
+        // 补档放行后同一笔可以正常发起
+        acquisition.setDocumentStatus(AcquisitionDocumentStatusEnum.COMPLETE.getStatus());
+        InvoiceApplicationResultVO released = invoiceApplicationService.apply(buildApply(110L, "02"));
+        assertTrue(released.getSuccess());
+        assertEquals(1L, fakeIcbcGateway.countOperation(FakeIcbcGateway.OP_SUBMIT_PRE_ORDER));
     }
 
     // ==================== 卖方主体准入（#48，ADR 0029） ====================

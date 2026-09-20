@@ -27,6 +27,8 @@ export interface HandoverWeighingVO {
 export interface HandoverBatchVO {
   id?: number
   batchNo?: string
+  /** 物流侧交接登记编号（上门提货时非空；回场复磅时按现场交接登记建批次） */
+  logisticsHandoverId?: number
   payeeId?: number
   sellerName?: string
   sellerMobile?: string
@@ -40,6 +42,18 @@ export interface HandoverBatchVO {
   driverName?: string
   driverMobile?: string
   plateNo?: string
+  driverId?: number
+  vehicleId?: number
+  /** COMPLETE-已齐，PENDING-待补档（缺身份证或银行卡，付款与开票被门禁拦住） */
+  documentStatus?: string
+  documentStatusName?: string
+  documentGap?: string
+  /** 现场参考量（不是计量事实：计量取有效磅次） */
+  referenceQuantity?: number
+  /** 现场参考单价（生成收购单时的单价默认值，修正要留原因） */
+  referenceUnitPrice?: number
+  /** 现场凭证照片（仅详情返回） */
+  referencePhotos?: string[]
   appointmentId?: number
   purchaseOrderId?: number
   acquisitionCount?: number
@@ -49,6 +63,43 @@ export interface HandoverBatchVO {
   weighingList?: HandoverWeighingVO[]
   remark?: string
   createTime?: number
+}
+
+/** 待回场复磅的现场交接登记（磅房按它建批次；现场参考量与照片凭证都在这里） */
+export interface HandoverIntakeCandidateVO {
+  logisticsHandoverId?: number
+  handoverNo?: string
+  taskId?: number
+  taskNo?: string
+  stopId?: number
+  payeeId?: number
+  payeeName?: string
+  payeeMobile?: string
+  goodsConfigId?: number
+  categoryName?: string
+  unit?: string
+  referenceQuantity?: number
+  referenceUnitPrice?: number
+  photos?: string[]
+  address?: string
+  plateNo?: string
+  driverName?: string
+  occurTime?: number
+  documentStatus?: string
+  documentStatusName?: string
+  documentGap?: string
+}
+
+export interface HandoverIntakeReqVO {
+  logisticsHandoverId: number
+  stationId: number
+  grossWeight: number
+  tareWeight: number
+  weighTime?: number
+  weightTicketNo?: string
+  weightTicketImageUrl?: string
+  plateNo?: string
+  remark?: string
 }
 
 /** 来源方式：与后端 HandoverSourceTypeEnum 一一对应 */
@@ -72,5 +123,11 @@ export const HandoverBatchApi = {
   addWeighing: async (data: HandoverWeighingVO) =>
     await request.post({ url: `/icbc/handover-batch/weighing/add`, data }),
   selectEffectiveWeighing: async (data: { batchId: number; weighingId: number; reason?: string }) =>
-    await request.post({ url: `/icbc/handover-batch/weighing/effective`, data })
+    await request.post({ url: `/icbc/handover-batch/weighing/effective`, data }),
+  /** 待回场复磅的现场交接登记（物流读取面；已建过批次的会被过滤掉） */
+  getPendingIntakeList: async () =>
+    await request.get({ url: `/icbc/handover-batch/pending-intake-list` }),
+  /** 按现场交接登记回场复磅：建批次 + 落第一次磅次（同一现场交接登记幂等） */
+  intakeFromHandover: async (data: HandoverIntakeReqVO) =>
+    await request.post({ url: `/icbc/handover-batch/intake`, data })
 }

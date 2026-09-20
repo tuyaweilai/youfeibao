@@ -42,6 +42,8 @@ public enum LogisticsRoleEnum {
             LogisticsPermission.TRANSPORT_TASK_REASSIGN, LogisticsPermission.TRANSPORT_NODE_ABNORMAL_RESOLVE,
             LogisticsPermission.DRIVER_APP_TASK_QUERY, LogisticsPermission.DRIVER_APP_TASK_ACCEPT,
             LogisticsPermission.DRIVER_APP_NODE_REPORT,
+            LogisticsPermission.DRIVER_APP_HANDOVER_REPORT, LogisticsPermission.DRIVER_APP_HANDOVER_QUERY,
+            LogisticsPermission.TRANSPORT_HANDOVER_QUERY, LogisticsPermission.TRANSPORT_HANDOVER_MANAGE,
             LogisticsPermission.CARRIER_CREATE, LogisticsPermission.CARRIER_UPDATE,
             LogisticsPermission.CARRIER_DELETE, LogisticsPermission.CARRIER_QUERY,
             LogisticsPermission.CARRIER_EXPORT,
@@ -61,20 +63,26 @@ public enum LogisticsRoleEnum {
             LogisticsPermission.TRANSPORT_TASK_CANCEL,
             LogisticsPermission.TRANSPORT_NODE_REPORT, LogisticsPermission.TRANSPORT_NODE_QUERY,
             LogisticsPermission.TRANSPORT_TASK_REASSIGN, LogisticsPermission.TRANSPORT_NODE_ABNORMAL_RESOLVE,
+            LogisticsPermission.TRANSPORT_HANDOVER_QUERY, LogisticsPermission.TRANSPORT_HANDOVER_MANAGE,
             LogisticsPermission.CARRIER_QUERY, LogisticsPermission.EXPIRY_WARNING_QUERY,
             LogisticsPermission.DEMO_TRACK_QUERY)),
 
     /**
      * 司机：把货从提货点运到场站并上报运输节点的人（自有司机与承运商司机同构）。
      *
-     * <p>他只用司机端（V2c #79），**不进 PC 菜单**（ADR 0032）：权限面就是司机端的三个动作，
+     * <p>他只用司机端（V2c #79），**不进 PC 菜单**（ADR 0032）：权限面就是司机端的几个动作，
      * 且每个动作都会按登录账号对应的司机档案再校验一次归属（见 LogisticsDriverAppService）。
      * 收购定稿、结算确认、付款开票一概不给他。
+     *
+     * <p>交接登记（V6 #73）给他：现场只登记事实、不产生金额（ADR 0031），是「现场谈好的事」
+     * 必须由在场的人留痕；收购单不在这里、也不由他定稿。
      */
     DRIVER("logistics_driver", "司机", Set.of(
             LogisticsPermission.DRIVER_APP_TASK_QUERY,
             LogisticsPermission.DRIVER_APP_TASK_ACCEPT,
-            LogisticsPermission.DRIVER_APP_NODE_REPORT));
+            LogisticsPermission.DRIVER_APP_NODE_REPORT,
+            LogisticsPermission.DRIVER_APP_HANDOVER_REPORT,
+            LogisticsPermission.DRIVER_APP_HANDOVER_QUERY));
 
     private final String code;
     private final String name;

@@ -49,6 +49,20 @@ export interface AcquisitionVO {
   settlementMethod?: string
   status?: number
   statusName?: string
+  /** 要件状态：COMPLETE-已齐，PENDING-待补档（缺身份证或银行卡，付款与开票被门禁拦住） */
+  documentStatus?: string
+  documentStatusName?: string
+  documentGap?: string
+  /** 物流侧交接登记编号（上门提货的现场交接来源） */
+  logisticsHandoverId?: number
+  driverId?: number
+  vehicleId?: number
+  /** 现场参考量 / 参考单价快照（不是计量事实：计量取有效磅次） */
+  referenceQuantity?: number
+  referenceUnitPrice?: number
+  referenceFixReason?: string
+  documentCompletedAt?: number
+  documentCompleteRemark?: string
   invoicePartnerOrderId?: string
   source?: string
   remark?: string
@@ -148,6 +162,9 @@ export const AcquisitionApi = {
   /** 称量差异清单（只读，供异常表消费） */
   getWeightDiffPage: async (params: any) =>
     await request.get({ url: `/icbc/acquisition/weight-diff/page`, params }),
+  /** 补档放行（#73 V6）：待补档 → 已齐，留办理人与时间 */
+  completeDocuments: async (data: { id: number; remark?: string }) =>
+    await request.post({ url: `/icbc/acquisition/complete-documents`, data }),
   exportConfirmation: async (id: number) =>
     await request.download({ url: `/icbc/acquisition/confirmation/export`, params: { id } })
 }

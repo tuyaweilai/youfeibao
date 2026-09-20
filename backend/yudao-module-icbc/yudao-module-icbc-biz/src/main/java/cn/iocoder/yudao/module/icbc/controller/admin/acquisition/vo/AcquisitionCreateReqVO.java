@@ -36,6 +36,10 @@ public class AcquisitionCreateReqVO {
     @Schema(description = "交接批次编号（#50）：填了就从该批次的**有效磅次**取重量与磅单，手填的毛重 / 皮重 / 净重不采用", example = "2048")
     private Long handoverBatchId;
 
+    @Schema(description = "修正现场参考价 / 参考量的原因（V6 #73）：现场交接登记带出参考值时，单价与参考量不一致就没这个原因",
+            example = "现场复磅后杂质比目测多，按实际谈定单价")
+    private String referenceFixReason;
+
     @Schema(description = "可选关联的采购订单编号（#51）：不填即「直接收购」；填了就必须同时给采购订单明细且订单执行中、未过期", example = "5120")
     private Long purchaseOrderId;
 

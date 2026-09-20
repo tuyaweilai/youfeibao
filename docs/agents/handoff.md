@@ -1529,6 +1529,81 @@ frontier：V4 #71 **完成**。剩余 #72（V5 多停靠点集货，需 #71，�
 
 frontier：V5 #72 **完成**。波次 A + 串行链 #71 → #72 已收口；剩余 #73（V6 交接登记 → 回场复磅 → 收购单，需 #71）、#75（V8 承运合同与运费，就绪）。
 
+### V6 #73 交接登记 → 回场复磅 → 收购单（已完成）
+
+上门提货的闭环接上了：**司机在现场登记交接 → 磅房按它回场复磅 → 按有效磅次生成收购单**，
+两侧靠一条引用挂接、缺身份证 / 银行卡时走「待补档」。设计决策见 **ADR 0034**。
+
+1. **交接登记落在物流**（`logistics_transport_handover`，司机端 `pages/handover`）：品类（icbc 侧
+   `goods_config_id` + 名称快照）、参考量、参考单价、凭证照片、要件状态、司机与车辆（引用 + 快照）。
+   **不产生金额、不产生收购单**——表里没有金额字段，服务层也不调任何收购 / 结算服务。
+   幂等键 `client_request_id`；同一个停靠点只登记一次（重复登记报 `1030207009`）。
+2. **回场复磅落在 icbc**：`POST /icbc/handover-batch/intake` 按某条现场交接登记建**交接批次**
+   （`logistics_handover_id`、现场参考值、要件状态、司机 / 车辆 id + 快照）并落第一次磅次；
+   **场站必填且是派单场站**（`1_030_030_012`），上门地址进 `visit_address` 再落到收购单交易地址。
+   同一个 `logistics_handover_id` **幂等**（重放返回既有批次、不产生第二条磅次）。
+3. **收购单**：`POST /icbc/acquisition/create` 带 `handoverBatchId`（沿用 #50 的入口）。
+   单价**默认取现场参考价**；数量没给时取**结算重量**（计量口径，不是参考量）；参考量 / 参考价被显式改动
+   而不填 `referenceFixReason` → `1_030_030_014`。收购单落 `logistics_handover_id` / `driver_id` /
+   `vehicle_id` / `reference_*` / `document_status`。
+4. **待补档是一条状态**：从交接登记继承到批次再到收购单；开票 precheck 新增 `SELLER_DOCUMENTS`
+   项（`待补档：缺身份证` + 补齐办法），付款入口也各拦一道（预开票可能是补档前就存在的历史单据）。
+   **不进开票申请、不进台账口径（额度台账派生自票据事实）、不计入额度**；`POST /icbc/acquisition/complete-documents`
+   补档放行，留 `document_completed_at/by` 与说明，`document_gap`（当时缺什么）保留不抹。
+5. **追溯读到物流**：icbc 编译依赖 `yudao-module-logistics-api`（依赖方向恒为 icbc → 物流，ADR 0032）。
+   一票一档多两类货物流附件：**现场交接凭证**（司机拍的照片）与**运输凭证**（运输节点照片），
+   按 `logistics_handover_id` 反查物流读取面取回。`getEvidenceListByHandoverId` 返回**该停靠点的提货节点
+   + 整趟收尾节点**（卸货完成也是这批货的凭证），不含别家停靠点的节点。
+6. **`logistics-api` 的第三个读取轴**：`getHandover(id)`、`getRecentHandoverList()`（icbc 侧过滤掉已建过批次的
+   = 磅房的待复磅队列）、`getEvidenceListByHandoverId(id)`。**物流不写 icbc 状态**——「已复磅」只有 icbc 知道。
+   为此把 V2b 遗留的 `getEvidenceListByHandoverBatchId` 改名为 `getEvidenceListByHandoverId`（契约不变：空列表不抛异常）。
+7. **权限**：物流新增 `logistics:transport-handover:query|manage`（PC 查处 / 代录）、
+   `logistics:driver-app:handover:report|query`（司机端）；icbc 侧给司机角色补一条**只读**的
+   `icbc:goods-config:query`（交接登记要选权威品类，ADR 0028），司机权限清单 6 → 7 条（`RecyclingPermissionSyncDriverGrantTest` 跟着改，
+   并新增「不能有 GOODS_CONFIG_CREATE」的断言）。补档放行复用 `icbc:acquisition:update`。
+8. **落地**：`backend/sql/mysql/logistics-transport-handover.sql`（建表）+ `icbc-handover-logistics-link.sql`
+   （两表各补一组列，按 `information_schema` 幂等）；两份都进 `README.md` 导入顺序，本地库各导过两遍验证幂等；
+   测试建表与 `clean.sql` 同步。
+9. **icbc 单测的一个基础设施改动**：`HandoverBatchServiceImpl` / `TraceQueryServiceImpl` 现在注入跨模块的
+   `LogisticsTransportApi`，而 icbc 的 `UnitTestConfiguration` 只 `@ComponentScan` 本模块——如果只在个别测试里
+   `@MockBean`，**其它每个 icbc 测试类都会在上下文启动时报 `NoSuchBeanDefinitionException`**。已在
+   `UnitTestConfiguration` 里注册一个**空实现** `StubLogisticsTransportApi`（它同时是真实业务语义：自送的货
+   没有现场交接也没有运输节点），需要断言的用例再各自 `@MockBean` 覆盖。
+
+**验收实测**（本地 MySQL + Redis，全部真接口）：
+
+- 物流 **135 个测试全绿**（V5 的 119 + 交接登记 13 + 读取面契约 3）；icbc **696 全绿**（V4 前的 682 + 新增 14）；
+  `mvn -pl yudao-server -am -DskipTests install` 通过；`spring-boot:run` 启动成功。
+- 全链路实测：建「一车两家」任务（车 1 / 司机 5）→ 两家各登记交接（一家 `COMPLETE`、一家 `PENDING` 缺身份证，
+  参考量 12.5 吨 / 2600 元、8 吨 / 1200 元）→ 重复提交同一 `clientRequestId` 返回同一条 →
+  `pending-intake-list` 两家都带现场参考量与照片 → 各 `intake` 一次（18t−5.5t、9t−1t）→ 重复 `intake` 返回同一批次且
+  磅次仍只有一条 → 复磅后候选列表清空 → 按批次生成收购单：**单价自动取 2600 / 1200、数量取结算重量 12500 / 8000、
+  金额 32,500,000 / 9,600,000**，`logisticsHandoverId` / `driverId=5` / `vehicleId=1` / `documentStatus` /
+  `referenceQuantity=12.5` 全部落库，`stationId=1`（派单场站）+ 交易地址为**上门地址**（不是场站名）。
+- 门禁实测：改单价 2500 不给原因 → `1030030014`；`pre-check` 对待补档报 `SELLER_DOCUMENTS` 不通过（带补齐办法）→
+  `complete-documents` 后同一项转为通过、`documentCompletedAt` 与办理说明留痕；`documentGap` 保留。
+- 追溯实测：一票一档列出「现场交接凭证 1」（司机照片）+「运输凭证 到达提货点 / 卸货完成」（节点照片）；
+  另一家的收购单只拿到**自己**的现场凭证 + 整趟收尾节点，**不含别人停靠点的节点**。
+- 前端：司机端 `pnpm ts:check` 零错误 + `pnpm build:h5` 通过；现场端 `pnpm ts:check` 零错误；
+  PC `vue-tsc` 基线仍 **1254**（新增文件零错误，剩余两条是 `acquisition/index.vue` 里本来就有的）。
+
+**这一票踩到的坑（后续票注意）**：
+
+1. **跨模块 API 会让「每个」测试上下文都缺 bean**：icbc 的 `UnitTestConfiguration` 是 `@ComponentScan` 整个模块，
+   所以给任一 Service 加一个跨模块 `@Resource` 之后，**所有** icbc 测试都要能拿到那个 bean。只在个别测试里
+   `@MockBean` 不够——要么在 `UnitTestConfiguration` 里给空实现（本票的做法），要么逐个测试补 `@MockBean`。
+2. **本地库的 logistics 表可能落后于代码**：本票实测时本地库连 `logistics_transport_stop` 都没有（V5 的 SQL 没导过），
+   表现是「建任务 500，日志里 Table doesn't exist」。**在本地跑验收前，先按 `README.md` 的顺序把 logistics 那一段 SQL 补齐。**
+3. **`mvn -pl yudao-module-icbc/yudao-module-icbc-biz` 单独构建会用到 m2 里的旧 `yudao-module-logistics-api`**：
+   logistics-api 改了字段（本票加了 `address`）之后必须先 install 它，否则 icbc 侧编译报「找不到符号」而看起来像自己的问题。
+
+> **未做（如实记下）**：① 司机端交接登记**没有弱网草稿队列**（只有稳定的 `clientRequestId`，重试幂等；节点与异常有草稿队列）；
+> ② 物流侧**没有独立的「交接登记」PC 页面**（磅房在 icbc 的交接批次页按候选列表复磅，司机在自己端登记）；
+> ③ **停靠点的出售者下拉**仍未接到 icbc 档案（V5 的遗留，现在交接登记里带了 `payeeId` 快照，停靠点本身还是文本快照）；
+> ④ 参考量 / 参考价的**修正只留一个原因字段**，没有「改前 / 改后」的逐项历史（原参考值 + 原因都在，够审计但不够细）。
+
+frontier：**#73（V6）完成**。物流这条线只剩 **#75（V8 承运合同与运费对账，就绪）**。
+
 ## ⚠️ 一处需要知情的历史问题：`d98f31b` 混进了别人的 WIP
 
 提交 `d98f31b`（消息是「第六轮并行约定 + ADR 0033」，只该含文档）**同时带进了现场端 4 个文件的未提交改动**：

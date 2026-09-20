@@ -39,6 +39,12 @@ public interface AcquisitionService {
      */
     void correctRecognition(@Valid AcquisitionCorrectionReqVO reqVO);
 
+    /**
+     * 补档放行（V6 #73）：缺身份证 / 银行卡的收购单先记为待补档，付款与开票被门禁拦住；
+     * 证件补齐后在这里放行，留办理人与时间。
+     */
+    void completeDocuments(@Valid AcquisitionCompleteDocumentsReqVO reqVO);
+
     // ==================== 接收结论与称量差异（#53 T15，ADR 0028） ====================
 
     /**

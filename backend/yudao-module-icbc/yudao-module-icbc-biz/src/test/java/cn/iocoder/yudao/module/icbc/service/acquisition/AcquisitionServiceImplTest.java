@@ -5,6 +5,7 @@ import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.*;
 import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
+import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.AcquisitionCompleteDocumentsReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchCreateReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingAddReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingEffectiveReqVO;
@@ -13,17 +14,20 @@ import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOr
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseOrderStatusUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcHandoverBatchDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcWeighingDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.station.IcbcStationDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.goodscfg.IcbcGoodsConfigMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.handover.IcbcHandoverBatchMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.handover.IcbcWeighingMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.station.IcbcStationMapper;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.AcquisitionDocumentStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.HandoverSourceTypeEnum;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
@@ -85,6 +89,8 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
     private HandoverBatchService handoverBatchService;
     @Resource
     private IcbcWeighingMapper weighingMapper;
+    @Resource
+    private IcbcHandoverBatchMapper handoverBatchMapper;
     @Resource
     private PurchaseOrderService purchaseOrderService;
     @Resource
@@ -1376,6 +1382,142 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         return config;
     }
 
+
+    // ==================== 交接登记 → 回场复磅 → 收购单（V6 #73） ====================
+
+    @Test
+    public void testCreateAcquisition_fromHandoverBatch_defaultsPriceToReference_andQuantityToSettlementWeight() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long batchId = createHandoverBatch(payee.getId(), "京A12345", "12.5", "2600.00",
+                AcquisitionDocumentStatusEnum.COMPLETE.getStatus(), null);
+        addWeighing(batchId, "18000", "5500", "WD-1");
+
+        // 磅房只选现场交接登记、过磅，不重录价格与数量
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setHandoverBatchId(batchId);
+        reqVO.setWeightTicketNo(null);
+
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(
+                acquisitionService.createAcquisition(reqVO).getId());
+
+        // 单价取现场参考价；计量取有效磅次（净重 12500）
+        assertEquals(0, new BigDecimal("2600.00").compareTo(saved.getUnitPrice()));
+        assertEquals(0, new BigDecimal("12500.0000").compareTo(saved.getSettlementWeight()));
+        assertEquals(0, new BigDecimal("32500000.00").compareTo(saved.getAmount()));
+        // 没给数量时数量取结算重量（数量只是展示与发票明细字段），不是现场参考量
+        assertEquals(0, new BigDecimal("12500.0000").compareTo(saved.getQuantity()));
+        // 现场参考值留档，来源与要件状态一并落下来
+        assertEquals(0, new BigDecimal("12.5").compareTo(saved.getReferenceQuantity()));
+        assertEquals(0, new BigDecimal("2600.00").compareTo(saved.getReferenceUnitPrice()));
+        assertNotNull(saved.getLogisticsHandoverId());
+        assertEquals(AcquisitionDocumentStatusEnum.COMPLETE.getStatus(), saved.getDocumentStatus());
+        assertFalse(saved.isDocumentPending());
+    }
+
+    @Test
+    public void testCreateAcquisition_fixReferencePriceOrQuantity_requiresReason() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long batchId = createHandoverBatch(payee.getId(), "京A12345", "12.5", "2600.00",
+                AcquisitionDocumentStatusEnum.COMPLETE.getStatus(), null);
+        addWeighing(batchId, "18000", "5500", "WD-1");
+
+        // 修正单价（2600 → 2500）却不给原因：拦住
+        AcquisitionCreateReqVO fixPrice = baseReq(payee.getId(), config.getId());
+        fixPrice.setHandoverBatchId(batchId);
+        fixPrice.setUnitPrice(new BigDecimal("2500.00"));
+        assertServiceException(() -> acquisitionService.createAcquisition(fixPrice),
+                ACQUISITION_REFERENCE_FIX_REASON_REQUIRED);
+
+        // 修正现场参考量（12.5 → 10）却不给原因：同样拦住
+        AcquisitionCreateReqVO fixQuantity = baseReq(payee.getId(), config.getId());
+        fixQuantity.setHandoverBatchId(batchId);
+        fixQuantity.setQuantity(new BigDecimal("10"));
+        assertServiceException(() -> acquisitionService.createAcquisition(fixQuantity),
+                ACQUISITION_REFERENCE_FIX_REASON_REQUIRED);
+
+        // 带上原因就放行，并且留痕
+        fixPrice.setReferenceFixReason("现场复磅后杂质比目测多，按实际谈定单价");
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(
+                acquisitionService.createAcquisition(fixPrice).getId());
+        assertEquals(0, new BigDecimal("2500.00").compareTo(saved.getUnitPrice()));
+        assertEquals("现场复磅后杂质比目测多，按实际谈定单价", saved.getReferenceFixReason());
+        assertEquals(0, new BigDecimal("2600.00").compareTo(saved.getReferenceUnitPrice()),
+                "参考价原值仍要留档：改的是什么、改成了什么都要看得见");
+    }
+
+    @Test
+    public void testCreateAcquisition_pendingDocumentsInherited_andCompleteDocumentsReleases() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long batchId = createHandoverBatch(payee.getId(), "京A12345", "12.5", "2600.00",
+                AcquisitionDocumentStatusEnum.PENDING.getStatus(), "缺身份证");
+        addWeighing(batchId, "18000", "5500", "WD-1");
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setHandoverBatchId(batchId);
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
+
+        // 缺要件照记事实，但状态是待补档
+        IcbcAcquisitionDO pending = acquisitionMapper.selectById(id);
+        assertTrue(pending.isDocumentPending());
+        assertEquals("缺身份证", pending.getDocumentGap());
+
+        // 补档放行：留办理人与时间
+        AcquisitionCompleteDocumentsReqVO complete = new AcquisitionCompleteDocumentsReqVO();
+        complete.setId(id);
+        complete.setRemark("身份证与银行卡已补齐并核验");
+        acquisitionService.completeDocuments(complete);
+
+        IcbcAcquisitionDO released = acquisitionMapper.selectById(id);
+        assertFalse(released.isDocumentPending());
+        assertNotNull(released.getDocumentCompletedAt());
+        assertEquals("身份证与银行卡已补齐并核验", released.getDocumentCompleteRemark());
+        assertEquals("缺身份证", released.getDocumentGap(), "当时缺什么要留档，不被补档抹掉");
+
+        // 已齐的单再补一次是操作错误，不是幂等成功
+        assertServiceException(() -> acquisitionService.completeDocuments(complete),
+                ACQUISITION_DOCUMENT_NOT_PENDING);
+    }
+
+    @Test
+    public void testCreateAcquisition_multiStopHandovers_staySeparatePerSellerAndStation() {
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        PayeeInfoDO sellerA = insertPayee("张三", "13800138000");
+        PayeeInfoDO sellerB = insertPayee("李四", "13800138001");
+        IcbcStationDO station = insertStation("城东收货点");
+        // 一车提两家：各自一次现场交接、各自一个批次
+        Long batchA = createHandoverBatch(sellerA.getId(), "京A12345", "12.5", "2600.00",
+                AcquisitionDocumentStatusEnum.COMPLETE.getStatus(), null, station.getId());
+        Long batchB = createHandoverBatch(sellerB.getId(), "京A12345", "8", "1200.00",
+                AcquisitionDocumentStatusEnum.COMPLETE.getStatus(), null, station.getId());
+        addWeighing(batchA, "18000", "5500", "WD-A");
+        addWeighing(batchB, "9000", "1000", "WD-B");
+
+        AcquisitionCreateReqVO reqA = baseReq(sellerA.getId(), config.getId());
+        reqA.setHandoverBatchId(batchA);
+        AcquisitionCreateReqVO reqB = baseReq(sellerB.getId(), config.getId());
+        reqB.setHandoverBatchId(batchB);
+
+        IcbcAcquisitionDO savedA = acquisitionMapper.selectById(
+                acquisitionService.createAcquisition(reqA).getId());
+        IcbcAcquisitionDO savedB = acquisitionMapper.selectById(
+                acquisitionService.createAcquisition(reqB).getId());
+
+        // 两家各自一张单、各自一个批次、各自的重量与单价：一次集货不构成合并结算的依据（ADR 0031）
+        assertNotEquals(savedA.getId(), savedB.getId());
+        assertEquals(batchA, savedA.getHandoverBatchId());
+        assertEquals(batchB, savedB.getHandoverBatchId());
+        assertEquals(0, new BigDecimal("12500.0000").compareTo(savedA.getNetWeight()));
+        assertEquals(0, new BigDecimal("8000.0000").compareTo(savedB.getNetWeight()));
+        assertEquals(sellerA.getId(), savedA.getPayeeId());
+        assertEquals(sellerB.getId(), savedB.getPayeeId());
+        // 收购单与结算单归**派单场站**（ADR 0031）
+        assertEquals(station.getId(), savedA.getStationId());
+        assertEquals(station.getId(), savedB.getStationId());
+    }
+
     private AcquisitionCreateReqVO baseReq(Long payeeId, Long goodsConfigId) {
         AcquisitionCreateReqVO reqVO = new AcquisitionCreateReqVO();
         reqVO.setPayeeId(payeeId);
@@ -1384,6 +1526,44 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         reqVO.setTradeAddress("北京市朝阳区回收站");
         reqVO.setTradeTime(LocalDateTime.of(2026, 12, 1, 10, 0));
         return reqVO;
+    }
+
+
+    /**
+     * 造一个「按现场交接登记回场复磅」出来的批次：带 logisticsHandoverId、现场参考值与要件状态。
+     *
+     * <p>不走 `intakeFromHandover` 是因为 icbc 的单测上下文用空实现的物流读取面（Stub），
+     * 这里直接落库，把被测对象收敛到收购单本身；intake 的行为由 HandoverBatchServiceTest 钉。
+     */
+    private Long createHandoverBatch(Long payeeId, String plateNo, String referenceQuantity,
+                                     String referenceUnitPrice, String documentStatus, String documentGap) {
+        return createHandoverBatch(payeeId, plateNo, referenceQuantity, referenceUnitPrice,
+                documentStatus, documentGap, null);
+    }
+
+    private Long createHandoverBatch(Long payeeId, String plateNo, String referenceQuantity,
+                                     String referenceUnitPrice, String documentStatus, String documentGap,
+                                     Long stationId) {
+        IcbcHandoverBatchDO batch = IcbcHandoverBatchDO.builder()
+                .batchNo("HB" + System.nanoTime())
+                .logisticsHandoverId(System.nanoTime() % 1000000 + 1)
+                .payeeId(payeeId)
+                .sellerName("张三")
+                .stationId(stationId)
+                .visitAddress("某某路 1 号")
+                .occurTime(LocalDateTime.now())
+                .sourceType(HandoverSourceTypeEnum.ON_SITE.getType())
+                .driverId(77L)
+                .driverName("李师傅")
+                .vehicleId(88L)
+                .plateNo(plateNo)
+                .documentStatus(documentStatus)
+                .documentGap(documentGap)
+                .referenceQuantity(new BigDecimal(referenceQuantity))
+                .referenceUnitPrice(new BigDecimal(referenceUnitPrice))
+                .build();
+        handoverBatchMapper.insert(batch);
+        return batch.getId();
     }
 
     /**

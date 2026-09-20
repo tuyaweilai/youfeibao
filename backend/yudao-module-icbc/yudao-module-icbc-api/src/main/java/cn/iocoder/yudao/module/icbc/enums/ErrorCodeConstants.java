@@ -306,6 +306,18 @@ public interface ErrorCodeConstants {
     ErrorCode WEIGHING_LOCKED_FOR_ACQUISITION = new ErrorCode(1_030_030_011,
             "该收购单按交接批次的有效磅次计量，不能手工改重量（毛重 / 皮重 / 净重）；请先作废收购单再改磅次，或另建批次");
 
+    // ========== 交接登记 → 回场复磅 → 收购单（V6 #73） 1-030-030-1xx ==========
+    ErrorCode HANDOVER_INTAKE_STATION_REQUIRED = new ErrorCode(1_030_030_012,
+            "回场复磅必须指定**派单场站**：收购单与结算单归它，实际提货地址另存交易地址（不引入虚拟场站）");
+    ErrorCode HANDOVER_LOGISTICS_HANDOVER_NOT_EXISTS = new ErrorCode(1_030_030_013,
+            "现场交接登记不存在，无法按它建交接批次（请确认司机已登记，且不是另一次交接）");
+    ErrorCode ACQUISITION_REFERENCE_FIX_REASON_REQUIRED = new ErrorCode(1_030_030_014,
+            "修正现场参考价或参考量必须填原因（改动要被解释，不能被抹平）");
+    ErrorCode ACQUISITION_DOCUMENT_NOT_PENDING = new ErrorCode(1_030_030_015,
+            "该收购单不是「待补档」状态，无需补档");
+    ErrorCode ACQUISITION_DOCUMENTS_PENDING = new ErrorCode(1_030_030_016,
+            "该收购单缺身份证或银行卡（待补档），不能付款；补档后放行");
+
     // ========== 采购订单（#46 T08，ADR 0027） 1-030-031-000 ==========
     ErrorCode PURCHASE_ORDER_NOT_EXISTS = new ErrorCode(1_030_031_000, "采购订单不存在");
     ErrorCode PURCHASE_ORDER_STATUS_NOT_ALLOW = new ErrorCode(1_030_031_001,

@@ -86,4 +86,27 @@ public interface ErrorCodeConstants {
     ErrorCode TRANSPORT_STOP_NOT_ALLOWED_FOR_NODE =
             new ErrorCode(1_030_204_006, "到达场站 / 卸货完成是整趟活的收尾，不属于单个停靠点");
 
+    // ========== 交接登记 1-030-207-000（V6 #73） ==========
+    //
+    // 现场只登记事实（品类 / 参考量 / 参考单价 / 凭证照片），不产生金额、不产生收购单（ADR 0031）。
+    ErrorCode TRANSPORT_HANDOVER_NOT_EXISTS = new ErrorCode(1_030_207_000, "交接登记不存在");
+    ErrorCode TRANSPORT_HANDOVER_TASK_NOT_REGISTRABLE =
+            new ErrorCode(1_030_207_001, "待分配或已取消的任务不能登记交接（没有车与人这一趟就是没跑）");
+    ErrorCode TRANSPORT_HANDOVER_STOP_REQUIRED =
+            new ErrorCode(1_030_207_002, "任务有停靠点时必须指定在哪一家登记的交接（集货时不能混成一次）");
+    ErrorCode TRANSPORT_HANDOVER_STOP_NOT_BELONG_TO_TASK =
+            new ErrorCode(1_030_207_003, "该停靠点不属于这趟运输任务");
+    ErrorCode TRANSPORT_HANDOVER_PAYEE_REQUIRED =
+            new ErrorCode(1_030_207_004, "交接登记必须指定出售者（现场新出售者先建档再回来登记）");
+    ErrorCode TRANSPORT_HANDOVER_QUANTITY_INVALID =
+            new ErrorCode(1_030_207_005, "参考量必须大于 0（参考单价不能为负）");
+    ErrorCode TRANSPORT_HANDOVER_PHOTO_REQUIRED =
+            new ErrorCode(1_030_207_006, "交接登记必须上传凭证照片（现场凭证）");
+    ErrorCode TRANSPORT_HANDOVER_DOCUMENT_GAP_REQUIRED =
+            new ErrorCode(1_030_207_007, "记为「待补档」时必须说明缺什么（如缺身份证 / 缺银行卡）");
+    ErrorCode TRANSPORT_HANDOVER_DOCUMENT_STATUS_UNKNOWN =
+            new ErrorCode(1_030_207_008, "未知的要件状态");
+    ErrorCode TRANSPORT_HANDOVER_STOP_ALREADY_REGISTERED =
+            new ErrorCode(1_030_207_009, "该停靠点已经登记过交接，不要重复登记（补录请改这一条）");
+
 }

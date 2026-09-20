@@ -2,6 +2,7 @@
 --
 -- 新增表的票必须在这里补一条 DELETE，否则表数据会跨测试残留
 --（H2 的库名按测试上下文唯一，但同一上下文内的多个测试方法共用）。
+DELETE FROM logistics_transport_handover;
 DELETE FROM logistics_transport_node;
 DELETE FROM logistics_transport_stop;
 DELETE FROM logistics_transport_task_reassign;

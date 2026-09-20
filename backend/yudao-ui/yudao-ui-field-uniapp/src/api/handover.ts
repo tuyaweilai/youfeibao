@@ -37,6 +37,18 @@ export interface HandoverBatchVO {
   driverName?: string
   driverMobile?: string
   plateNo?: string
+  driverId?: number
+  vehicleId?: number
+  /** COMPLETE-已齐，PENDING-待补档（缺身份证或银行卡，付款与开票被门禁拦住） */
+  documentStatus?: string
+  documentStatusName?: string
+  documentGap?: string
+  /** 现场参考量（V6 #73；不是计量事实：计量取有效磅次） */
+  referenceQuantity?: number
+  /** 现场参考单价（生成收购单时的单价默认值，修正要留原因） */
+  referenceUnitPrice?: number
+  /** 现场凭证照片（仅详情返回） */
+  referencePhotos?: string[]
   /** 关联的采购订单编号（#50 预留；#51 在收购登记时带出） */
   purchaseOrderId?: number
   acquisitionCount?: number

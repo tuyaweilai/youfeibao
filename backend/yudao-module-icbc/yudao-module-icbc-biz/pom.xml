@@ -51,6 +51,14 @@
             <artifactId>yudao-module-erp-api</artifactId>
             <version>${revision}</version>
         </dependency>
+
+        <!-- 物流域读取面：上门提货的现场交接、运输节点与凭证（V6 #73）。
+             依赖方向恒为 icbc → 物流，物流不依赖 icbc（ADR 0032）；追溯反向由 icbc 拉物流的读取面 -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-module-logistics-api</artifactId>
+            <version>${revision}</version>
+        </dependency>
         
         <!-- Web 相关 -->
         <dependency>

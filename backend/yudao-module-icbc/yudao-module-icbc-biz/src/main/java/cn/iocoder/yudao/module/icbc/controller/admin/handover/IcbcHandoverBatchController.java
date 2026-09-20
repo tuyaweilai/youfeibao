@@ -3,12 +3,14 @@ package cn.iocoder.yudao.module.icbc.controller.admin.handover;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchCreateReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchIntakeReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingAddReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingEffectiveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverIntakeCandidateRespVO;
 import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import cn.iocoder.yudao.module.icbc.service.handover.HandoverBatchService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,6 +47,22 @@ public class IcbcHandoverBatchController {
     @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.HANDOVER_BATCH_MANAGE + "')")
     public CommonResult<Long> createBatch(@Valid @RequestBody HandoverBatchCreateReqVO reqVO) {
         return success(handoverBatchService.createBatch(reqVO));
+    }
+
+    @PostMapping("/intake")
+    @Operation(summary = "按现场交接登记回场复磅（上门提货）",
+            description = "磅房按司机现场登记的交接建批次并录第一次过磅；把现场参考量 / 参考单价、要件状态、司机与车辆搬进批次；**场站必填且是派单场站**；同一现场交接登记幂等")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.HANDOVER_BATCH_MANAGE + "')")
+    public CommonResult<Long> intakeFromHandover(@Valid @RequestBody HandoverBatchIntakeReqVO reqVO) {
+        return success(handoverBatchService.intakeFromHandover(reqVO));
+    }
+
+    @GetMapping("/pending-intake-list")
+    @Operation(summary = "待回场复磅的现场交接登记",
+            description = "物流侧最近登记的交接里还没建过批次的那些；带现场参考量与照片凭证，供磅房对得上现场谈的事")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.HANDOVER_BATCH_QUERY + "')")
+    public CommonResult<List<HandoverIntakeCandidateRespVO>> getPendingIntakeList() {
+        return success(handoverBatchService.getPendingIntakeList());
     }
 
     @PutMapping("/update")

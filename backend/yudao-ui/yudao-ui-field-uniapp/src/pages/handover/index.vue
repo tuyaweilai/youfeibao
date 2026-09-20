@@ -70,6 +70,27 @@
             <text class="kv__k">参与计量</text>
             <text>{{ batch.effectiveWeighingSeqNo ? `第 ${batch.effectiveWeighingSeqNo} 次磅次` : '还没有有效磅次' }}</text>
           </view>
+          <view v-if="batch.referenceQuantity" class="kv__row">
+            <text class="kv__k">现场参考</text>
+            <text>{{ batch.referenceQuantity }} · {{ batch.referenceUnitPrice ?? '—' }} 元（不是计量事实）</text>
+          </view>
+          <view class="kv__row">
+            <text class="kv__k">要件状态</text>
+            <text>{{ batch.documentStatusName || '已齐' }}{{ batch.documentGap ? `（${batch.documentGap}）` : '' }}</text>
+          </view>
+        </view>
+        <view v-if="batch.documentStatus === 'PENDING'" class="hint hint--warn">
+          这一批是「待补档」：缺身份证或银行卡。事实照记，但付款与开票会被门禁拦住，补齐后由企业放行。
+        </view>
+        <view v-if="(batch.referencePhotos || []).length" class="hint">
+          <text>现场交接凭证：</text>
+          <image
+            v-for="(url, index) in batch.referencePhotos"
+            :key="index"
+            :src="url"
+            mode="aspectFill"
+            class="reference-photo"
+          />
         </view>
         <view v-if="batch.weighingChangeLocked" class="hint hint--warn">
           该批次已产生收购单，计量结果已引用当时那一版磅次，不能再改有效磅次。
@@ -529,4 +550,12 @@ function showError(e: unknown) {
   color: $field-text-secondary;
   text-align: center;
 }
+
+.reference-photo {
+  width: 120rpx;
+  height: 120rpx;
+  margin: 8rpx 12rpx 0 0;
+  border-radius: 8rpx;
+}
 </style>
+

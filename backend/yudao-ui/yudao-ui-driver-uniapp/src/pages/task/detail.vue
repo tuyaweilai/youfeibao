@@ -25,6 +25,11 @@
         <button class="btn btn--primary" :loading="busy" @click="onAccept">接单</button>
       </view>
 
+      <!-- 没有停靠点的老任务：整趟按一个点登记交接 -->
+      <view v-if="showHandoverEntry" class="actions">
+        <button class="btn btn--ghost" @click="goHandover()">登记交接（现场参考量与凭证）</button>
+      </view>
+
       <!-- 停靠点：一车提多家，各自处理、各自推进 -->
       <view v-if="hasStops" class="card">
         <view class="card__title">停靠点（还剩 {{ pendingStopCount }} 家没提）</view>
@@ -45,6 +50,11 @@
             >{{ nodeTypeName(type) }}</text>
           </view>
           <view v-if="stop.cancelReason" class="node__line node__line--warn">已取消：{{ stop.cancelReason }}</view>
+          <button
+            v-if="stop.status !== 3"
+            class="btn btn--ghost"
+            @click="goHandover(stop)"
+          >登记交接（现场参考量与凭证）</button>
         </view>
       </view>
 
@@ -260,6 +270,11 @@ const abnormalReason = ref('')
 const abnormalPhotoPaths = ref<string[]>([])
 
 const hasStops = computed(() => (task.value?.stops?.length || 0) > 0)
+/** 没有停靠点的老任务：整趟按一个点登记交接（已分配之后才需要，待分配 / 已取消不登记） */
+const showHandoverEntry = computed(() => {
+  const status = task.value?.status
+  return !hasStops.value && status !== undefined && status >= 2 && status <= 4
+})
 const reportableStops = computed<DriverStopVO[]>(() =>
   (task.value?.stops || []).filter((stop) => stop.status !== 2 && stop.status !== 3)
 )
@@ -286,6 +301,21 @@ const brokenPointText = computed(() => {
   }
   return parts.length ? `断点 · ${parts.join('；')}` : ''
 })
+
+/**
+ * 去登记交接（V6 #73）：现场只登记事实，不产生金额；停靠点的出售者信息一起带过去，少录一遍。
+ */
+function goHandover(stop?: DriverStopVO) {
+  const params = [
+    `taskId=${taskId.value}`,
+    stop?.id ? `stopId=${stop.id}` : '',
+    stop?.payeeId ? `payeeId=${stop.payeeId}` : '',
+    stop?.payeeName ? `payeeName=${encodeURIComponent(stop.payeeName)}` : '',
+    stop?.payeeMobile ? `payeeMobile=${encodeURIComponent(stop.payeeMobile)}` : '',
+    stop?.address ? `address=${encodeURIComponent(stop.address)}` : ''
+  ].filter(Boolean)
+  uni.navigateTo({ url: `/pages/handover/index?${params.join('&')}` })
+}
 
 function nodeTypeName(type: number) {
   return NODE_TYPE_NAME[type] || '节点'

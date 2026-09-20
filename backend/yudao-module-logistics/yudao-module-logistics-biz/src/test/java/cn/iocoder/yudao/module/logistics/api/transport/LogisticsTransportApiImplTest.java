@@ -62,11 +62,35 @@ public class LogisticsTransportApiImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testGetEvidenceListByHandoverBatchId_unknown_returnsEmptyListNotNull() {
-        List<LogisticsTransportNodeRespDTO> evidences = logisticsTransportApi.getEvidenceListByHandoverBatchId(-1L);
+    public void testGetEvidenceListByHandoverId_unknown_returnsEmptyListNotNull() {
+        List<LogisticsTransportNodeRespDTO> evidences = logisticsTransportApi.getEvidenceListByHandoverId(-1L);
 
         assertNotNull(evidences, "契约要求返回空列表而不是 null");
         assertTrue(evidences.isEmpty());
+    }
+
+    @Test
+    public void testGetEvidenceListByHandoverId_null_returnsEmptyListNotNull() {
+        // 自送 / 直接登记的场景没有现场交接，调用方可能什么都没有；契约是「没有就是空」，不是报错
+        List<LogisticsTransportNodeRespDTO> evidences = logisticsTransportApi.getEvidenceListByHandoverId(null);
+
+        assertNotNull(evidences);
+        assertTrue(evidences.isEmpty());
+    }
+
+    @Test
+    public void testGetHandover_unknownAndNull_returnsNull() {
+        assertNull(logisticsTransportApi.getHandover(-1L));
+        assertNull(logisticsTransportApi.getHandover(null));
+    }
+
+    @Test
+    public void testGetRecentHandoverList_noData_returnsEmptyListNotNull() {
+        List<cn.iocoder.yudao.module.logistics.api.transport.dto.LogisticsTransportHandoverRespDTO> handovers =
+                logisticsTransportApi.getRecentHandoverList();
+
+        assertNotNull(handovers);
+        assertTrue(handovers.isEmpty());
     }
 
     @Test

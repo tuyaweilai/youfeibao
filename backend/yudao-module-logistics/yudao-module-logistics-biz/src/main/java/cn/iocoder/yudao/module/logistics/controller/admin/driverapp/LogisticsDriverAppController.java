@@ -7,6 +7,8 @@ import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.Logis
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeRespVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskRespVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporthandover.vo.LogisticsTransportHandoverCreateReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporthandover.vo.LogisticsTransportHandoverRespVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.driver.LogisticsDriverDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transportnode.LogisticsTransportNodeDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
@@ -140,6 +142,23 @@ public class LogisticsDriverAppController {
     public CommonResult<Long> nodeAbnormalReport(
             @Valid @RequestBody LogisticsTransportAbnormalReportReqVO reportReqVO) {
         return success(logisticsDriverAppService.reportMyAbnormal(reportReqVO));
+    }
+
+    @PostMapping("/handover/create")
+    @Operation(summary = "登记交接（现场谈好的事）",
+            description = "品类、参考量、参考单价与凭证照片；**现场不产生金额**（ADR 0031），收购单在回场复磅后生成；同一 clientRequestId 重复提交返回既有登记编号")
+    @PreAuthorize("@ss.hasPermission('" + LogisticsPermission.DRIVER_APP_HANDOVER_REPORT + "')")
+    public CommonResult<Long> handoverCreate(
+            @Valid @RequestBody LogisticsTransportHandoverCreateReqVO reqVO) {
+        return success(logisticsDriverAppService.createMyHandover(reqVO));
+    }
+
+    @GetMapping("/handover/list")
+    @Operation(summary = "我登记的交接", description = "按任务取（集货时一家一条）；只能看自己任务上的")
+    @Parameter(name = "taskId", description = "运输任务编号", required = true)
+    @PreAuthorize("@ss.hasPermission('" + LogisticsPermission.DRIVER_APP_HANDOVER_QUERY + "')")
+    public CommonResult<List<LogisticsTransportHandoverRespVO>> handoverList(@RequestParam("taskId") Long taskId) {
+        return success(logisticsDriverAppService.getMyHandoverList(taskId));
     }
 
     /**

@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.controller.admin.handover.vo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -15,6 +16,27 @@ public class HandoverBatchRespVO {
 
     @Schema(description = "批次号")
     private String batchNo;
+
+    @Schema(description = "物流侧交接登记编号（上门提货时非空；回场复磅时按现场交接登记建批次）")
+    private Long logisticsHandoverId;
+
+    @Schema(description = "现场参考量快照（不是计量事实：计量取有效磅次）")
+    private BigDecimal referenceQuantity;
+
+    @Schema(description = "现场参考单价快照（生成收购单时的单价默认值，修正要留原因）")
+    private BigDecimal referenceUnitPrice;
+
+    @Schema(description = "现场凭证照片 URL 列表（按 logisticsHandoverId 读物流读取面取回；仅详情返回）")
+    private List<String> referencePhotos;
+
+    @Schema(description = "要件状态：COMPLETE-已齐，PENDING-待补档")
+    private String documentStatus;
+
+    @Schema(description = "要件状态名")
+    private String documentStatusName;
+
+    @Schema(description = "缺什么（待补档时说明）")
+    private String documentGap;
 
     @Schema(description = "出售者（交易对方）档案编号")
     private Long payeeId;
@@ -43,11 +65,17 @@ public class HandoverBatchRespVO {
     @Schema(description = "来源方式名称")
     private String sourceTypeName;
 
+    @Schema(description = "司机编号（物流侧编号；与姓名快照并存）")
+    private Long driverId;
+
     @Schema(description = "司机姓名")
     private String driverName;
 
     @Schema(description = "司机手机号")
     private String driverMobile;
+
+    @Schema(description = "车辆编号（物流侧编号）")
+    private Long vehicleId;
 
     @Schema(description = "车牌号")
     private String plateNo;

@@ -55,6 +55,7 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
     private static final String CHECK_PAYER_INFO = "PAYER_INFO";
     private static final String CHECK_SELLER_AVAILABLE = "SELLER_AVAILABLE";
     private static final String CHECK_SELLER_QUOTA = "SELLER_QUOTA";
+    private static final String CHECK_SELLER_DOCUMENTS = "SELLER_DOCUMENTS";
     private static final String CHECK_SETTLEMENT_CONFIRMED = "SETTLEMENT_CONFIRMED";
     private static final String CHECK_TAX_METHOD_INVOICE_TYPE = "TAX_METHOD_INVOICE_TYPE";
     private static final String CHECK_GOODS_CODE_CONFIGURED = "GOODS_CODE_CONFIGURED";
@@ -66,6 +67,7 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
     private static final String REMEDY_PAYER = "在「付方档案」补全企业名称、纳税人识别号与合作方付方编号";
     private static final String REMEDY_SELLER = "在「出售者建档」完成实人认证、收方入驻、框架收购协议与首次授权";
     private static final String REMEDY_QUOTA = "引导该出售者办理经营主体登记，由经营主体开票；若已开票金额有误，先走红冲把额度放出来";
+    private static final String REMEDY_DOCUMENTS = "该笔收购缺身份证或银行卡（上门提货时先记为待补档）：补齐证件后在「收购登记」走补档放行，再发起开票";
     private static final String REMEDY_SETTLEMENT = "在「结算单」页结束本次收货生成结算单，并请出售者在自然人端确认（或走线下签字确认）后再发起开票";
     private static final String REMEDY_TAX_METHOD = "把票种改为增值税普通发票（02），或在「编码配置」把该品类的计税方法改为一般计税";
     private static final String REMEDY_GOODS_CODE = "在「租户开票就绪 · 编码配置」为该品类配置商品和服务税收分类合并编码";
@@ -118,6 +120,7 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
         items.add(checkPayerInfo());
         items.add(checkSellerAvailable(acquisition));
         items.add(checkSellerQuota(acquisition));
+        items.add(checkSellerDocuments(acquisition));
         items.add(checkSettlementConfirmed(acquisition));
         items.add(checkTaxMethodInvoiceType(acquisition, invoiceType));
         items.add(checkGoodsCodeConfigured(acquisition));
@@ -197,6 +200,22 @@ public class InvoiceApplicationServiceImpl implements InvoiceApplicationService 
         boolean passed = Boolean.TRUE.equals(check.getPassed());
         return item(CHECK_SELLER_QUOTA, "出售者额度", passed, check.getMessage(),
                 StrUtil.blankToDefault(check.getRemedy(), REMEDY_QUOTA));
+    }
+
+    /**
+     * 要件齐备（V6 #73）：缺身份证或银行卡的交接先记为**待补档**（ADR 0030 第 4 条）。
+     *
+     * <p>待补档的收购单**不进开票申请、不进台账口径、不计入额度**：这里拦住，就不会下发工行预下单，
+     * 额度台账（派生自票据事实）自然也不会把它算进去。补档后放行。
+     */
+    private InvoicePreCheckItemVO checkSellerDocuments(IcbcAcquisitionDO acquisition) {
+        boolean passed = !acquisition.isDocumentPending();
+        return item(CHECK_SELLER_DOCUMENTS, "出售者要件", passed,
+                passed ? "身份证与银行卡已齐备"
+                        : "该笔收购缺身份证或银行卡（待补档"
+                                + (StrUtil.isBlank(acquisition.getDocumentGap()) ? "" : "：" + acquisition.getDocumentGap())
+                                + "），不能开票",
+                REMEDY_DOCUMENTS);
     }
 
     /**

@@ -40,6 +40,15 @@ public class IcbcHandoverBatchDO extends TenantBaseDO {
     /** 批次号（平台生成，唯一） */
     private String batchNo;
 
+    /**
+     * 物流侧交接登记编号（V6 #73）
+     *
+     * <p>上门提货时，磅房按司机在现场登记的交接登记（`logistics_transport_handover`）建本批次；
+     * 这是两侧之间**唯一的挂接点**。物流只存 icbc 侧编号，icbc 反查物流的读取面（ADR 0032），
+     * 方向恒为 icbc → 物流。为空表示这一批不是上门提货（到站收货 / 历史数据）。
+     */
+    private Long logisticsHandoverId;
+
     // ==================== 交易对方 ====================
 
     /** 出售者（收方）档案编号 */
@@ -75,6 +84,33 @@ public class IcbcHandoverBatchDO extends TenantBaseDO {
 
     /** 司机手机号（运输信息） */
     private String driverMobile;
+
+    /**
+     * 司机编号（物流侧编号；与 {@link #driverName} 快照并存，V6 #73）
+     *
+     * <p>ADR 0032 第 7 条：引用让「这个司机跑了多少趟」算得出来，快照让一票一档不被档案改名污染。
+     */
+    private Long driverId;
+
+    /** 车辆编号（物流侧编号；与 {@link #plateNo} 快照并存，V6 #73） */
+    private Long vehicleId;
+
+    /**
+     * 要件状态：COMPLETE-已齐，PENDING-待补档（缺身份证或银行卡，V6 #73）
+     *
+     * <p>枚举 {@link cn.iocoder.yudao.module.icbc.enums.AcquisitionDocumentStatusEnum}。
+     * 从现场交接登记继承：待补档的批次产生的收购单会被付款与开票门禁拦住。
+     */
+    private String documentStatus;
+
+    /** 缺什么（待补档时说明，如「缺身份证」） */
+    private String documentGap;
+
+    /** 现场参考量快照（**不是计量事实**：计量取有效磅次） */
+    private java.math.BigDecimal referenceQuantity;
+
+    /** 现场参考单价快照（生成收购单时的单价默认值；修正要留原因） */
+    private java.math.BigDecimal referenceUnitPrice;
 
     /** 车牌号（同一车同一天两次送货是两个批次，靠它与磅次区分） */
     private String plateNo;

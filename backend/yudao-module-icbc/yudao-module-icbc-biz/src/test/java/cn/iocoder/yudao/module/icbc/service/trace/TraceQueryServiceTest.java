@@ -47,6 +47,7 @@ import cn.iocoder.yudao.module.icbc.enums.TraceStageCodeEnum;
 import cn.iocoder.yudao.module.icbc.enums.TraceStageStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.UploadStatusEnum;
 import cn.iocoder.yudao.module.icbc.service.trace.impl.TraceQueryServiceImpl;
+import cn.iocoder.yudao.module.logistics.api.transport.LogisticsTransportApi;
 import cn.iocoder.yudao.module.system.api.logger.OperateLogApi;
 import cn.iocoder.yudao.module.system.api.logger.dto.OperateLogCreateReqDTO;
 import org.junit.jupiter.api.AfterEach;
@@ -112,6 +113,12 @@ public class TraceQueryServiceTest extends BaseDbUnitTest {
     private SecurityFrameworkService securityFrameworkService;
     @MockBean
     private OperateLogApi operateLogApi;
+    /**
+     * 物流读取面是**跨模块 API**，icbc 的单测上下文只扫本模块，所以用 @MockBean（#59 的 Testing Decisions）。
+     * 默认返回空/ null 正好也是「自送的货没有运输节点」这个业务状态。
+     */
+    @MockBean
+    private LogisticsTransportApi logisticsTransportApi;
 
     @AfterEach
     public void tearDown() {

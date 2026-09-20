@@ -41,7 +41,8 @@ public class RecyclingPermissionSyncServiceImpl implements RecyclingPermissionSy
     public static final String DRIVER_ROLE_CODE = "logistics_driver";
 
     /**
-     * 司机需要的 icbc 权限：**只有自然人档案与准入四步**，外加签发一次性令牌用于「把确认链接转达给本人」。
+     * 司机需要的 icbc 权限：**只有自然人档案与准入四步**，外加签发一次性令牌用于「把确认链接转达给本人」，
+     * 以及只读的品类配置（交接登记要选权威品类，ADR 0028：品类权威是 goods_config_id，不用自由文本）。
      *
      * <p>刻意**不含**收购登记、结算确认、付款、开票——现场不产生金额（ADR 0031），
      * 确认一律由出售者本人做（ADR 0030）。收窄是这份清单的要点，加权限前先回头看那两条 ADR。
@@ -52,7 +53,9 @@ public class RecyclingPermissionSyncServiceImpl implements RecyclingPermissionSy
             RecyclingPermission.SELLER_ONBOARDING_EXECUTE,
             RecyclingPermission.SELLER_AGREEMENT_MANAGE,
             RecyclingPermission.SELLER_AUTHORIZATION_MANAGE,
-            RecyclingPermission.PUBLIC_TOKEN_CREATE);
+            RecyclingPermission.PUBLIC_TOKEN_CREATE,
+            // 交接登记要选品类：只读，不能建 / 改 / 删品类配置
+            RecyclingPermission.GOODS_CONFIG_QUERY);
 
     private final MenuApi menuApi;
     private final RoleApi roleApi;

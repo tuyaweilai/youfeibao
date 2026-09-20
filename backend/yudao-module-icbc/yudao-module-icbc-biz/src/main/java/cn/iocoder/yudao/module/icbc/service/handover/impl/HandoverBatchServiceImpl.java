@@ -5,12 +5,14 @@ import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchCreateReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchIntakeReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingAddReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingEffectiveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverIntakeCandidateRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.appointment.IcbcAppointmentDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcHandoverBatchDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcWeighingDO;
@@ -22,8 +24,11 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.handover.IcbcHandoverBatchMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.handover.IcbcWeighingMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.station.IcbcStationMapper;
+import cn.iocoder.yudao.module.icbc.enums.AcquisitionDocumentStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.HandoverSourceTypeEnum;
 import cn.iocoder.yudao.module.icbc.service.handover.HandoverBatchService;
+import cn.iocoder.yudao.module.logistics.api.transport.LogisticsTransportApi;
+import cn.iocoder.yudao.module.logistics.api.transport.dto.LogisticsTransportHandoverRespDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,8 +40,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
@@ -66,6 +74,14 @@ public class HandoverBatchServiceImpl implements HandoverBatchService {
     private IcbcAppointmentMapper icbcAppointmentMapper;
     @Resource
     private IcbcAcquisitionMapper icbcAcquisitionMapper;
+    /**
+     * 物流读取面（ADR 0032：方向恒为 icbc → 物流）。
+     *
+     * <p>只用两个用途：按现场交接登记建批次（拿参考量与要件状态），以及把现场照片给磅房看。
+     * 物流侧不写 icbc 的状态，两侧的挂接点是批次上的 {@code logisticsHandoverId}。
+     */
+    @Resource
+    private LogisticsTransportApi logisticsTransportApi;
 
     // ==================== 批次 ====================
 
@@ -245,6 +261,129 @@ public class HandoverBatchServiceImpl implements HandoverBatchService {
         return (long) icbcAcquisitionMapper.selectListByHandoverBatchId(batchId).size();
     }
 
+    // ==================== 现场交接登记 → 回场复磅（V6 #73） ====================
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long intakeFromHandover(@Valid HandoverBatchIntakeReqVO reqVO) {
+        // 1. 幂等：同一个现场交接登记只会建出一个批次（磅房重复点、或先前的请求重试）
+        IcbcHandoverBatchDO existing =
+                icbcHandoverBatchMapper.selectByLogisticsHandoverId(reqVO.getLogisticsHandoverId());
+        if (existing != null) {
+            return existing.getId();
+        }
+
+        // 2. 现场交接登记（物流读取面）：没有它就无从建批次，不猜
+        LogisticsTransportHandoverRespDTO handover =
+                logisticsTransportApi.getHandover(reqVO.getLogisticsHandoverId());
+        if (handover == null) {
+            throw exception(HANDOVER_LOGISTICS_HANDOVER_NOT_EXISTS);
+        }
+        PayeeInfoDO payee = handover.getPayeeId() == null ? null : payeeInfoMapper.selectById(handover.getPayeeId());
+        if (payee == null) {
+            throw exception(HANDOVER_BATCH_PAYEE_REQUIRED);
+        }
+
+        // 3. 归**派单场站**（ADR 0031）：上门提货也要有归属场站，不用上门地址顶替、不造虚拟场站
+        if (reqVO.getStationId() == null) {
+            throw exception(HANDOVER_INTAKE_STATION_REQUIRED);
+        }
+        String stationName = resolveStationName(reqVO.getStationId());
+
+        // 4. 车牌：请求（磅单）/ 现场登记二者取一，都没有就拦住（同一车同一天两次是两个批次）
+        String plateNo = StrUtil.blankToDefault(StrUtil.trim(reqVO.getPlateNo()), handover.getPlateNo());
+        if (StrUtil.isBlank(plateNo)) {
+            throw exception(HANDOVER_BATCH_PLATE_REQUIRED);
+        }
+
+        IcbcHandoverBatchDO batch = IcbcHandoverBatchDO.builder()
+                .batchNo(generateBatchNo())
+                .logisticsHandoverId(handover.getId())
+                .payeeId(payee.getId())
+                .sellerName(payee.getName())
+                .sellerMobile(payee.getMobile())
+                .stationId(reqVO.getStationId())
+                .stationName(stationName)
+                // 实际提货地址存进批次，再落到收购单的交易地址（场站是归属口径）
+                .visitAddress(StrUtil.trim(handover.getAddress()))
+                .occurTime(handover.getOccurTime() == null ? LocalDateTime.now() : handover.getOccurTime())
+                .sourceType(HandoverSourceTypeEnum.ON_SITE.getType())
+                // 司机与车辆：引用 + 快照并存（ADR 0032 第 7 条）
+                .driverId(handover.getDriverId())
+                .driverName(handover.getDriverName())
+                .driverMobile(handover.getDriverMobile())
+                .vehicleId(handover.getVehicleId())
+                .plateNo(plateNo)
+                // 要件状态与现场参考值快照：磅房看得到，生成收购单时单价默认取参考价
+                .documentStatus(StrUtil.blankToDefault(handover.getDocumentStatus(),
+                        AcquisitionDocumentStatusEnum.COMPLETE.getStatus()))
+                .documentGap(handover.getDocumentGap())
+                .referenceQuantity(handover.getReferenceQuantity())
+                .referenceUnitPrice(handover.getReferenceUnitPrice())
+                .remark(reqVO.getRemark())
+                .build();
+        icbcHandoverBatchMapper.insert(batch);
+
+        // 5. 回场过磅：第一次磅次自动成为有效磅次（复磅再另加一次并指定）
+        HandoverWeighingAddReqVO weighing = new HandoverWeighingAddReqVO();
+        weighing.setBatchId(batch.getId());
+        weighing.setGrossWeight(reqVO.getGrossWeight());
+        weighing.setTareWeight(reqVO.getTareWeight());
+        weighing.setWeighTime(reqVO.getWeighTime());
+        weighing.setWeightTicketNo(reqVO.getWeightTicketNo());
+        weighing.setWeightTicketImageUrl(reqVO.getWeightTicketImageUrl());
+        weighing.setPlateNo(plateNo);
+        weighing.setRemark(reqVO.getRemark());
+        addWeighing(weighing);
+        log.info("回场复磅建批次成功 - batchNo: {}, logisticsHandoverId: {}, stationId: {}, plate: {}",
+                batch.getBatchNo(), batch.getLogisticsHandoverId(), batch.getStationId(), batch.getPlateNo());
+        return batch.getId();
+    }
+
+    @Override
+    public List<HandoverIntakeCandidateRespVO> getPendingIntakeList() {
+        List<LogisticsTransportHandoverRespDTO> recent = logisticsTransportApi.getRecentHandoverList();
+        if (recent.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<Long> handoverIds = recent.stream().map(LogisticsTransportHandoverRespDTO::getId)
+                .filter(Objects::nonNull).collect(Collectors.toCollection(LinkedHashSet::new));
+        // 一次查批「哪些已经建过批次」，不逐条查（物流侧不知道这个状态，它只提供候选）
+        Set<Long> linkedIds = icbcHandoverBatchMapper.selectListByLogisticsHandoverIds(handoverIds).stream()
+                .map(IcbcHandoverBatchDO::getLogisticsHandoverId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return recent.stream()
+                .filter(handover -> !linkedIds.contains(handover.getId()))
+                .map(this::toIntakeCandidate)
+                .collect(Collectors.toList());
+    }
+
+    private HandoverIntakeCandidateRespVO toIntakeCandidate(LogisticsTransportHandoverRespDTO handover) {
+        HandoverIntakeCandidateRespVO resp = new HandoverIntakeCandidateRespVO();
+        resp.setLogisticsHandoverId(handover.getId());
+        resp.setHandoverNo(handover.getHandoverNo());
+        resp.setTaskId(handover.getTaskId());
+        resp.setTaskNo(handover.getTaskNo());
+        resp.setStopId(handover.getStopId());
+        resp.setPayeeId(handover.getPayeeId());
+        resp.setPayeeName(handover.getPayeeName());
+        resp.setPayeeMobile(handover.getPayeeMobile());
+        resp.setGoodsConfigId(handover.getGoodsConfigId());
+        resp.setCategoryName(handover.getCategoryName());
+        resp.setUnit(handover.getUnit());
+        resp.setReferenceQuantity(handover.getReferenceQuantity());
+        resp.setReferenceUnitPrice(handover.getReferenceUnitPrice());
+        resp.setPhotos(handover.getPhotos() == null ? Collections.emptyList() : handover.getPhotos());
+        resp.setAddress(handover.getAddress());
+        resp.setPlateNo(handover.getPlateNo());
+        resp.setDriverName(handover.getDriverName());
+        resp.setOccurTime(handover.getOccurTime());
+        resp.setDocumentStatus(handover.getDocumentStatus());
+        resp.setDocumentStatusName(handover.getDocumentStatusName());
+        resp.setDocumentGap(handover.getDocumentGap());
+        return resp;
+    }
+
     // ==================== 内部方法 ====================
 
     private void assertLocationPresent(Long stationId, String visitAddress) {
@@ -293,6 +432,15 @@ public class HandoverBatchServiceImpl implements HandoverBatchService {
         HandoverBatchRespVO resp = BeanUtils.toBean(batch, HandoverBatchRespVO.class);
         HandoverSourceTypeEnum.ofType(batch.getSourceType())
                 .ifPresent(source -> resp.setSourceTypeName(source.getName()));
+        resp.setDocumentStatusName(AcquisitionDocumentStatusEnum.nameOf(batch.getDocumentStatus()));
+        // 现场照片凭证只有详情（withWeighings）才去物流读一次：列表页逐行读会变成 N+1
+        if (withWeighings && batch.getLogisticsHandoverId() != null) {
+            LogisticsTransportHandoverRespDTO handover =
+                    logisticsTransportApi.getHandover(batch.getLogisticsHandoverId());
+            if (handover != null && handover.getPhotos() != null) {
+                resp.setReferencePhotos(handover.getPhotos());
+            }
+        }
         Long acquisitionCount = countAcquisitions(batch.getId());
         resp.setAcquisitionCount(acquisitionCount);
         resp.setWeighingChangeLocked(acquisitionCount > 0);

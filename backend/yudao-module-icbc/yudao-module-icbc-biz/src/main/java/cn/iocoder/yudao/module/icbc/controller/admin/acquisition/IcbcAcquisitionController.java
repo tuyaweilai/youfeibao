@@ -7,6 +7,7 @@ import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.*;
 import cn.iocoder.yudao.module.icbc.controller.admin.purchaseorder.vo.PurchaseArrangementRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
+import cn.iocoder.yudao.module.icbc.enums.AcquisitionDocumentStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
@@ -64,6 +65,15 @@ public class IcbcAcquisitionController {
     @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.ACQUISITION_UPDATE + "')")
     public CommonResult<Boolean> correctRecognition(@Valid @RequestBody AcquisitionCorrectionReqVO reqVO) {
         acquisitionService.correctRecognition(reqVO);
+        return success(true);
+    }
+
+    @PostMapping("/complete-documents")
+    @Operation(summary = "补档放行（待补档 → 已齐）",
+            description = "上门提货缺身份证或银行卡时先记为待补档（付款与开票被门禁拦住）；证件补齐后在这里放行并留办理人与时间")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.ACQUISITION_UPDATE + "')")
+    public CommonResult<Boolean> completeDocuments(@Valid @RequestBody AcquisitionCompleteDocumentsReqVO reqVO) {
+        acquisitionService.completeDocuments(reqVO);
         return success(true);
     }
 
@@ -155,6 +165,8 @@ public class IcbcAcquisitionController {
                 || acquisition.getPurchaseOrderId() == 0L;
         vo.setDirectAcquisition(direct);
         vo.setPurchaseArrangementText(direct ? "直接收购" : "采购订单");
+        // 要件状态（V6 #73）：历史数据（为空）按「已齐」显示，不把老单据标成待补档
+        vo.setDocumentStatusName(AcquisitionDocumentStatusEnum.nameOf(acquisition.getDocumentStatus()));
         return vo;
     }
 

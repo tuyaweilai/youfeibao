@@ -57,6 +57,14 @@
         </template>
       </el-table-column>
       <el-table-column label="交易时间" align="center" prop="tradeTime" :formatter="dateFormatter" width="170" />
+      <el-table-column label="要件" align="center" width="120">
+        <template #default="{ row }">
+          <el-tag :type="row.documentStatus === 'PENDING' ? 'warning' : 'success'" size="small">
+            {{ row.documentStatusName || '已齐' }}
+          </el-tag>
+          <div v-if="row.documentGap" class="text-12px text-red-500">{{ row.documentGap }}</div>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" align="center" width="100">
         <template #default="{ row }">
           <el-tag :type="statusTagType(row.status)">{{ row.statusName || '-' }}</el-tag>
@@ -72,6 +80,15 @@
           </el-button>
           <el-button link type="primary" @click="handleExport(row.id)" v-hasPermi="['icbc:acquisition:export']">
             确认书
+          </el-button>
+          <el-button
+            v-if="row.documentStatus === 'PENDING'"
+            link
+            type="warning"
+            @click="handleCompleteDocuments(row)"
+            v-hasPermi="['icbc:acquisition:update']"
+          >
+            补档放行
           </el-button>
         </template>
       </el-table-column>
@@ -147,6 +164,22 @@ const openForm = (type: string, id?: number) => formRef.value.open(type, id)
 
 const acceptanceRef = ref()
 const openAcceptance = (id: number) => acceptanceRef.value.open(id)
+
+/**
+ * 补档放行（V6 #73）：上门提货缺身份证 / 银行卡时先记为待补档，付款与开票被门禁拦住。
+ * 证件补齐后在这里放行——留办理人与时间，不以「改一个状态」了事。
+ */
+const handleCompleteDocuments = async (row: AcquisitionVO) => {
+  try {
+    const { value } = await message.prompt(
+      `补档放行 ${row.acquisitionNo}（当前缺：${row.documentGap || '证件'}）`,
+      '补档说明'
+    )
+    await AcquisitionApi.completeDocuments({ id: row.id!, remark: value || undefined })
+    message.success('已放行：这一笔可以正常付款与开票了')
+    await getList()
+  } catch {}
+}
 
 const handleExport = async (id: number) => {
   try {

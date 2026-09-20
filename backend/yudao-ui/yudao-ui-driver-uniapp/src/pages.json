@@ -32,6 +32,12 @@
       "style": {
         "navigationBarTitleText": "为出售者建档"
       }
+    },
+    {
+      "path": "pages/handover/index",
+      "style": {
+        "navigationBarTitleText": "登记交接"
+      }
     }
   ],
   "globalStyle": {

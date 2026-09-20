@@ -27,6 +27,9 @@
         <el-button type="primary" plain @click="openCreate" v-hasPermi="['icbc:handover-batch:manage']">
           <Icon icon="ep:plus" class="mr-5px" /> 登记交接批次
         </el-button>
+        <el-button type="success" plain @click="openIntake" v-hasPermi="['icbc:handover-batch:manage']">
+          <Icon icon="ep:van" class="mr-5px" /> 按现场交接登记回场复磅
+        </el-button>
       </el-form-item>
     </el-form>
   </ContentWrap>
@@ -157,6 +160,94 @@
     </template>
   </Dialog>
 
+  <!-- 按现场交接登记回场复磅（上门提货） -->
+  <Dialog v-model="intakeVisible" title="按现场交接登记回场复磅" width="1000px">
+    <el-alert
+      type="info"
+      :closable="false"
+      class="mb-10px"
+      title="司机在现场登记的交接事实：品类、参考量、参考单价与凭证照片。**现场不产生金额**——回场复磅才是结算重量，收购单在复磅后按这份登记生成（ADR 0031）。"
+    />
+    <el-table
+      v-loading="intakeLoading"
+      :data="intakeCandidates"
+      :stripe="true"
+      highlight-current-row
+      @current-change="(row: any) => (intakeForm.logisticsHandoverId = row?.logisticsHandoverId)"
+      max-height="320"
+    >
+      <el-table-column label="交接登记号" prop="handoverNo" min-width="170" />
+      <el-table-column label="任务" prop="taskNo" min-width="150" />
+      <el-table-column label="出售者" prop="payeeName" min-width="100" />
+      <el-table-column label="品类" min-width="130">
+        <template #default="{ row }">{{ row.categoryName }}<span v-if="row.unit">（{{ row.unit }}）</span></template>
+      </el-table-column>
+      <el-table-column label="现场参考" min-width="150">
+        <template #default="{ row }">
+          {{ row.referenceQuantity }} {{ row.unit || '' }}
+          <span v-if="row.referenceUnitPrice"> · {{ row.referenceUnitPrice }} 元</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="要件" align="center" width="110">
+        <template #default="{ row }">
+          <el-tag :type="row.documentStatus === 'PENDING' ? 'warning' : 'success'">
+            {{ row.documentStatusName || '已齐' }}
+          </el-tag>
+          <div v-if="row.documentGap" class="text-12px text-red-500">{{ row.documentGap }}</div>
+        </template>
+      </el-table-column>
+      <el-table-column label="现场凭证" min-width="150">
+        <template #default="{ row }">
+          <el-image
+            v-for="(url, index) in row.photos || []"
+            :key="index"
+            :src="url"
+            :preview-src-list="row.photos"
+            fit="cover"
+            class="w-40px h-40px mr-5px rounded"
+          />
+          <span v-if="!(row.photos || []).length" class="text-gray-400">无</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="车牌 / 司机" min-width="150">
+        <template #default="{ row }">{{ row.plateNo || '—' }} / {{ row.driverName || '—' }}</template>
+      </el-table-column>
+    </el-table>
+    <div v-if="!intakeCandidates.length && !intakeLoading" class="text-center text-gray-500 py-20px">
+      没有待复磅的现场交接登记（司机登记后才会出现在这里；已建过批次的不再列出）。
+    </div>
+
+    <el-form :model="intakeForm" label-width="120px" class="mt-15px">
+      <el-form-item label="派单场站">
+        <el-select v-model="intakeForm.stationId" placeholder="必填：收购单与结算单归派单场站" class="!w-100%">
+          <el-option v-for="item in stationOptions" :key="item.id" :label="item.name" :value="item.id!" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="毛重 / 皮重">
+        <el-input v-model="intakeForm.grossWeight" class="!w-180px mr-10px" placeholder="毛重" />
+        <el-input v-model="intakeForm.tareWeight" class="!w-180px" placeholder="皮重" />
+      </el-form-item>
+      <el-form-item label="磅单号 / 过磅时间">
+        <el-input v-model="intakeForm.weightTicketNo" class="!w-200px mr-10px" placeholder="选填" />
+        <el-date-picker v-model="intakeForm.weighTime" type="datetime" value-format="x" placeholder="不填取登记时刻" />
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="intakeForm.remark" placeholder="选填，如复磅原因" />
+      </el-form-item>
+      <el-alert
+        type="warning"
+        :closable="false"
+        title="实际提货地址会落到收购单的交易地址；场站是归属口径，不引入虚拟场站。"
+      />
+    </el-form>
+    <template #footer>
+      <el-button @click="submitIntake" type="primary" :loading="formLoading" v-hasPermi="['icbc:handover-batch:manage']">
+        建批次并过磅
+      </el-button>
+      <el-button @click="intakeVisible = false">取 消</el-button>
+    </template>
+  </Dialog>
+
   <!-- 磅次与有效磅次 -->
   <Dialog v-model="detailVisible" :title="`磅次与有效磅次 · ${detail.batchNo || ''}`" width="900px">
     <el-alert
@@ -170,7 +261,28 @@
       <el-descriptions-item label="出售者">{{ detail.sellerName || '—' }}</el-descriptions-item>
       <el-descriptions-item label="车牌">{{ detail.plateNo || '—' }}</el-descriptions-item>
       <el-descriptions-item label="来源方式">{{ detail.sourceTypeName || '—' }}</el-descriptions-item>
+      <el-descriptions-item label="现场参考量">
+        {{ detail.referenceQuantity ?? '—' }}<span v-if="detail.referenceQuantity"> （不是计量事实）</span>
+      </el-descriptions-item>
+      <el-descriptions-item label="现场参考单价">{{ detail.referenceUnitPrice ?? '—' }}</el-descriptions-item>
+      <el-descriptions-item label="要件状态">
+        <el-tag :type="detail.documentStatus === 'PENDING' ? 'warning' : 'success'">
+          {{ detail.documentStatusName || '已齐' }}
+        </el-tag>
+        <span v-if="detail.documentGap" class="text-red-500 ml-5px">{{ detail.documentGap }}</span>
+      </el-descriptions-item>
     </el-descriptions>
+    <div v-if="(detail.referencePhotos || []).length" class="mb-10px">
+      <div class="text-12px text-gray-500 mb-5px">现场交接凭证（司机在提货点拍的）</div>
+      <el-image
+        v-for="(url, index) in detail.referencePhotos"
+        :key="index"
+        :src="url"
+        :preview-src-list="detail.referencePhotos"
+        fit="cover"
+        class="w-60px h-60px mr-5px rounded"
+      />
+    </div>
 
     <el-table :data="detail.weighingList || []" :stripe="true">
       <el-table-column label="第几次" align="center" prop="seqNo" width="80" />
@@ -229,7 +341,14 @@
 </template>
 
 <script setup lang="ts">
-import { HandoverBatchApi, HandoverBatchVO, HandoverWeighingVO, HANDOVER_SOURCE_TYPES } from '@/api/icbc/handoverBatch'
+import {
+  HandoverBatchApi,
+  HandoverBatchVO,
+  HandoverWeighingVO,
+  HandoverIntakeCandidateVO,
+  HandoverIntakeReqVO,
+  HANDOVER_SOURCE_TYPES
+} from '@/api/icbc/handoverBatch'
 import { PayeeApi, PayeeVO } from '@/api/icbc/payee'
 import { StationApi, StationVO } from '@/api/icbc/station'
 import { dateFormatter } from '@/utils/formatTime'
@@ -388,6 +507,71 @@ const selectEffective = async (row: HandoverWeighingVO) => {
     await openDetail(detail.value.id)
     await getList()
   } catch {}
+}
+
+// ==================== 按现场交接登记回场复磅（V6 #73） ====================
+const intakeVisible = ref(false)
+const intakeLoading = ref(false)
+const intakeCandidates = ref<HandoverIntakeCandidateVO[]>([])
+const intakeForm = reactive<HandoverIntakeReqVO>({
+  logisticsHandoverId: 0,
+  stationId: 0,
+  grossWeight: 0,
+  tareWeight: 0
+})
+
+const openIntake = async () => {
+  await loadStations()
+  Object.assign(intakeForm, {
+    logisticsHandoverId: 0,
+    stationId: undefined,
+    grossWeight: undefined,
+    tareWeight: undefined,
+    weightTicketNo: '',
+    weighTime: undefined,
+    remark: ''
+  })
+  intakeVisible.value = true
+  intakeLoading.value = true
+  try {
+    intakeCandidates.value = (await HandoverBatchApi.getPendingIntakeList()) || []
+  } finally {
+    intakeLoading.value = false
+  }
+}
+
+const submitIntake = async () => {
+  if (!intakeForm.logisticsHandoverId) {
+    message.error('先在列表里选一条现场交接登记')
+    return
+  }
+  if (!intakeForm.stationId) {
+    message.error('派单场站必填：收购单与结算单归它')
+    return
+  }
+  if (!intakeForm.grossWeight && intakeForm.grossWeight !== 0) {
+    message.error('毛重必填（回场复磅读数）')
+    return
+  }
+  if (!intakeForm.tareWeight && intakeForm.tareWeight !== 0) {
+    message.error('皮重必填（回场复磅读数）')
+    return
+  }
+  formLoading.value = true
+  try {
+    const batchId = await HandoverBatchApi.intakeFromHandover({
+      ...intakeForm,
+      grossWeight: Number(intakeForm.grossWeight),
+      tareWeight: Number(intakeForm.tareWeight)
+    })
+    message.success('已建批次并落第一次磅次')
+    intakeVisible.value = false
+    await getList()
+    // 建完直接看这一批的磅次与现场凭证，少一次来回
+    await openDetail(batchId)
+  } finally {
+    formLoading.value = false
+  }
 }
 
 onMounted(getList)

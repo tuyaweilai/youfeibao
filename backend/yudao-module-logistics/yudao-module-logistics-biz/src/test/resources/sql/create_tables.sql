@@ -200,3 +200,39 @@ CREATE TABLE IF NOT EXISTS logistics_transport_stop (
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id)
 );
+
+-- 交接登记（V6 #73）：司机在提货点登记的现场交接事实，不是收购单
+CREATE TABLE IF NOT EXISTS logistics_transport_handover (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    handover_no VARCHAR(64) NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_no VARCHAR(64),
+    stop_id BIGINT,
+    address VARCHAR(255),
+    payee_id BIGINT,
+    payee_name VARCHAR(64),
+    payee_mobile VARCHAR(32),
+    goods_config_id BIGINT,
+    category_name VARCHAR(64),
+    unit VARCHAR(16),
+    reference_quantity DECIMAL(16,4),
+    reference_unit_price DECIMAL(16,4),
+    photos TEXT,
+    driver_id BIGINT,
+    driver_name VARCHAR(64),
+    driver_mobile VARCHAR(32),
+    vehicle_id BIGINT,
+    plate_no VARCHAR(32),
+    occur_time DATETIME,
+    document_status VARCHAR(16) NOT NULL DEFAULT 'COMPLETE',
+    document_gap VARCHAR(128),
+    client_request_id VARCHAR(64),
+    remark VARCHAR(500),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);

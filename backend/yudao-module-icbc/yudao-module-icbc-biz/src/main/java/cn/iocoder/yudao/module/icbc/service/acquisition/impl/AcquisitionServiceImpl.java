@@ -6,6 +6,7 @@ import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.framework.excel.core.util.ExcelUtils;
+import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.*;
 import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaCheckRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
@@ -21,6 +22,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.goodscfg.IcbcGoodsConfigMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
+import cn.iocoder.yudao.module.icbc.enums.AcquisitionDocumentStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.DeductionMethodEnum;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
@@ -114,6 +116,12 @@ public class AcquisitionServiceImpl implements AcquisitionService {
 
         // 4. 计价模型（ADR 0019）：结算重量 = 毛重 − 皮重 − 扣杂；金额 = 结算重量 × 单价 + 调整项
         applyPricing(acquisition);
+
+        // 4.1 按现场交接登记生成（V6 #73）、又没给数量时，数量取**结算重量**：
+        //     数量只是展示与发票明细字段（计价基准是结算重量），用计量口径兜底而不是现场参考量
+        if (acquisition.getQuantity() == null && acquisition.getSettlementWeight() != null) {
+            acquisition.setQuantity(acquisition.getSettlementWeight());
+        }
 
         // 4.1 称量差异（#53）：实物量（接收量优先，无则净重）− 结算重量；两侧都算得出就落库
         applyWeightDiff(acquisition);
@@ -290,6 +298,52 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         }
         if (acquisition.getTradeTime() == null && batch.getOccurTime() != null) {
             acquisition.setTradeTime(batch.getOccurTime());
+        }
+        applyHandoverReference(reqVO, acquisition, batch);
+    }
+
+    /**
+     * 现场交接登记带出的参考值与要件状态（V6 #73）。
+     *
+     * <p>三条口径：
+     * <ul>
+     *   <li>**单价默认取现场参考价**：现场谈好的就是默认成交价，不要求磅房重录；</li>
+     *   <li>**修正必须留原因**：显式传的单价 / 数量与现场参考值不一致时，没有原因就拦住
+     *       （改动要被解释，不能被抹平）；</li>
+     *   <li>**要件状态继承**：现场是待补档的，收购单也是待补档；补档在 completeDocuments 里留痕。
+     *       计量仍然只取有效磅次（上面已经置过），参考量只是现场约定值。</li>
+     * </ul>
+     */
+    private void applyHandoverReference(AcquisitionCreateReqVO reqVO, IcbcAcquisitionDO acquisition,
+                                       IcbcHandoverBatchDO batch) {
+        acquisition.setLogisticsHandoverId(batch.getLogisticsHandoverId());
+        acquisition.setDriverId(batch.getDriverId());
+        acquisition.setVehicleId(batch.getVehicleId());
+        acquisition.setDocumentStatus(StrUtil.blankToDefault(batch.getDocumentStatus(),
+                AcquisitionDocumentStatusEnum.COMPLETE.getStatus()));
+        acquisition.setDocumentGap(batch.getDocumentGap());
+        acquisition.setReferenceQuantity(batch.getReferenceQuantity());
+        acquisition.setReferenceUnitPrice(batch.getReferenceUnitPrice());
+        // 单价：没传就用现场参考价；传了但不等于参考价就是「修正」，必须说明原因
+        if (reqVO.getUnitPrice() == null) {
+            acquisition.setUnitPrice(batch.getReferenceUnitPrice());
+        } else if (batch.getReferenceUnitPrice() != null
+                && reqVO.getUnitPrice().compareTo(batch.getReferenceUnitPrice()) != 0) {
+            assertReferenceFixReason(reqVO, "单价");
+        }
+        // 参考量：显式传的数量与现场参考量不一致就是「修正」，同样要原因。
+        // 不传数量时按计量口径兜底（见 register），不算修正。
+        if (reqVO.getQuantity() != null && batch.getReferenceQuantity() != null
+                && reqVO.getQuantity().compareTo(batch.getReferenceQuantity()) != 0) {
+            assertReferenceFixReason(reqVO, "参考量");
+        }
+        acquisition.setReferenceFixReason(StrUtil.trim(reqVO.getReferenceFixReason()));
+    }
+
+    private void assertReferenceFixReason(AcquisitionCreateReqVO reqVO, String field) {
+        if (StrUtil.isBlank(reqVO.getReferenceFixReason())) {
+            log.warn("修正现场{}但没有填原因，已拦住 - acquisitionBatchId: {}", field, reqVO.getHandoverBatchId());
+            throw exception(ACQUISITION_REFERENCE_FIX_REASON_REQUIRED);
         }
     }
 
@@ -521,6 +575,30 @@ public class AcquisitionServiceImpl implements AcquisitionService {
 
     private static String normalizePlate(String plateNo) {
         return plateNo.replaceAll("\\s", "").toUpperCase();
+    }
+
+    // ==================== 补档放行（V6 #73） ====================
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void completeDocuments(@Valid AcquisitionCompleteDocumentsReqVO reqVO) {
+        IcbcAcquisitionDO acquisition = getAcquisition(reqVO.getId());
+        if (!acquisition.isDocumentPending()) {
+            throw exception(ACQUISITION_DOCUMENT_NOT_PENDING);
+        }
+        if (Objects.equals(acquisition.getStatus(), AcquisitionStatusEnum.CANCELLED.getStatus())) {
+            throw exception(ACQUISITION_STATUS_NOT_ALLOW_UPDATE);
+        }
+        IcbcAcquisitionDO update = new IcbcAcquisitionDO();
+        update.setId(acquisition.getId());
+        update.setDocumentStatus(AcquisitionDocumentStatusEnum.COMPLETE.getStatus());
+        // documentGap 保留：它记录的是「当时缺什么」，是事实不是状态，补档不该把它抹掉
+        update.setDocumentCompletedAt(LocalDateTime.now());
+        update.setDocumentCompletedBy(SecurityFrameworkUtils.getLoginUserId());
+        update.setDocumentCompleteRemark(reqVO.getRemark());
+        acquisitionMapper.updateById(update);
+        log.info("收购单补档放行 - acquisitionNo: {}, documentGap: {}",
+                acquisition.getAcquisitionNo(), acquisition.getDocumentGap());
     }
 
     // ==================== 离线补传 ====================

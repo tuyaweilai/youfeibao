@@ -2,12 +2,16 @@ package cn.iocoder.yudao.module.icbc.service.handover;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchCreateReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchIntakeReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchIntakeReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingAddReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingEffectiveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverIntakeCandidateRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverIntakeCandidateRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcHandoverBatchDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcWeighingDO;
 
@@ -78,5 +82,26 @@ public interface HandoverBatchService {
      * 本批次已产生的收购单张数（>0 表示有效磅次已锁定）。
      */
     Long countAcquisitions(Long batchId);
+
+    // ==================== 现场交接登记 → 回场复磅（V6 #73） ====================
+
+    /**
+     * 按现场交接登记（物流侧）建交接批次并落第一次磅次：上门提货的「回场复磅」。
+     *
+     * <p>把现场参考量 / 参考单价、要件状态（待补档）、司机与车辆引用搬进批次：磅房因此看得到现场
+     * 参考量与照片凭证，生成收购单时单价默认取参考价（ADR 0031：回场复磅才定稿）。
+     *
+     * <p>**场站必填且是派单场站**：收购单与结算单归它，实际提货地址存交易地址。
+     *
+     * <p>幂等：同一个现场交接登记只会建出一个批次（重复调用返回既有批次编号）。
+     *
+     * @return 交接批次编号
+     */
+    Long intakeFromHandover(@Valid HandoverBatchIntakeReqVO reqVO);
+
+    /**
+     * 待回场复磅的现场交接登记（磅房按它建批次）：物流侧最近登记里**还没建过批次**的那些。
+     */
+    List<HandoverIntakeCandidateRespVO> getPendingIntakeList();
 
 }

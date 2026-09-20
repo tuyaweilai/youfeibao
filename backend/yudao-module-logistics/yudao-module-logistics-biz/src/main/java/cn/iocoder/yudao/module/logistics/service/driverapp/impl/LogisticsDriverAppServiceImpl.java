@@ -5,16 +5,20 @@ import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportAbnormalReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporthandover.vo.LogisticsTransportHandoverCreateReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporthandover.vo.LogisticsTransportHandoverRespVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.driver.LogisticsDriverDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
 import cn.iocoder.yudao.module.logistics.service.driver.LogisticsDriverService;
 import cn.iocoder.yudao.module.logistics.service.driverapp.LogisticsDriverAppService;
 import cn.iocoder.yudao.module.logistics.service.transportnode.LogisticsTransportNodeService;
 import cn.iocoder.yudao.module.logistics.service.transporttask.LogisticsTransportTaskService;
+import cn.iocoder.yudao.module.logistics.service.transporthandover.LogisticsTransportHandoverService;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
 import javax.annotation.Resource;
+import java.util.List;
 import java.util.Objects;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
@@ -34,6 +38,8 @@ public class LogisticsDriverAppServiceImpl implements LogisticsDriverAppService 
     private LogisticsTransportTaskService logisticsTransportTaskService;
     @Resource
     private LogisticsTransportNodeService logisticsTransportNodeService;
+    @Resource
+    private LogisticsTransportHandoverService logisticsTransportHandoverService;
 
     @Override
     public LogisticsDriverDO getCurrentDriver() {
@@ -79,6 +85,20 @@ public class LogisticsDriverAppServiceImpl implements LogisticsDriverAppService 
     public Long reportMyAbnormal(LogisticsTransportAbnormalReportReqVO reportReqVO) {
         getMyTask(reportReqVO.getTaskId());
         return logisticsTransportNodeService.reportAbnormal(reportReqVO);
+    }
+
+    @Override
+    public Long createMyHandover(LogisticsTransportHandoverCreateReqVO reqVO) {
+        // 归属校验与节点上报同一处：不是派给我的任务就报「这不是派给你的任务」
+        getMyTask(reqVO.getTaskId());
+        return logisticsTransportHandoverService.createHandover(reqVO);
+    }
+
+    @Override
+    public List<LogisticsTransportHandoverRespVO> getMyHandoverList(Long taskId) {
+        getMyTask(taskId);
+        return logisticsTransportHandoverService.getHandoverListByTaskId(taskId).stream()
+                .map(logisticsTransportHandoverService::toResp).toList();
     }
 
 }

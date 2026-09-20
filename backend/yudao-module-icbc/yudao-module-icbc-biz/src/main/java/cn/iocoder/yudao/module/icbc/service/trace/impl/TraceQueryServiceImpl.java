@@ -117,6 +117,12 @@ public class TraceQueryServiceImpl implements TraceQueryService {
     private IcbcAcquisitionMapper acquisitionMapper;
     @Resource
     private IcbcHandoverBatchMapper handoverBatchMapper;
+    /**
+     * 物流读取面（V6 #73，ADR 0032：方向恒为 icbc → 物流）：把这一趟的现场交接与运输节点
+     * 作为**货物流**凭证拉进一票一档（税总 5 号公告第十七条的「运输发票或凭证」）。
+     */
+    @Resource
+    private cn.iocoder.yudao.module.logistics.api.transport.LogisticsTransportApi logisticsTransportApi;
     @Resource
     private IcbcWeighingMapper weighingMapper;
     @Resource
@@ -881,6 +887,7 @@ public class TraceQueryServiceImpl implements TraceQueryService {
                 addAttachment(attachments, "磅次 " + weighing.getSeqNo() + " 磅单照片",
                         weighing.getWeightTicketImageUrl(), "WEIGHING", weighing.getWeightTicketNo());
             }
+            addLogisticsAttachments(attachments, batch);
         }
         IcbcSettlementDO settlement = ctx.settlement(acquisition.getSettlementId());
         if (settlement != null) {
@@ -894,6 +901,45 @@ public class TraceQueryServiceImpl implements TraceQueryService {
             addAttachment(attachments, "发票原件", invoice.getInvoiceFileUrl(), "INVOICE", invoice.getInvoiceNo());
         }
         return attachments;
+    }
+
+    /**
+     * 把物流侧的现场交接凭证与运输节点拉成一票一档的**货物流**凭证（V6 #73）。
+     *
+     * <p>税总 5 号公告第十七条把「运输发票或凭证」列为真实性材料，而 ADR 0031 说自送的货本来就
+     * 可能没有运输节点：所以取不到就是取不到，不报错也不造假（与 V9 的模拟轨迹不同，后者永不进这里）。
+     */
+    private void addLogisticsAttachments(List<TraceAttachmentRespVO> attachments, IcbcHandoverBatchDO batch) {
+        if (batch.getLogisticsHandoverId() == null) {
+            return;
+        }
+        cn.iocoder.yudao.module.logistics.api.transport.dto.LogisticsTransportHandoverRespDTO handover =
+                logisticsTransportApi.getHandover(batch.getLogisticsHandoverId());
+        if (handover != null && handover.getPhotos() != null) {
+            int index = 1;
+            for (String photo : handover.getPhotos()) {
+                addAttachment(attachments, "现场交接凭证 " + index,
+                        photo, "LOGISTICS_HANDOVER", handover.getHandoverNo());
+                index++;
+            }
+        }
+        int nodeIndex = 1;
+        for (cn.iocoder.yudao.module.logistics.api.transport.dto.LogisticsTransportNodeRespDTO node :
+                logisticsTransportApi.getEvidenceListByHandoverId(batch.getLogisticsHandoverId())) {
+            String nodeName = node.getNodeType() == null ? "异常事实"
+                    : cn.iocoder.yudao.module.logistics.enums.LogisticsTransportNodeTypeEnum
+                            .ofType(node.getNodeType())
+                            .map(cn.iocoder.yudao.module.logistics.enums.LogisticsTransportNodeTypeEnum::getName)
+                            .orElse("运输节点");
+            if (node.getPhotos() == null) {
+                continue;
+            }
+            for (String photo : node.getPhotos()) {
+                addAttachment(attachments, "运输凭证 " + nodeName + " " + nodeIndex,
+                        photo, "LOGISTICS_NODE", node.getTaskNo());
+                nodeIndex++;
+            }
+        }
     }
 
     private void addAttachment(List<TraceAttachmentRespVO> attachments, String name, String url,

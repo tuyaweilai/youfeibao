@@ -52,6 +52,39 @@ public class AcquisitionRespVO {
     @Schema(description = "有效磅次编号（计量结果引用的就是它）", example = "4096")
     private Long weighingId;
 
+    @Schema(description = "物流侧交接登记编号（上门提货的现场交接来源；为空表示不是上门提货）", example = "3072")
+    private Long logisticsHandoverId;
+
+    @Schema(description = "司机编号（物流侧编号；与姓名快照并存）", example = "77")
+    private Long driverId;
+
+    @Schema(description = "车辆编号（物流侧编号；与车牌快照并存）", example = "88")
+    private Long vehicleId;
+
+    @Schema(description = "要件状态：COMPLETE-已齐，PENDING-待补档（缺身份证或银行卡，付款与开票被门禁拦住）")
+    private String documentStatus;
+
+    @Schema(description = "要件状态名")
+    private String documentStatusName;
+
+    @Schema(description = "缺什么（待补档时说明）")
+    private String documentGap;
+
+    @Schema(description = "现场参考量快照（不是计量事实：计量取有效磅次）")
+    private java.math.BigDecimal referenceQuantity;
+
+    @Schema(description = "现场参考单价快照（未修正时即成交单价）")
+    private java.math.BigDecimal referenceUnitPrice;
+
+    @Schema(description = "修正现场参考价 / 参考量的原因（修正必填）")
+    private String referenceFixReason;
+
+    @Schema(description = "补档完成时间")
+    private LocalDateTime documentCompletedAt;
+
+    @Schema(description = "补档说明")
+    private String documentCompleteRemark;
+
     @Schema(description = "有效磅次是第几次", example = "2")
     private Integer weighingSeqNo;
 

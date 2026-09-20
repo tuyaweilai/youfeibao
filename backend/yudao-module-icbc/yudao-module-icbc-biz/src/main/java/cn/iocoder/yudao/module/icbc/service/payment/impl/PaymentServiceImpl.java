@@ -89,6 +89,12 @@ public class PaymentServiceImpl implements PaymentService {
         // 2. 只有预开票成功才能付款（AC #1）
         assertPreInvoiceSuccess(invoiceOrder);
 
+        // 2.1 要件齐备（V6 #73）：待补档的收购单不能付款。“预开票成功”本是它们的上游，
+        //     这里再拦一道是因为预开票可能是在补档前就存在的历史单据（改口径时不追改已开票的）
+        if (acquisition.isDocumentPending()) {
+            throw exception(ACQUISITION_DOCUMENTS_PENDING);
+        }
+
         // 3. 付款金额必须与收购单金额一致（AC #6）
         BigDecimal amount = resolveAmount(acquisition, reqVO.getAmount());
 

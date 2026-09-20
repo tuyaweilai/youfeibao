@@ -10,6 +10,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.payment.vo.PaymentQueryReqV
 import cn.iocoder.yudao.module.icbc.controller.admin.payment.vo.PaymentReceiptRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.payment.vo.PaymentStatusRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
+import cn.iocoder.yudao.module.icbc.enums.AcquisitionDocumentStatusEnum;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
@@ -133,6 +134,28 @@ public class PaymentServiceImplTest extends BaseDbUnitTest {
 
         assertServiceException(() -> paymentService.applyPayment(buildApply(PARTNER_ORDER_ID, null)),
                 PAYMENT_PRE_INVOICE_NOT_SUCCESS);
+
+        assertEquals(0L, fakeIcbcGateway.countOperation(FakeIcbcGateway.OP_SUBMIT_PAYMENT));
+        assertTrue(paymentOrderMapper.selectList().isEmpty());
+    }
+
+
+    @Test
+    public void testApplyPayment_pendingDocumentsAreRejected() {
+        stubInvoiceOrder(PreInvoiceStatusEnum.SUCCESS);
+        // 上门提货缺身份证 / 银行卡：预开票可能是补档前就存在的历史单据，付款这里要再拦一道
+        IcbcAcquisitionDO pending = IcbcAcquisitionDO.builder()
+                .id(ACQUISITION_ID)
+                .acquisitionNo(PARTNER_ORDER_ID)
+                .invoicePartnerOrderId(PARTNER_ORDER_ID)
+                .amount(new BigDecimal("1000.00"))
+                .documentStatus(AcquisitionDocumentStatusEnum.PENDING.getStatus())
+                .documentGap("缺银行卡")
+                .build();
+        when(acquisitionService.getAcquisition(ACQUISITION_ID)).thenReturn(pending);
+
+        assertServiceException(() -> paymentService.applyPayment(buildApply(PARTNER_ORDER_ID, null)),
+                ACQUISITION_DOCUMENTS_PENDING);
 
         assertEquals(0L, fakeIcbcGateway.countOperation(FakeIcbcGateway.OP_SUBMIT_PAYMENT));
         assertTrue(paymentOrderMapper.selectList().isEmpty());

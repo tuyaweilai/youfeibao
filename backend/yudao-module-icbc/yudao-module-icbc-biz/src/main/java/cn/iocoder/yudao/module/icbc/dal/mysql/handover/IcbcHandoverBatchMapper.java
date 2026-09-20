@@ -5,8 +5,11 @@ import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchPageReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcHandoverBatchDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcWeighingDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -17,6 +20,27 @@ public interface IcbcHandoverBatchMapper extends BaseMapperX<IcbcHandoverBatchDO
 
     default IcbcHandoverBatchDO selectByBatchNo(String batchNo) {
         return selectOne(IcbcHandoverBatchDO::getBatchNo, batchNo);
+    }
+
+    /**
+     * 按物流侧交接登记编号反查批次（V6 #73）：同一个现场交接登记只会建出一个批次（回场复磅幂等）。
+     */
+    default IcbcHandoverBatchDO selectByLogisticsHandoverId(Long logisticsHandoverId) {
+        if (logisticsHandoverId == null) {
+            return null;
+        }
+        return selectOne(IcbcHandoverBatchDO::getLogisticsHandoverId, logisticsHandoverId);
+    }
+
+    /**
+     * 按一批物流侧交接登记编号取已有批次的登记编号集合（待复磅清单过滤用，一次查批）。
+     */
+    default List<IcbcHandoverBatchDO> selectListByLogisticsHandoverIds(Collection<Long> logisticsHandoverIds) {
+        if (logisticsHandoverIds == null || logisticsHandoverIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<IcbcHandoverBatchDO>()
+                .in(IcbcHandoverBatchDO::getLogisticsHandoverId, logisticsHandoverIds));
     }
 
     default List<IcbcHandoverBatchDO> selectListByPayeeId(Long payeeId) {

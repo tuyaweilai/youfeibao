@@ -4,12 +4,14 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchCreateReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchIntakeReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchUpdateReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingAddReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingEffectiveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverIntakeCandidateRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcHandoverBatchDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcWeighingDO;
@@ -23,6 +25,8 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.station.IcbcStationMapper;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.HandoverSourceTypeEnum;
 import cn.iocoder.yudao.module.icbc.service.handover.impl.HandoverBatchServiceImpl;
+import cn.iocoder.yudao.module.logistics.api.transport.dto.LogisticsTransportHandoverRespDTO;
+import cn.iocoder.yudao.module.logistics.api.transport.LogisticsTransportApi;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.jdbc.Sql;
@@ -36,6 +40,7 @@ import java.util.List;
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
 
 /**
  * {@link HandoverBatchServiceImpl} 的单元测试（#50 T12）。
@@ -47,6 +52,13 @@ import static org.junit.jupiter.api.Assertions.*;
 @Sql(scripts = "/sql/create_tables.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Transactional
 public class HandoverBatchServiceTest extends BaseDbUnitTest {
+
+    /**
+     * 物流读取面是**跨模块 API**（V6 #73）：icbc 的单测上下文只扫本模块，所以用 @MockBean。
+     * 默认返回空 / null，正好覆盖「到站收货没有现场交接」这条路。
+     */
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private LogisticsTransportApi logisticsTransportApi;
 
     @Resource
     private HandoverBatchService handoverBatchService;
@@ -364,6 +376,155 @@ public class HandoverBatchServiceTest extends BaseDbUnitTest {
     }
 
     // ==================== 辅助方法 ====================
+
+
+    // ==================== 现场交接登记 → 回场复磅（V6 #73） ====================
+
+    @Test
+    public void testIntakeFromHandover_createsBatchWithReferenceAndDocumentStatus_andFirstWeighing() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        IcbcStationDO station = insertStation("ST_INTAKE", "城东收货点");
+        when(logisticsTransportApi.getHandover(3072L)).thenReturn(
+                handoverDto(3072L, payee.getId(), "PENDING", "缺身份证"));
+
+        HandoverBatchIntakeReqVO reqVO = intakeReq(3072L, station.getId());
+
+        Long batchId = handoverBatchService.intakeFromHandover(reqVO);
+
+        IcbcHandoverBatchDO batch = handoverBatchMapper.selectById(batchId);
+        // 与物流侧现场交接登记唯一挂接
+        assertEquals(3072L, batch.getLogisticsHandoverId());
+        // 上门回收：场站是**归属场站**，实际提货地址存 visitAddress（ADR 0031）
+        assertEquals(station.getId(), batch.getStationId());
+        assertEquals("城东收货点", batch.getStationName());
+        assertEquals(HandoverSourceTypeEnum.ON_SITE.getType(), batch.getSourceType());
+        assertEquals("某某路 1 号", batch.getVisitAddress());
+        assertEquals(payee.getId(), batch.getPayeeId());
+        // 司机与车辆：引用 + 快照并存（ADR 0032 第 7 条）
+        assertEquals(77L, batch.getDriverId());
+        assertEquals("李师傅", batch.getDriverName());
+        assertEquals(88L, batch.getVehicleId());
+        assertEquals("京A12345", batch.getPlateNo());
+        // 要件状态与现场参考值快照
+        assertEquals("PENDING", batch.getDocumentStatus());
+        assertEquals("缺身份证", batch.getDocumentGap());
+        assertEquals(0, new BigDecimal("12.5").compareTo(batch.getReferenceQuantity()));
+        assertEquals(0, new BigDecimal("2600.00").compareTo(batch.getReferenceUnitPrice()));
+
+        // 第一次磅次自动成为有效磅次（回场复磅的读数）
+        IcbcWeighingDO weighing = weighingMapper.selectEffectiveByBatchId(batchId);
+        assertNotNull(weighing);
+        assertEquals(0, new BigDecimal("12500").compareTo(weighing.getNetWeight()));
+
+        // 磅房在批次详情里看得到现场参考量与照片凭证
+        HandoverBatchRespVO resp = handoverBatchService.getBatch(batchId);
+        assertEquals("待补档", resp.getDocumentStatusName());
+        assertEquals(0, new BigDecimal("12.5").compareTo(resp.getReferenceQuantity()));
+        assertEquals(List.of("https://file/handover.jpg"), resp.getReferencePhotos());
+        assertEquals(1L, resp.getEffectiveWeighingSeqNo().longValue());
+    }
+
+    @Test
+    public void testIntakeFromHandover_isIdempotent() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        IcbcStationDO station = insertStation("ST_INTAKE", "城东收货点");
+        when(logisticsTransportApi.getHandover(3072L)).thenReturn(
+                handoverDto(3072L, payee.getId(), "COMPLETE", null));
+        HandoverBatchIntakeReqVO reqVO = intakeReq(3072L, station.getId());
+
+        Long first = handoverBatchService.intakeFromHandover(reqVO);
+        Long second = handoverBatchService.intakeFromHandover(reqVO);
+
+        assertEquals(first, second, "同一个现场交接登记只会建出一个批次");
+        assertEquals(1, weighingMapper.selectListByBatchId(first).size(), "重复复磅不产生第二条磅次");
+    }
+
+    @Test
+    public void testIntakeFromHandover_withoutStation_isRejected() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        when(logisticsTransportApi.getHandover(3072L)).thenReturn(
+                handoverDto(3072L, payee.getId(), "COMPLETE", null));
+        HandoverBatchIntakeReqVO reqVO = intakeReq(3072L, null);
+
+        // 上门提货也要有归属场站：不用上门地址顶替，也不引入虚拟场站
+        assertServiceException(() -> handoverBatchService.intakeFromHandover(reqVO),
+                HANDOVER_INTAKE_STATION_REQUIRED);
+    }
+
+    @Test
+    public void testIntakeFromHandover_unknownHandoverOrUnknownPayee_isRejected() {
+        IcbcStationDO station = insertStation("ST_INTAKE", "城东收货点");
+        // 物流侧查不到这条现场交接（伪编号 / 已被清）
+        when(logisticsTransportApi.getHandover(9999L)).thenReturn(null);
+        assertServiceException(() -> handoverBatchService.intakeFromHandover(intakeReq(9999L, station.getId())),
+                HANDOVER_LOGISTICS_HANDOVER_NOT_EXISTS);
+
+        // 现场登记里的出售者在本租户查不到（跨租户 / 已删）：不能凭空建批次
+        when(logisticsTransportApi.getHandover(3072L)).thenReturn(
+                handoverDto(3072L, 424242L, "COMPLETE", null));
+        assertServiceException(() -> handoverBatchService.intakeFromHandover(intakeReq(3072L, station.getId())),
+                HANDOVER_BATCH_PAYEE_REQUIRED);
+    }
+
+    @Test
+    public void testGetPendingIntakeList_excludesHandoversAlreadyIntaken() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        IcbcStationDO station = insertStation("ST_INTAKE", "城东收货点");
+        when(logisticsTransportApi.getRecentHandoverList()).thenReturn(List.of(
+                handoverDto(3071L, payee.getId(), "COMPLETE", null),
+                handoverDto(3072L, payee.getId(), "PENDING", "缺银行卡")));
+        when(logisticsTransportApi.getHandover(3072L)).thenReturn(
+                handoverDto(3072L, payee.getId(), "PENDING", "缺银行卡"));
+
+        // 先复磅 3072：它就不再是候选
+        handoverBatchService.intakeFromHandover(intakeReq(3072L, station.getId()));
+
+        List<HandoverIntakeCandidateRespVO> pending = handoverBatchService.getPendingIntakeList();
+        assertEquals(1, pending.size());
+        assertEquals(3071L, pending.get(0).getLogisticsHandoverId());
+        // 候选里带现场参考量与照片凭证，磅房对得上现场谈的事
+        assertEquals(0, new BigDecimal("12.5").compareTo(pending.get(0).getReferenceQuantity()));
+        assertEquals(1, pending.get(0).getPhotos().size());
+    }
+
+    private HandoverBatchIntakeReqVO intakeReq(Long logisticsHandoverId, Long stationId) {
+        HandoverBatchIntakeReqVO reqVO = new HandoverBatchIntakeReqVO();
+        reqVO.setLogisticsHandoverId(logisticsHandoverId);
+        reqVO.setStationId(stationId);
+        reqVO.setGrossWeight(new BigDecimal("18000"));
+        reqVO.setTareWeight(new BigDecimal("5500"));
+        reqVO.setWeightTicketNo("WD-INTAKE");
+        return reqVO;
+    }
+
+    private LogisticsTransportHandoverRespDTO handoverDto(Long id, Long payeeId, String documentStatus,
+                                                          String documentGap) {
+        LogisticsTransportHandoverRespDTO dto = new LogisticsTransportHandoverRespDTO();
+        dto.setId(id);
+        dto.setHandoverNo("HO" + id);
+        dto.setTaskId(55L);
+        dto.setTaskNo("TASK-55");
+        dto.setStopId(66L);
+        dto.setAddress("某某路 1 号");
+        dto.setPayeeId(payeeId);
+        dto.setPayeeName("张三");
+        dto.setPayeeMobile("13800138000");
+        dto.setGoodsConfigId(2048L);
+        dto.setCategoryName("废钢铁");
+        dto.setUnit("吨");
+        dto.setReferenceQuantity(new BigDecimal("12.5"));
+        dto.setReferenceUnitPrice(new BigDecimal("2600.00"));
+        dto.setPhotos(new java.util.ArrayList<>(List.of("https://file/handover.jpg")));
+        dto.setDriverId(77L);
+        dto.setDriverName("李师傅");
+        dto.setVehicleId(88L);
+        dto.setPlateNo("京A12345");
+        dto.setOccurTime(LocalDateTime.now().minusHours(2));
+        dto.setDocumentStatus(documentStatus);
+        dto.setDocumentStatusName("PENDING".equals(documentStatus) ? "待补档" : "已齐");
+        dto.setDocumentGap(documentGap);
+        return dto;
+    }
 
     private HandoverBatchCreateReqVO baseReq(Long payeeId) {
         HandoverBatchCreateReqVO reqVO = new HandoverBatchCreateReqVO();

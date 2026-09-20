@@ -10,6 +10,8 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 
+import cn.iocoder.yudao.module.logistics.api.transport.LogisticsTransportApi;
+
 import javax.sql.DataSource;
 
 /**
@@ -35,5 +37,16 @@ public class UnitTestConfiguration {
                 .setType(EmbeddedDatabaseType.H2)
                 .addScript("/sql/create_tables.sql")
                 .build();
+    }
+
+    /**
+     * 物流读取面（V6 #73，icbc → 物流，ADR 0032）：单测上下文不加载其它模块，给一个空实现。
+     *
+     * <p>它是真实的业务语义（自送的货没有现场交接也没有运输节点）；需要断言的用例各自
+     * {@code @MockBean} 覆盖它。没有这个 bean，每个 icbc 测试类都会在上下文启动时失败。
+     */
+    @Bean
+    public LogisticsTransportApi logisticsTransportApi() {
+        return new StubLogisticsTransportApi();
     }
 } 

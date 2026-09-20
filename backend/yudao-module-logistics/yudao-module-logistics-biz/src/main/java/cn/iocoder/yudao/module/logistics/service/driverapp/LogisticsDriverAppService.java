@@ -4,10 +4,13 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportAbnormalReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transportnode.vo.LogisticsTransportNodeReportReqVO;
 import cn.iocoder.yudao.module.logistics.controller.admin.transporttask.vo.LogisticsTransportTaskPageReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporthandover.vo.LogisticsTransportHandoverCreateReqVO;
+import cn.iocoder.yudao.module.logistics.controller.admin.transporthandover.vo.LogisticsTransportHandoverRespVO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.driver.LogisticsDriverDO;
 import cn.iocoder.yudao.module.logistics.dal.dataobject.transporttask.LogisticsTransportTaskDO;
 
 import javax.validation.Valid;
+import java.util.List;
 
 /**
  * 司机端 Service（V2c #79）。
@@ -56,5 +59,19 @@ public interface LogisticsDriverAppService {
      * @return 异常事实编号（运输节点编号）
      */
     Long reportMyAbnormal(@Valid LogisticsTransportAbnormalReportReqVO reportReqVO);
+
+    /**
+     * 登记交接（只能登记自己任务上的）：品类、参考量、参考单价与凭证照片。
+     *
+     * <p>**现场不产生金额**（ADR 0031）：收购单在回场复磅后由 icbc 侧生成。
+     *
+     * @return 交接登记编号
+     */
+    Long createMyHandover(@Valid LogisticsTransportHandoverCreateReqVO reqVO);
+
+    /**
+     * 我这趟任务上的交接登记（集货时一家一条）。
+     */
+    List<LogisticsTransportHandoverRespVO> getMyHandoverList(Long taskId);
 
 }
