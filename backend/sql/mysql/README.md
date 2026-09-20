@@ -26,7 +26,7 @@
 20. `icbc-seller-portal.sql` —— 自然人端（#34）：企业授权自助撤销留痕、收款记录「我收到了」自行确认列
 21. `icbc-appointment.sql` —— 到站预约（#35）：预约不是订单，不占额度、不产生开票、不进五流
 22. `icbc-seller-notify.sql` —— 出售者触达（#36）：短信三条 + 收货员转达；触达记录与租户级短信开关表、短信模板
-23. `icbc-menu.sql` —— 反向开票与租户开票就绪的管理后台菜单（依赖 `system_menu`，最后导）
+23. `icbc-menu.sql` —— 菜单清场与租户套餐骨架（#41）：删掉已禁用模块 / 外链 / 演示菜单，停用待启用的 ERP 菜单树，落 工作台 / 基础资料 / 交易对方 / 采购管理 / 回收作业 / 仓储管理 / 结算管理 / 财务票务 / 业务追溯 / 经营报表 一级骨架并把既有 icbc 页面挂进去，再落「回收企业套餐」（`system_tenant_package.id = 200`）。幂等，**必须最后导**（依赖前面所有 `system_menu` / `system_tenant_package` 种子）
 
 > enterprise 的菜单与字典已包含在 `ruoyi-vue-pro.sql` 中，不要再单独导入 `enterprise-menu.sql` / `module-enterprise-dict.sql`（会主键冲突）。
 
@@ -69,6 +69,8 @@ $MYSQL ruoyi-vue-pro < repair-mojibake.sql   # 只打印「表 / 列 / 修复行
 
 - 租户：`芋道源码`（请求头 `tenant-id: 1`）
 - 账号：`admin` / `admin123`
+
+> 改了 `icbc-menu.sql` 后菜单没变化？后台把菜单树缓在 localStorage 的 `roleRouters`（登录时写）。**退出重新登录**即可；菜单数据本身每次从库里现读，不用清 Redis。
 
 ## 来源与脱敏
 

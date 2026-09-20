@@ -60,10 +60,10 @@
 
     <div class="mt-15px">
       <el-button @click="load" :loading="loading">重新自检</el-button>
-      <el-button @click="go('/readiness/qualification')">去三层资质</el-button>
-      <el-button @click="go('/readiness/enterprise-auth')">去企业授权</el-button>
-      <el-button @click="go('/readiness/goods-config')">去编码配置</el-button>
-      <el-button @click="go('/icbc/payer')">去付方档案</el-button>
+      <el-button @click="go('/basedata/qualification')">去三层资质</el-button>
+      <el-button @click="go('/counterparty/enterprise-auth')">去企业授权</el-button>
+      <el-button @click="go('/basedata/goods-config')">去编码配置</el-button>
+      <el-button @click="go('/basedata/payer')">去付方档案</el-button>
     </div>
   </ContentWrap>
 </template>
