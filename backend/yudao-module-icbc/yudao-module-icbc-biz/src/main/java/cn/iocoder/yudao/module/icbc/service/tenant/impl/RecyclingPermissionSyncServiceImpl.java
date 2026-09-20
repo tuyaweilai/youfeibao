@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.icbc.service.tenant.impl;
 
+import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import cn.iocoder.yudao.module.icbc.enums.RecyclingRoleEnum;
 import cn.iocoder.yudao.module.icbc.service.tenant.RecyclingPermissionSyncService;
 import cn.iocoder.yudao.module.icbc.service.tenant.dto.RecyclingPermissionSyncResult;
@@ -9,7 +10,9 @@ import cn.iocoder.yudao.module.system.api.permission.RoleApi;
 import cn.iocoder.yudao.module.system.api.tenant.TenantApi;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -27,6 +30,29 @@ public class RecyclingPermissionSyncServiceImpl implements RecyclingPermissionSy
      * 「回收企业套餐」编号，与 {@code backend/sql/mysql/icbc-menu.sql} 保持一致。
      */
     public static final long RECYCLING_TENANT_PACKAGE_ID = 200L;
+
+    /**
+     * 司机角色的 code（**跨模块的约定字符串**，见 ADR 0033）。
+     *
+     * <p>司机上门收货时现场没有收货员（ADR 0030），他要在自己的手机上完成自然人**准入四步**；
+     * 而这四步的接口与权限都是 icbc 的，司机的角色却定义在物流模块（ADR 0032 禁止物流依赖 icbc）。
+     * 于是约定：**由 icbc 侧按角色 code 授予**——icbc 只知道这一个字符串，不知道物流的任何类型。
+     */
+    public static final String DRIVER_ROLE_CODE = "logistics_driver";
+
+    /**
+     * 司机需要的 icbc 权限：**只有自然人档案与准入四步**，外加签发一次性令牌用于「把确认链接转达给本人」。
+     *
+     * <p>刻意**不含**收购登记、结算确认、付款、开票——现场不产生金额（ADR 0031），
+     * 确认一律由出售者本人做（ADR 0030）。收窄是这份清单的要点，加权限前先回头看那两条 ADR。
+     */
+    private static final List<String> DRIVER_PERMISSIONS = Arrays.asList(
+            RecyclingPermission.PAYEE_CREATE,
+            RecyclingPermission.PAYEE_QUERY,
+            RecyclingPermission.SELLER_ONBOARDING_EXECUTE,
+            RecyclingPermission.SELLER_AGREEMENT_MANAGE,
+            RecyclingPermission.SELLER_AUTHORIZATION_MANAGE,
+            RecyclingPermission.PUBLIC_TOKEN_CREATE);
 
     private final MenuApi menuApi;
     private final RoleApi roleApi;
@@ -65,8 +91,34 @@ public class RecyclingPermissionSyncServiceImpl implements RecyclingPermissionSy
             assignedRoleMenuCount += permissionApi.addRoleMenus(roleId,
                     menuIdsOf(role, menuSync.menuIdByPermission));
         }
+        // 司机不是回收域的角色（他在物流域，见 ADR 0032/0033），但准入四步要用 icbc 的权限：
+        // 按角色 code 授予，角色还不存在就跳过（先跑物流域的 init 再跑这个）。
+        assignedRoleMenuCount += grantDriverPermissions(menuSync.menuIdByPermission);
         return new RecyclingPermissionSyncResult(menuSync.createdMenuCount, createdRoleCount,
                 assignedRoleMenuCount, menuSync.addedPackageMenuCount);
+    }
+
+    /**
+     * 把准入四步所需的 icbc 权限授予司机角色（ADR 0033）。
+     *
+     * <p>幂等：{@code addRoleMenus} 只做新增。司机角色在该租户不存在时**直接跳过**——
+     * 这既让「先建司机角色、再同步 icbc 权限」的顺序可用，也避免 icbc 去建一个不属于它的角色。
+     *
+     * @return 新增的角色-菜单关联数
+     */
+    private int grantDriverPermissions(Map<String, Long> menuIdByPermission) {
+        Long driverRoleId = roleApi.getRoleIdByCode(DRIVER_ROLE_CODE);
+        if (driverRoleId == null) {
+            return 0;
+        }
+        Set<Long> menuIds = new LinkedHashSet<>();
+        for (String permission : DRIVER_PERMISSIONS) {
+            Long menuId = menuIdByPermission.get(permission);
+            if (menuId != null) {
+                menuIds.add(menuId);
+            }
+        }
+        return permissionApi.addRoleMenus(driverRoleId, menuIds);
     }
 
     /**

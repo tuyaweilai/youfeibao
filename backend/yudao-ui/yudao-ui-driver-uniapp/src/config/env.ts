@@ -1,6 +1,9 @@
 /** 后端 API 基地址（H5 开发用相对路径，由 vite 代理；生产可配成同源 /admin-api） */
 export const API_BASE_URL: string = import.meta.env.VITE_APP_BASE_URL || '/admin-api'
 
+/** 自然人出售者端地址（用于把建档 / 确认链接交给本人；为空则只展示令牌） */
+export const SELLER_APP_URL: string = import.meta.env.VITE_APP_SELLER_URL || ''
+
 const TENANT_KEY = 'driver_tenant_id'
 
 /** 当前租户编号：优先本地存的，其次构建期默认值 */

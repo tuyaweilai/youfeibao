@@ -1453,3 +1453,37 @@ frontier 推进：**#75（V8 承运合同与运费对账）** 已被 #70 解锁�
 > 演示开关默认关闭。要看演示效果，起服务时加 `--logistics.demo.transport-track.enabled=true`（或写进 `application-local.yaml`）。
 
 frontier 推进：**#74（V7 司机端现场引导自然人准入四步）** 与波次 A 之外的四张（#71 / #72 / #73 / #75）就绪。
+
+### V7 #74 司机端现场引导自然人准入四步（已完成，含一处如实偏差）
+
+司机上门时现场没有收货员（ADR 0030），所以自然人**准入四步**要在司机的手机上完成。
+
+1. **ADR 0033 落地**：icbc 的权限同步在同步角色时，**按角色 code `logistics_driver`** 把准入所需权限授予司机角色
+   （若该角色不存在则跳过，顺序不是硬约束）。清单只有 6 条：建自然人档案、查档案、实名/入驻、框架协议、
+   首次授权、签发一次性令牌——**没有**收购登记、结算确认、付款、开票。有 3 条 icbc 侧测试守着这份清单「要窄」。
+2. **共享包** `backend/yudao-ui/packages/field-shared/`：准入四步的**接口**（onboarding / payee / publicToken）、
+   **工行表单承载**（icbcForm）、**业务逻辑 composable**（`useSellerOnboarding`：接口编排、状态、协议必填校验、
+   失败留联系方式兜底）。两个端都以**源码**方式消费（Vite 数组别名 + tsconfig paths），源码只有一份。
+3. **司机端**：新增「为出售者建档」页（带档 / 新建 → 四步 → 把建档链接交给本人），任务详情加入口。
+   现场端那三个 `api/*.ts` 改为对该共享包的再导出（调用方不动）。
+4. **不代点确认**：司机端只有「生成并转达链接」（签发 `ONBOARDING` 一次性令牌），**没有任何「替出售者确认」的入口**；
+   四步里人脸与绑卡由本人在场完成。
+
+**一处如实偏差（模板没共享）**：票面要求「不复制粘贴」，但**跨工程共用一个 `.vue` 在本工具链下做不到**——三条路都试过并失败：
+① 放 `packages/` 用别名引入 → `vue-tsc` 满屏 `Property 'xxx' does not exist on type '{}'`（文件在 app 目录外时不生成 SFC 类型）；
+② `node_modules` 里用 `file:` 依赖 → TS 不从 `node_modules` 读 `.ts` 源码，得给共享包加构建产物；Vite 也构建不过；
+③ 软链进各端 `src/` → `vue-tsc` 解析到真实路径，回到 ①。
+结论是**共享逻辑、不共享模板**，已写进 `packages/field-shared/README.md`（连 `defineEmits` 用调用签名写法会造成同样症状也记了）。
+**剩下的口子**：现场端 `pages/payee/index.vue` 仍在用它自己的那套编排（api 层已共享）；迁移到 `useSellerOnboarding`
+是后续小票——留着是因为它当时正在被另一个会话改动，且我无法在这个会话里目视验证它的界面。
+
+**验收实测**：icbc **685 测试全绿**（+3）；两个 uni-app **`ts:check` 零错误 + `uni build` 通过**；
+接口与数据实测——`POST /icbc/tenant/role/init` 之后，DB 里司机角色恰好拿到那 6 条 `icbc:*` 权限；
+司机调 `GET /icbc/seller-onboarding/get` 通过（code=0），调 `GET /icbc/acquisition/page` 与
+`GET /icbc/settlement/page` 均 **403**。
+
+> **一个待查的小现象**：`get-permission-info` 里司机的 `permissions` 只列出 3 条物流域权限，
+> 没列出那 6 条 icbc 权限（但 DB 里有、鉴权也放行）。像是该接口按租户菜单包过滤或走了角色-菜单缓存。
+> 目前不影响功能（司机端页面不靠权限串渲染），但将来若要用权限串控制前端显隐，得先查清它。
+
+frontier：波次 A（#70 / #74 / #76）**全部完成**。剩余 #71 → #72（串行）、#73（需 #71）、#75（就绪）。

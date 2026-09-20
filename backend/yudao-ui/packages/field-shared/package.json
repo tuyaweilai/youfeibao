@@ -1,0 +1,11 @@
+{
+  "name": "@youfeibao/field-shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "现场端共享能力：自然人准入四步（实名 / 收方入驻 / 框架协议 / 首次授权）与工行表单承载。收货员现场端与司机端共用同一份，不复制粘贴。",
+  "type": "module",
+  "main": "src/index.ts",
+  "peerDependencies": {
+    "vue": "^3.4.21"
+  }
+}
