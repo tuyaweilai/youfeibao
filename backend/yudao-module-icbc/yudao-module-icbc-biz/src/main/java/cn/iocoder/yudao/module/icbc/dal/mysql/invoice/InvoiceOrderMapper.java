@@ -79,6 +79,18 @@ public interface InvoiceOrderMapper extends BaseMapperX<InvoiceOrderDO> {
                 .orderByDesc(InvoiceOrderDO::getId));
     }
 
+    /**
+     * 按收购单编号批量查询开票订单（#55 T17 关联单据查询用）。
+     */
+    default List<InvoiceOrderDO> selectListByAcquisitionIds(Collection<Long> acquisitionIds) {
+        if (acquisitionIds == null || acquisitionIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<InvoiceOrderDO>()
+                .in(InvoiceOrderDO::getAcquisitionId, acquisitionIds)
+                .orderByDesc(InvoiceOrderDO::getId));
+    }
+
     // ==================== 工作台待办（#56 T18） ====================
 
     /**

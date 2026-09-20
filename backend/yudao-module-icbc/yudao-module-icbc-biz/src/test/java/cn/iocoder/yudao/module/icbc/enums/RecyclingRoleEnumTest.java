@@ -373,6 +373,31 @@ public class RecyclingRoleEnumTest {
     }
 
     @Test
+    public void testTracePermissions() {
+        // 关联单据查询（#55）：四个租户内角色都能查链路
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.TRACE_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.TRACE_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.INVOICER.getCode(),
+                RecyclingPermission.TRACE_QUERY));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.TRACE_QUERY));
+        // 未脱敏查看与导出只给对账岗位（管理员 / 财务）；收货员 / 开票员看脱敏值
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.ADMIN.getCode(),
+                RecyclingPermission.TRACE_SENSITIVE_VIEW));
+        assertTrue(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.FINANCE.getCode(),
+                RecyclingPermission.TRACE_EXPORT));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.RECEIVER.getCode(),
+                RecyclingPermission.TRACE_SENSITIVE_VIEW));
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.INVOICER.getCode(),
+                RecyclingPermission.TRACE_EXPORT));
+        // 平台运营不参与租户内的关联单据查询
+        assertFalse(RecyclingRoleEnum.roleHasPermission(RecyclingRoleEnum.PLATFORM_OPERATOR.getCode(),
+                RecyclingPermission.TRACE_QUERY));
+    }
+
+    @Test
     public void testOfCode() {
         assertEquals(RecyclingRoleEnum.ADMIN,
                 RecyclingRoleEnum.ofCode(RecyclingRoleEnum.ADMIN.getCode()).orElseThrow());

@@ -280,5 +280,13 @@ public interface RecyclingPermission {
     String STOCK_OPENING_MANAGE = "icbc:stock-opening:manage";
     /** 查看「当前库存」口径就绪（期初 / 出库 / 调拨 / 盘点四项能力是否具备） */
     String STOCK_READINESS_QUERY = "icbc:stock:readiness:query";
+    // ========== 关联单据查询（#55 T17：一批货经历了什么的单链路追溯） ==========
+
+    /** 查看关联单据查询（四栏 + 付款 / 发票，按单号 / 车牌 / 主体反查；默认脱敏） */
+    String TRACE_QUERY = "icbc:trace:query";
+    /** 查看未脱敏的敏感字段（税号 / 身份证 / 手机号 / 银行卡）：按岗位授权，不随查询权限自动放开 */
+    String TRACE_SENSITIVE_VIEW = "icbc:trace:sensitive:view";
+    /** 导出关联单据查询结果（同样受脱敏限制，并留导出记录） */
+    String TRACE_EXPORT = "icbc:trace:export";
 
 }

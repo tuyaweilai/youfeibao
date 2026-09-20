@@ -5,6 +5,7 @@ import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.AcquisitionPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.AcquisitionWeightDiffPageReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.trace.vo.TraceSearchReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import org.apache.ibatis.annotations.Mapper;
@@ -151,6 +152,39 @@ public interface IcbcAcquisitionMapper extends BaseMapperX<IcbcAcquisitionDO> {
                 .ne(IcbcAcquisitionDO::getStatus,
                         cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum.CANCELLED.getStatus())
                 .orderByAsc(IcbcAcquisitionDO::getId));
+    }
+
+    // ==================== 关联单据查询（#55 T17，只读） ====================
+
+    /**
+     * 关联单据查询的基础筛选：单号 / 出售者 / 交易时间。车牌另有 {@link #selectListByPlateNo}，
+     * 因为它要同时匹配磅单车牌与车辆识别车牌。
+     */
+    default List<IcbcAcquisitionDO> selectListByTraceSearch(TraceSearchReqVO reqVO) {
+        return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .likeIfPresent(IcbcAcquisitionDO::getAcquisitionNo, reqVO.getAcquisitionNo())
+                .likeIfPresent(IcbcAcquisitionDO::getSellerName, reqVO.getSellerName())
+                .betweenIfPresent(IcbcAcquisitionDO::getTradeTime, reqVO.getTradeTime())
+                .orderByDesc(IcbcAcquisitionDO::getId));
+    }
+
+    /**
+     * 按车牌反查收购单：磅单识别车牌与车头车尾识别车牌任一命中。
+     * 交接批次上的车牌由服务层另行解析（同一车牌可能只在批次上登记）。
+     */
+    default List<IcbcAcquisitionDO> selectListByPlateNo(String plateNo) {
+        return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .and(wrapper -> wrapper.eq(IcbcAcquisitionDO::getVehiclePlateNo, plateNo)
+                        .or().eq(IcbcAcquisitionDO::getWeightTicketPlateNo, plateNo))
+                .orderByDesc(IcbcAcquisitionDO::getId));
+    }
+
+    /** 按出售者姓名或联系方式模糊反查（主体维度）。 */
+    default List<IcbcAcquisitionDO> selectListBySellerKeyword(String keyword) {
+        return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .and(wrapper -> wrapper.like(IcbcAcquisitionDO::getSellerName, keyword)
+                        .or().like(IcbcAcquisitionDO::getSellerMobile, keyword))
+                .orderByDesc(IcbcAcquisitionDO::getId));
     }
 
     // ==================== 工作台待办（#56 T18） ====================

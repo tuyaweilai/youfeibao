@@ -36,4 +36,14 @@ public interface IcbcHandoverBatchMapper extends BaseMapperX<IcbcHandoverBatchDO
                 .orderByDesc(IcbcHandoverBatchDO::getId));
     }
 
+    /**
+     * 按车牌反查交接批次（#55 T17 关联单据查询用）：车牌可能只登记在批次上，
+     * 收购单侧没有；服务层再把批次下的收购单一起取回。
+     */
+    default List<IcbcHandoverBatchDO> selectListByPlateNo(String plateNo) {
+        return selectList(new LambdaQueryWrapperX<IcbcHandoverBatchDO>()
+                .eq(IcbcHandoverBatchDO::getPlateNo, plateNo)
+                .orderByDesc(IcbcHandoverBatchDO::getId));
+    }
+
 }

@@ -480,4 +480,13 @@ public interface ErrorCodeConstants {
             "期初已作废，不能重复作废");
     ErrorCode STOCK_OPENING_CANCEL_REASON_REQUIRED = new ErrorCode(1_030_037_034,
             "作废期初必须说明原因（会同时冲销入库的库存）");
+    // ========== 关联单据查询（#55 T17：一批货经历了什么的单链路追溯，只读） 1-030-038-000 ==========
+    ErrorCode TRACE_QUERY_CONDITION_REQUIRED = new ErrorCode(1_030_038_000,
+            "关联单据查询至少要给出一个条件：单号、车牌或出售者主体");
+    ErrorCode TRACE_KEYWORD_TYPE_INVALID = new ErrorCode(1_030_038_001,
+            "关联单据查询的查号方式不合法：{}");
+    ErrorCode TRACE_ACQUISITION_NOT_EXISTS = new ErrorCode(1_030_038_002,
+            "收购单不存在，无法追溯：{}（跨租户的单据在本企业不可见）");
+    ErrorCode TRACE_EXPORT_LIMIT_EXCEEDED = new ErrorCode(1_030_038_003,
+            "本次筛选命中 {} 条，超过导出上限 {}；请缩小筛选范围后再导出");
 }

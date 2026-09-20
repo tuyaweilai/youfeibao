@@ -80,7 +80,10 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.WORKBENCH_QUERY,
             RecyclingPermission.PURCHASE_SETTING_QUERY, RecyclingPermission.PURCHASE_SETTING_MANAGE,
             RecyclingPermission.PURCHASE_EXCEPTION_QUERY, RecyclingPermission.PURCHASE_EXCEPTION_REQUEST,
-            RecyclingPermission.PURCHASE_EXCEPTION_AUDIT)),
+            RecyclingPermission.PURCHASE_EXCEPTION_AUDIT,
+            // 关联单据查询（#55）：管理员全量，含未脱敏查看与导出
+            RecyclingPermission.TRACE_QUERY, RecyclingPermission.TRACE_SENSITIVE_VIEW,
+            RecyclingPermission.TRACE_EXPORT)),
 
     /**
      * 收货员：收购现场登记，维护出售者档案与收购单。
@@ -113,7 +116,9 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.STOCK_READINESS_QUERY,
             RecyclingPermission.PURCHASE_SETTING_QUERY,
             RecyclingPermission.PURCHASE_EXCEPTION_QUERY, RecyclingPermission.PURCHASE_EXCEPTION_REQUEST,
-            RecyclingPermission.WORKBENCH_QUERY)),
+            RecyclingPermission.WORKBENCH_QUERY,
+            // 关联单据查询（#55）：收货员能查链路，但看不到未脱敏的敏感字段、不能导出
+            RecyclingPermission.TRACE_QUERY)),
 
     /**
      * 开票员：发起反向开票与付款，下载发票原件。
@@ -146,7 +151,9 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.STOCK_READINESS_QUERY,
             RecyclingPermission.INPUT_INVOICE_QUERY,
             RecyclingPermission.PURCHASE_EXCEPTION_QUERY,
-            RecyclingPermission.WORKBENCH_QUERY)),
+            RecyclingPermission.WORKBENCH_QUERY,
+            // 关联单据查询（#55）：开票员能查链路，敏感字段保持脱敏
+            RecyclingPermission.TRACE_QUERY)),
 
     /**
      * 财务：代办税费、对账、归集发票。
@@ -177,7 +184,10 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PURCHASE_SETTING_QUERY,
             RecyclingPermission.PURCHASE_EXCEPTION_QUERY,
             RecyclingPermission.PUBLIC_TOKEN_CREATE,
-            RecyclingPermission.WORKBENCH_QUERY)),
+            RecyclingPermission.WORKBENCH_QUERY,
+            // 关联单据查询（#55）：财务对账要看全税号 / 银行卡，并可按相同口径导出（留记录）
+            RecyclingPermission.TRACE_QUERY, RecyclingPermission.TRACE_SENSITIVE_VIEW,
+            RecyclingPermission.TRACE_EXPORT)),
 
     /**
      * 平台运营：平台方角色，可跨租户查看工行日志、通知与全平台发票。

@@ -50,4 +50,31 @@ public final class MaskUtils {
         return bankCardNo.length() <= 4 ? bankCardNo : bankCardNo.substring(bankCardNo.length() - 4);
     }
 
+    /**
+     * 银行卡脱敏：只给尾号（前面补星号），用于关联单据查询 / 导出（#55 T17）。
+     *
+     * @param bankCardNo 银行卡号；为空时返回 {@code null}
+     */
+    public static String maskBankCard(String bankCardNo) {
+        if (StrUtil.isBlank(bankCardNo)) {
+            return null;
+        }
+        return "****" + cardTail(bankCardNo);
+    }
+
+    /**
+     * 税号（统一社会信用代码 / 纳税人识别号）脱敏：保留前 4 位与后 4 位。
+     * 长度不足 8 位时原样返回（现实中不会出现，但不要在这里抛异常把页面打挂）。
+     *
+     * @param taxNo 税号；为空时原样返回
+     */
+    public static String maskTaxNo(String taxNo) {
+        if (StrUtil.isBlank(taxNo) || taxNo.length() < 8) {
+            return taxNo;
+        }
+        return taxNo.substring(0, 4)
+                + StrUtil.repeat('*', taxNo.length() - 8)
+                + taxNo.substring(taxNo.length() - 4);
+    }
+
 }
