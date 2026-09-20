@@ -10,6 +10,8 @@ import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.*;
 import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaCheckRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcHandoverBatchDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcWeighingDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.goodscfg.IcbcGoodsConfigMapper;
@@ -20,6 +22,7 @@ import cn.iocoder.yudao.module.icbc.enums.DeductionMethodEnum;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.acquisition.recognition.AcquisitionRecognitionPort;
 import cn.iocoder.yudao.module.icbc.service.admission.SellerAdmissionService;
+import cn.iocoder.yudao.module.icbc.service.handover.HandoverBatchService;
 import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -69,6 +72,8 @@ public class AcquisitionServiceImpl implements AcquisitionService {
     private NaturalPersonQuotaService naturalPersonQuotaService;
     @Resource
     private SellerAdmissionService sellerAdmissionService;
+    @Resource
+    private HandoverBatchService handoverBatchService;
 
     // ==================== 登记 ====================
 
@@ -93,26 +98,29 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         // 2. 现场识别回填（人工已填的值优先，识别只在空缺处补）
         fillByRecognition(reqVO);
 
-        // 3. 计价模型（ADR 0019）：结算重量 = 毛重 − 皮重 − 扣杂；金额 = 结算重量 × 单价 + 调整项
+        // 3. 交接批次与有效磅次（#50 T12）：挂上批次时，计量只认被选定的那一次，不采用请求里的重量
         IcbcAcquisitionDO acquisition = BeanUtils.toBean(reqVO, IcbcAcquisitionDO.class);
         acquisition.setId(null);
+        applyHandoverBatch(reqVO, acquisition);
         applySellerSubjectType(acquisition);
+
+        // 4. 计价模型（ADR 0019）：结算重量 = 毛重 − 皮重 − 扣杂；金额 = 结算重量 × 单价 + 调整项
         applyPricing(acquisition);
 
-        // 4. 必须要件校验：缺哪样说哪样，不做一个笼统的「参数错误」
+        // 5. 必须要件校验：缺哪样说哪样，不做一个笼统的「参数错误」
         assertRequiredElementsPresent(acquisition);
 
-        // 5. 出售者与品类必须存在
-        PayeeInfoDO payee = payeeInfoMapper.selectById(reqVO.getPayeeId());
+        // 6. 出售者与品类必须存在
+        PayeeInfoDO payee = payeeInfoMapper.selectById(acquisition.getPayeeId());
         if (payee == null) {
             throw exception(ACQUISITION_SELLER_NOT_EXISTS);
         }
-        IcbcGoodsConfigDO config = goodsConfigMapper.selectById(reqVO.getGoodsConfigId());
+        IcbcGoodsConfigDO config = goodsConfigMapper.selectById(acquisition.getGoodsConfigId());
         if (config == null) {
             throw exception(ACQUISITION_GOODS_CONFIG_NOT_EXISTS);
         }
 
-        // 6. 组装快照并落库
+        // 7. 组装快照并落库
         applySnapshots(acquisition, payee, config);
         try {
             acquisitionMapper.insert(acquisition);
@@ -150,6 +158,66 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         resp.setQuotaMessage(quota.getMessage());
         resp.setMonthlyOverExempt(quota.getMonthlyOverExempt());
         return resp;
+    }
+
+    /**
+     * 交接批次与有效磅次（#50 T12，见 CONTEXT「交接批次」「有效磅次」）。
+     *
+     * <p>一次物理交接可以拆成多张收购单（一次混装按品类拆），所以每张收购单都挂同一个批次；
+     * 重量与磅单**一律取自该批次的有效磅次**——请求里手填的毛重 / 皮重 / 净重在这里被覆盖，
+     * 这样「只有被选定的那一次参与计量」才是真的，而不是一句文案。
+     *
+     * <p>批次没有有效磅次时直接拦住，不猜、不退化：计量依据不明就不能计价。
+     */
+    private void applyHandoverBatch(AcquisitionCreateReqVO reqVO, IcbcAcquisitionDO acquisition) {
+        if (reqVO.getHandoverBatchId() == null) {
+            return;
+        }
+        IcbcHandoverBatchDO batch = handoverBatchService.getBatchDO(reqVO.getHandoverBatchId());
+        if (reqVO.getPayeeId() != null && !Objects.equals(reqVO.getPayeeId(), batch.getPayeeId())) {
+            throw exception(ACQUISITION_BATCH_PAYEE_MISMATCH);
+        }
+        if (reqVO.getPayeeId() == null) {
+            acquisition.setPayeeId(batch.getPayeeId());
+        }
+        IcbcWeighingDO weighing = handoverBatchService.getEffectiveWeighing(batch.getId());
+        if (weighing == null) {
+            throw exception(WEIGHING_EFFECTIVE_NOT_SELECTED);
+        }
+        acquisition.setHandoverBatchId(batch.getId());
+        acquisition.setWeighingId(weighing.getId());
+        acquisition.setWeighingSeqNo(weighing.getSeqNo());
+        acquisition.setGrossWeight(weighing.getGrossWeight());
+        acquisition.setTareWeight(weighing.getTareWeight());
+        acquisition.setNetWeight(weighing.getNetWeight());
+        if (StrUtil.isNotBlank(weighing.getWeightTicketNo())) {
+            acquisition.setWeightTicketNo(weighing.getWeightTicketNo());
+        }
+        if (StrUtil.isNotBlank(weighing.getWeightTicketImageUrl())) {
+            acquisition.setWeightTicketImageUrl(weighing.getWeightTicketImageUrl());
+        }
+        // 磅单上的车牌取自有效磅次，车辆车牌取自批次登记的那台车：两者不一致就是信号，不掩盖
+        if (StrUtil.isNotBlank(weighing.getPlateNo())) {
+            acquisition.setWeightTicketPlateNo(weighing.getPlateNo());
+        }
+        if (StrUtil.isBlank(acquisition.getVehiclePlateNo()) && StrUtil.isNotBlank(batch.getPlateNo())) {
+            acquisition.setVehiclePlateNo(batch.getPlateNo());
+        }
+        if (batch.getStationId() != null && acquisition.getStationId() == null) {
+            acquisition.setStationId(batch.getStationId());
+        }
+        if (StrUtil.isBlank(acquisition.getTradeAddress())) {
+            acquisition.setTradeAddress(StrUtil.blankToDefault(batch.getVisitAddress(), batch.getStationName()));
+        }
+        if (StrUtil.isBlank(acquisition.getDriverName())) {
+            acquisition.setDriverName(batch.getDriverName());
+        }
+        if (StrUtil.isBlank(acquisition.getDriverMobile())) {
+            acquisition.setDriverMobile(batch.getDriverMobile());
+        }
+        if (acquisition.getTradeTime() == null && batch.getOccurTime() != null) {
+            acquisition.setTradeTime(batch.getOccurTime());
+        }
     }
 
     /**
@@ -383,6 +451,12 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         IcbcAcquisitionDO acquisition = getAcquisition(reqVO.getId());
         if (Objects.equals(acquisition.getStatus(), AcquisitionStatusEnum.CANCELLED.getStatus())) {
             throw exception(ACQUISITION_STATUS_NOT_ALLOW_UPDATE);
+        }
+        // 按有效磅次计量的收购单不能手工改重量（#50）：计量结果引用的是那一版的原始读数
+        if (acquisition.getWeighingId() != null
+                && (reqVO.getGrossWeight() != null || reqVO.getTareWeight() != null
+                || reqVO.getNetWeight() != null)) {
+            throw exception(WEIGHING_LOCKED_FOR_ACQUISITION);
         }
         if (reqVO.getGrossWeight() != null) {
             acquisition.setGrossWeight(reqVO.getGrossWeight());

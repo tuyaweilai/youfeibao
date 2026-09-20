@@ -4,20 +4,27 @@ import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.acquisition.vo.*;
 import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverBatchCreateReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingAddReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.handover.vo.HandoverWeighingEffectiveReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.goodscfg.IcbcGoodsConfigDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcWeighingDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.goodscfg.IcbcGoodsConfigMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.handover.IcbcWeighingMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.HandoverSourceTypeEnum;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
 import cn.iocoder.yudao.module.icbc.service.acquisition.impl.AcquisitionServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.acquisition.recognition.AcquisitionRecognitionPort;
+import cn.iocoder.yudao.module.icbc.service.handover.HandoverBatchService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
@@ -57,6 +64,10 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
     private IcbcGoodsConfigMapper goodsConfigMapper;
     @Resource
     private InvoiceOrderMapper invoiceOrderMapper;
+    @Resource
+    private HandoverBatchService handoverBatchService;
+    @Resource
+    private IcbcWeighingMapper weighingMapper;
 
     @MockBean
     private AcquisitionRecognitionPort recognitionPort;
@@ -597,6 +608,155 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         assertTrue(response.getContentType().contains("ms-excel"), "实际：" + response.getContentType());
     }
 
+    // ==================== 交接批次与有效磅次（#50 T12） ====================
+
+    @Test
+    public void testCreateAcquisition_fromBatch_usesEffectiveWeighingNotManualInput() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long batchId = createBatch(payee.getId(), "京A12345");
+        Long first = addWeighing(batchId, "18000", "5500", "WD-AM");
+        Long second = addWeighing(batchId, "18100", "5500", "WD-AM-RE");
+        selectEffective(batchId, second, "复磅后以第二次为准");
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setHandoverBatchId(batchId);
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("100.00"));
+        // 现场手填了一套不对的重量与磅单号；挂了批次就必须以有效磅次为准
+        reqVO.setGrossWeight(new BigDecimal("20000"));
+        reqVO.setTareWeight(new BigDecimal("6000"));
+        reqVO.setWeightTicketNo("WD-WRONG");
+
+        Long id = acquisitionService.createAcquisition(reqVO).getId();
+
+        IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
+        assertEquals(batchId, saved.getHandoverBatchId());
+        // 计量结果引用的是被选定的那一次（version = seqNo）
+        assertEquals(second, saved.getWeighingId());
+        assertEquals(2, saved.getWeighingSeqNo());
+        assertEquals(0, new BigDecimal("18100.0000").compareTo(saved.getGrossWeight()));
+        assertEquals(0, new BigDecimal("5500.0000").compareTo(saved.getTareWeight()));
+        assertEquals(0, new BigDecimal("12600.0000").compareTo(saved.getNetWeight()));
+        assertEquals("WD-AM-RE", saved.getWeightTicketNo());
+        assertEquals("京A12345", saved.getVehiclePlateNo());
+        // 结算重量 = 有效磅次的净重 − 扣杂（扣杂为 0），金额 = 结算重量 × 单价
+        assertEquals(0, new BigDecimal("12600.0000").compareTo(saved.getSettlementWeight()));
+        assertEquals(0, new BigDecimal("1260000.00").compareTo(saved.getAmount()));
+        // 第一次磅次留档但不参与
+        assertFalse(weighingMapper.selectById(first).getEffective());
+    }
+
+    @Test
+    public void testCreateAcquisition_batchWithoutEffectiveWeighing_rejected() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long batchId = createBatch(payee.getId(), "京A12345");
+
+        AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
+        reqVO.setHandoverBatchId(batchId);
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("100.00"));
+        // 计量依据不明就不能计价：不猜、不退回手填值
+        assertServiceException(() -> acquisitionService.createAcquisition(reqVO),
+                WEIGHING_EFFECTIVE_NOT_SELECTED);
+    }
+
+    @Test
+    public void testCreateAcquisition_batchCounterpartyMismatch_rejected() {
+        PayeeInfoDO seller = insertPayee("张三", "13800138000");
+        PayeeInfoDO other = insertPayee("李四", "13800138001");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long batchId = createBatch(seller.getId(), "京A12345");
+        addWeighing(batchId, "18000", "5500", "WD-AM");
+
+        AcquisitionCreateReqVO reqVO = baseReq(other.getId(), config.getId());
+        reqVO.setHandoverBatchId(batchId);
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("100.00"));
+        assertServiceException(() -> acquisitionService.createAcquisition(reqVO),
+                ACQUISITION_BATCH_PAYEE_MISMATCH);
+    }
+
+    @Test
+    public void testCreateAcquisition_twoBatchesSameVehicleSameDay_doNotCross() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        // AC3：同一车同一天两次送货 = 两个交接批次，磅单与收购单不串
+        Long morning = createBatch(payee.getId(), "京A12345");
+        Long morningWeighing = addWeighing(morning, "18000", "5500", "WD-AM");
+        Long afternoon = createBatch(payee.getId(), "京A12345");
+        Long afternoonWeighing = addWeighing(afternoon, "9000", "3000", "WD-PM");
+
+        Long morningAcquisition = acquisitionService.createAcquisition(
+                fromBatch(baseReq(payee.getId(), config.getId()), morning)).getId();
+        Long afternoonAcquisition = acquisitionService.createAcquisition(
+                fromBatch(baseReq(payee.getId(), config.getId()), afternoon)).getId();
+
+        IcbcAcquisitionDO morningSaved = acquisitionMapper.selectById(morningAcquisition);
+        IcbcAcquisitionDO afternoonSaved = acquisitionMapper.selectById(afternoonAcquisition);
+        assertEquals(morning, morningSaved.getHandoverBatchId());
+        assertEquals(morningWeighing, morningSaved.getWeighingId());
+        assertEquals("WD-AM", morningSaved.getWeightTicketNo());
+        assertEquals(0, new BigDecimal("12500.0000").compareTo(morningSaved.getNetWeight()));
+        assertEquals(afternoon, afternoonSaved.getHandoverBatchId());
+        assertEquals(afternoonWeighing, afternoonSaved.getWeighingId());
+        assertEquals("WD-PM", afternoonSaved.getWeightTicketNo());
+        assertEquals(0, new BigDecimal("6000.0000").compareTo(afternoonSaved.getNetWeight()));
+    }
+
+    @Test
+    public void testCreateAcquisition_sameBatchSplitIntoTwoAcquisitions() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        IcbcGoodsConfigDO steel = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        IcbcGoodsConfigDO paper = insertGoodsConfig("废纸", "吨", "0.01", "GENERAL");
+        Long batchId = createBatch(payee.getId(), "京A12345");
+        Long weighingId = addWeighing(batchId, "18000", "5500", "WD-AM");
+
+        // 一次混装按品类拆成多张收购单：同一个批次、同一次有效磅次（计量基础只有一个）
+        Long first = acquisitionService.createAcquisition(
+                fromBatch(baseReq(payee.getId(), steel.getId()), batchId)).getId();
+        Long second = acquisitionService.createAcquisition(
+                fromBatch(baseReq(payee.getId(), paper.getId()), batchId)).getId();
+
+        assertEquals(weighingId, acquisitionMapper.selectById(first).getWeighingId());
+        assertEquals(weighingId, acquisitionMapper.selectById(second).getWeighingId());
+        assertEquals(2L, handoverBatchService.countAcquisitions(batchId));
+        assertEquals(2L, handoverBatchService.getBatch(batchId).getAcquisitionCount());
+        // 但有效磅次从此锁住：第一张单之后就改不了
+        HandoverWeighingEffectiveReqVO locked = new HandoverWeighingEffectiveReqVO();
+        locked.setBatchId(batchId);
+        locked.setWeighingId(weighingId);
+        assertServiceException(() -> handoverBatchService.selectEffectiveWeighing(locked),
+                WEIGHING_BATCH_IN_USE);
+    }
+
+    @Test
+    public void testCorrectRecognition_weightsLockedWhenMeasuredByWeighing() {
+        PayeeInfoDO payee = insertPayee("张三", "13800138000");
+        IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "SIMPLE");
+        Long batchId = createBatch(payee.getId(), "京A12345");
+        addWeighing(batchId, "18000", "5500", "WD-AM");
+        Long id = acquisitionService.createAcquisition(
+                fromBatch(baseReq(payee.getId(), config.getId()), batchId)).getId();
+
+        AcquisitionCorrectionReqVO wrong = new AcquisitionCorrectionReqVO();
+        wrong.setId(id);
+        wrong.setGrossWeight(new BigDecimal("19000"));
+        assertServiceException(() -> acquisitionService.correctRecognition(wrong),
+                WEIGHING_LOCKED_FOR_ACQUISITION);
+
+        // 与重量无关的补录照旧（车牌识别结果、备注）
+        AcquisitionCorrectionReqVO remarkOnly = new AcquisitionCorrectionReqVO();
+        remarkOnly.setId(id);
+        remarkOnly.setRemark("现场目测含少量杂质");
+        acquisitionService.correctRecognition(remarkOnly);
+        assertEquals("现场目测含少量杂质", acquisitionMapper.selectById(id).getRemark());
+        // 重量仍是那一版磅次的值
+        assertEquals(0, new BigDecimal("18000.0000").compareTo(
+                acquisitionMapper.selectById(id).getGrossWeight()));
+    }
+
     // ==================== 造数 ====================
 
     private PayeeInfoDO insertPayee(String name, String mobile) {
@@ -653,6 +813,45 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         reqVO.setWeightTicketNo("WD_DEFAULT");
         reqVO.setTradeAddress("北京市朝阳区回收站");
         reqVO.setTradeTime(LocalDateTime.of(2026, 12, 1, 10, 0));
+        return reqVO;
+    }
+
+    /**
+     * 交接批次（#50）：这里用「上门地址」而不是场站，避免额外造场站数据。
+     */
+    private Long createBatch(Long payeeId, String plateNo) {
+        HandoverBatchCreateReqVO reqVO = new HandoverBatchCreateReqVO();
+        reqVO.setPayeeId(payeeId);
+        reqVO.setVisitAddress("北京市朝阳区回收站");
+        reqVO.setPlateNo(plateNo);
+        reqVO.setSourceType(HandoverSourceTypeEnum.WALK_IN.getType());
+        reqVO.setDriverName("李师傅");
+        return handoverBatchService.createBatch(reqVO);
+    }
+
+    private Long addWeighing(Long batchId, String gross, String tare, String ticketNo) {
+        HandoverWeighingAddReqVO reqVO = new HandoverWeighingAddReqVO();
+        reqVO.setBatchId(batchId);
+        reqVO.setGrossWeight(new BigDecimal(gross));
+        reqVO.setTareWeight(new BigDecimal(tare));
+        reqVO.setWeightTicketNo(ticketNo);
+        reqVO.setPlateNo("京A12345");
+        return handoverBatchService.addWeighing(reqVO);
+    }
+
+    private void selectEffective(Long batchId, Long weighingId, String reason) {
+        HandoverWeighingEffectiveReqVO reqVO = new HandoverWeighingEffectiveReqVO();
+        reqVO.setBatchId(batchId);
+        reqVO.setWeighingId(weighingId);
+        reqVO.setReason(reason);
+        handoverBatchService.selectEffectiveWeighing(reqVO);
+    }
+
+    /** 收购单挂在批次上：重量与磅单以该批次的有效磅次为准。 */
+    private AcquisitionCreateReqVO fromBatch(AcquisitionCreateReqVO reqVO, Long batchId) {
+        reqVO.setHandoverBatchId(batchId);
+        reqVO.setQuantity(new BigDecimal("10"));
+        reqVO.setUnitPrice(new BigDecimal("100.00"));
         return reqVO;
     }
 

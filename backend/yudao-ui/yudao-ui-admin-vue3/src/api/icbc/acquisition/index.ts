@@ -8,6 +8,13 @@ export interface AcquisitionVO {
   payeeId?: number
   sellerSubjectType?: number
   sellerSubjectTypeName?: string
+  stationId?: number
+  /** 交接批次编号（#50）：填了就按该批次的有效磅次计量 */
+  handoverBatchId?: number
+  /** 有效磅次编号（计量结果引用的就是它） */
+  weighingId?: number
+  /** 有效磅次是第几次 */
+  weighingSeqNo?: number
   sellerName?: string
   sellerMobile?: string
   goodsConfigId?: number

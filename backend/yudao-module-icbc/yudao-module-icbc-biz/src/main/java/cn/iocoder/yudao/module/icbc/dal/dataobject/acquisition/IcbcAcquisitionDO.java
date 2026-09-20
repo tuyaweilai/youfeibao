@@ -137,6 +137,20 @@ public class IcbcAcquisitionDO extends TenantBaseDO {
     /** 所属结算单编号；为空表示尚未归入结算单（可被「结束本次收货」归组） */
     private Long settlementId;
 
+    // ==================== 交接批次与有效磅次（#50 T12） ====================
+
+    /** 交接批次编号；为空表示这笔收购没有经过批次登记（历史数据与直接登记） */
+    private Long handoverBatchId;
+
+    /**
+     * 有效磅次编号：计量结果引用的就是它。
+     * 为空表示这单的重量是人工录入的，不是从有效磅次取的。
+     */
+    private Long weighingId;
+
+    /** 有效磅次是第几次（版本号快照）；配合 {@link #weighingId} 让「按哪一次磅次计量」可回查 */
+    private Integer weighingSeqNo;
+
     /** 场站编号（ADR 0018：一次到场批次按「出售者 + 场站」聚合；历史数据为空） */
     private Long stationId;
 

@@ -287,4 +287,22 @@ public interface ErrorCodeConstants {
     // ========== 卖方主体准入（#48，ADR 0029：反向开票只对自然人） 1-030-029-000 ==========
     ErrorCode SELLER_SUBJECT_TYPE_NOT_NATURAL = new ErrorCode(1_030_029_000,
             "{}不是自然人，不能反向开票；请由对方自行开具增值税发票，并在「进项收票」登记与勾稽");
+
+    // ========== 交接批次与有效磅次（#50 T12） 1-030-030-000 ==========
+    ErrorCode HANDOVER_BATCH_NOT_EXISTS = new ErrorCode(1_030_030_000, "交接批次不存在");
+    ErrorCode HANDOVER_BATCH_PAYEE_REQUIRED = new ErrorCode(1_030_030_001, "交接批次必须登记交易对方，请先带出售者档案");
+    ErrorCode HANDOVER_BATCH_LOCATION_REQUIRED = new ErrorCode(1_030_030_002, "场站与上门地址至少填一个（上门回收填地址，到场收货填场站）");
+    ErrorCode HANDOVER_BATCH_PLATE_REQUIRED = new ErrorCode(1_030_030_003, "车牌号不能为空（同一车同一天两次送货是两个批次，靠车牌与磅次区分）");
+    ErrorCode HANDOVER_SOURCE_TYPE_INVALID = new ErrorCode(1_030_030_004, "来源方式不合法：{}");
+    ErrorCode WEIGHING_NOT_EXISTS = new ErrorCode(1_030_030_005, "磅次不存在");
+    ErrorCode WEIGHING_NOT_IN_BATCH = new ErrorCode(1_030_030_006, "该磅次不属于这个交接批次，不能在这里指定");
+    ErrorCode WEIGHING_WEIGHT_INVALID = new ErrorCode(1_030_030_007, "磅次重量不合法：{}（毛重与皮重不能为负，皮重不能大于毛重）");
+    ErrorCode WEIGHING_EFFECTIVE_NOT_SELECTED = new ErrorCode(1_030_030_008,
+            "该交接批次还没有指定有效磅次，请先指定哪一次参与计量（其余磅次留档但不参与）");
+    ErrorCode WEIGHING_BATCH_IN_USE = new ErrorCode(1_030_030_009,
+            "该交接批次已产生收购单，计量结果已引用当时那一次磅次，不能再改有效磅次；请作废收购单或新建批次");
+    ErrorCode ACQUISITION_BATCH_PAYEE_MISMATCH = new ErrorCode(1_030_030_010,
+            "收购单的出售者与交接批次的交易对方不一致，不能挂在同一个批次上");
+    ErrorCode WEIGHING_LOCKED_FOR_ACQUISITION = new ErrorCode(1_030_030_011,
+            "该收购单按交接批次的有效磅次计量，不能手工改重量（毛重 / 皮重 / 净重）；请先作废收购单再改磅次，或另建批次");
 }

@@ -34,3 +34,5 @@ DELETE FROM icbc_notify_setting;
 DELETE FROM icbc_purchase_contract_category;
 DELETE FROM icbc_purchase_contract_version;
 DELETE FROM icbc_purchase_contract;
+DELETE FROM icbc_weighing;
+DELETE FROM icbc_handover_batch;

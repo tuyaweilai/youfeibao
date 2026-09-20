@@ -207,4 +207,11 @@ public interface RecyclingPermission {
     /** 审核合同（通过后才可作为采购依据） */
     String PURCHASE_CONTRACT_AUDIT = "icbc:purchase-contract:audit";
 
+    // ========== 交接批次与有效磅次（#50 T12） ==========
+
+    /** 查看交接批次、磅次与有效磅次 */
+    String HANDOVER_BATCH_QUERY = "icbc:handover-batch:query";
+    /** 登记交接批次、补录、加磅次与指定有效磅次 */
+    String HANDOVER_BATCH_MANAGE = "icbc:handover-batch:manage";
+
 }

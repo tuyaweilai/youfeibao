@@ -49,6 +49,12 @@
       }
     },
     {
+      "path": "pages/handover/index",
+      "style": {
+        "navigationBarTitleText": "交接批次与磅次"
+      }
+    },
+    {
       "path": "pages/offline/index",
       "style": {
         "navigationBarTitleText": "待补传"

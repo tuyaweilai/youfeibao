@@ -142,6 +142,12 @@ VALUES
 (5137, '登记收购', 'icbc:acquisition:create', 3, 1, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5138, '修正识别结果', 'icbc:acquisition:update', 3, 2, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5139, '导出收购确认书', 'icbc:acquisition:export', 3, 3, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- 交接批次与有效磅次（#50 T12）：一个交易对方的一次物理交接记为一个批次；过磅保留每一次原始读数，
+-- 只有被选定的那一次参与计量，其余留档不参与。同一车同一天两次送货是两个批次（不去重）。
+(5240, '交接批次', 'icbc:handover-batch:query', 2, 3, 5204, 'handover-batch', '', 'icbc/handoverBatch/index', 'IcbcHandoverBatch', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5241, '登记交接批次', 'icbc:handover-batch:manage', 3, 1, 5240, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5242, '新增磅次', 'icbc:handover-batch:manage', 3, 2, 5240, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5243, '指定有效磅次', 'icbc:handover-batch:manage', 3, 3, 5240, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 仓储管理 =====
 -- 库位 / 批次 / 库存查询落 ERP 的 stock 域（ADR 0027）：权限字符串是 erp:*，页面在 views/erp/stock 下；

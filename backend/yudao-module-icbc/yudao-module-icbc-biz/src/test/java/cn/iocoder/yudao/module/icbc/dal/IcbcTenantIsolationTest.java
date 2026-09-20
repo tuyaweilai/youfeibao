@@ -9,6 +9,8 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO
 import cn.iocoder.yudao.module.icbc.dal.dataobject.appointment.IcbcAppointmentDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcHandoverBatchDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.handover.IcbcWeighingDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.IcbcPayeeBankCardChangeDO;
@@ -18,6 +20,8 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.appointment.IcbcAppointmentMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.handover.IcbcHandoverBatchMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.handover.IcbcWeighingMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeBankCardChangeMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
@@ -84,6 +88,10 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
     private IcbcAcquisitionMapper acquisitionMapper;
     @Resource
     private IcbcAppointmentMapper appointmentMapper;
+    @Resource
+    private IcbcHandoverBatchMapper handoverBatchMapper;
+    @Resource
+    private IcbcWeighingMapper weighingMapper;
     @Resource
     private PlatformInvoiceQueryService platformInvoiceQueryService;
 
@@ -396,6 +404,40 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
         payee.setIdCardNo(idCardNo);
         payee.setMobile(mobile);
         return payee;
+    }
+
+    @Test
+    public void testHandoverBatchAndWeighingIsolatedByTenant() {
+        // 交接批次与磅次是租户表：同一车同一天在甲企业的两次送货，乙企业看不到
+        Long batchId = TenantUtils.execute(1L, () -> {
+            IcbcHandoverBatchDO batch = IcbcHandoverBatchDO.builder()
+                    .batchNo("HB_TENANT_1")
+                    .payeeId(1L)
+                    .plateNo("京A12345")
+                    .sourceType("WALK_IN")
+                    .build();
+            handoverBatchMapper.insert(batch);
+            IcbcWeighingDO weighing = IcbcWeighingDO.builder()
+                    .batchId(batch.getId())
+                    .seqNo(1)
+                    .grossWeight(new BigDecimal("18000"))
+                    .tareWeight(new BigDecimal("5500"))
+                    .netWeight(new BigDecimal("12500"))
+                    .effective(true)
+                    .build();
+            weighingMapper.insert(weighing);
+            return batch.getId();
+        });
+
+        TenantUtils.execute(1L, () -> {
+            assertNotNull(handoverBatchMapper.selectById(batchId));
+            assertEquals(1, weighingMapper.selectListByBatchId(batchId).size());
+        });
+        TenantUtils.execute(2L, () -> {
+            assertNull(handoverBatchMapper.selectById(batchId));
+            assertTrue(handoverBatchMapper.selectList().isEmpty());
+            assertTrue(weighingMapper.selectListByBatchId(batchId).isEmpty());
+        });
     }
 
     private Long insertOrder(Long tenantId, String orderNo, String partnerOrderId) {

@@ -34,6 +34,15 @@ public class AcquisitionRespVO {
     @Schema(description = "场站编号（一次到场批次按「出售者 + 场站」聚合）", example = "3072")
     private Long stationId;
 
+    @Schema(description = "交接批次编号（#50）；为空表示这笔收购没有经过批次登记", example = "2048")
+    private Long handoverBatchId;
+
+    @Schema(description = "有效磅次编号（计量结果引用的就是它）", example = "4096")
+    private Long weighingId;
+
+    @Schema(description = "有效磅次是第几次", example = "2")
+    private Integer weighingSeqNo;
+
     @Schema(description = "出售者姓名", example = "张三")
     private String sellerName;
 

@@ -112,4 +112,23 @@ public interface IcbcAcquisitionMapper extends BaseMapperX<IcbcAcquisitionDO> {
                 .orderByAsc(IcbcAcquisitionDO::getId));
     }
 
+    // ==================== 交接批次与有效磅次（#50 T12） ====================
+
+    /**
+     * 某交接批次下已产生的收购单（计量结果已引用当时那一版磅次，据此禁止再改有效磅次）。
+     *
+     * <p>已作废（{@code status = CANCELLED}）的不算：作废后这笔计量不再成立，
+     * 有效磅次应该能重新指定（单据本身仍保留，作废原因对人可见）。
+     */
+    default List<IcbcAcquisitionDO> selectListByHandoverBatchId(Long handoverBatchId) {
+        if (handoverBatchId == null) {
+            return java.util.Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<IcbcAcquisitionDO>()
+                .eq(IcbcAcquisitionDO::getHandoverBatchId, handoverBatchId)
+                .ne(IcbcAcquisitionDO::getStatus,
+                        cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum.CANCELLED.getStatus())
+                .orderByAsc(IcbcAcquisitionDO::getId));
+    }
+
 }
