@@ -42,4 +42,11 @@ public interface PublicTokenService {
      */
     void consume(PublicTokenPayload payload);
 
+    /**
+     * 作废一枚令牌（#94）：把有效期提前到现在，之后 verify / redeem 都按已过期拒绝。
+     *
+     * @param token 令牌
+     */
+    void revoke(String token);
+
 }

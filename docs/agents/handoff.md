@@ -2188,3 +2188,47 @@ member 令牌回 `code=401 账号未登录`。
 - **合并撞了冲突，人工按意图解**：`ErrorCodeConstants`（040/041 两段都留）、`README.md`（`22m/n/o` 重编号、`for f in` 清单取并集，用两边清单校验过 62 项无丢失）、`handoff.md`（两票各自的段都留）。解完在合并树上重跑全量：**778 通过 / 0 失败 / 1 skip**
 - 闸门：全量 icbc `Tests run: 778, Failures: 0, Errors: 0, Skipped: 1`；报告 `.fleet/gates/91.md`，运行日志 `/tmp/i91.log`（收养票，日志在仓库外）
 - `.fleet/` 不入库
+
+## #94 免注册链接壳：本人自填路径（已落地）
+
+同一个建档向导的**第二个壳**：收货员在自然人端生成一枚免注册一次性链接（二维码 + 可复制文本），
+本人用自己手机打开链接走完与代录壳**同一套**五步向导。后端只多一层「验令牌 → 切租户 → 转发」，
+字段与落库位置完全交给同一个 `OnboardingWizardService#submit`。
+
+1. **令牌用途**：`PublicTokenPurposeEnum` 加 `ONBOARDING_WIZARD`（`"本人自填建档"`，有效期沿用 24h）。
+   **偏离派工书一处并已在报告说明**：它的业务键类型是**新加的 `ONBOARDING_INVITE`（绑定链接本身）**，
+   不是 `PAYEE`。原因是 PAYEE 绑定要求收方档案先存在，而向导的 `submit` 是**建档时才创建**收方档案——
+   先建 stub 会留下半成品档案（与验收 5 相斥），且 `submit` 会直接撞 `WIZARD_PAYEE_ALREADY_ARCHIVED`。
+2. **公开端点**：`PublicOnboardingWizardController`（`/icbc/public/onboarding-wizard/{context,id-card/front,id-card/back,bank-card,submit}`），
+   复用既有 `PublicAccessService` 的「令牌解析租户」口径；`/icbc/public/**` 已在白名单与 `tenant.ignore-urls`。
+   三枚识别与 `submit` 都加了 `@ApiAccessLog(requestEnable = false)`，由 `PublicOnboardingWizardAccessLogAnnotationTest` 钉住。
+3. **占用口径**：识别与重开页面**不占次数**；`submit` 成功落库后才占唯一一次（`maxUses = 1`）——一枚链接只建一份档案。
+   失败（校验不过 / 弱网重提撞已有档案）不占次数，本人拿到的仍是一条可读错误。`submit` 加了 `@Transactional`，
+   落库 + 换发实名令牌 + 占用次数同事务，避免「档案建了但链接没作废 / 反之」的半完成态。
+4. **建档完成换发实名令牌**：`OnboardingWizardSubmitRespVO` 加 `onboardingToken`（代录壳为 null）。本人做完向导后
+   直接接着做实名（ADR 0007 补充：自填壳覆盖「拍摄、确认与实名」），不用再等收货员给第二枚链接。
+5. **可作废**：`PublicTokenService#revoke` + `POST /icbc/public-token/revoke`（复用 `PUBLIC_TOKEN_CREATE` 权限，
+   不新增菜单）；`revoke` 把有效期提前到现在，`verify`/`redeem` 都按「已过期」拒绝。现场端 `useWizardInviteLink`
+   提供「生成本人自填链接 / 复制 / 作废 / 重新生成」。
+6. **前端**：自然人端新增 `pages/onboarding-wizard/index.vue`（五步）与 `api/wizard.ts`、`utils/wizardDraft.ts`、
+   `utils/upload.ts`；入口页 `pages/index/index.vue` 按 `purpose=ONBOARDING_WIZARD` 转跳。草稿按**链接**绑定
+   （不是单一 key），`onHide`/`onUnload` 落本地，建档完成 / 「重新开始」清干净。
+7. **判断点（共享 UI 还是共享接口）——结论：不共享 UI，也不把向导的请求层放进 `field-shared`**。
+   理由：`field-shared` 是现场端与司机端共用的**同一套 admin 通道 + 登录态**，而自填壳走的是**免登录公开端点 + 令牌**，
+   两边的传输与入口不同；`field-shared/README.md` 也记了「跨工程共用一个 `.vue` 会与 uni-app + vue-tsc 打架」。
+   真正的共享面是**后端的 `OnboardingWizardService` 与它的 VO**——两个壳都调它，这才是验收要的「同一套后端接口」。
+   `#95` 接签署时，共享的也应是后端 `EsignPort` + 向导 Service，不是前端组件。
+
+> **如实记下的缺口**：
+> ① **弱网重提**：服务端已落库、客户端超时后重提，自填壳拿到的是「本企业已有档案」（比 #91 的链接侧多一句
+> 可读提示），但仍不是向导内的闭环——本人停在步骤 4，要闭环需 `submit` 幂等 / 「已有档案则返回既有档案」，留给后续票。
+> ② **已建档的人走不完自填向导**：`submit` 是「建档时才建档案」，同一租户已有收方档案时直接拒。所以自填链接是给
+> **待建档**的人用的；已建档的人要用的是既有的实名链接（ONBOARDING）。现场端把自填链接入口放在「无 payeeId」那一段。
+> ③ **现场端排队口径**：链接生成与本人手机上的实名是两条时点不同的事；「链接页只显示这一笔建档所需信息」靠公开端点
+> 只回 `purpose/purposeName/expiresTime`（不回任何租户内数据）保证，**未做真机核验**。
+> ④ **真机未验**：手机相机、微信里打开链接、弱网下的本地暂存，都需要真机冒烟（见下）。
+
+> **测试数字**：ICBC 模块 **792 passed / 0 fail / 1 skipped**（#91 基线 778；本票新增
+> `PublicOnboardingWizardAccessLogAnnotationTest` 1 例 + `PublicOnboardingWizardServiceImplTest` 10 例 +
+> `PublicTokenServiceImplTest` 3 例 = 14）。自然人端 `ts:check` 零错误、`build:h5` 与 `build:mp-weixin` 通过；
+> 现场端 / 司机端 `ts:check` 零错误、现场端 `build:h5` 通过。PC 后台本票无改动。

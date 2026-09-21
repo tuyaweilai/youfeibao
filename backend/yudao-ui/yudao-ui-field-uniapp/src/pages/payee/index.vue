@@ -29,6 +29,33 @@
         </view>
         <button class="btn btn--primary" @click="startWizard">开始建档向导</button>
       </view>
+
+      <view class="card">
+        <view class="card__title">本人自填建档</view>
+        <view class="tip">
+          想让本人自己拍证件与银行卡：把这枚免注册链接（二维码或文本）交给他，他在自己手机上走完
+          同一套向导；中途退出不留半成品档案。链接 24 小时内有效，也可随时作废。
+        </view>
+        <view v-if="invite.qr" class="qr">
+          <image class="qr__img" :src="invite.qr" mode="aspectFit" />
+        </view>
+        <view class="link-box">
+          <view class="link-box__url">{{ invite.link || invite.token || '（尚未生成）' }}</view>
+          <button v-if="invite.link || invite.token" class="link" @click="copyInvite">
+            复制{{ invite.link ? '链接' : '令牌' }}
+          </button>
+        </view>
+        <view v-if="!invite.link && invite.token" class="hint hint--warn">
+          未配置自然人端地址（VITE_APP_SELLER_URL），只能把上面的令牌交给本人。
+        </view>
+        <button class="btn btn--primary" :loading="inviteIssuing" @click="issueInvite">
+          {{ invite.link ? '重新生成链接' : '生成本人自填链接' }}
+        </button>
+        <button v-if="invite.token" class="btn btn--ghost" :loading="inviteRevoking" @click="revokeInvite">
+          作废这枚链接
+        </button>
+        <view v-if="invite.expiresText" class="tip">{{ invite.expiresText }}</view>
+      </view>
     </template>
 
     <!-- 第二步：只读准入进度 + 转达链接 -->
@@ -109,7 +136,7 @@ import { computed, reactive, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import QRCode from 'qrcode'
 import { findReturningCustomer, PayeeVO } from '@/api/payee'
-import { isRealNamePassed, useHandoffLink, useSellerOnboarding } from '@youfeibao/field-shared'
+import { isRealNamePassed, useHandoffLink, useSellerOnboarding, useWizardInviteLink } from '@youfeibao/field-shared'
 import { clearWizardDraft } from '@/utils/wizardDraft'
 
 /**
@@ -140,6 +167,16 @@ const { issuing, handoff, issueLink, copyLink, resetHandoff } = useHandoffLink(
   renderQr,
   tips
 )
+
+// 本人自填建档链接（#94）：免注册、绑定链接本身、可作废（同一条公开令牌机制）
+const {
+  issuing: inviteIssuing,
+  revoking: inviteRevoking,
+  handoff: invite,
+  issueLink: issueInvite,
+  revokeLink: revokeInvite,
+  copyLink: copyInvite
+} = useWizardInviteLink(renderQr, tips)
 
 /** 实名未通过（含未认证 / 认证中 / 未通过）就算「待本人实名」；进度未加载完不下结论 */
 const awaitingRealName = computed(() => !!overview.value && !isRealNamePassed(overview.value.realNameStatus))

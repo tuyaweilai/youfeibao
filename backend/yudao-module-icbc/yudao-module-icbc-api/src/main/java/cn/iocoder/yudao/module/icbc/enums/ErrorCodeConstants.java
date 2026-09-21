@@ -547,4 +547,8 @@ public interface ErrorCodeConstants {
             "开通链接已过期，请重新点「开通电子签」获取新链接");
     ErrorCode ESIGN_ACTIVATION_STATUS_INVALID = new ErrorCode(1_030_041_011,
             "当前开通状态不是「认证中」，不能确认激活（当前状态：{}）；请先点「开通电子签」");
+
+    // ========== 免注册链接壳：本人自填建档（#94，ADR 0007 补充） 1_030_043_000 ==========
+    ErrorCode PUBLIC_TOKEN_NOT_FOUND = new ErrorCode(1_030_043_000,
+            "链接不存在或已被清理，请让收货员重新生成一枚");
 }

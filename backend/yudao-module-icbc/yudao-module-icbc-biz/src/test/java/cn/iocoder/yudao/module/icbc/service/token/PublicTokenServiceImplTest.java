@@ -155,6 +155,38 @@ public class PublicTokenServiceImplTest extends BaseDbUnitTest {
                 PUBLIC_TOKEN_PURPOSE_INVALID);
     }
 
+    @Test
+    public void testMint_onboardingWizardInvite_needsNoExistingPayee() {
+        // 自填建档：链接生成时这个人可能还没有收方档案，绑定链接本身即可（#94）
+        PublicTokenRespVO respVO = publicTokenService.mint(createReq("ONBOARDING_WIZARD", null, null));
+
+        assertNotNull(respVO.getToken());
+        assertNotNull(respVO.getBusinessKey(), "邀请令牌的业务键由后端生成");
+        assertEquals(1, respVO.getMaxUses(), "一枚链接只建一份档案：成功落库占唯一一次");
+        PublicTokenPayload payload = publicTokenService.verify(respVO.getToken(), PublicTokenPurposeEnum.ONBOARDING_WIZARD);
+        assertEquals(TENANT_ID, payload.getTenantId());
+    }
+
+    @Test
+    public void testRevoke_tokenRejectedAfterwards() {
+        PublicTokenRespVO respVO = publicTokenService.mint(createReq("ONBOARDING_WIZARD", null, null));
+
+        publicTokenService.revoke(respVO.getToken());
+
+        assertServiceException(() -> publicTokenService.verify(respVO.getToken(), PublicTokenPurposeEnum.ONBOARDING_WIZARD),
+                PUBLIC_TOKEN_EXPIRED);
+    }
+
+    @Test
+    public void testRevoke_recordMissingGivesReadableError() {
+        insertOrder("ORDER_T6");
+        PublicTokenRespVO respVO = publicTokenService.mint(createReq("INVOICE_DOWNLOAD", "ORDER_T6", null));
+        // 签名有效但库记录已不存在（清理 / 误删）：不能静默成功
+        publicTokenMapper.deleteById(publicTokenMapper.selectList().get(0).getId());
+
+        assertServiceException(() -> publicTokenService.revoke(respVO.getToken()), PUBLIC_TOKEN_NOT_FOUND);
+    }
+
     // ==================== 造数 ====================
 
     private PublicTokenCreateReqVO createReq(String purpose, String partnerOrderId, Long payeeId) {

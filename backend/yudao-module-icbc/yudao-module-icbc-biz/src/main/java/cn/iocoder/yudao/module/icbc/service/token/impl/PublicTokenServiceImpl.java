@@ -121,7 +121,29 @@ public class PublicTokenServiceImpl implements PublicTokenService {
         }
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void revoke(String token) {
+        // 验签只证明「这枚令牌是我们签的」；是否在库里、是否已过期由下面判定。
+        // 已经过期的令牌不再重复作废，直接告诉调用方「这枚已经不在有效期内」。
+        PublicTokenPayload payload = publicTokenCodec.verify(token);
+        IcbcPublicTokenDO record = publicTokenMapper.selectByJti(payload.getJti());
+        if (record == null) {
+            throw exception(PUBLIC_TOKEN_NOT_FOUND);
+        }
+        // 作废 = 把有效期提前到现在：verify / redeem 都会按「已过期」拒绝，链接立刻失效。
+        // 不新增「作废」列：令牌表已进脊柱建表脚本，加列成本高于收益，而有效期语义足够表达。
+        IcbcPublicTokenDO update = new IcbcPublicTokenDO();
+        update.setId(record.getId());
+        update.setExpiresTime(LocalDateTime.now());
+        publicTokenMapper.updateById(update);
+    }
+
     private String resolveBusinessKey(PublicTokenPurposeEnum purpose, PublicTokenCreateReqVO reqVO) {
+        if (purpose.getBusinessKeyType() == PublicTokenPurposeEnum.BusinessKeyType.ONBOARDING_INVITE) {
+            // 自填建档：链接生成时这个人可能还没有收方档案，绑定这枚链接本身即可（#94）
+            return UUID.randomUUID().toString().replace("-", "");
+        }
         if (purpose.getBusinessKeyType() == PublicTokenPurposeEnum.BusinessKeyType.ORDER) {
             if (StrUtil.isBlank(reqVO.getPartnerOrderId())) {
                 throw exception(PUBLIC_TOKEN_BUSINESS_KEY_MISSING);
