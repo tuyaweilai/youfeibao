@@ -231,12 +231,73 @@ public class PayerInfoTenantUniqueTest extends BaseDbUnitTest {
         assertFalse(ex.getMessage().contains("租户"), "跨租户错误不许暴露租户维度：" + ex.getMessage());
     }
 
+    @Test
+    public void testDuplicatePartnerPayerIdIsReadable() {
+        // partnerPayerId 是**客户端可传**的合法输入（与工行约定的子商户编号，create 只在为 null 时生成）。
+        // 填重了必须给可读错误，而不是 insert 撞 uk_partner_payer_id 后的裸 DuplicateKeyException（500）。
+        // 这是一次请求就能稳定复现的，不需要并发。
+        TenantUtils.execute(1L, () -> payerInfoService.createPayerInfo(
+                saveReqWithPartner("北京某某再生资源有限公司", CREDIT_CODE, TAX_NO, "PAYER_REUSED")));
+
+        ServiceException ex = assertThrows(ServiceException.class, () -> TenantUtils.execute(1L, () -> {
+            payerInfoService.createPayerInfo(saveReqWithPartner(
+                    "某某再生资源（第二家）", "91110105MA01R2279N", "91110105MA01R2279N", "PAYER_REUSED"));
+        }));
+        assertEquals(PAYER_PARTNER_PAYER_ID_EXISTS.getCode(), ex.getCode());
+        assertEquals(PAYER_PARTNER_PAYER_ID_EXISTS.getMsg(), ex.getMessage());
+        // 文案不点名是哪一家企业
+        assertFalse(ex.getMessage().contains("北京某某再生资源有限公司"),
+                "合作方付方编号文案不许点名称：" + ex.getMessage());
+    }
+
+    @Test
+    public void testUpdateToExistingPartnerPayerIdIsReadable() {
+        // update 路径同构：把自己的合作方付方编号改成别家已占用的值
+        TenantUtils.execute(1L, () -> payerInfoService.createPayerInfo(
+                saveReqWithPartner("北京某某再生资源有限公司", CREDIT_CODE, TAX_NO, "PAYER_HELD")));
+        Long ownPayerId = TenantUtils.execute(2L, () -> payerInfoService.createPayerInfo(
+                saveReqWithPartner("天津某某再生资源有限公司", "91120101MA01R2279P", "91120101MA01R2279P",
+                        "PAYER_OWN")));
+
+        PayerInfoSaveReqVO updateReq = saveReqWithPartner(
+                "天津某某再生资源有限公司", "91120101MA01R2279P", "91120101MA01R2279P", "PAYER_HELD");
+        updateReq.setId(ownPayerId);
+        ServiceException ex = assertThrows(ServiceException.class, () -> TenantUtils.execute(2L, () ->
+                payerInfoService.updatePayerInfo(updateReq)));
+        assertEquals(PAYER_PARTNER_PAYER_ID_EXISTS.getCode(), ex.getCode());
+        // 自己那行没被改坏：partnerPayerId 仍是原来那个
+        TenantUtils.execute(2L, () -> assertEquals("PAYER_OWN",
+                payerInfoMapper.selectById(ownPayerId).getPartnerPayerId()));
+    }
+
+    @Test
+    public void testPartnerPayerIdHeldByDeletedRowIsReadable() {
+        // uk_partner_payer_id 也不含 deleted：软删行仍占着这个编号，预检（含软删）必须看到。
+        // 不覆盖的话，「删一条付方 → 拿它占着的 partnerPayerId 再建」会绕过预检直接撞键。
+        Long payerId = TenantUtils.execute(1L, () -> payerInfoService.createPayerInfo(
+                saveReqWithPartner("北京某某再生资源有限公司", CREDIT_CODE, TAX_NO, "PAYER_DELETED")));
+        TenantUtils.execute(1L, () -> payerInfoService.deletePayerInfo(payerId));
+
+        ServiceException ex = assertThrows(ServiceException.class, () -> TenantUtils.execute(2L, () -> {
+            payerInfoService.createPayerInfo(saveReqWithPartner(
+                    "某某再生资源（第二家）", "91110105MA01R2279N", "91110105MA01R2279N", "PAYER_DELETED"));
+        }));
+        assertEquals(PAYER_PARTNER_PAYER_ID_EXISTS.getCode(), ex.getCode());
+    }
+
     private PayerInfoSaveReqVO saveReq(String name, String creditCode, String taxNo) {
         PayerInfoSaveReqVO reqVO = new PayerInfoSaveReqVO();
         reqVO.setName(name);
         reqVO.setCreditCode(creditCode);
         reqVO.setTaxNo(taxNo);
         reqVO.setStatus(0);
+        return reqVO;
+    }
+
+    private PayerInfoSaveReqVO saveReqWithPartner(String name, String creditCode, String taxNo,
+                                                  String partnerPayerId) {
+        PayerInfoSaveReqVO reqVO = saveReq(name, creditCode, taxNo);
+        reqVO.setPartnerPayerId(partnerPayerId);
         return reqVO;
     }
 

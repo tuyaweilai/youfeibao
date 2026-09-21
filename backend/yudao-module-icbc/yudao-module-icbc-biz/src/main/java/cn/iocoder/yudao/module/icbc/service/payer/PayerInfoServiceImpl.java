@@ -45,6 +45,9 @@ public class PayerInfoServiceImpl implements PayerInfoService {
         validatePayerInfoUnique(null, createReqVO.getCreditCode(), createReqVO.getTaxNo());
         validatePayerNotRegisteredByOtherTenant(null, createReqVO.getCreditCode(), createReqVO.getTaxNo());
         validatePayerKeyNotHeldByDeletedRow(null, createReqVO.getCreditCode(), createReqVO.getTaxNo());
+        // 2.1 合作方付方编号是**客户端可传**的合法输入（与工行约定的子商户编号），也是个全局唯一键：
+        //     填重了（含跨租户、含软删行）要给可读错误，不能等到 insert 撞键才落成 500
+        validatePartnerPayerIdNotHeld(null, createReqVO.getPartnerPayerId());
 
         // 3. 生成合作方付方编号
         if (createReqVO.getPartnerPayerId() == null) {
@@ -68,6 +71,7 @@ public class PayerInfoServiceImpl implements PayerInfoService {
         validatePayerInfoUnique(updateReqVO.getId(), updateReqVO.getCreditCode(), updateReqVO.getTaxNo());
         validatePayerNotRegisteredByOtherTenant(updateReqVO.getId(), updateReqVO.getCreditCode(), updateReqVO.getTaxNo());
         validatePayerKeyNotHeldByDeletedRow(updateReqVO.getId(), updateReqVO.getCreditCode(), updateReqVO.getTaxNo());
+        validatePartnerPayerIdNotHeld(updateReqVO.getId(), updateReqVO.getPartnerPayerId());
 
         // 4. 更新（唯一键兜底并发）
         PayerInfoDO updateObj = PayerInfoConvert.INSTANCE.convert(updateReqVO);
@@ -161,6 +165,29 @@ public class PayerInfoServiceImpl implements PayerInfoService {
     }
 
     /**
+     * 合作方付方编号的预检：它是**全局唯一键** {@code uk_partner_payer_id}，且是客户端可传的输入。
+     *
+     * <p>与信用代码 / 税号不同，它不是「找运营恢复」那种值——它是与工行约定的**子商户编号**，
+     * 客户端完全有能力换一个，所以命中就给「已被占用，请换一个」（不区分是本租户还是别家、
+     * 也不区分是否软删：可执行动作都是换一个，区分反而多泄露一层存在性）。文案同样不点名企业。
+     *
+     * <p>用 {@link PayerInfoMapper#selectByPartnerPayerIdIncludeDeleted} 查**唯一键实际覆盖的集合**
+     * （含软删行，{@code @TableLogic} 看不到它们），并在 {@code TenantUtils.executeIgnore} 里跑
+     * （唯一键是全局的，跨租户也要撞）。传 null 时直接跳过——{@code create} 会为 null 生成一个新值，
+     * 构造上不会撞。
+     */
+    private void validatePartnerPayerIdNotHeld(Long id, String partnerPayerId) {
+        if (partnerPayerId == null) {
+            return;
+        }
+        PayerInfoDO holder = TenantUtils.executeIgnore(
+                () -> payerInfoMapper.selectByPartnerPayerIdIncludeDeleted(partnerPayerId));
+        if (holder != null && !holder.getId().equals(id)) {
+            throw exception(PAYER_PARTNER_PAYER_ID_EXISTS);
+        }
+    }
+
+    /**
      * 归一信用代码 / 税号：去首尾空白 + 转大写。
      *
      * <p>生产库的排序规则是 {@code utf8mb4_unicode_ci}（大小写不敏感），同一个代码的大小写差异本来
@@ -174,15 +201,16 @@ public class PayerInfoServiceImpl implements PayerInfoService {
     /**
      * 插入付方档案，并把并发下的唯一键冲突翻译成可读错误。
      *
-     * <p>预检与插入之间有窗口：并发下另一家企业可能刚提交同一个信用代码 / 税号。唯一键是兜底，
-     * 撞上时不抛裸 {@code DuplicateKeyException}（500），而是回读一次确认后给同一条可读错误。
-     * 这与 {@code NaturalPersonServiceImpl#register} 的「服务层预检 + 唯一键兜底」同一条模式。
+     * <p>预检与插入之间有窗口：并发下另一家企业可能刚提交同一个信用代码 / 税号 / 合作方付方编号。
+     * 唯一键是兜底，撞上时不抛裸 {@code DuplicateKeyException}（500），而是回读一次确认后给同一条
+     * 可读错误。这与 {@code NaturalPersonServiceImpl#register} 的「服务层预检 + 唯一键兜底」同一条模式。
      */
     private void insertPayerInfo(PayerInfoDO payerInfo) {
         try {
             payerInfoMapper.insert(payerInfo);
         } catch (DuplicateKeyException e) {
-            throwReadablePayerDuplicateOrRethrow(e, null, payerInfo.getCreditCode(), payerInfo.getTaxNo());
+            throwReadablePayerDuplicateOrRethrow(e, null, payerInfo.getCreditCode(), payerInfo.getTaxNo(),
+                    payerInfo.getPartnerPayerId());
         }
     }
 
@@ -191,19 +219,24 @@ public class PayerInfoServiceImpl implements PayerInfoService {
         try {
             payerInfoMapper.updateById(updateObj);
         } catch (DuplicateKeyException e) {
-            throwReadablePayerDuplicateOrRethrow(e, updateObj.getId(), updateObj.getCreditCode(), updateObj.getTaxNo());
+            throwReadablePayerDuplicateOrRethrow(e, updateObj.getId(), updateObj.getCreditCode(),
+                    updateObj.getTaxNo(), updateObj.getPartnerPayerId());
         }
     }
 
     /**
      * 唯一键冲突 → 可读错误 的兜底翻译；确认不了是什么冲突（同租户并发之外的键、或并发行又回滚了）
      * 就**原样抛出**，不吞、不猜。
+     *
+     * <p>{@code partnerPayerId} 只在**客户端真传了值**时才可能撞键：内部生成的
+     * （{@link #generatePartnerPayerId} / {@code addPayerToIcbc}）构造上全局唯一；传 null 时这里直接跳过。
      */
     private void throwReadablePayerDuplicateOrRethrow(DuplicateKeyException cause, Long id,
-                                                      String creditCode, String taxNo) {
+                                                      String creditCode, String taxNo, String partnerPayerId) {
         validatePayerInfoUnique(id, creditCode, taxNo);
         validatePayerNotRegisteredByOtherTenant(id, creditCode, taxNo);
         validatePayerKeyNotHeldByDeletedRow(id, creditCode, taxNo);
+        validatePartnerPayerIdNotHeld(id, partnerPayerId);
         throw cause;
     }
 

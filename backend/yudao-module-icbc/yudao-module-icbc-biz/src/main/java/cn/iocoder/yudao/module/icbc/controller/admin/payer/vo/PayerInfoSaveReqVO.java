@@ -8,15 +8,21 @@ import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 
+/**
+ * 管理后台 - 工行付方信息创建/更新 Request VO。
+ *
+ * <p><b>没有 {@code payerNo}</b>：工行付方编号是**工行侧分配**的（建档时为空的字段，见建表脚本注释），
+ * 平台只在 {@code addPayerToIcbc} 时写入（当前是 {@code generatePayerNo()}）。它曾被原样暴露给客户端、
+ * 零校验，客户端填一个已存在的值就会撞 {@code uk_payer_no} 落成裸 500（#100 复审 BLOCK-1），
+ * 而客户端填的值在业务上从不生效（{@code create}/{@code update} 不会把它发给工行）——所以这是**收紧 API**：
+ * 读仍走 {@link PayerInfoRespVO}，写不再接受。
+ */
 @Schema(description = "管理后台 - 工行付方信息创建/更新 Request VO")
 @Data
 public class PayerInfoSaveReqVO {
 
     @Schema(description = "主键", example = "1024")
     private Long id;
-
-    @Schema(description = "工行付方编号", example = "ICBC12345678")
-    private String payerNo;
 
     @Schema(description = "合作方付方编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "PAYER_001")
     private String partnerPayerId;

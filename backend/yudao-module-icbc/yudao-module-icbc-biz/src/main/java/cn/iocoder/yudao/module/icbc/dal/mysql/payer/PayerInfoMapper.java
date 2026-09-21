@@ -75,6 +75,16 @@ public interface PayerInfoMapper extends BaseMapperX<PayerInfoDO> {
     }
 
     /**
+     * 根据合作方付方编号查询付方信息，**包含软删行**。同 {@link #selectByCreditCodeIncludeDeleted}：
+     * {@code uk_partner_payer_id} 不含 {@code deleted}，软删行仍占着这个值，普通查询看不到它。
+     *
+     * @param partnerPayerId 合作方付方编号
+     * @return 付方信息（可能已软删）
+     */
+    @Select("SELECT * FROM icbc_payer_info WHERE partner_payer_id = #{partnerPayerId} LIMIT 1")
+    PayerInfoDO selectByPartnerPayerIdIncludeDeleted(@Param("partnerPayerId") String partnerPayerId);
+
+    /**
      * 根据分页条件查询付方信息
      *
      * @param reqVO 分页请求

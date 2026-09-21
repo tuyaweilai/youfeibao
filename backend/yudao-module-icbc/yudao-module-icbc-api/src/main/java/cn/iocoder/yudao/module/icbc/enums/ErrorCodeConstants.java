@@ -601,4 +601,12 @@ public interface ErrorCodeConstants {
             "该统一社会信用代码曾在本平台登记过付方且已删除，如需恢复请联系平台运营");
     ErrorCode PAYER_TAX_NO_ALREADY_REGISTERED_AND_DELETED = new ErrorCode(1_030_049_003,
             "该纳税人识别号曾在本平台登记过付方且已删除，如需恢复请联系平台运营");
+
+    // uk_partner_payer_id 也不含 deleted，且是**客户端可传**的合法输入（PayerInfoSaveReqVO.partnerPayerId，
+    // 与工行约定的子商户编号；create 只在它为 null 时生成）。预检与兜底回读必须覆盖它（含软删行、含跨租户），
+    // 否则「客户端填一个已存在的编号」会绕过预检直接撞键，落成裸 DuplicateKeyException（500）。
+    // 它是与工行约定的**外部编号**，不能像信用代码那样「找运营恢复」，可执行动作就是换一个；文案也不点名
+    // 是哪一家企业（同 #91 的透明度口径）。
+    ErrorCode PAYER_PARTNER_PAYER_ID_EXISTS = new ErrorCode(1_030_049_004,
+            "该合作方付方编号已被占用，请换一个");
 }
