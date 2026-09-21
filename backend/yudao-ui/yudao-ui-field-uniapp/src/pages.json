@@ -3,7 +3,7 @@
     {
       "path": "pages/home/index",
       "style": {
-        "navigationBarTitleText": "收货现场"
+        "navigationBarTitleText": "收购企业工作台"
       }
     },
     {
@@ -28,7 +28,7 @@
     {
       "path": "pages/payee/index",
       "style": {
-        "navigationBarTitleText": "出售者建档"
+        "navigationBarTitleText": "自然人建档"
       }
     },
     {
