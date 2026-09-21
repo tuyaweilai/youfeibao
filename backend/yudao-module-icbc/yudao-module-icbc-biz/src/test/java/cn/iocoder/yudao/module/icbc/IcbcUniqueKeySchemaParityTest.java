@@ -20,7 +20,6 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -41,15 +40,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 全局单号（{@code payee_no} / {@code partner_order_id} / {@code msg_id} 等）少建一个唯一键，
  * 同样会让用例在真实库上不成立。所以本测试不再按维度挑键，两侧全对齐、不留白名单。
  *
- * <p><b>唯一一处排除</b>：{@link #KEY_DECISION_PENDING} 里的表，其唯一键属于哪一层由别的票决定，
- * 本票不碰、比对也不纳入。它不是「差异白名单」——不描述任何一处具体差异，只划出本测试暂不拥有的表。
- *
  * <p><b>迁移脚本不算「建表脚本」</b>：迁移文件只有 {@code DROP INDEX} / {@code ADD UNIQUE KEY}、
  * 没有 {@code CREATE TABLE}，所以本测试不拿它来满足一份写错了的 {@code CREATE TABLE}
  * （新库只导建表脚本，建表脚本才是最终形状）。迁移脚本与建表脚本的一致性由
  * {@link #testPayeeUniqueKeyMigrationAddsExactlyTheCreateScriptKeys()} 单独钉。
  *
- * <p><b>没有白名单</b>：{@code #99} 把两侧键全对齐后，差异集合必须为空。留白名单等于
+ * <p><b>没有白名单</b>：{@code #99} 把两侧键全对齐后，{@code #100} 又关掉了最后一处整表排除
+ * （付方档案四个全局唯一键属于全局层，见 ADR 0005 补充），差异集合必须为空。留白名单等于
  * 「下一个同类差异只需再加一行」，{@code #97} 的 bug 就是这样藏了很久。
  */
 public class IcbcUniqueKeySchemaParityTest {
@@ -72,14 +69,6 @@ public class IcbcUniqueKeySchemaParityTest {
             Set.of("tenant_id", "mobile", "deleted"),
             Set.of("payee_no"),
             Set.of("partner_payee_id"));
-
-    /**
-     * 键层归属由别的票决定、本票（{@code #99}）不碰的表：整体排除，等领域答复落定后再纳入。
-     * 这不是「差异白名单」——它不描述任何一处具体差异，只划出本测试暂不拥有的表；
-     * 且它**自清理**：被排除的表必须仍与生产有差异，若哪天两侧一致了，下面会断言失败、请把它删掉。
-     * 目前只有 {@code icbc_payer_info}（#100：付方档案四个全局唯一键属于哪一层）。
-     */
-    private static final Set<String> KEY_DECISION_PENDING = Set.of("icbc_payer_info");
 
     private static final Pattern CREATE_TABLE = Pattern.compile(
             "CREATE TABLE(?: IF NOT EXISTS)?\\s+`?(\\w+)`?\\s*\\(", Pattern.CASE_INSENSITIVE);
@@ -106,12 +95,6 @@ public class IcbcUniqueKeySchemaParityTest {
 
         Map<String, String> drift = new TreeMap<>();
         for (String table : commonTables) {
-            if (KEY_DECISION_PENDING.contains(table)) {
-                // 排除项自清理：它必须真的还没对齐，否则就是白名单式的黑箱
-                assertNotEquals(allKeys(production, table), allKeys(test, table),
-                        table + " 已在两份脚本里一致，应从 KEY_DECISION_PENDING 移除");
-                continue;
-            }
             Set<Set<String>> productionKeys = allKeys(production, table);
             Set<Set<String>> testKeys = allKeys(test, table);
             if (!productionKeys.equals(testKeys)) {

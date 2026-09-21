@@ -132,6 +132,10 @@ public class PayerInfoMapperTest extends BaseDbUnitTest {
             o.setName("不匹配");
             o.setCreditCode("test-credit-code-2");
             o.setTaxNo("test-tax-no-2");
+            // 全局唯一键（#100）：cloneIgnoreId 会把原行的 payer_no / partner_payer_id 一起复制，
+            // 生产不会出现两个付方共用同一个编号，这里按真实形状各生成一份。
+            o.setPayerNo("PAYER_NO_PAGE_2");
+            o.setPartnerPayerId("PARTNER_PAYER_PAGE_2");
         }));
         
         // 准备参数

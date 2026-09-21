@@ -583,4 +583,12 @@ public interface ErrorCodeConstants {
             "此人已有收方档案：请让收货员从「已建档」入口生成链接（链接会锁到本人名下）");
     ErrorCode WIZARD_INVITE_PAYEE_NOT_FOUND = new ErrorCode(1_030_043_006,
             "这枚链接绑定的收方档案不存在，请让收货员重新生成一枚");
+
+    // ========== 付方档案的全局唯一键（#100，ADR 0005 补充：一家公司只能是一个租户） 1_030_049_000 ==========
+    // 文案只说「已被另一家企业登记」，不点名是哪一家（不回租户名 / 租户编号）：跨租户只暴露
+    // 「这个信用代码 / 税号被占用了」这一条业务事实，不泄露别家企业的存在（#91 的同一条透明度口径）。
+    ErrorCode PAYER_CREDIT_CODE_REGISTERED_ELSEWHERE = new ErrorCode(1_030_049_000,
+            "该统一社会信用代码已被另一家企业登记为付方，如需处理请联系平台运营");
+    ErrorCode PAYER_TAX_NO_REGISTERED_ELSEWHERE = new ErrorCode(1_030_049_001,
+            "该纳税人识别号已被另一家企业登记为付方，如需处理请联系平台运营");
 }
