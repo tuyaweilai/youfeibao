@@ -3,6 +3,21 @@
 SET NAMES utf8mb4;
 
 -- ========================================
+-- ⚠️ 必须先指定数据库！用法：
+--     mysql -uroot -p <库名> < icbc-wallet-columns-drop.sql
+--     docker exec -i <mysql容器> mysql -uroot -p <库名> < icbc-wallet-columns-drop.sql
+--
+-- 为什么反复强调：下面的守卫写的是 `TABLE_SCHEMA = DATABASE()`。**不带库名**时
+-- `DATABASE()` 是 NULL，守卫恒假，十二个分支全部走 `SELECT 1`——脚本退出码 0、
+-- 一列都不删。这个文件存在的唯一理由就是给「已经建过库的环境」补一刀，静默不干活
+-- 是最坏的结果，所以开头加一道硬失败守卫：没选库就当场报错，不装作成功。
+-- ========================================
+SET @guard := IF(DATABASE() IS NULL,
+    'SELECT 1 FROM `__请指定数据库：mysql -uroot -p 库名 < 本文件` . `t`',
+    'DO 0');
+PREPARE guard_stmt FROM @guard; EXECUTE guard_stmt; DEALLOCATE PREPARE guard_stmt;
+
+-- ========================================
 -- 一次性迁移：清掉「电子钱包 / 电子账户 / 开户状态」的残留列（#87，见 ADR 0035）
 --
 -- 收方入驻改走数据接口后（#83），工行只回审核结论，不再有账户开通这条线；状态机也只剩
@@ -19,6 +34,7 @@ SET NAMES utf8mb4;
 -- 也已是「没有这些列」的最终形状，新库直接导建表脚本即可，不需要跑本文件）。
 --
 -- 幂等：DROP COLUMN 按 information_schema 判存在再执行，重复跑安全。
+-- 但**不选库 ≠ 幂等**：不选库是「什么都没干」——见文件头的硬失败守卫。
 -- 注意 `--` 后必须跟空格才是注释（本项目已两次踩过 1064）。
 -- ========================================
 
