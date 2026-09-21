@@ -190,7 +190,8 @@ public class IcbcSdkGateway implements IcbcGateway {
         biz.setReceiverAccount(req.getReceiverAccount());
         biz.setAccountCode(req.getAccountCode());
         biz.setBankName(req.getBankName());
-        biz.setBankCode(req.getBankCode());
+        // 不上送 bankCode（收方行号）：接口文档里它与行名都是选填，而我们拿不到联行号
+        // （银行卡 OCR 也给不出）——宁可不送，也不凭空编一个号（ADR 0035 决策 3）。
         biz.setSignDate(req.getSignDate());
         biz.setValidityPeriod(req.getValidityPeriod());
         biz.setCallbackUrl(req.getCallbackUrl());

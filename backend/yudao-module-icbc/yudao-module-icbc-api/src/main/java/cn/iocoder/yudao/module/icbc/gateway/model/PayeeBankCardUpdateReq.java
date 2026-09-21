@@ -37,10 +37,6 @@ public class PayeeBankCardUpdateReq {
      */
     private String bankName;
     /**
-     * 收方行号（非我行用户时可选填）
-     */
-    private String bankCode;
-    /**
      * 证件签发日期 yyyy-MM-dd
      */
     private String signDate;
