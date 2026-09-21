@@ -2444,3 +2444,20 @@ member 令牌回 `code=401 账号未登录`。
 **跑法**：`scripts/fleet.sh plan` 先看波次，`run` 才会动东西（`REVIEW=1 PUSH=1 MAX_PARALLEL=2`）。
 它不做的事写在脚本头：不解合并冲突（撞了就 abort + 标 `ready-for-human`）、不自动重试失败票、
 不替代人工验收（真机相机 / 第三方联调）。
+
+### #97 收方档案唯一键补 tenant_id
+
+`#91` 的验收里有一条「同一自然人在第二家回收企业建档时复用同一个自然人主体」——代码与单测都成立，但在真实库上做不到：生产 `icbc_payee_info.sql` 的键是 `(id_card_no, deleted)` / `(mobile, deleted)`（全局），测试 schema 却是 `(tenant_id, id_card_no)` / `(tenant_id, mobile)`。**两份脚本不是同一张表**，所以「跨租户建档」的用例一直绿，真实库上第二家企业 INSERT 直接撞键（500），而 Service 层按租户查、看不到别家的行。这与 ADR 0017 / `CONTEXT.md`「收方档案是自然人 × 回收企业这一层」相抵。
+
+本票做的是**很小的放开**：`icbc_payee_info` 不在 `yudao.tenant.ignore-tables` 里，租户插件早就在给它的查询加 `tenant_id`；服务层的 `validateIdCardNoUnique` / `validateMobileUnique` 走的就是同一套插件——「本租户内一张身份证一份档案」**早就实现了**，只有 DB 的键没跟上。旧键**严格强于**新键，放宽不可能产生违法行。
+
+1. **建表脚本**：`uk_id_card_no` → `(tenant_id, id_card_no, deleted)`，`uk_mobile` → `(tenant_id, mobile, deleted)`（保留 `deleted`，语义与改前完全一致）。
+2. **迁移脚本** `icbc-payee-unique-key.sql`：按 `information_schema.STATISTICS` 判索引的存在与列组成——旧形状先 `DROP INDEX` 再 `ADD UNIQUE KEY`，已是新形状或键不存在时跳过。**必须带库名跑**（守卫按 `DATABASE()` 判存在），照 `icbc-wallet-columns-drop.sql` 加了硬失败守卫。本地 MySQL 13308 临时库实测：旧形状 → 跑一次换键成功、再跑两次都是 no-op；新形状 → no-op；不带库名 → 退出码 1（`Unknown database`）。
+3. **测试建表对齐生产**：`create_tables.sql` 的 `uk_payee_id_card_no` / `uk_payee_mobile` 补上 `deleted`（这正是 bug 藏了这么久的原因）。
+4. **回归测试**（新文件 `IcbcUniqueKeySchemaParityTest`）：直接比对两份**建表脚本**的「租户级唯一键」（列集合含 `tenant_id` 的键），覆盖两份脚本里都存在的全部 `icbc_*` 表；差异集合必须恰好等于白名单（`icbc_invoice_order` / `icbc_payment_order` 两处与本票无关的既有差异，方向都是「测试更松」）。**修之前实测是红的**（`Tests run: 3, Failures: 2`，生产=[]、测试=[(id_card_no,tenant_id),(mobile,tenant_id)]），另两条：`IcbcTenantIsolationTest` 补了「跨租户各建一份都成功 + 同租户内同身份证仍被拒」的行为用例。
+
+**明确没改、只记录判断**：
+
+- **`icbc_payer_info` 的 `uk_credit_code` / `uk_tax_no` 不含 `tenant_id`**：`icbc_payer_info` 的四个唯一键都是全局的（`payer_no` / `partner_payer_id` / `credit_code` / `tax_no`）。付方是回收企业自己的法人档案，一个法人正常只在一家回收企业下；只有「演示租户 + 客户真租户」共用同一个信用代码才会撞。**本票不动**：先确认有没有同一法人跨租户的合法场景，再谈改法与迁移。
+- **`deleted` 进唯一键的既有毛病**：同一租户同一个人「软删 → 重建 → 再软删」时第二次软删会撞键（两条 `deleted=1`）。改前改后完全一样，另一件事。
+- 31 个「租户级表 + 不含 tenant_id 的唯一键」绝大多数是合理的全局键（我们生成的 `acquisition_no` / `station_code` / `payee_no`、工行的 `msg_id` / `notify_id`、`jti` 等），比对测试用「只比含 `tenant_id` 的键」把它们排除掉了，不靠人肉白名单。

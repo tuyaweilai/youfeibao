@@ -66,8 +66,8 @@ CREATE TABLE IF NOT EXISTS icbc_payee_info (
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
-    CONSTRAINT uk_payee_id_card_no UNIQUE (tenant_id, id_card_no),
-    CONSTRAINT uk_payee_mobile UNIQUE (tenant_id, mobile)
+    CONSTRAINT uk_payee_id_card_no UNIQUE (tenant_id, id_card_no, deleted),
+    CONSTRAINT uk_payee_mobile UNIQUE (tenant_id, mobile, deleted)
 );
 
 CREATE INDEX IF NOT EXISTS idx_payee_no ON icbc_payee_info(payee_no);
