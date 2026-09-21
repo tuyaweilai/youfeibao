@@ -265,6 +265,12 @@ wait_wave() {
   done
 }
 
+# surefire 的每个测试类都会打一行 `Tests run:`，真正的总计在 `Results:` 之后那一行。
+# 直接 `grep ... | tail -1` 会拿到最后一个测试类的小计，报告里看上去像只有几条测试。
+test_summary() { # <日志>
+  awk '/^\[INFO\] Results:/{found=1} found && /Tests run:/{sub(/^\[INFO\] /, ""); print; exit}' "$1"
+}
+
 # ---------------------------------------------------------------- 闸门
 cmd_gate() {
   local n=$1 wt; wt=$(state_field "$n" 4); local branch; branch=$(state_field "$n" 3)
@@ -303,7 +309,7 @@ $(echo "$hit" | sed 's/^/    /')" | tee -a "$report" >&2; pass=0
   ( cd "$wt/backend" && eval "$TEST_CMD" ) > "$tlog" 2>&1
   local rc=$?
   unlock test
-  local summary; summary=$(grep -E '^\[INFO\] Tests run:.*Failures' "$tlog" | tail -1 | sed 's/\[INFO\] //;s/\[ERROR\] //')
+  local summary; summary=$(test_summary "$tlog")
   if [ $rc = 0 ] && grep -q 'BUILD SUCCESS' "$tlog"; then
     echo "- ✓ 测试：$summary" >> "$report"
   else
@@ -338,7 +344,7 @@ cmd_integrate() {
     die "#$n 合并冲突，已 abort 并标 ready-for-human（分支保留）"
   fi
 
-  local summary; summary=$(grep -E '^\[INFO\] Tests run:.*Failures' "$FLEET/logs/$n.tests.log" 2>/dev/null | tail -1 | sed 's/\[INFO\] //')
+  local summary; summary=$(test_summary "$FLEET/logs/$n.tests.log" 2>/dev/null)
   local merged_sha; merged_sha=$(git -C "$ROOT" rev-parse --short HEAD)
   local files; files=$(git -C "$ROOT" diff --name-only "HEAD^1..HEAD" | wc -l | tr -d ' ')
 
