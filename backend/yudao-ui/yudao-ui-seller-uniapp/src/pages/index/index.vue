@@ -60,8 +60,16 @@
             <text class="kv__k">收款账户变更</text><text>{{ onboarding.bankCardChangeStatusName }}</text>
           </view>
           <view v-if="onboarding.nextStep" class="quota__exempt quota__exempt--warn">下一步：{{ onboarding.nextStep }}</view>
-          <button v-if="onboarding.step !== 'DONE'" class="btn btn--primary" @click="openOnboardingForm">
-            去工行页面（实名 / 绑卡）
+          <!-- 人脸只在微信环境能唤起：不在微信里就不要给一个点了没反应的按钮（#88） -->
+          <view v-if="notInWechat && onboarding.step !== 'DONE'" class="wechat-guide">
+            <view class="wechat-guide__title">请用微信打开才能做人脸</view>
+            <view class="wechat-guide__desc">
+              工行实人认证只在微信里能唤起。把本页链接发到微信里打开（或在微信里扫现场的二维码），再完成人脸。
+            </view>
+            <button class="btn btn--ghost" @click="copyCurrentUrl">复制本页链接</button>
+          </view>
+          <button v-else-if="onboarding.step !== 'DONE'" class="btn btn--primary" @click="openOnboardingForm">
+            去工行页面完成实名
           </button>
           <button class="btn btn--ghost" :loading="loading" @click="loadOnboarding">我已完成，刷新</button>
         </view>
@@ -187,6 +195,7 @@ const notice = ref<PublicNoticeVO | null>(null)
 const settlement = ref<SettlementVO | null>(null)
 const onboarding = ref<OnboardingStatusVO | null>(null)
 const webViewUrl = ref('')
+const notInWechat = ref(false)
 const contact = reactive({ name: '', mobile: '', remark: '' })
 
 // 令牌按用途签发，只放行对应功能；没带用途时给出全部入口
@@ -196,6 +205,10 @@ const visibleTabs = computed(() => {
 })
 
 onLoad(() => {
+  // 非微信环境（H5）：实名页在这里唤不起来，别让本人点了没反应（#88）
+  // #ifdef H5
+  notInWechat.value = !/MicroMessenger/i.test(navigator.userAgent)
+  // #endif
   // 场站二维码：码内不带任何令牌，只编码场站码；先看公开信息再登录
   const station = resolveStationCode()
   if (station) {
@@ -269,6 +282,21 @@ async function loadOnboarding() {
   } finally {
     loading.value = false
   }
+}
+
+/** 复制当前页链接：本人要在微信里重新打开同一条带令牌的链接 */
+function copyCurrentUrl() {
+  let url = ''
+  // #ifdef H5
+  url = window.location.href
+  // #endif
+  if (!url) {
+    return
+  }
+  uni.setClipboardData({
+    data: url,
+    success: () => uni.showToast({ title: '已复制，请到微信里打开', icon: 'none' })
+  })
 }
 
 function trxChannel(): string {
@@ -559,5 +587,24 @@ async function onSubmitContact() {
   color: $seller-text-secondary;
   font-size: 24rpx;
   line-height: 1.6;
+}
+
+.wechat-guide {
+  margin-top: 16rpx;
+  padding: 20rpx 24rpx;
+  background-color: #fff7e6;
+  border-radius: 12rpx;
+
+  &__title {
+    font-weight: 600;
+    color: #b26a00;
+  }
+
+  &__desc {
+    margin-top: 8rpx;
+    color: #b26a00;
+    font-size: 26rpx;
+    line-height: 1.6;
+  }
 }
 </style>

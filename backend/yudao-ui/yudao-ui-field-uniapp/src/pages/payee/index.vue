@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <!-- 第一步：找到或新建出售者 -->
+    <!-- 第一步：认出人 / 新建档（只登记，不代做手续） -->
     <template v-if="!payeeId">
       <view class="card">
         <view class="card__title">回头客带档</view>
@@ -15,7 +15,9 @@
         <view v-if="foundSeller" class="seller">
           <view class="seller__name">{{ foundSeller.name }}</view>
           <view class="seller__meta">{{ foundSeller.mobile || foundSeller.idCardNo }}</view>
-          <button class="link" @click="openOnboarding(foundSeller.id!)">继续建档</button>
+          <button class="link" @click="openOnboarding(foundSeller.id!, foundSeller.name)">
+            查看进度 / 再给一次链接
+          </button>
         </view>
       </view>
 
@@ -41,145 +43,80 @@
           <text class="field__label">地址</text>
           <input v-model="newSeller.address" class="input" placeholder="常住地址" />
         </view>
-        <button class="btn btn--primary" :loading="creating" @click="onCreateSeller">建档并开始手续</button>
-        <view class="tip">建档后依次完成实人认证 → 收方入驻 → 框架协议 → 首次授权。</view>
+        <button class="btn btn--primary" :loading="creating" @click="onCreateSeller">建档并交给本人实名</button>
+        <view class="tip">
+          建档后把二维码或链接交给本人：实名由他本人在微信里做，收方入驻随后自动完成，
+          现场不需要再点任何手续。
+        </view>
       </view>
     </template>
 
-    <!-- 第二步：一次性手续 -->
+    <!-- 第二步：只读准入进度 + 转达链接 -->
     <template v-else>
       <view class="card status">
         <view class="status__top">
-          <view class="status__name">{{ overview.name || '出售者' }}</view>
-          <text class="tag" :class="overview.invoiceEligible ? 'tag--ok' : 'tag--warn'">
-            {{ overview.invoiceEligible ? '可用于开票' : '暂不可开票' }}
+          <view class="status__name">{{ overview?.name || payeeName || '出售者' }}</view>
+          <text class="tag" :class="overview?.invoiceEligible ? 'tag--ok' : 'tag--warn'">
+            {{ overview?.invoiceEligible ? '可用于开票' : '暂不可开票' }}
           </text>
         </view>
-        <view v-if="!overview.invoiceEligible" class="status__warn">
-          {{ overview.invoiceBlockReason || '建档未完成' }}
+
+        <view v-if="awaitingRealName" class="pending">
+          <view class="pending__title">待本人实名</view>
+          <view class="pending__desc">
+            实名只有本人能做：让他用微信扫下面的码，或打开链接完成人脸。
+          </view>
         </view>
+        <view v-else-if="overview?.rejectReason" class="status__warn">入驻被拒：{{ overview.rejectReason }}</view>
+        <view v-else-if="overview?.realNameMsg" class="status__warn">实名信息：{{ overview.realNameMsg }}</view>
+
         <view class="grid">
           <view class="grid__item">
             <view class="grid__label">实人认证</view>
-            <view class="grid__value">{{ overview.realNameStatusName || '未认证' }}</view>
+            <view class="grid__value">{{ overview?.realNameStatusName || '未认证' }}</view>
           </view>
           <view class="grid__item">
-            <view class="grid__label">开户状态</view>
-            <view class="grid__value">{{ overview.icbcOpenacctStatus || '未开始' }}</view>
+            <view class="grid__label">收方入驻</view>
+            <view class="grid__value">{{ overview?.onboardingStateName || '未开始' }}</view>
           </view>
           <view class="grid__item">
-            <view class="grid__label">审核结果</view>
-            <view class="grid__value">{{ overview.auditResult || '未开始' }}</view>
+            <view class="grid__label">框架收购协议</view>
+            <view class="grid__value">{{ overview?.frameworkAgreement ? '已签' : '未签' }}</view>
           </view>
           <view class="grid__item">
-            <view class="grid__label">入驻结果</view>
-            <view class="grid__value">{{ overview.onboardingStateName || '未开始' }}</view>
+            <view class="grid__label">首次授权</view>
+            <view class="grid__value">{{ overview?.authorization ? '已授权' : '未授权' }}</view>
           </view>
         </view>
-        <view v-if="overview.nextStep" class="status__next">下一步：{{ overview.nextStep }}</view>
-        <view v-if="overview.rejectReason" class="status__warn">拒绝原因：{{ overview.rejectReason }}</view>
-        <view v-if="overview.realNameMsg" class="status__warn">实名信息：{{ overview.realNameMsg }}</view>
-      </view>
 
-      <!-- 1. 实人认证 -->
-      <view class="card">
-        <view class="card__title">1. 实人认证</view>
-        <view class="actions">
-          <button class="btn btn--primary" :loading="startingRealName" @click="onStartRealName">发起实名认证</button>
-          <button class="btn btn--ghost" :loading="syncing" @click="onSyncRealName">查询结果</button>
-        </view>
-        <view class="tip">发起后在新窗口完成工行实人认证；完成后回到本页点「查询结果」。</view>
-      </view>
-
-      <!-- 2. 收方入驻 -->
-      <view class="card">
-        <view class="card__title">2. 收方入驻（绑定本人银行卡）</view>
-        <view class="field">
-          <text class="field__label">证件签发日期</text>
-          <input v-model="onboarding.idSignDate" class="input" placeholder="yyyy-MM-dd" />
-        </view>
-        <view class="field">
-          <text class="field__label">证件截止日期</text>
-          <input v-model="onboarding.idValidityPeriod" class="input" placeholder="永久有效填 9999-12-30" />
-        </view>
-        <view class="field">
-          <text class="field__label">开户银行</text>
-          <input v-model="onboarding.bankName" class="input" placeholder="银行卡识别结果" />
-        </view>
-        <view class="field">
-          <text class="field__label">开户支行</text>
-          <input v-model="onboarding.bankBranch" class="input" placeholder="银行卡识别结果" />
-        </view>
-        <view class="actions">
-          <button class="btn btn--primary" :loading="submittingOnboarding" @click="onSubmitOnboarding">发起收方入驻</button>
-          <button class="btn btn--ghost" :loading="syncing" @click="onSyncOnboarding">查询结果</button>
-        </view>
-
-        <view v-if="overview.onboardingState && !overview.invoiceEligible" class="fallback">
-          <view class="fallback__title">入驻未通过？留下联系方式等待联系</view>
-          <view class="row">
-            <input v-model="lead.mobile" class="input" placeholder="手机号" />
-            <input v-model="lead.remark" class="input" placeholder="备注" />
-          </view>
-          <button class="btn btn--ghost" :loading="leavingContact" @click="onLeaveContact">提交</button>
+        <view v-if="overview?.nextStep" class="status__next">下一步：{{ overview.nextStep }}</view>
+        <view v-if="overview?.invoiceBlockReason" class="status__warn">{{ overview.invoiceBlockReason }}</view>
+        <view class="status__refresh">
+          <text class="link" @click="refresh">刷新进度</text>
         </view>
       </view>
 
-      <!-- 3. 框架收购协议 -->
       <view class="card">
-        <view class="card__title">3. 框架收购协议</view>
-        <view v-if="overview.frameworkAgreement" class="agreement">
-          已签：{{ overview.frameworkAgreement.agreementNo }} · {{ overview.frameworkAgreement.productName }}
+        <view class="card__title">交给本人用微信办理</view>
+        <view class="tip">
+          人脸只能在微信里唤起。请让本人用微信扫这个码，或把链接发到他微信里打开。
         </view>
-        <view class="field">
-          <text class="field__label">货物名称</text>
-          <input v-model="agreement.productName" class="input" placeholder="如 废钢" />
+        <view v-if="handoff.qr" class="qr">
+          <image class="qr__img" :src="handoff.qr" mode="aspectFit" />
         </view>
-        <view class="field">
-          <text class="field__label">数量</text>
-          <input v-model="agreement.quantity" class="input" placeholder="如 5 吨" />
+        <view class="link-box">
+          <view class="link-box__url">{{ handoff.link || handoff.token || '（尚未生成）' }}</view>
+          <button v-if="handoff.link || handoff.token" class="link" @click="copyLink">
+            复制{{ handoff.link ? '链接' : '令牌' }}
+          </button>
         </view>
-        <view class="field">
-          <text class="field__label">规格</text>
-          <input v-model="agreement.specification" class="input" placeholder="如 重型废钢" />
+        <view v-if="!handoff.link && handoff.token" class="hint hint--warn">
+          未配置自然人端地址（VITE_APP_SELLER_URL），只能把上面的令牌交给本人。
         </view>
-        <view class="field">
-          <text class="field__label">回收期次</text>
-          <input v-model="agreement.recyclePeriod" class="input" placeholder="如 2026 年 9 月第 1 期" />
-        </view>
-        <view class="field">
-          <text class="field__label">结算方式</text>
-          <input v-model="agreement.settlementMethod" class="input" placeholder="如 银行转账，过磅后 3 日内结清" />
-        </view>
-        <button class="btn btn--primary" :loading="savingAgreement" @click="onSaveAgreement">
-          {{ overview.frameworkAgreement ? '重签协议' : '签署协议' }}
+        <button class="btn btn--ghost" :loading="issuing" @click="issueLink">
+          {{ handoff.link ? '重新生成链接' : '生成链接' }}
         </button>
-      </view>
-
-      <!-- 4. 首次授权 -->
-      <view class="card">
-        <view class="card__title">4. 首次授权</view>
-        <view class="switch-row">
-          <text>授权反向开票</text>
-          <switch :checked="authorization.reverseInvoiceAuthorized" @change="onReverseChange" />
-        </view>
-        <view class="switch-row">
-          <text>授权代办税费</text>
-          <switch :checked="authorization.taxAgencyAuthorized" @change="onTaxChange" />
-        </view>
-        <button class="btn btn--primary" :loading="savingAuthorization" @click="onAuthorize">保存授权</button>
-        <view v-if="overview.authorization" class="tip">已于 {{ formatTime(overview.authorization.authorizedAt) }} 授权</view>
-      </view>
-
-      <!-- 5. 交给出售者自助办理 -->
-      <view class="card">
-        <view class="card__title">交给出售者自助办理（可选）</view>
-        <view class="tip">出售者也可在自己手机上完成实名 / 绑卡：生成链接发给本人，用微信打开即可。</view>
-        <button class="btn btn--ghost" :loading="creatingLink" @click="onCreateSelfServiceLink">生成自助链接</button>
-        <view v-if="selfService" class="link-box">
-          <view class="link-box__url">{{ selfService.link || selfService.token }}</view>
-          <button class="link" @click="copyLink">复制</button>
-        </view>
+        <view v-if="handoff.expiresText" class="tip">{{ handoff.expiresText }}</view>
       </view>
 
       <button class="btn btn--ghost" @click="backToSeller">换一位出售者</button>
@@ -188,61 +125,56 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import {
-  createPayee,
-  findReturningCustomer,
-  getPayee,
-  PayeeVO
-} from '@/api/payee'
-import {
-  authorizeSeller,
-  getOnboarding,
-  leaveContactFallback,
-  saveAgreement,
-  SellerOnboardingVO,
-  startRealName,
-  submitOnboarding,
-  syncOnboarding,
-  syncRealName
-} from '@/api/onboarding'
-import { openIcbcFormHtml } from '@/utils/icbcForm'
+import { computed, reactive, ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import QRCode from 'qrcode'
+import { createPayee, findReturningCustomer, PayeeVO } from '@/api/payee'
 import { createPublicToken } from '@/api/publicToken'
+import { useSellerOnboarding } from '@youfeibao/field-shared'
 import { SELLER_APP_URL } from '@/config/env'
 
+/**
+ * 现场端「自然人建档」（#88）：**只登记与转达，不做实名**。
+ *
+ * 建档后显示「待本人实名」+ 二维码 / 可复制链接 + **只读**的准入进度；
+ * 实名只能本人做（工行活体，我们替代不了），他做完之后收方入驻由平台自动发起（#85）。
+ * 因此这一页**没有**「发起实名认证 / 查询结果 / 发起收方入驻」这类按钮——
+ * 谁来做、什么时候做，都由本人决定，现场只负责把入口交给他。
+ *
+ * 四步的接口与状态走共享 composable（同一份也在司机端用，见 packages/field-shared/README.md）。
+ */
 defineOptions({ name: 'FieldPayee' })
 
-const payeeId = ref<number | undefined>(undefined)
-const overview = ref<SellerOnboardingVO>({})
+const payeeId = ref<number>()
+const payeeName = ref('')
 const looking = ref(false)
 const lookedUp = ref(false)
 const foundSeller = ref<PayeeVO | null>(null)
 const creating = ref(false)
-const startingRealName = ref(false)
-const submittingOnboarding = ref(false)
-const syncing = ref(false)
-const leavingContact = ref(false)
-const savingAgreement = ref(false)
-const savingAuthorization = ref(false)
-const creatingLink = ref(false)
-const selfService = ref<{ link: string; token: string } | null>(null)
+const issuing = ref(false)
+/** 「交给本人」的入口：令牌、链接、二维码与有效期一起生成、一起清空 */
+const handoff = reactive({ token: '', link: '', qr: '', expiresText: '' })
 
 const lookup = reactive({ idCardNo: '', mobile: '' })
 const newSeller = reactive({ name: '', idCardNo: '', mobile: '', bankCardNo: '', address: '' })
-const onboarding = reactive({ idSignDate: '', idValidityPeriod: '', bankName: '', bankBranch: '' })
-const lead = reactive({ mobile: '', remark: '' })
-const agreement = reactive({
-  productName: '',
-  quantity: '',
-  specification: '',
-  recyclePeriod: '',
-  settlementMethod: ''
+
+// 只读准入进度：composable 在 payeeId 变化时自动拉取（watch immediate）
+const { overview, load, tips } = useSellerOnboarding(() => payeeId.value)
+
+/** 实名通过的枚举值是 2（PayeeRealNameStatusEnum.PASSED）；其余都算「待本人实名」。进度未加载完不下结论 */
+const REAL_NAME_PASSED = 2
+const awaitingRealName = computed(() => !!overview.value && overview.value.realNameStatus !== REAL_NAME_PASSED)
+
+onShow(() => {
+  // 出售者可能刚在自己手机上做完实名：回到这一页就重新读一次，现场不用点任何按钮
+  if (payeeId.value) {
+    load()
+  }
 })
-const authorization = reactive({ reverseInvoiceAuthorized: false, taxAgencyAuthorized: false })
 
 async function onLookup() {
   if (!lookup.idCardNo && !lookup.mobile) {
-    uni.showToast({ title: '请填身份证号或手机号', icon: 'none' })
+    tips('请填身份证号或手机号')
     return
   }
   looking.value = true
@@ -252,8 +184,11 @@ async function onLookup() {
       mobile: lookup.mobile || undefined
     })
     lookedUp.value = true
+    if (!foundSeller.value?.id) {
+      foundSeller.value = null
+    }
   } catch (e) {
-    showError(e)
+    tips((e as Error).message || '带档失败')
   } finally {
     looking.value = false
   }
@@ -267,202 +202,88 @@ async function onCreateSeller() {
   creating.value = true
   try {
     const id = await createPayee({ ...newSeller, businessType: 'RECYCLE' })
-    await openOnboarding(id)
+    await openOnboarding(id, newSeller.name)
   } catch (e) {
-    showError(e)
+    tips((e as Error).message || '建档失败')
   } finally {
     creating.value = false
   }
 }
 
-async function openOnboarding(id: number) {
+/** 进入某位出售者：拉一次只读进度，并立刻把「交给本人」的入口准备好 */
+async function openOnboarding(id: number, name?: string) {
   payeeId.value = id
-  try {
-    const payee = await getPayee(id)
-    onboarding.bankName = payee.bankName || ''
-    onboarding.bankBranch = payee.bankBranch || ''
-    lead.mobile = payee.mobile || ''
-    await refreshOverview()
-  } catch (e) {
-    showError(e)
-  }
+  payeeName.value = name || ''
+  await issueLink()
 }
 
-async function refreshOverview() {
-  if (!payeeId.value) return
-  overview.value = await getOnboarding(payeeId.value)
+async function refresh() {
+  await load()
+  tips('已刷新')
 }
 
-async function onStartRealName() {
-  if (!payeeId.value) return
-  startingRealName.value = true
-  try {
-    const step = await startRealName(payeeId.value)
-    openIcbcFormHtml(step.formHtml || '', '实人认证')
-    await refreshOverview()
-  } catch (e) {
-    showError(e)
-  } finally {
-    startingRealName.value = false
-  }
-}
-
-async function onSyncRealName() {
-  if (!payeeId.value) return
-  syncing.value = true
-  try {
-    overview.value = await syncRealName(payeeId.value)
-    uni.showToast({ title: '已刷新', icon: 'none' })
-  } catch (e) {
-    showError(e)
-  } finally {
-    syncing.value = false
-  }
-}
-
-async function onSubmitOnboarding() {
-  if (!payeeId.value) return
-  submittingOnboarding.value = true
-  try {
-    const step = await submitOnboarding({
-      payeeId: payeeId.value,
-      idSignDate: onboarding.idSignDate || undefined,
-      idValidityPeriod: onboarding.idValidityPeriod || undefined,
-      bankName: onboarding.bankName || undefined,
-      bankBranch: onboarding.bankBranch || undefined,
-      trxChannel: '03'
-    })
-    openIcbcFormHtml(step.formHtml || '', '收方入驻')
-    await refreshOverview()
-  } catch (e) {
-    showError(e)
-  } finally {
-    submittingOnboarding.value = false
-  }
-}
-
-async function onSyncOnboarding() {
-  if (!payeeId.value) return
-  syncing.value = true
-  try {
-    overview.value = await syncOnboarding(payeeId.value)
-    if (!overview.value.invoiceEligible && overview.value.nextStep) {
-      uni.showModal({ title: '还差一步', content: overview.value.nextStep, showCancel: false })
-    }
-  } catch (e) {
-    showError(e)
-  } finally {
-    syncing.value = false
-  }
-}
-
-async function onLeaveContact() {
-  if (!payeeId.value) return
-  if (!lead.mobile) {
-    uni.showToast({ title: '请填写联系方式', icon: 'none' })
+/**
+ * 签发一枚 ONBOARDING 一次性令牌，拼出本人要打开的执行链接。
+ *
+ * 链接是「再次展示」的核心：出售者当时没做，回头还能从这里再拿一次（令牌 24 小时内有效）。
+ */
+async function issueLink() {
+  if (!payeeId.value) {
     return
   }
-  leavingContact.value = true
-  try {
-    await leaveContactFallback({ payeeId: payeeId.value, mobile: lead.mobile, remark: lead.remark })
-    uni.showToast({ title: '已留下联系方式', icon: 'success' })
-  } catch (e) {
-    showError(e)
-  } finally {
-    leavingContact.value = false
-  }
-}
-
-async function onSaveAgreement() {
-  if (!payeeId.value) return
-  if (!agreement.productName || !agreement.quantity || !agreement.specification
-    || !agreement.recyclePeriod || !agreement.settlementMethod) {
-    uni.showModal({ title: '还差一点', content: '协议的名称、数量、规格、回收期次、结算方式都要填', showCancel: false })
-    return
-  }
-  savingAgreement.value = true
-  try {
-    await saveAgreement({ ...agreement, payeeId: payeeId.value, signMethod: 'PAPER' })
-    uni.showToast({ title: '协议已保存', icon: 'success' })
-    await refreshOverview()
-  } catch (e) {
-    showError(e)
-  } finally {
-    savingAgreement.value = false
-  }
-}
-
-async function onAuthorize() {
-  if (!payeeId.value) return
-  savingAuthorization.value = true
-  try {
-    await authorizeSeller({
-      payeeId: payeeId.value,
-      reverseInvoiceAuthorized: authorization.reverseInvoiceAuthorized,
-      taxAgencyAuthorized: authorization.taxAgencyAuthorized,
-      channel: 'ONSITE'
-    })
-    uni.showToast({ title: '授权已留痕', icon: 'success' })
-    await refreshOverview()
-  } catch (e) {
-    showError(e)
-  } finally {
-    savingAuthorization.value = false
-  }
-}
-
-function onReverseChange(event: any) {
-  authorization.reverseInvoiceAuthorized = event.detail.value
-}
-function onTaxChange(event: any) {
-  authorization.taxAgencyAuthorized = event.detail.value
-}
-
-function backToSeller() {
-  payeeId.value = undefined
-  overview.value = {}
-  foundSeller.value = null
-  lookedUp.value = false
-  selfService.value = null
-  lookup.idCardNo = ''
-  lookup.mobile = ''
-}
-
-async function onCreateSelfServiceLink() {
-  if (!payeeId.value) return
-  creatingLink.value = true
+  issuing.value = true
   try {
     const resp = await createPublicToken({ purpose: 'ONBOARDING', payeeId: payeeId.value })
-    const token = resp.token || ''
-    const link = SELLER_APP_URL
-      ? `${SELLER_APP_URL.replace(/\/$/, '')}/#/?token=${encodeURIComponent(token)}&purpose=ONBOARDING`
+    handoff.token = resp.token || ''
+    handoff.link = handoff.token && SELLER_APP_URL
+      ? `${SELLER_APP_URL.replace(/\/$/, '')}/#/?token=${encodeURIComponent(handoff.token)}&purpose=ONBOARDING`
       : ''
-    selfService.value = { link, token }
-    if (link) {
-      copyLink()
-    }
+    handoff.expiresText = resp.expiresTime ? `链接 24 小时内有效，至 ${formatTime(resp.expiresTime)}` : ''
+    handoff.qr = await renderQr(handoff.link)
   } catch (e) {
-    showError(e)
+    tips((e as Error).message || '生成链接失败')
   } finally {
-    creatingLink.value = false
+    issuing.value = false
+  }
+}
+
+async function renderQr(text: string) {
+  if (!text) {
+    return ''
+  }
+  try {
+    return await QRCode.toDataURL(text, { width: 240, margin: 1, errorCorrectionLevel: 'M' })
+  } catch {
+    return ''
   }
 }
 
 function copyLink() {
-  const text = selfService.value?.link || selfService.value?.token || ''
-  if (!text) return
+  const text = handoff.link || handoff.token
+  if (!text) {
+    return
+  }
   uni.setClipboardData({
     data: text,
-    success: () => uni.showToast({ title: '已复制', icon: 'none' })
+    success: () => tips('已复制，请交给出售者本人打开')
   })
+}
+
+function backToSeller() {
+  payeeId.value = undefined
+  payeeName.value = ''
+  foundSeller.value = null
+  lookedUp.value = false
+  handoff.token = ''
+  handoff.link = ''
+  handoff.qr = ''
+  handoff.expiresText = ''
+  lookup.idCardNo = ''
+  lookup.mobile = ''
 }
 
 function formatTime(ts?: number) {
   return ts ? new Date(ts).toLocaleString() : ''
-}
-
-function showError(e: unknown) {
-  uni.showModal({ title: '操作失败', content: (e as Error).message || '请重试', showCancel: false })
 }
 </script>
 
@@ -547,6 +368,30 @@ function showError(e: unknown) {
     color: #b26a00;
     line-height: 1.6;
   }
+
+  &__refresh {
+    margin-top: 20rpx;
+    text-align: right;
+  }
+}
+
+.pending {
+  margin-top: 20rpx;
+  padding: 20rpx 24rpx;
+  background-color: #fff7e6;
+  border-radius: 12rpx;
+
+  &__title {
+    font-size: 32rpx;
+    font-weight: 700;
+    color: #b26a00;
+  }
+
+  &__desc {
+    margin-top: 8rpx;
+    color: #b26a00;
+    line-height: 1.6;
+  }
 }
 
 .grid {
@@ -570,6 +415,17 @@ function showError(e: unknown) {
   }
 }
 
+.qr {
+  display: flex;
+  justify-content: center;
+  padding: 24rpx 0;
+
+  &__img {
+    width: 360rpx;
+    height: 360rpx;
+  }
+}
+
 .tag {
   padding: 4rpx 16rpx;
   border-radius: 999rpx;
@@ -586,37 +442,6 @@ function showError(e: unknown) {
     background-color: #fff7e6;
     color: #b26a00;
   }
-}
-
-.agreement {
-  margin-bottom: 16rpx;
-  padding: 16rpx 20rpx;
-  background-color: #e8f7ee;
-  color: #1a7f43;
-  border-radius: 12rpx;
-}
-
-.actions {
-  display: flex;
-  gap: 16rpx;
-}
-
-.fallback {
-  margin-top: 24rpx;
-  padding-top: 24rpx;
-  border-top: 1rpx solid #eef0f3;
-
-  &__title {
-    margin-bottom: 16rpx;
-    color: #b26a00;
-  }
-}
-
-.switch-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16rpx 0;
 }
 
 .link-box {
