@@ -2188,3 +2188,9 @@ member 令牌回 `code=401 账号未登录`。
 - **合并撞了冲突，人工按意图解**：`ErrorCodeConstants`（040/041 两段都留）、`README.md`（`22m/n/o` 重编号、`for f in` 清单取并集，用两边清单校验过 62 项无丢失）、`handoff.md`（两票各自的段都留）。解完在合并树上重跑全量：**778 通过 / 0 失败 / 1 skip**
 - 闸门：全量 icbc `Tests run: 778, Failures: 0, Errors: 0, Skipped: 1`；报告 `.fleet/gates/91.md`，运行日志 `/tmp/i91.log`（收养票，日志在仓库外）
 - `.fleet/` 不入库
+
+### 合并记录：#93（自动舰队）
+
+- 分支 `i93-` → `db29c06f`：19 个文件、2 个提交
+- 独立评审：PASS（报告 `.fleet/gates/93.review.md`）
+- 闸门：全量 icbc `[WARNING] Tests run: 831, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/93.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/93.log`（`.fleet/` 与收养票的仓库外日志不入库）
