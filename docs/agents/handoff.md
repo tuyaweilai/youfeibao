@@ -2759,12 +2759,14 @@ admin 登录 / 用户保存（`@Mobile`）。**本票不治这条**，真实理�
 - **真机 / 真密钥联调没做**（要 `TENCENT_OCR_SECRET_ID` / `TENCENT_OCR_SECRET_KEY`，`TencentCardRecognitionLiveTest`
   默认跳过）；`region` / `endpoint` / `timeout` 三项虽在配置表里，**没有真机验过改它们的效果**——单测只覆盖
   「传进 `TencentOcrSettings` 并出现在请求头 / URL / 超时上」。
+- **配置读不出来也安静降级**：识别端口每次调用都读一次配置，读失败（表未迁移 / DB 抖动）会记一条
+  warn 并返回空结果，不把异常抛给建档向导——ADR 0037 的「不阻断建档」是硬承诺。
 - **保存不重置自检结果**：为让「先自检、再保存」成立，`saveConfig` 保留上一次 `last_check_*`。因此改完密钥
   再保存，页面仍显示旧的「验证通过（时间）」，要重新点一次自检才更新。这是有意的取舍，不是遗漏。
 - **#93 的 56 条映射 / 降级测试是资产**：只按机制变更调整了构造签名与「二选一」那组（改写成「永远只有一枚
   常驻 Bean + 新判据」），映射逻辑与降级断言的覆盖一条没删。
 
-**验收实测**：全量 icbc `[WARNING] Tests run: 922, Failures: 0, Errors: 0, Skipped: 2`（基线 912：删掉旧机制的
-6 条、新增 16 条）；前端 `vite build` 通过，`vue-tsc` 新增文件零错误（仓库既有基线 1254 条不变）。
+**验收实测**：全量 icbc `[WARNING] Tests run: 923, Failures: 0, Errors: 0, Skipped: 2`（基线 912：删掉旧机制的
+6 条、新增 17 条）；前端 `vite build` 通过，`vue-tsc` 新增文件零错误（仓库既有基线 1254 条不变）。
 红→绿：改动前 `CardRecognitionPortRuntimeSwitchTest` 在「保存 tencent 后」断言 `expected: <张三> but was: <null>`，
 实现运行期判定后转绿。

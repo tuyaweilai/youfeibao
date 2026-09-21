@@ -63,6 +63,19 @@ public class TencentCardRecognitionTest {
     }
 
     @Test
+    public void testRecognize_whenConfigReadFails_isEmpty_noException() {
+        // #103 起每次识别都读一次库：配置读不出来（表未迁移 / DB 抖动）也必须安静降级、不阻断建档
+        CardRecognitionConfigService configService = mock(CardRecognitionConfigService.class);
+        when(configService.resolveEffectiveConfig()).thenThrow(new RuntimeException("db down"));
+        RecordingClient client = new RecordingClient();
+        TencentCardRecognition port = new TencentCardRecognition(configService, client);
+
+        assertNull(port.recognizeIdCardFront("base64").getName());
+        assertNull(port.recognizeBankCard("base64").getBankCardNo());
+        assertEquals(0, client.calls, "配置读不出来也不许触网");
+    }
+
+    @Test
     public void testRecognize_whenClientReturnsNull_isEmpty_noException() {
         // 网络 / 超时 / 额度耗尽 / 厂商报错：客户端一律返回 null，实现要走同一条降级路径
         TencentCardRecognition port = new TencentCardRecognition(configuredService(), new NullClient());

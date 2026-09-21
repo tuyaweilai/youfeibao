@@ -91,7 +91,15 @@ public class TencentCardRecognition implements CardRecognitionPort {
     }
 
     private <T> T mapOrEmpty(String action, JSONObject payload, Function<JSONObject, T> mapper, T empty) {
-        CardRecognitionEffectiveConfig effective = configService.resolveEffectiveConfig();
+        CardRecognitionEffectiveConfig effective;
+        try {
+            effective = configService.resolveEffectiveConfig();
+        } catch (RuntimeException e) {
+            // #103 起每次识别都读一次库：配置读不出来（表未迁移 / DB 抖动）也必须安静降级，
+            // 不能把收货员卡在识别上——ADR 0037 的「不阻断建档」是硬承诺。
+            log.warn("[mapOrEmpty][读取卡证识别配置失败，识别返回空结果，不阻断建档：error={}]", e.getMessage());
+            return empty;
+        }
         if (!effective.isTencent()) {
             // 未启用（stub）是有意的配置：安静降级，不刷日志、不触网
             return empty;
