@@ -59,7 +59,10 @@ UPDATE `system_menu` SET `status` = 1, `updater` = 'admin', `update_time` = NOW(
 -- 2. 骨架与 icbc 菜单
 -- =====================================================================
 -- 清掉所有 icbc 自有菜单（含历史增量 SQL 用自增 id 落下的、如 icbc_invoice_tables.sql / icbc-invoice-application.sql
--- 里的行），再按固定 id 重建，避免重复。父级目录没有 permission，用 component 前缀兵底。
+-- 里的行），再按固定 id 重建，避免重复。父级目录没有 permission，用 component 前缀兜底。
+-- 图标：目录与页面菜单（type 1 / 2）一律给 icon，取 Element Plus 图标集（`ep:*`，名称对应
+-- @iconify/json 的 ep.json，前端用 @purge-icons 渲染）；按钮权限行（type 3）不显图标，保持 NULL。
+-- 新页面菜单的 icon 要与同目录下的兄弟菜单不重，且必须是 ep.json 里真实存在的名字，否则界面上会空一块。
 DELETE FROM `system_role_menu` WHERE `menu_id` IN (SELECT `id` FROM `system_menu` WHERE `permission` LIKE 'icbc:%' OR `component` LIKE 'icbc/%');
 DELETE FROM `system_menu` WHERE `permission` LIKE 'icbc:%' OR `component` LIKE 'icbc/%';
 DELETE FROM `system_role_menu` WHERE `menu_id` BETWEEN 5100 AND 5399;
@@ -83,41 +86,41 @@ VALUES
 (5140, '平台运营', '', 1, 120, 0, '/platform', 'ep:data-analysis', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 基础资料 =====
-(5115, '企业信息', 'enterprise:info:query', 2, 1, 5201, 'enterprise-info', '', 'enterprise/info/index', 'Info', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5116, '企业资质', 'enterprise:cert:query', 2, 2, 5201, 'enterprise-qualification', '', 'enterprise/qualification/index', 'EnterpriseQualification', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5122, '三层资质', 'icbc:qualification:query', 2, 3, 5201, 'qualification', '', 'icbc/qualification/index', 'IcbcQualification', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5115, '企业信息', 'enterprise:info:query', 2, 1, 5201, 'enterprise-info', 'ep:office-building', 'enterprise/info/index', 'Info', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5116, '企业资质', 'enterprise:cert:query', 2, 2, 5201, 'enterprise-qualification', 'ep:postcard', 'enterprise/qualification/index', 'EnterpriseQualification', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5122, '三层资质', 'icbc:qualification:query', 2, 3, 5201, 'qualification', 'ep:medal', 'icbc/qualification/index', 'IcbcQualification', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5123, '资质新增', 'icbc:qualification:create', 3, 1, 5122, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5124, '资质修改', 'icbc:qualification:update', 3, 2, 5122, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5125, '资质删除', 'icbc:qualification:delete', 3, 3, 5122, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5126, '编码配置', 'icbc:goods-config:query', 2, 4, 5201, 'goods-config', '', 'icbc/goodsConfig/index', 'IcbcGoodsConfig', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5126, '编码配置', 'icbc:goods-config:query', 2, 4, 5201, 'goods-config', 'ep:collection', 'icbc/goodsConfig/index', 'IcbcGoodsConfig', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5127, '品类新增', 'icbc:goods-config:create', 3, 1, 5126, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5128, '品类修改', 'icbc:goods-config:update', 3, 2, 5126, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5129, '品类删除', 'icbc:goods-config:delete', 3, 3, 5126, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5117, '开票就绪自检', 'icbc:test:query', 2, 5, 5201, 'self-check', '', 'icbc/readiness/index', 'IcbcReadiness', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5177, '场站', 'icbc:station:query', 2, 6, 5201, 'station', '', 'icbc/station/index', 'IcbcStation', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5117, '开票就绪自检', 'icbc:test:query', 2, 5, 5201, 'self-check', 'ep:finished', 'icbc/readiness/index', 'IcbcReadiness', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5177, '场站', 'icbc:station:query', 2, 6, 5201, 'station', 'ep:map-location', 'icbc/station/index', 'IcbcStation', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5178, '维护场站', 'icbc:station:manage', 3, 1, 5177, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5106, '付方档案', 'icbc:payer-info:query', 2, 7, 5201, 'payer', '', 'icbc/payer/index', 'IcbcPayer', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5106, '付方档案', 'icbc:payer-info:query', 2, 7, 5201, 'payer', 'ep:credit-card', 'icbc/payer/index', 'IcbcPayer', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5107, '付方新增', 'icbc:payer-info:create', 3, 1, 5106, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5108, '付方修改', 'icbc:payer-info:update', 3, 2, 5106, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5109, '付方删除', 'icbc:payer-info:delete', 3, 3, 5106, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 交易对方 =====
-(5101, '出售者档案', 'icbc:payee-info:query', 2, 1, 5202, 'payee', '', 'icbc/payee/index', 'IcbcPayee', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5101, '出售者档案', 'icbc:payee-info:query', 2, 1, 5202, 'payee', 'ep:avatar', 'icbc/payee/index', 'IcbcPayee', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5102, '出售者新增', 'icbc:payee-info:create', 3, 1, 5101, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5103, '出售者修改', 'icbc:payee-info:update', 3, 2, 5101, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5104, '出售者删除', 'icbc:payee-info:delete', 3, 3, 5101, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5105, '出售者导出', 'icbc:payee-info:export', 3, 4, 5101, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5133, '出售者建档', 'icbc:seller-onboarding:execute', 2, 2, 5202, 'payee-onboarding', '', 'icbc/payeeOnboarding/index', 'IcbcPayeeOnboarding', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5133, '出售者建档', 'icbc:seller-onboarding:execute', 2, 2, 5202, 'payee-onboarding', 'ep:user-filled', 'icbc/payeeOnboarding/index', 'IcbcPayeeOnboarding', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5134, '框架收购协议', 'icbc:seller-agreement:manage', 3, 1, 5133, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5135, '首次授权', 'icbc:seller-authorization:manage', 3, 2, 5133, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5130, '企业授权', 'icbc:enterprise-auth:query', 2, 3, 5202, 'enterprise-auth', '', 'icbc/enterpriseAuth/index', 'IcbcEnterpriseAuth', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5130, '企业授权', 'icbc:enterprise-auth:query', 2, 3, 5202, 'enterprise-auth', 'ep:key', 'icbc/enterpriseAuth/index', 'IcbcEnterpriseAuth', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5131, '发起授权', 'icbc:enterprise-auth:init', 3, 1, 5130, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5132, '回填授权结果', 'icbc:enterprise-auth:update', 3, 2, 5130, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5181, '触达记录', 'icbc:seller-notify:query', 2, 4, 5202, 'seller-notify', '', 'icbc/sellerNotify/index', 'IcbcSellerNotify', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5181, '触达记录', 'icbc:seller-notify:query', 2, 4, 5202, 'seller-notify', 'ep:message', 'icbc/sellerNotify/index', 'IcbcSellerNotify', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5182, '转达与短信开关', 'icbc:seller-notify:manage', 3, 1, 5181, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- 单位供货方（#44 T06）：与自然人出售者并列的第二种交易对方，档案落 ERP 供应商表，
 -- 权限字符串是 erp:supplier:*，页面在 views/erp/purchase/supplier 下。
-(5193, '单位供货方', 'erp:supplier:query', 2, 5, 5202, 'supplier', '', 'erp/purchase/supplier/index', 'ErpSupplier', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5193, '单位供货方', 'erp:supplier:query', 2, 5, 5202, 'supplier', 'ep:shop', 'erp/purchase/supplier/index', 'ErpSupplier', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5194, '单位供货方新增', 'erp:supplier:create', 3, 1, 5193, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5195, '单位供货方修改', 'erp:supplier:update', 3, 2, 5193, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5196, '单位供货方删除', 'erp:supplier:delete', 3, 3, 5193, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
@@ -127,7 +130,7 @@ VALUES
 -- 采购合同（#45 T07，ADR 0027）：一个合同 → 多个采购订单 → 多次收货。
 -- 合同是采购条款，**审核通过前不得作为有效采购依据**；与自然人出售者的「框架收购协议」
 -- （开票前置）是两件事，不合并。采购订单（T08）与执行进度（T09）落在同一目录下。
-(5220, '采购合同', 'icbc:purchase-contract:query', 2, 1, 5203, 'contract', '', 'icbc/purchaseContract/index', 'IcbcPurchaseContract', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5220, '采购合同', 'icbc:purchase-contract:query', 2, 1, 5203, 'contract', 'ep:document', 'icbc/purchaseContract/index', 'IcbcPurchaseContract', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5221, '新增采购合同', 'icbc:purchase-contract:manage', 3, 1, 5220, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5222, '修改采购合同', 'icbc:purchase-contract:manage', 3, 2, 5220, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5223, '送审采购合同', 'icbc:purchase-contract:manage', 3, 3, 5220, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
@@ -137,7 +140,7 @@ VALUES
 
 -- 采购订单（#46 T08）：采购执行依据，一单多条品类明细、一条明细可分多次收货；
 -- 可选挂已审核生效的合同与执行场站，对手方承载自然人出售者与单位供货方。
-(5227, '采购订单', 'icbc:purchase-order:query', 2, 2, 5203, 'order', '', 'icbc/purchaseOrder/index', 'IcbcPurchaseOrder', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5227, '采购订单', 'icbc:purchase-order:query', 2, 2, 5203, 'order', 'ep:list', 'icbc/purchaseOrder/index', 'IcbcPurchaseOrder', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5228, '新增采购订单', 'icbc:purchase-order:manage', 3, 1, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5229, '修改采购订单', 'icbc:purchase-order:manage', 3, 2, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5230, '开始执行采购订单', 'icbc:purchase-order:manage', 3, 3, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
@@ -149,64 +152,64 @@ VALUES
 (5236, '查看执行进度', 'icbc:purchase-order:query', 3, 9, 5227, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- 履约五口径与执行进度（#47 T09）：五口径分列见采购订单的「执行进度」；
 -- 超量 / 过期 / 跨场站交货按企业配置拦截或提交授权审核，授权单在这里查与审。
-(5250, '履约异常授权', 'icbc:purchase-exception:query', 2, 3, 5203, 'purchase-exception', '', 'icbc/purchaseOrder/exception', 'IcbcPurchaseOrderException', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5250, '履约异常授权', 'icbc:purchase-exception:query', 2, 3, 5203, 'purchase-exception', 'ep:warning', 'icbc/purchaseOrder/exception', 'IcbcPurchaseOrderException', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5251, '提交授权审核', 'icbc:purchase-exception:request', 3, 1, 5250, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5252, '审核授权', 'icbc:purchase-exception:audit', 3, 2, 5250, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5253, '采购履约配置', 'icbc:purchase-setting:query', 2, 4, 5203, 'purchase-setting', '', 'icbc/purchaseOrder/setting', 'IcbcPurchaseOrderSetting', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5253, '采购履约配置', 'icbc:purchase-setting:query', 2, 4, 5203, 'purchase-setting', 'ep:set-up', 'icbc/purchaseOrder/setting', 'IcbcPurchaseOrderSetting', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5254, '修改采购履约配置', 'icbc:purchase-setting:manage', 3, 1, 5253, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 回收作业 =====
-(5179, '到站预约', 'icbc:appointment:query', 2, 1, 5204, 'appointment', '', 'icbc/appointment/index', 'IcbcAppointment', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5179, '到站预约', 'icbc:appointment:query', 2, 1, 5204, 'appointment', 'ep:calendar', 'icbc/appointment/index', 'IcbcAppointment', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5180, '标记到场与未到场', 'icbc:appointment:manage', 3, 1, 5179, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5136, '收购登记', 'icbc:acquisition:query', 2, 2, 5204, 'acquisition', '', 'icbc/acquisition/index', 'IcbcAcquisition', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5136, '收购登记', 'icbc:acquisition:query', 2, 2, 5204, 'acquisition', 'ep:edit-pen', 'icbc/acquisition/index', 'IcbcAcquisition', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5137, '登记收购', 'icbc:acquisition:create', 3, 1, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5138, '修正识别结果', 'icbc:acquisition:update', 3, 2, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5139, '导出收购确认书', 'icbc:acquisition:export', 3, 3, 5136, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- 交接批次与有效磅次（#50 T12）：一个交易对方的一次物理交接记为一个批次；过磅保留每一次原始读数，
 -- 只有被选定的那一次参与计量，其余留档不参与。同一车同一天两次送货是两个批次（不去重）。
-(5240, '交接批次', 'icbc:handover-batch:query', 2, 3, 5204, 'handover-batch', '', 'icbc/handoverBatch/index', 'IcbcHandoverBatch', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5240, '交接批次', 'icbc:handover-batch:query', 2, 3, 5204, 'handover-batch', 'ep:files', 'icbc/handoverBatch/index', 'IcbcHandoverBatch', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5241, '登记交接批次', 'icbc:handover-batch:manage', 3, 1, 5240, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5242, '新增磅次', 'icbc:handover-batch:manage', 3, 2, 5240, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5243, '指定有效磅次', 'icbc:handover-batch:manage', 3, 3, 5240, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- 接收结论与称量差异（#53 T15，ADR 0028）：验收可以是接收 / 部分接收 / 拒收；
 -- 拒收部分（退回 + 余货出场）不进应付、不进库存；差异 = 实物量 − 结算重量，不静默抹平。
-(5320, '接收结论与称量差异', 'icbc:acquisition:weight-diff:query', 2, 4, 5204, 'weight-diff', '', 'icbc/acquisition/weightDiff', 'IcbcAcquisitionWeightDiff', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5320, '接收结论与称量差异', 'icbc:acquisition:weight-diff:query', 2, 4, 5204, 'weight-diff', 'ep:scale-to-original', 'icbc/acquisition/weightDiff', 'IcbcAcquisitionWeightDiff', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5321, '记录接收结论', 'icbc:acquisition:acceptance', 3, 1, 5320, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 仓储管理 =====
 -- 库位 / 批次 / 库存查询落 ERP 的 stock 域（ADR 0027）：权限字符串是 erp:*，页面在 views/erp/stock 下；
 -- 菜单挂到回收企业骨架「仓储管理」（5205），随套餐递归进回收企业套餐。
-(5183, '库位维护', 'erp:stock-location:query', 2, 1, 5205, 'location', '', 'erp/stock/location/index', 'ErpStockLocation', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5183, '库位维护', 'erp:stock-location:query', 2, 1, 5205, 'location', 'ep:location', 'erp/stock/location/index', 'ErpStockLocation', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5184, '库位新增', 'erp:stock-location:create', 3, 1, 5183, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5185, '库位修改', 'erp:stock-location:update', 3, 2, 5183, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5186, '库位删除', 'erp:stock-location:delete', 3, 3, 5183, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5187, '批次维护', 'erp:stock-batch:query', 2, 2, 5205, 'batch', '', 'erp/stock/batch/index', 'ErpStockBatch', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5187, '批次维护', 'erp:stock-batch:query', 2, 2, 5205, 'batch', 'ep:collection-tag', 'erp/stock/batch/index', 'ErpStockBatch', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5188, '批次新增', 'erp:stock-batch:create', 3, 1, 5187, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5189, '批次修改', 'erp:stock-batch:update', 3, 2, 5187, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5190, '批次删除', 'erp:stock-batch:delete', 3, 3, 5187, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5191, '库存查询', 'erp:stock:query', 2, 3, 5205, 'inventory', '', 'erp/stock/stock/index', 'ErpStock', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5191, '库存查询', 'erp:stock:query', 2, 3, 5205, 'inventory', 'ep:goods', 'erp/stock/stock/index', 'ErpStock', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5192, '库存导出', 'erp:stock:export', 3, 1, 5191, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 结算管理 =====
-(5175, '结算单', 'icbc:settlement-confirm:query', 2, 1, 5206, 'list', '', 'icbc/settlement/index', 'IcbcSettlement', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5175, '结算单', 'icbc:settlement-confirm:query', 2, 1, 5206, 'list', 'ep:tickets', 'icbc/settlement/index', 'IcbcSettlement', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5176, '生成与处理异议', 'icbc:settlement-confirm:manage', 3, 1, 5175, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 财务票务 =====
-(5110, '开票申请', 'icbc:invoice-order:query', 2, 1, 5207, 'invoice', '', 'icbc/invoice/index', 'IcbcInvoice', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5110, '开票申请', 'icbc:invoice-order:query', 2, 1, 5207, 'invoice', 'ep:document-add', 'icbc/invoice/index', 'IcbcInvoice', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5111, '发起开票', 'icbc:invoice-order:create', 3, 1, 5110, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5156, '开票申请（按收购单）', 'icbc:invoice-application:query', 2, 2, 5207, 'invoice-application', '', 'icbc/invoiceApplication/index', 'IcbcInvoiceApplication', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5156, '开票申请（按收购单）', 'icbc:invoice-application:query', 2, 2, 5207, 'invoice-application', 'ep:ticket', 'icbc/invoiceApplication/index', 'IcbcInvoiceApplication', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5157, '发起开票申请', 'icbc:invoice-application:apply', 3, 1, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5158, '发起红冲', 'icbc:red-invoice:apply', 3, 2, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5159, '撤销红字确认单', 'icbc:red-invoice:revoke', 3, 3, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5160, '取消预开票', 'icbc:invoice-order:cancel', 3, 4, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5161, '查询红冲', 'icbc:red-invoice:query', 3, 5, 5156, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5112, '付款', 'icbc:payment:query', 2, 3, 5207, 'payment', '', 'icbc/payment/index', 'IcbcPayment', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5112, '付款', 'icbc:payment:query', 2, 3, 5207, 'payment', 'ep:wallet', 'icbc/payment/index', 'IcbcPayment', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5113, '发起付款', 'icbc:payment:create', 3, 1, 5112, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5118, '发票下载与证据', 'icbc:invoice-download:query', 2, 4, 5207, 'download', '', 'icbc/download/index', 'IcbcDownload', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5118, '发票下载与证据', 'icbc:invoice-download:query', 2, 4, 5207, 'download', 'ep:download', 'icbc/download/index', 'IcbcDownload', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5119, '执行下载', 'icbc:invoice-download:download', 3, 1, 5118, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5120, '重试下载', 'icbc:invoice-download:retry', 3, 2, 5118, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5121, '下载文件', 'icbc:invoice-download:download-file', 3, 3, 5118, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5164, '代办税费申报', 'icbc:tax-declaration:query', 2, 5, 5207, 'tax', '', 'icbc/tax/index', 'IcbcTax', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5164, '代办税费申报', 'icbc:tax-declaration:query', 2, 5, 5207, 'tax', 'ep:coin', 'icbc/tax/index', 'IcbcTax', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5165, '生成申报清单', 'icbc:tax-declaration:manage', 3, 1, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5166, '报送报告表', 'icbc:tax-declaration:manage', 3, 2, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5167, '缴款归档', 'icbc:tax-declaration:manage', 3, 3, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
@@ -214,29 +217,29 @@ VALUES
 (5169, '缴清补缴', 'icbc:tax-supplement:manage', 3, 5, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5170, '查看汇算清缴', 'icbc:settlement:query', 3, 6, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5171, '生成汇算提醒', 'icbc:settlement:remind', 3, 7, 5164, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5162, '额度台账', 'icbc:quota:query', 2, 6, 5207, 'quota', '', 'icbc/quota/index', 'IcbcQuota', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5162, '额度台账', 'icbc:quota:query', 2, 6, 5207, 'quota', 'ep:histogram', 'icbc/quota/index', 'IcbcQuota', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5163, '处理引导', 'icbc:quota:guidance:handle', 3, 1, 5162, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 业务追溯 =====
-(5151, '一票一档', 'icbc:evidence:query', 2, 1, 5208, 'evidence', '', 'icbc/evidence/index', 'IcbcEvidence', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5151, '一票一档', 'icbc:evidence:query', 2, 1, 5208, 'evidence', 'ep:folder-opened', 'icbc/evidence/index', 'IcbcEvidence', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5152, '补录证据', 'icbc:evidence:attach', 3, 1, 5151, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5153, '删除证据', 'icbc:evidence:delete', 3, 2, 5151, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5154, '导出证据包与台账', 'icbc:evidence:export', 3, 3, 5151, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5155, '生成公开令牌', 'icbc:public-token:create', 3, 4, 5151, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 平台运营（系统租户专有）=====
-(5141, '资质核实', 'icbc:platform:qualification:query', 2, 1, 5140, 'qualification', '', 'icbc/platformQualification/index', 'IcbcPlatformQualification', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5141, '资质核实', 'icbc:platform:qualification:query', 2, 1, 5140, 'qualification', 'ep:stamp', 'icbc/platformQualification/index', 'IcbcPlatformQualification', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5142, '核实资质', 'icbc:platform:qualification:audit', 3, 1, 5141, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5143, '报废产品编码表', 'icbc:scrap-code:query', 2, 2, 5140, 'scrap-code', '', 'icbc/scrapCode/index', 'IcbcScrapCode', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5143, '报废产品编码表', 'icbc:scrap-code:query', 2, 2, 5140, 'scrap-code', 'ep:collection', 'icbc/scrapCode/index', 'IcbcScrapCode', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5144, '编码新增', 'icbc:scrap-code:create', 3, 1, 5143, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5145, '编码修改', 'icbc:scrap-code:update', 3, 2, 5143, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5146, '编码删除', 'icbc:scrap-code:delete', 3, 3, 5143, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5147, '通知监控', 'icbc:platform:callback:query', 2, 3, 5140, 'callback', '', 'icbc/platformCallback/index', 'IcbcPlatformCallback', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5147, '通知监控', 'icbc:platform:callback:query', 2, 3, 5140, 'callback', 'ep:bell', 'icbc/platformCallback/index', 'IcbcPlatformCallback', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5148, '重放通知', 'icbc:platform:callback:retry', 3, 1, 5147, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5149, '全平台证据与异常票', 'icbc:platform:evidence:query', 2, 4, 5140, 'evidence', '', 'icbc/platformEvidence/index', 'IcbcPlatformEvidence', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5150, '计费计量', 'icbc:platform:billing:query', 2, 5, 5140, 'billing', '', 'icbc/platformBilling/index', 'IcbcPlatformBilling', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5149, '全平台证据与异常票', 'icbc:platform:evidence:query', 2, 4, 5140, 'evidence', 'ep:warning-filled', 'icbc/platformEvidence/index', 'IcbcPlatformEvidence', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5150, '计费计量', 'icbc:platform:billing:query', 2, 5, 5140, 'billing', 'ep:price-tag', 'icbc/platformBilling/index', 'IcbcPlatformBilling', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5172, '重新计量', 'icbc:platform:billing:manage', 3, 1, 5150, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5173, '自然人主体', 'icbc:platform:natural-person:query', 2, 6, 5140, 'natural-person', '', 'icbc/naturalPerson/index', 'IcbcNaturalPerson', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5173, '自然人主体', 'icbc:platform:natural-person:query', 2, 6, 5140, 'natural-person', 'ep:user', 'icbc/naturalPerson/index', 'IcbcNaturalPerson', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5174, '身份认领与解绑', 'icbc:platform:natural-person:manage', 3, 1, 5173, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 工作台（#56 T18）=====
@@ -246,7 +249,7 @@ VALUES
 
 -- ===== 财务票务：进项收票（#49 T11，ADR 0029）=====
 -- 登记单位供货方开给回收企业的进项发票，并勾稽到采购单据。自然人出售者不在本链路（他们走反向开票）。
-(5244, '进项收票', 'icbc:input-invoice:query', 2, 7, 5207, 'input-invoice', '', 'icbc/inputInvoice/index', 'IcbcInputInvoice', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5244, '进项收票', 'icbc:input-invoice:query', 2, 7, 5207, 'input-invoice', 'ep:document-copy', 'icbc/inputInvoice/index', 'IcbcInputInvoice', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5245, '登记进项票', 'icbc:input-invoice:manage', 3, 1, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5246, '修改进项票', 'icbc:input-invoice:manage', 3, 2, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5247, '删除进项票', 'icbc:input-invoice:manage', 3, 3, 5244, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
@@ -256,32 +259,32 @@ VALUES
 -- ===== 仓储管理：待入库与入库单（#52 T14，ADR 0027）=====
 -- 入库是收购单派生的单向动作：验收后的货进待入库，仓管选仓库 / 库位 / 批次确认实际入库量。
 -- 只有过账的入库才增加正式库存；按钮权限 icbc:stock-in:manage。
-(5255, '待入库与入库单', 'icbc:stock-in:query', 2, 4, 5205, 'stock-in', '', 'icbc/stockIn/index', 'IcbcStockIn', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5255, '待入库与入库单', 'icbc:stock-in:query', 2, 4, 5205, 'stock-in', 'ep:download', 'icbc/stockIn/index', 'IcbcStockIn', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5256, '确认入库', 'icbc:stock-in:manage', 3, 1, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5257, '过账入库单', 'icbc:stock-in:manage', 3, 2, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5258, '作废入库单', 'icbc:stock-in:manage', 3, 3, 5255, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 仓储管理：非销售出库 / 跨仓调拨 / 盘点调整 / 期初导入（#54 T16，ADR 0025）=====
 -- 四类仓管自主发起的库存作业，都只经 StockApi 写 erp_stock*；过账才动库存。
-(5259, '非销售出库', 'icbc:stock-out:query', 2, 5, 5205, 'stock-out', '', 'icbc/stockOut/index', 'IcbcStockOut', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5259, '非销售出库', 'icbc:stock-out:query', 2, 5, 5205, 'stock-out', 'ep:upload', 'icbc/stockOut/index', 'IcbcStockOut', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5260, '登记出库', 'icbc:stock-out:manage', 3, 1, 5259, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5261, '过账出库单', 'icbc:stock-out:manage', 3, 2, 5259, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5262, '作废出库单', 'icbc:stock-out:manage', 3, 3, 5259, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5263, '跨仓调拨', 'icbc:stock-move:query', 2, 6, 5205, 'stock-move', '', 'icbc/stockMove/index', 'IcbcStockMove', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5263, '跨仓调拨', 'icbc:stock-move:query', 2, 6, 5205, 'stock-move', 'ep:switch', 'icbc/stockMove/index', 'IcbcStockMove', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5264, '登记调拨', 'icbc:stock-move:manage', 3, 1, 5263, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5265, '过账调拨单', 'icbc:stock-move:manage', 3, 2, 5263, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5266, '作废调拨单', 'icbc:stock-move:manage', 3, 3, 5263, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5267, '盘点调整', 'icbc:stock-check:query', 2, 7, 5205, 'stock-check', '', 'icbc/stockCheck/index', 'IcbcStockCheck', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5267, '盘点调整', 'icbc:stock-check:query', 2, 7, 5205, 'stock-check', 'ep:odometer', 'icbc/stockCheck/index', 'IcbcStockCheck', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5268, '登记盘点', 'icbc:stock-check:manage', 3, 1, 5267, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5269, '过账盘点单', 'icbc:stock-check:manage', 3, 2, 5267, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5270, '作废盘点单', 'icbc:stock-check:manage', 3, 3, 5267, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5271, '期初导入', 'icbc:stock-opening:query', 2, 8, 5205, 'stock-opening', '', 'icbc/stockOpening/index', 'IcbcStockOpening', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5271, '期初导入', 'icbc:stock-opening:query', 2, 8, 5205, 'stock-opening', 'ep:upload-filled', 'icbc/stockOpening/index', 'IcbcStockOpening', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5272, '导入期初', 'icbc:stock-opening:manage', 3, 1, 5271, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5273, '作废期初', 'icbc:stock-opening:manage', 3, 2, 5271, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- ===== 业务追溯：关联单据查询（#55 T17）=====
 -- 一批货经历了什么的单链路追溯：采购订单—现场收货—仓储入库—结算确认四栏 + 付款 / 发票，
 -- 按单号 / 车牌 / 主体反查。只读聚合，不新建表；默认脱敏。
-(5300, '关联单据查询', 'icbc:trace:query', 2, 2, 5208, 'linked', '', 'icbc/trace/index', 'IcbcTrace', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5300, '关联单据查询', 'icbc:trace:query', 2, 2, 5208, 'linked', 'ep:link', 'icbc/trace/index', 'IcbcTrace', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5301, '查看未脱敏字段', 'icbc:trace:sensitive:view', 3, 1, 5300, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5302, '导出关联单据', 'icbc:trace:export', 3, 2, 5300, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- ===== 经营报表（#57 T19）=====

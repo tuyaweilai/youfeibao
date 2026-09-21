@@ -64,7 +64,7 @@ INSERT INTO `system_menu`
 VALUES
 ('运输任务', '', 2, 5, @logistics_root_id, 'task', 'ep:list', 'logistics/task/index', 'LogisticsTask',
  0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-('车辆档案', '', 2, 10, @logistics_root_id, 'vehicle', 'ep:truck', 'logistics/vehicle/index', 'LogisticsVehicle',
+('车辆档案', '', 2, 10, @logistics_root_id, 'vehicle', 'fa:truck', 'logistics/vehicle/index', 'LogisticsVehicle',
  0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 ('司机档案', '', 2, 20, @logistics_root_id, 'driver', 'ep:user', 'logistics/driver/index', 'LogisticsDriver',
  0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
