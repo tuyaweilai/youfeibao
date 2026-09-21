@@ -2490,3 +2490,9 @@ cardNumber / drawerCardNumber / payerAcctNum / taxPayerAccountNo / address / sel
 上游默认名单不含 PII 是上游的问题，这条值得给上游提 PR；将来同步上游时注意别把这份名单覆盖回去。
 新的不变式：icbc 侧 `ApiAccessLogPiiCoverageTest`（闸门命令里跑）、框架侧 `ApiAccessLogFilterSanitizeTest`
 （要 `mvn -o -pl yudao-framework/yudao-spring-boot-starter-web test` 才会跑）。
+
+### 合并记录：#98（自动舰队）
+
+- 分支 `i98-access-log-pii` → `8e57e22d`：7 个文件、1 个提交
+- 独立评审：PASS（报告 `.fleet/gates/98.review.md`）
+- 闸门：全量 icbc `[WARNING] Tests run: 898, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/98.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/98.log`（`.fleet/` 与收养票的仓库外日志不入库）
