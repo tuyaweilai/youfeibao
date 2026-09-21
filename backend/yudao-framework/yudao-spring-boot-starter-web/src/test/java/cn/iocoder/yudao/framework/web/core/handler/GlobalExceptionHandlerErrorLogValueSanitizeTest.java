@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.framework.web.core.handler;
 
 import cn.iocoder.yudao.framework.web.config.WebProperties;
+import cn.iocoder.yudao.framework.web.core.util.ApiErrorLogExceptionSanitizer;
 import cn.iocoder.yudao.framework.web.core.util.WebFrameworkUtils;
 import cn.iocoder.yudao.module.infra.api.logger.ApiErrorLogApi;
 import cn.iocoder.yudao.module.infra.api.logger.dto.ApiErrorLogCreateReqDTO;
@@ -16,6 +17,8 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.mock.web.MockHttpServletRequest;
 
+import java.sql.SQLIntegrityConstraintViolationException;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,14 +32,20 @@ import static org.mockito.Mockito.verify;
  * / {@code exception_stack_trace} 三个字段都带同一段文本，而 MySQL 的唯一键冲突报文自带键值：
  * {@code Duplicate entry '1-110101199001011299-0' for key 'uk_id_card_no'}。
  *
- * <p><b>真撞一次键</b>：用内存 H2 建一张与生产 {@code icbc_payee_info} 同约束名的表，插两行同一个
+ * <p><b>真撞一次键</b>：用内存 H2 建一张与生产 {@code icbc_payee_info} **同形状的最小替身**（一个
+ * 单列唯一约束；列与约束形状一致，名字不必相同），插两行同一个
  * 身份证号，由 Spring 的 SQLExceptionTranslator 翻成真实的 {@code DuplicateKeyException}（H2 的
  * 23505 会翻成它），再走 {@link GlobalExceptionHandler}，断言写进 {@code infra_api_error_log} 的
  * 载荷（{@link ApiErrorLogApi#createApiErrorLogAsync} 的实参）三个字段都不含那个值、且约束名还在。
  *
+ * <p><b>郑重提示（#102 修票纠正）</b>：替身的约束名叫 {@code uk_payee_id_card_no}，而生产
+ * {@code icbc_payee_info} 的真实键名是 {@code uk_id_card_no}（{@code sql/mysql/icbc_payee_info.sql}）——
+ * 两者**不同名**，仅同形状。本测试断言的是「单引号里的值被抹掉、约束名原样保留」这个行为，
+ * 不依赖于具体叫什么名字；别把它读成「我们的约束名在生产里也长这样」。
+ *
  * <p><b>为什么在 framework/web 而不是 icbc 模块</b>：这条路径（{@code GlobalExceptionHandler}）属于
  * 本模块；icbc 的测试跑的是 ~/.m2 里的**旧 jar**，改本模块的代码它看不见（fleet 的闸门会另编本模块）。
- * 本模块 classpath 上没有 icbc 的建表脚本，所以这里用同约束名的最小表替身。
+ * 本模块 classpath 上没有 icbc 的建表脚本，所以这里用上面那个同形状的最小表替身。
  */
 @ExtendWith(MockitoExtension.class)
 public class GlobalExceptionHandlerErrorLogValueSanitizeTest {
@@ -108,6 +117,32 @@ public class GlobalExceptionHandlerErrorLogValueSanitizeTest {
         assertNoPii(errorLog.getExceptionStackTrace(), "exception_stack_trace");
         assertTrue(errorLog.getExceptionMessage().contains("uk_id_card_no"),
                 () -> "脱敏把约束名也抹了：" + errorLog.getExceptionMessage());
+    }
+
+    /**
+     * T-1（#102）：外层不是 DAO 异常、只有 cause 链深处是 JDBC 的完整性约束异常时，
+     * {@link ApiErrorLogExceptionSanitizer#isDbConstraintViolation(Throwable)} 的
+     * {@code instanceof SQLIntegrityConstraintViolationException} 那一支必须兜住——否则真实 MyBatis
+     * 场景里「包了一层 RuntimeException」的撞键报文就漏了。断言同样落在写库载荷的三个字段上。
+     */
+    @Test
+    public void testCauseChainConstraintViolationDoesNotLeakIntoApiErrorLog() {
+        RuntimeException ex = new RuntimeException("外层包装（不是 DAO 异常）",
+                new SQLIntegrityConstraintViolationException(
+                        "Duplicate entry '1-" + ID_CARD_NO + "-0' for key 'uk_id_card_no'"));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/admin-api/icbc/payee/create");
+        new GlobalExceptionHandler("test-app", apiErrorLogApi).defaultExceptionHandler(request, ex);
+
+        ApiErrorLogCreateReqDTO errorLog = captureErrorLog();
+        assertNoPii(errorLog.getExceptionMessage(), "exception_message");
+        assertNoPii(errorLog.getExceptionRootCauseMessage(), "exception_root_cause_message");
+        assertNoPii(errorLog.getExceptionStackTrace(), "exception_stack_trace");
+        // 关键断言：cause 链里的那条原文（root cause）既被抹了值、又保住约束名。
+        // 不在这里断言 stack：Hutool 的 stacktraceToString 默认截断到 3000 字符，测试方法自身的栈很长，
+        // 会把 Caused by 段截掉（生产里异常在抛出处创建，栈短，caused by 通常会进前 3000 字符）。
+        assertTrue(errorLog.getExceptionRootCauseMessage().contains("uk_id_card_no"),
+                () -> "root cause 里丢了约束名：" + errorLog.getExceptionRootCauseMessage());
     }
 
     // ========== 辅助 ==========

@@ -2644,3 +2644,45 @@ cardNumber / drawerCardNumber / payerAcctNum / taxPayerAccountNo / address / sel
 - 分支 `i100-payer-global-key` → `40d88067`：16 个文件、3 个提交
 - 独立评审：PASS（报告 `.fleet/gates/100.review.md`）
 - 闸门：全量 icbc `[WARNING] Tests run: 912, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/100.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/100.log`（`.fleet/` 与收养票的仓库外日志不入库）
+
+### #102 异常日志的 PII「值」脱敏 + 「API 日志」页面从回收企业套餐收口（框架 / 运维必读）
+
+`#98` 按**字段名**脱敏请求体、`#101` 让异常日志不再整段记 body，但**值**仍会从异常文本漏出去：异常日志的
+`exception_message` / `exception_root_cause_message` / `exception_stack_trace` 三个字段里，MySQL 的唯一键
+冲突报文自带键值（`Duplicate entry '1-110101199001011299-0' for key 'uk_id_card_no'`）。本票新增
+`cn.iocoder.yudao.framework.web.core.util.ApiErrorLogExceptionSanitizer`：**只在 cause 链命中 DB 完整性约束
+异常时**把报文里的**值**换成 `***`，约束名 / 索引名 / 列名 / 类名 / 栈帧原样保留（这些正是定位要用的信息）；
+`GlobalExceptionHandler` 的写库三字段与控制台分支都过它。没有做面向所有消息的通用正则（#102 明确否掉的 B）。
+
+**运维影响（以前能做、现在做不到的事）**：
+
+- 租户侧后台「基础设施 / API 日志」（访问日志 `1078`、错误日志 `1084` 及其按钮）在**回收企业套餐（200）**
+  里被整棵排除（8 个 id：`1078/1082/1083/1084/1085/1086/1088/1089`）——租户 admin **再也看不到这两个页面**，
+  要查只能找平台运营。
+- 平台运营在系统租户（`package_id = 0`）走全量分支，**不受影响**，两个页面照旧。
+- 错误日志里撞键报文的值变成 `***`，**用身份证号 / 手机号 / 银行卡号去 `exception_message` 里捞异常再也
+  捞不到**；改走 `trace_id` / 约束名 / 类名定位。
+
+**既存租户怎么办（#102 的限制，务必照做）**：可见性由 `system_role_menu` 决定，而 `icbc-menu.sql`
+**只重建套餐 200 的 `menu_ids`，不重算既存租户的 `system_role_menu`**——所以「重导 SQL」只对**之后新建**的
+租户生效，**已经开出来的回收企业租户仍然看得见这两个页面**（本地实测：套餐 200 的租户 `162` 的
+`system_role_menu` 里 8 个 id 一条不少）。补救：先重导 `icbc-menu.sql`（让套餐本身不含这 8 个 id），再跑
+`backend/sql/mysql/icbc-api-log-menu-revoke.sql`（幂等、**必须带库名**、只删套餐 200 租户的这 8 个
+`system_role_menu` 行，系统租户与其它套餐的租户不动），然后让租户 admin **退出重新登录**（菜单树缓在
+localStorage）。走「后台改套餐触发 `updateTenantRoleMenu`」也行，但它要求套餐菜单**确实发生变化**
+（原样保存不触发重算），不如脚本可复现。
+
+**套餐实测**（本地库）：重导 `icbc-menu.sql` 前套餐 200 的 `menu_ids` 有 391 项、8 个 id 全在；重导后
+320 项、`JSON_CONTAINS` 8 个 id 全 0，相邻的 `2`（基础设施根）与 `1087`（定时任务 / 任务查询）仍在（没误伤）；
+按导入顺序补 `logistics-menu.sql` 后 327 项、8 个 id 仍为 0。
+
+**`@Valid` 那条分支（C-4）对账**：`@Valid` 失败的**返回文案**走 `getDefaultMessage()`，不含
+`rejectedValue`，是安全的；但 `methodArgumentNotValidExceptionExceptionHandler` / `bindExceptionHandler` 做
+`log.warn(..., ex)`，而 Spring 那条异常的消息里带 `rejected value [<原值>]`——**控制台 / 文件日志会带值**，
+本票**不治**（不在落库三字段的射程内，且 icbc / member 的 VO 目前没有把 PII 字段挂上校验注解，现实风险低）。
+将来给身份证 / 手机号 / 银行卡字段挂 `@Valid` 前，先回头处理这条。
+
+**已知残留（本票不解决，如实列）**：值里含转义单引号时只吃掉一半（姓名类会漏尾，数字型 PII 不含单引号、
+不受影响）；类型不匹配的参数值会回给响应（`methodArgumentTypeMismatchExceptionHandler` 用 `ex.getMessage()`
+拼返回文案）；第三方 SDK 报文与自定义 `exception(CODE, 拼值)` 里未改的文案按设计不覆盖（icbc / member /
+system 全仓 grep 后只剩已改的 `member.USER_MOBILE_USED`）。

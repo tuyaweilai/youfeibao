@@ -9,8 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * {@link ApiErrorLogExceptionSanitizer#sanitize(String)} 的文本契约测试（#102）。
  *
- * <p>端到端「真撞键 → 落 infra_api_error_log」的用例在 icbc 的
- * {@code ApiErrorLogExceptionValueSanitizeTest}；这条只锁两种方言的文本转换本身
+ * <p>端到端「真撞键 → 落 infra_api_error_log」的用例在同模块同包的
+ * {@code GlobalExceptionHandlerErrorLogValueSanitizeTest}；这条只锁两种方言的文本转换本身
  * （H2 那半不能在单测里造出 MySQL 报文，反过来也一样）。
  */
 public class ApiErrorLogExceptionSanitizerTest {

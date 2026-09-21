@@ -31,8 +31,23 @@ import java.util.regex.Pattern;
  * 编译期 classpath 上没有 spring-tx / spring-jdbc（不引 {@code DataIntegrityViolationException} 的
  * 编译依赖），而 {@link SQLIntegrityConstraintViolationException} 属于 JDK，可以直接判。
  *
- * <p><b>已知残留</b>：值出现在**别的**报文形状里（第三方 SDK 报文、我们自己拼了值且未改的文案、
- * 非 JDBC 的异常）不在这里覆盖——那些要在各自的发生位置治，见 #102 报告。
+ * <p><b>还剩哪些值会漏（#102 如实列，别护着自己）</b>：
+ * <ul>
+ *   <li><b>含转义单引号的值只吃掉一半</b>：{@code Duplicate entry 'O\'Brien' for key 'x'} 里
+ *       {@code [^']*} 在 {@code \'} 处停下，姓名类会漏出尾部；数字型 PII（身份证 / 手机号 / 卡号）
+ *       不含单引号，不受影响。要治得把转义也写进正则，代价是正则更脆。</li>
+ *   <li><b>类型不匹配的路径 / 查询参数回给响应</b>：{@code methodArgumentTypeMismatchExceptionHandler}
+ *       用 {@code ex.getMessage()} 拼返回文案，里面的原值（{@code failed to convert value of type ...}）
+ *       会到调用方；本类只治落库的三个文本字段，管不到这里。</li>
+ *   <li><b>{@code @Valid} 校验失败的文件日志</b>：{@code methodArgumentNotValidExceptionExceptionHandler} /
+ *       {@code bindExceptionHandler} 做 {@code log.warn(..., ex)}，而 Spring 那条异常的消息里带
+ *       {@code rejected value [<原值>]}——返回给用户的文案走 {@code getDefaultMessage()}、不含值，
+ *       但控制台 / 文件日志会带（#102 的 C-4，结论：本票不治，原因见提交与 handoff）。</li>
+ *   <li><b>非 DB 约束来源的值</b>：第三方 SDK 报文、我们自己 {@code exception(CODE, 拼值)} 且未改的文案、
+ *       非 JDBC 的异常——按设计不覆盖（{@link #isDbConstraintViolation(Throwable)} 不命中就不调用），
+ *       要在各自的发生位置治。icbc / member / system 全仓 grep 后只剩已改的
+ *       {@code member.USER_MOBILE_USED} 一处（见该票）。</li>
+ * </ul>
  */
 public class ApiErrorLogExceptionSanitizer {
 

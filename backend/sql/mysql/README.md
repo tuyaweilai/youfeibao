@@ -158,3 +158,22 @@ curl -X POST "$BASE/logistics/permission/init" -H "tenant-id: 1" -H "Authorizati
 ```
 
 生产上建议把这一步并在部署脚本里，紧跟在导菜单之后。
+
+## 既存租户收回「API 日志」授权（#102）
+
+`icbc-menu.sql` 只重建 `system_tenant_package.id = 200` 的 `menu_ids`，**不重算既存租户的
+`system_role_menu`**。可见性来自 `system_role_menu`（`PermissionServiceImpl` 对非 super_admin 的角色读
+`roleMenuMapper.selectListByRoleId`），所以「新租户拿不到 / 已开租户照样看得到」——已经开出来的回收企业租户
+仍看得见 `infra:api-access-log:*` / `infra:api-error-log:*`。补救脚本 `icbc-api-log-menu-revoke.sql`
+把套餐 200 租户的这 8 个菜单授权收回（只删 `system_role_menu` 行，不动 `system_menu` 与套餐；系统租户
+`package_id = 0` 与其它套餐的租户一行不动）。**必须带库名**跑（守卫按 `DATABASE()`，不带库名会静默不干活，
+已加硬失败守卫）：
+
+```bash
+MYSQL="mysql -h 127.0.0.1 -P 13308 -uroot -p --default-character-set=utf8mb4"
+$MYSQL ruoyi-vue-pro < icbc-api-log-menu-revoke.sql   # 打印「预览 / 实际删除行数 / 复核剩 0 行」，幂等
+```
+
+先重导 `icbc-menu.sql` 再跑，否则下次触发 `updateTenantRoleMenu`（后台改套餐 / 改角色菜单）会按套餐把授权
+重新加回来。跑完让租户 admin **退出重新登录**（菜单树缓在 localStorage 的 `roleRouters`）。新库直接导
+`icbc-menu.sql` 即可，不需要本文件。
