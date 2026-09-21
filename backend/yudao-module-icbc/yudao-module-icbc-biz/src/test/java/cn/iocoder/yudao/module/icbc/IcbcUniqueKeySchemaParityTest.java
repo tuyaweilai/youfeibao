@@ -20,6 +20,8 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 生产建表脚本（{@code backend/sql/mysql/*.sql}）与测试建表脚本
@@ -34,25 +36,21 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * <p>所以这里不测行为（行为在测试 schema 上测，见 {@code IcbcTenantIsolationTest}），
  * 而是直接**比对两份建表脚本**，把「测试 schema 里声称的租户内唯一」钉到生产脚本上。
  *
- * <p><b>比对范围</b>：只比**租户级唯一键**（列集合含 {@code tenant_id} 的唯一键），
- * 且只比两份脚本里都存在的 {@code icbc_*} 表。理由：
- * <ul>
- *   <li>本类 bug 的全部风险都在这一维——测试 schema 声称「租户内唯一」、生产没声称，或者反过来；
- *       不含 {@code tenant_id} 的键（我们生成的单号 {@code acquisition_no} / {@code station_code} /
- *       {@code payee_no}、工行的 {@code msg_id} / {@code notify_id}、{@code jti} 等）
- *       绝大多数是**合理的全局键**，混进来只会是噪音。</li>
- *   <li>H2 schema 是手工维护的精简版，非租户维度上本来就有大量合法差异（少建键、少列），
- *       全量对齐得给近十张表挂白名单，等于把噪音写死。</li>
- * </ul>
+ * <p><b>比对范围</b>：比两份脚本里都存在的 {@code icbc_*} 表的**全部唯一键**（不只含
+ * {@code tenant_id} 的）。{@code #97} 的教训是「测试 schema 比生产松」，而「松」不限于租户维度——
+ * 全局单号（{@code payee_no} / {@code partner_order_id} / {@code msg_id} 等）少建一个唯一键，
+ * 同样会让用例在真实库上不成立。所以本测试不再按维度挑键，两侧全对齐、不留白名单。
+ *
+ * <p><b>唯一一处排除</b>：{@link #KEY_DECISION_PENDING} 里的表，其唯一键属于哪一层由别的票决定，
+ * 本票不碰、比对也不纳入。它不是「差异白名单」——不描述任何一处具体差异，只划出本测试暂不拥有的表。
  *
  * <p><b>迁移脚本不算「建表脚本」</b>：迁移文件只有 {@code DROP INDEX} / {@code ADD UNIQUE KEY}、
  * 没有 {@code CREATE TABLE}，所以本测试不拿它来满足一份写错了的 {@code CREATE TABLE}
  * （新库只导建表脚本，建表脚本才是最终形状）。迁移脚本与建表脚本的一致性由
  * {@link #testPayeeUniqueKeyMigrationAddsExactlyTheCreateScriptKeys()} 单独钉。
  *
- * <p><b>白名单</b>：{@link #KNOWN_DRIFT} 是两处与本票无关的既有差异，方向都是「测试 schema 比生产松」，
- * 属测试 schema 精简，本票不动。白名单是**自清理**的：差异集合必须**恰好等于**白名单，
- * 所以要么修差异、要么加白名单，不能沉默漂移。
+ * <p><b>没有白名单</b>：{@code #99} 把两侧键全对齐后，差异集合必须为空。留白名单等于
+ * 「下一个同类差异只需再加一行」，{@code #97} 的 bug 就是这样藏了很久。
  */
 public class IcbcUniqueKeySchemaParityTest {
 
@@ -68,20 +66,20 @@ public class IcbcUniqueKeySchemaParityTest {
             Set.of("tenant_id", "id_card_no", "deleted"),
             Set.of("tenant_id", "mobile", "deleted"));
 
-    /**
-     * 已知的、与本票（{@code #97}）无关的既有差异。键是表名，值是差异说明。
-     * 差异集合与它必须严格相等：修好一处就该删一条，新漂移一处就会红。
-     */
-    private static final Map<String, String> KNOWN_DRIFT = new LinkedHashMap<>();
+    /** 收方档案的完整唯一键集合：#97 的两个租户级键 + #99 对齐的两个全局键。 */
+    private static final Set<Set<String>> PAYEE_KEYS = Set.of(
+            Set.of("tenant_id", "id_card_no", "deleted"),
+            Set.of("tenant_id", "mobile", "deleted"),
+            Set.of("payee_no"),
+            Set.of("partner_payee_id"));
 
-    static {
-        KNOWN_DRIFT.put("icbc_invoice_order",
-                "测试 schema 把生产的全局 uk_partner_order_id (partner_order_id) 写成了 (tenant_id, partner_order_id)，"
-                        + "测试更松。工行合作方订单号是全局的，本票不放宽全局键语义。");
-        KNOWN_DRIFT.put("icbc_payment_order",
-                "测试 schema 没建生产的 (partner_order_id, deleted, tenant_id) / (order_no, deleted, tenant_id)，"
-                        + "测试更松。属测试 schema 精简（付款并发兜底靠 Service 层），与本票无关。");
-    }
+    /**
+     * 键层归属由别的票决定、本票（{@code #99}）不碰的表：整体排除，等领域答复落定后再纳入。
+     * 这不是「差异白名单」——它不描述任何一处具体差异，只划出本测试暂不拥有的表；
+     * 且它**自清理**：被排除的表必须仍与生产有差异，若哪天两侧一致了，下面会断言失败、请把它删掉。
+     * 目前只有 {@code icbc_payer_info}（#100：付方档案四个全局唯一键属于哪一层）。
+     */
+    private static final Set<String> KEY_DECISION_PENDING = Set.of("icbc_payer_info");
 
     private static final Pattern CREATE_TABLE = Pattern.compile(
             "CREATE TABLE(?: IF NOT EXISTS)?\\s+`?(\\w+)`?\\s*\\(", Pattern.CASE_INSENSITIVE);
@@ -98,7 +96,7 @@ public class IcbcUniqueKeySchemaParityTest {
             "ADD UNIQUE KEY\\s+`?(\\w+)`?\\s*\\(([^)]*)\\)", Pattern.CASE_INSENSITIVE);
 
     @Test
-    public void testTenantScopedUniqueKeysMatchBetweenProductionAndTestSchema() throws IOException {
+    public void testUniqueKeysMatchBetweenProductionAndTestSchema() throws IOException {
         Schema production = parseProduction();
         Schema test = parseTestSchema();
 
@@ -108,29 +106,34 @@ public class IcbcUniqueKeySchemaParityTest {
 
         Map<String, String> drift = new TreeMap<>();
         for (String table : commonTables) {
-            Set<Set<String>> productionKeys = tenantScopedKeys(production, table);
-            Set<Set<String>> testKeys = tenantScopedKeys(test, table);
+            if (KEY_DECISION_PENDING.contains(table)) {
+                // 排除项自清理：它必须真的还没对齐，否则就是白名单式的黑箱
+                assertNotEquals(allKeys(production, table), allKeys(test, table),
+                        table + " 已在两份脚本里一致，应从 KEY_DECISION_PENDING 移除");
+                continue;
+            }
+            Set<Set<String>> productionKeys = allKeys(production, table);
+            Set<Set<String>> testKeys = allKeys(test, table);
             if (!productionKeys.equals(testKeys)) {
                 drift.put(table, String.format("生产=%s，测试=%s", describe(productionKeys), describe(testKeys)));
             }
         }
 
         String detail = drift.entrySet().stream()
-                .map(e -> "  " + e.getKey() + "：" + e.getValue()
-                        + (KNOWN_DRIFT.containsKey(e.getKey()) ? "（已在白名单）" : ""))
+                .map(e -> "  " + e.getKey() + "：" + e.getValue())
                 .collect(Collectors.joining("\n"));
-        assertEquals(new TreeSet<>(KNOWN_DRIFT.keySet()), new TreeSet<>(drift.keySet()),
-                "生产建表脚本与测试 schema 的租户级唯一键不一致（只列了有差异的表）：\n" + detail
-                        + "\n\n要求：两份脚本必须说同一件事。本票（#97）的教训是「测试 schema 更松 → "
-                        + "用例在真实库上不成立」。修差异，或确认它是有意为之再写进 KNOWN_DRIFT 并说明理由。");
+        assertTrue(drift.isEmpty(),
+                "生产建表脚本与测试 schema 的唯一键不一致（只列了有差异的表）：\n" + detail
+                        + "\n\n要求：两份脚本必须说同一件事。本票（#99）的教训是「测试 schema 比生产松 → "
+                        + "用例在真实库上不成立」。修测试建表向生产看齐，不要放宽生产 schema 迁就测试。");
     }
 
     @Test
-    public void testPayeeInfoTenantScopedUniqueKeysAreTheExpectedOnes() throws IOException {
+    public void testPayeeInfoUniqueKeysAreTheExpectedOnes() throws IOException {
         Schema production = parseProduction();
-        assertEquals(PAYEE_TENANT_KEYS, tenantScopedKeys(production, "icbc_payee_info"),
-                "icbc_payee_info 的租户级唯一键被改动了：收方档案是「自然人 × 回收企业」这一层（ADR 0017 / #97），"
-                        + "身份证与手机号都只能在本租户内唯一。");
+        assertEquals(PAYEE_KEYS, allKeys(production, "icbc_payee_info"),
+                "icbc_payee_info 的唯一键被改动了：收方档案是「自然人 × 回收企业」这一层（ADR 0017 / #97），"
+                        + "身份证与手机号只能在本租户内唯一；payee_no / partner_payee_id 是全局的（#99）。");
     }
 
     @Test
@@ -147,10 +150,8 @@ public class IcbcUniqueKeySchemaParityTest {
                 "icbc-payee-unique-key.sql 不应该含 CREATE TABLE：最终形状只在 icbc_payee_info.sql 里。");
     }
 
-    private static Set<Set<String>> tenantScopedKeys(Schema schema, String table) {
-        return schema.uniqueKeys.getOrDefault(table, Set.of()).stream()
-                .filter(columns -> columns.contains("tenant_id"))
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+    private static Set<Set<String>> allKeys(Schema schema, String table) {
+        return new LinkedHashSet<>(schema.uniqueKeys.getOrDefault(table, Set.of()));
     }
 
     private static String describe(Set<Set<String>> keys) {

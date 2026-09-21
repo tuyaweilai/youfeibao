@@ -35,6 +35,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
@@ -443,12 +444,15 @@ public class TaxDeclarationServiceImplTest extends BaseDbUnitTest {
 
     private PayeeInfoDO insertPayee(Long tenantId, String name, String idCardNo, String mobile) {
         return TenantUtils.execute(tenantId, () -> {
+            // 生产真实形状：partner_payee_id 与 payee_no 对每份档案各自生成，
+            // 同一自然人跨租户的两份档案编号不同；用手机号派生会被全局唯一键拒（#99）
+            String unique = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
             PayeeInfoDO payee = PayeeInfoDO.builder()
-                    .partnerPayeeId("PARTNER_" + mobile)
+                    .partnerPayeeId("PAYEE_" + unique)
                     .name(name)
                     .mobile(mobile)
                     .idCardNo(idCardNo)
-                    .payeeNo("PAYEE_" + mobile)
+                    .payeeNo("PAYEE_NO_" + unique)
                     .build();
             payeeInfoMapper.insert(payee);
             return payee;

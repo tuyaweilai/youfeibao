@@ -70,8 +70,8 @@ CREATE TABLE IF NOT EXISTS icbc_payee_info (
     CONSTRAINT uk_payee_mobile UNIQUE (tenant_id, mobile, deleted)
 );
 
-CREATE INDEX IF NOT EXISTS idx_payee_no ON icbc_payee_info(payee_no);
-CREATE INDEX IF NOT EXISTS idx_partner_payee_id ON icbc_payee_info(partner_payee_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_payee_no ON icbc_payee_info(payee_no);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_partner_payee_id ON icbc_payee_info(partner_payee_id);
 CREATE INDEX IF NOT EXISTS idx_payee_natural_person ON icbc_payee_info(natural_person_id);
 
 -- icbc_invoice_order table (Invoice Order Information)
@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS icbc_invoice_order (
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
     CONSTRAINT uk_order_no UNIQUE (order_no),
-    CONSTRAINT uk_invoice_partner_order_id UNIQUE (tenant_id, partner_order_id)
+    CONSTRAINT uk_invoice_partner_order_id UNIQUE (partner_order_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_invoice_order_no ON icbc_invoice_order(order_no);
@@ -184,8 +184,8 @@ CREATE TABLE IF NOT EXISTS icbc_payment_order (
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     tenant_id BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    CONSTRAINT uk_payment_partner_order_id UNIQUE (partner_order_id),
-    CONSTRAINT uk_payment_order_no UNIQUE (order_no)
+    CONSTRAINT uk_payment_partner_order_id UNIQUE (partner_order_id, deleted, tenant_id),
+    CONSTRAINT uk_payment_order_no UNIQUE (order_no, deleted, tenant_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_payment_icbc_order_no ON icbc_payment_order(icbc_order_no);
@@ -217,6 +217,8 @@ CREATE TABLE IF NOT EXISTS icbc_invoice_download (
 
 CREATE INDEX IF NOT EXISTS idx_download_partner_order_id ON icbc_invoice_download(partner_order_id);
 CREATE INDEX IF NOT EXISTS idx_download_status ON icbc_invoice_download(download_status);
+-- #99 对齐生产：合作方订单号是全局唯一的（同一 partner_order_id 只能有一条未删记录）
+CREATE UNIQUE INDEX IF NOT EXISTS uk_invoice_download_partner_order ON icbc_invoice_download(partner_order_id, deleted);
 
 -- icbc_invoice_file table (Invoice File Information)
 CREATE TABLE IF NOT EXISTS icbc_invoice_file (
@@ -243,6 +245,8 @@ CREATE TABLE IF NOT EXISTS icbc_invoice_file (
 
 CREATE INDEX IF NOT EXISTS idx_file_download_id ON icbc_invoice_file(download_id);
 CREATE INDEX IF NOT EXISTS idx_file_invoice_number ON icbc_invoice_file(invoice_number);
+-- #99 对齐生产：同一发票下载下，同一类型只保留一条未删文件
+CREATE UNIQUE INDEX IF NOT EXISTS uk_invoice_file_download_type ON icbc_invoice_file(download_id, file_type, deleted);
 
 -- icbc_api_log table (API Call Log)
 CREATE TABLE IF NOT EXISTS icbc_api_log (
@@ -269,7 +273,7 @@ CREATE TABLE IF NOT EXISTS icbc_api_log (
     PRIMARY KEY (id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_icbc_api_log_msg_id ON icbc_api_log(msg_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_icbc_api_log_msg_id ON icbc_api_log(msg_id);
 CREATE INDEX IF NOT EXISTS idx_icbc_api_log_business_id ON icbc_api_log(business_id);
 CREATE INDEX IF NOT EXISTS idx_icbc_api_log_create_time ON icbc_api_log(create_time);
 
