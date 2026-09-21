@@ -27,18 +27,18 @@ public class TencentOcrClientTest {
     public void testCall_whenVendorError_returnsNull() {
         RecordingTransport transport = new RecordingTransport();
         transport.result = new TencentOcrTransport.Result(200, VENDOR_ERROR_BODY);
-        TencentOcrClient client = new TencentOcrClient(properties(), transport);
+        TencentOcrClient client = new TencentOcrClient(transport);
 
-        assertNull(client.call("IDCardOCR", payload()), "厂商报错（含额度耗尽）必须走降级路径收成 null");
+        assertNull(client.call(settings(), "IDCardOCR", payload()), "厂商报错（含额度耗尽）必须走降级路径收成 null");
     }
 
     @Test
     public void testCallRaw_whenVendorError_keepsErrorNodeForConnectivityProbe() {
         RecordingTransport transport = new RecordingTransport();
         transport.result = new TencentOcrTransport.Result(200, VENDOR_ERROR_BODY);
-        TencentOcrClient client = new TencentOcrClient(properties(), transport);
+        TencentOcrClient client = new TencentOcrClient(transport);
 
-        JSONObject response = client.callRaw("IDCardOCR", payload());
+        JSONObject response = client.callRaw(settings(), "IDCardOCR", payload());
 
         assertNotNull(response, "callRaw 保留厂商错误，供联调判断签名是否被接受");
         assertEquals("FailedOperation.NoEnoughQuota", response.getJSONObject("Error").getString("Code"));
@@ -48,45 +48,45 @@ public class TencentOcrClientTest {
     public void testCallRaw_whenStatusNot2xx_returnsNull() {
         RecordingTransport transport = new RecordingTransport();
         transport.result = new TencentOcrTransport.Result(500, "Internal Server Error");
-        TencentOcrClient client = new TencentOcrClient(properties(), transport);
+        TencentOcrClient client = new TencentOcrClient(transport);
 
-        assertNull(client.callRaw("BankCardOCR", payload()));
+        assertNull(client.callRaw(settings(), "BankCardOCR", payload()));
     }
 
     @Test
     public void testCallRaw_whenBodyIsNotJson_returnsNull() {
         RecordingTransport transport = new RecordingTransport();
         transport.result = new TencentOcrTransport.Result(200, "<html>bad gateway</html>");
-        TencentOcrClient client = new TencentOcrClient(properties(), transport);
+        TencentOcrClient client = new TencentOcrClient(transport);
 
-        assertNull(client.callRaw("BankCardOCR", payload()));
+        assertNull(client.callRaw(settings(), "BankCardOCR", payload()));
     }
 
     @Test
     public void testCallRaw_whenResponseNodeMissing_returnsNull() {
         RecordingTransport transport = new RecordingTransport();
         transport.result = new TencentOcrTransport.Result(200, "{\"Foo\":\"bar\"}");
-        TencentOcrClient client = new TencentOcrClient(properties(), transport);
+        TencentOcrClient client = new TencentOcrClient(transport);
 
-        assertNull(client.callRaw("BankCardOCR", payload()));
+        assertNull(client.callRaw(settings(), "BankCardOCR", payload()));
     }
 
     @Test
     public void testCallRaw_whenBodyBlank_returnsNull() {
         RecordingTransport transport = new RecordingTransport();
         transport.result = new TencentOcrTransport.Result(200, "   ");
-        TencentOcrClient client = new TencentOcrClient(properties(), transport);
+        TencentOcrClient client = new TencentOcrClient(transport);
 
-        assertNull(client.callRaw("BankCardOCR", payload()));
+        assertNull(client.callRaw(settings(), "BankCardOCR", payload()));
     }
 
     @Test
     public void testCallRaw_whenTransportThrows_returnsNull() {
         RecordingTransport transport = new RecordingTransport();
         transport.failure = new RuntimeException("connect timed out");
-        TencentOcrClient client = new TencentOcrClient(properties(), transport);
+        TencentOcrClient client = new TencentOcrClient(transport);
 
-        assertNull(client.callRaw("IDCardOCR", payload()), "弱网 / 超时要降级，不能把异常抛给向导");
+        assertNull(client.callRaw(settings(), "IDCardOCR", payload()), "弱网 / 超时要降级，不能把异常抛给向导");
     }
 
     @Test
@@ -94,9 +94,9 @@ public class TencentOcrClientTest {
         RecordingTransport transport = new RecordingTransport();
         transport.result = new TencentOcrTransport.Result(200,
                 "{\"Response\":{\"Name\":\"刘洋\",\"RequestId\":\"abc\"}}");
-        TencentOcrClient client = new TencentOcrClient(properties(), transport);
+        TencentOcrClient client = new TencentOcrClient(transport);
 
-        JSONObject response = client.call("IDCardOCR", payload());
+        JSONObject response = client.call(settings(), "IDCardOCR", payload());
 
         assertNotNull(response);
         assertEquals("刘洋", response.getString("Name"));
@@ -106,23 +106,29 @@ public class TencentOcrClientTest {
     public void testCallRaw_buildsSignedRequestWithActionHeadersAndBody() {
         RecordingTransport transport = new RecordingTransport();
         transport.result = new TencentOcrTransport.Result(200, "{\"Response\":{\"Name\":\"刘洋\"}}");
-        TencentOcrClient client = new TencentOcrClient(properties(), transport);
+        TencentOcrClient client = new TencentOcrClient(transport);
 
-        client.callRaw("IDCardOCR", payload());
+        client.callRaw(settings(), "IDCardOCR", payload());
 
         assertNotNull(transport.request);
         assertEquals("https://ocr.tencentcloudapi.com", transport.request.url());
         assertEquals("IDCardOCR", transport.request.headers().get("X-TC-Action"));
         assertEquals("2018-11-19", transport.request.headers().get("X-TC-Version"));
+        // 审评观察 5：region / timeout 曾被 handoff 说成「已覆盖」，其实当时没有任何断言
+        assertEquals("ap-guangzhou", transport.request.headers().get("X-TC-Region"));
+        assertEquals(10000, transport.request.timeoutMillis());
         assertTrue(transport.request.headers().get("Authorization").startsWith("TC3-HMAC-SHA256 "));
         assertTrue(transport.request.body().contains("\"ImageBase64\":\"QUJD\""));
     }
 
-    private static TencentCardRecognitionProperties properties() {
-        TencentCardRecognitionProperties properties = new TencentCardRecognitionProperties();
-        properties.setSecretId("secret-id");
-        properties.setSecretKey("secret-key");
-        return properties;
+    private static TencentOcrSettings settings() {
+        return TencentOcrSettings.builder()
+                .secretId("secret-id")
+                .secretKey("secret-key")
+                .region("ap-guangzhou")
+                .endpoint("ocr.tencentcloudapi.com")
+                .timeout(10000)
+                .build();
     }
 
     private static JSONObject payload() {

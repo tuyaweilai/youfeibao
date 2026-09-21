@@ -298,7 +298,13 @@ VALUES
 (5282, '电子签章', 'icbc:esign:query', 2, 8, 5201, 'esign', 'ep:stamp', 'icbc/esign/index', 'IcbcEsign', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5283, '开通电子签', 'icbc:esign:manage', 3, 1, 5282, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5280, '电子签章', 'icbc:platform:esign:query', 2, 7, 5140, 'esign', 'ep:setting', 'icbc/platformEsign/index', 'IcbcPlatformEsign', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5281, '保存平台配置', 'icbc:platform:esign:manage', 3, 1, 5280, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5281, '保存平台配置', 'icbc:platform:esign:manage', 3, 1, 5280, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- ===== 卡证识别（#103，ADR 0037）=====
+-- 平台侧「平台运营 / 卡证识别」：OCR 的供应商（运行期生效）/ 密钥 / 地域 / endpoint / 超时 +
+-- 连通性自检。密钥只落后端、界面不回显明文。与电子签章**各立一处**，不合并成通用页。
+-- 平台运营不进回收企业套餐（ADR 0026）：5140 不在套餐的种子集合里。
+(5390, '卡证识别', 'icbc:platform:card-recognition:query', 2, 8, 5140, 'card-recognition', 'ep:credit-card', 'icbc/platformCardRecognition/index', 'IcbcPlatformCardRecognition', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5391, '保存卡证识别配置', 'icbc:platform:card-recognition:manage', 3, 1, 5390, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
 
 -- =====================================================================
 -- 3. 回收企业租户套餐

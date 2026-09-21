@@ -1668,3 +1668,23 @@ CREATE TABLE IF NOT EXISTS icbc_esign_tenant (
     CONSTRAINT uk_esign_tenant_sub_customer_no UNIQUE (sub_customer_no),
     CONSTRAINT uk_esign_tenant_tenant UNIQUE (tenant_id)
 );
+
+-- icbc_card_recognition_config table（卡证识别的平台级参数，#103；全局表，登记进 ignore-tables）
+CREATE TABLE IF NOT EXISTS icbc_card_recognition_config (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    provider VARCHAR(16),
+    secret_id VARCHAR(128),
+    secret_key VARCHAR(255),
+    region VARCHAR(64),
+    endpoint VARCHAR(255),
+    timeout INT,
+    last_check_result VARCHAR(32),
+    last_check_time DATETIME,
+    remark VARCHAR(255),
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);

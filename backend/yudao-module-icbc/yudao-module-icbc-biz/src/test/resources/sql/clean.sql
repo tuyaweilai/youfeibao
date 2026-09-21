@@ -56,3 +56,4 @@ DELETE FROM icbc_stock_check;
 DELETE FROM icbc_stock_opening;
 DELETE FROM icbc_esign_tenant;
 DELETE FROM icbc_esign_config;
+DELETE FROM icbc_card_recognition_config;

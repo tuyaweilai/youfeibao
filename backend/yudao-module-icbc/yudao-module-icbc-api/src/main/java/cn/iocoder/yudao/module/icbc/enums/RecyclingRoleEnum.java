@@ -215,7 +215,10 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.PLATFORM_NATURAL_PERSON_QUERY,
             RecyclingPermission.PLATFORM_NATURAL_PERSON_MANAGE,
             // 电子签章平台级参数（#92）：跨租户配置与查看各租户激活状态 / 合同额度
-            RecyclingPermission.PLATFORM_ESIGN_QUERY, RecyclingPermission.PLATFORM_ESIGN_MANAGE));
+            RecyclingPermission.PLATFORM_ESIGN_QUERY, RecyclingPermission.PLATFORM_ESIGN_MANAGE,
+            // 卡证识别平台级参数（#103，ADR 0037）：与电子签章各立一处
+            RecyclingPermission.PLATFORM_CARD_RECOGNITION_QUERY,
+            RecyclingPermission.PLATFORM_CARD_RECOGNITION_MANAGE));
 
     private final String code;
     private final String name;

@@ -20,7 +20,8 @@ import java.util.List;
  *
  * <p><b>契约要点</b>：
  * <ul>
- *   <li>默认实现 {@link StubCardRecognition} 不触网、一律返回空结果：向导退化为手工录入，
+ *   <li>实现只有一枚常驻 Bean（{@code TencentCardRecognition}），供应商（{@code stub} / {@code tencent}）
+ *       由后台配置在**调用时**判定（#103）：{@code stub} 或配置不齐时一律返回空结果，向导退化为手工录入，
  *       仍然走得完，落库结果与识别成功时同形（ADR 0037）。识别失败、未配置、额度耗尽
  *       走的是同一条降级路径，都**不阻断建档**。</li>
  *   <li>入参是 <b>base64</b>，而 {@code AcquisitionRecognitionPort} 收 {@code imageUrl}：

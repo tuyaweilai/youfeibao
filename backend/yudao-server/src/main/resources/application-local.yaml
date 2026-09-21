@@ -272,11 +272,13 @@ icbc:
   gateway:
     mode: ${ICBC_GATEWAY_MODE:fake}
 
-  # 卡证识别（#93，ADR 0037）：身份证正反面 + 银行卡，腾讯云 OCR。
-  # mode：stub（默认，不触网、返回空结果、向导退化为手工录入）/ tencent（走腾讯云）。
-  # 密钥只落后端，绝不进前端产物；未配置密钥时真实实现也返回空结果（与额度耗尽同一条降级路径）。
+  # 卡证识别（#93 / #103，ADR 0037）：身份证正反面 + 银行卡，腾讯云 OCR。
+  # provider：stub（默认，不触网、返回空结果、向导退化为手工录入）/ tencent（走腾讯云）。
+  # 它是**运行期**判定的默认值：后台「平台运营 / 卡证识别」里存了 DB 配置就以 DB 为准（#103），
+  # DB 为空才回落到这里的 yaml / env。密钥只落后端，绝不进前端产物；未配置密钥时真实实现也返回
+  # 空结果（与额度耗尽同一条降级路径）。
   card-recognition:
-    mode: ${ICBC_CARD_RECOGNITION_MODE:stub}
+    provider: ${ICBC_CARD_RECOGNITION_PROVIDER:stub}
     secret-id: ${TENCENT_OCR_SECRET_ID:}
     secret-key: ${TENCENT_OCR_SECRET_KEY:}
     region: ${TENCENT_OCR_REGION:ap-guangzhou}

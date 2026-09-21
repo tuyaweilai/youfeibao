@@ -609,4 +609,10 @@ public interface ErrorCodeConstants {
     // 是哪一家企业（同 #91 的透明度口径）。
     ErrorCode PAYER_PARTNER_PAYER_ID_EXISTS = new ErrorCode(1_030_049_004,
             "该合作方付方编号已被占用，请换一个");
+
+    // ========== 卡证识别平台级配置与连通性自检（#103，ADR 0037） 1_030_051_000 ==========
+    // 自检要求手里有密钥（请求里带、或库里 / 配置文件里有）；一件都没有时不该拿一次必然 401 的请求
+    // 去冒充「验证失败」，直接告诉运维「还没配密钥」。
+    ErrorCode CARD_RECOGNITION_CHECK_NOT_CONFIGURED = new ErrorCode(1_030_051_000,
+            "尚未配置腾讯云 OCR 密钥，无法进行连通性自检；请先填入 SecretId / SecretKey 或先保存");
 }

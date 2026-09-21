@@ -5,7 +5,6 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -17,6 +16,10 @@ import java.util.Map;
  * <p>HTTP 走构造注入的 {@link TencentOcrTransport}（Spring 里是 {@link HutoolTencentOcrTransport}），
  * 所以「厂商报错」这条降级判据能被测试直接钉住，而不是只能靠断言（独立评审 ST-2）。
  *
+ * <p><b>#103 起它是一枚常驻 Bean</b>：不再靠启动期的 {@code @ConditionalOnProperty} 决定在不在场，
+ * 每次调用由调用方传入一份 {@link TencentOcrSettings}（DB 优先、空则回落 yaml / env）。连通性自检
+ * 也走同一枚客户端，不另起一套 HTTP。
+ *
  * <p><b>不记请求体、不记响应体</b>：请求体是证件 / 银行卡影像的 base64（ADR 0037 要求识别完即弃），
  * 响应体是姓名 / 身份证号 / 住址 / 银行卡号。日志里只留厂商错误码与 {@code RequestId}，
  * 这两样都不带 PII，却是排查额度耗尽与联调问题的关键。
@@ -26,27 +29,30 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "icbc.card-recognition", name = "mode", havingValue = "tencent")
 public class TencentOcrClient {
 
-    private final TencentCardRecognitionProperties properties;
+    /** 服务名（签名用）：腾讯云 OCR 的固定值，不是可配项 */
+    private static final String SERVICE = "ocr";
+    /** API 版本（签名与请求头用）：腾讯云 OCR 的固定值，不是可配项 */
+    private static final String VERSION = "2018-11-19";
+
     private final TencentOcrTransport transport;
 
     @Autowired
-    public TencentOcrClient(TencentCardRecognitionProperties properties, TencentOcrTransport transport) {
-        this.properties = properties;
+    public TencentOcrClient(TencentOcrTransport transport) {
         this.transport = transport;
     }
 
     /**
      * 调用一个 OCR Action，厂商报错（含额度耗尽）也收成 {@code null}。
      *
-     * @param action  Action 名（{@code IDCardOCR} / {@code BankCardOCR}）
-     * @param payload 请求体（不含公共参数，公共参数以请求头与签名承载）
+     * @param settings 这一次调用用的生效参数（密钥 / 地域 / endpoint / 超时）
+     * @param action   Action 名（{@code IDCardOCR} / {@code BankCardOCR}）
+     * @param payload  请求体（不含公共参数，公共参数以请求头与签名承载）
      * @return 厂商响应里的 {@code Response} 节点；调用失败或厂商报错时返回 {@code null}
      */
-    public JSONObject call(String action, JSONObject payload) {
-        JSONObject response = callRaw(action, payload);
+    public JSONObject call(TencentOcrSettings settings, String action, JSONObject payload) {
+        JSONObject response = callRaw(settings, action, payload);
         if (response == null) {
             return null;
         }
@@ -61,24 +67,24 @@ public class TencentOcrClient {
     }
 
     /**
-     * 发一次请求并返回 {@code Response} 节点（**保留厂商错误**，供连通性联调判断签名是否被接受）。
+     * 发一次请求并返回 {@code Response} 节点（**保留厂商错误**，供连通性自检判断签名是否被接受）。
      * 网络异常 / 非 2xx / 响应不是 JSON 时返回 {@code null}。
      */
-    public JSONObject callRaw(String action, JSONObject payload) {
+    public JSONObject callRaw(TencentOcrSettings settings, String action, JSONObject payload) {
         long timestamp = System.currentTimeMillis() / 1000;
         String body = payload.toJSONString();
         String authorization = TencentOcrSigner.buildAuthorization(
-                properties.getSecretId(), properties.getSecretKey(), properties.getEndpoint(),
-                properties.getService(), body, timestamp);
+                settings.getSecretId(), settings.getSecretKey(), settings.getEndpoint(),
+                SERVICE, body, timestamp);
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("Content-Type", "application/json; charset=utf-8");
         headers.put("Authorization", authorization);
         headers.put("X-TC-Action", action);
         headers.put("X-TC-Timestamp", String.valueOf(timestamp));
-        headers.put("X-TC-Version", properties.getVersion());
-        headers.put("X-TC-Region", properties.getRegion());
+        headers.put("X-TC-Version", VERSION);
+        headers.put("X-TC-Region", settings.getRegion());
         TencentOcrTransport.Request request = new TencentOcrTransport.Request(
-                "https://" + properties.getEndpoint(), headers, body, properties.getTimeout());
+                "https://" + settings.getEndpoint(), headers, body, settings.getTimeout());
         try {
             TencentOcrTransport.Result result = transport.post(request);
             if (result.status() < 200 || result.status() >= 300) {

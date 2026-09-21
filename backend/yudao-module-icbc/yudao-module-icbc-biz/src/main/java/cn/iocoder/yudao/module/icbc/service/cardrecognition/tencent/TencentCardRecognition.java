@@ -1,33 +1,33 @@
 package cn.iocoder.yudao.module.icbc.service.cardrecognition.tencent;
 
-import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.module.icbc.service.cardrecognition.CardRecognitionPort;
+import cn.iocoder.yudao.module.icbc.service.cardrecognition.config.CardRecognitionConfigService;
+import cn.iocoder.yudao.module.icbc.service.cardrecognition.config.CardRecognitionEffectiveConfig;
 import com.alibaba.fastjson.JSONObject;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 /**
- * 卡证识别的腾讯云实现（#93，ADR 0037）。
+ * 卡证识别端口的**唯一常驻实现**（#93 引入腾讯云 OCR 实现，#103 收敛成运行期判定）。
  *
  * <p>三个 Action：{@code IDCardOCR}（{@code CardSide=FRONT} / {@code BACK}）与 {@code BankCardOCR}。
  * 厂商报文的映射（有效期转换、行名剥联行号、是否我行卡推断、电子卡截图拒收、告警分级）全在
  * {@link TencentOcrResultMapper}，这里只负责「把图片送出去、把结果收回来」。
  *
- * <p><b>降级路径只有一条</b>：未配置密钥、网络 / 超时、厂商报错（含额度耗尽）都返回**空结果**，
- * 向导退化为手工录入、不阻断建档（ADR 0037）。绝不把异常抛给向导。
+ * <p><b>供应商运行期判定（#103）</b>：它不再在启动期靠 {@code @ConditionalOnProperty} 二选一，
+ * 而是每次调用时向 {@link CardRecognitionConfigService#resolveEffectiveConfig()} 取一份生效参数
+ * （DB 有值用 DB、DB 为空回落 yaml / env）。这就是「后台改完保存即生效、无需重启」的落点。
  *
- * <p>与 {@link cn.iocoder.yudao.module.icbc.service.cardrecognition.StubCardRecognition} 二选一：
- * 由 {@code icbc.card-recognition.mode} 决定，{@code stub} 带 {@code matchIfMissing = true}
- * （未配置即 stub，本地 / 未接厂商时照常能跑）。
+ * <p><b>降级路径只有一条</b>：{@code provider=stub}（未启用）、未配置密钥、网络 / 超时、厂商报错
+ * （含额度耗尽）都返回**空结果**，向导退化为手工录入、不阻断建档（ADR 0037 的安静降级）。
+ * 绝不把异常抛给向导。
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "icbc.card-recognition", name = "mode", havingValue = "tencent")
 public class TencentCardRecognition implements CardRecognitionPort {
 
     /**
@@ -45,18 +45,17 @@ public class TencentCardRecognition implements CardRecognitionPort {
                     + "\"DetectPsWarn\":true,\"TempIdWarn\":true,\"ReflectWarn\":true,"
                     + "\"InvalidDateWarn\":true,\"Quality\":true}";
 
-    private final TencentCardRecognitionProperties properties;
+    private final CardRecognitionConfigService configService;
     private final TencentOcrClient client;
-    /** 未配置密钥只提示一次，避免每次拍照都刷日志 */
+    /** provider=tencent 却没配密钥时只提示一次，避免每次拍照都刷日志 */
     private final AtomicBoolean missingConfigLogged = new AtomicBoolean();
 
     /**
-     * 构造注入（#93 独立评审 ST-2）：HTTP 客户端是 Spring Bean，测试可换成假的，
-     * 「厂商报错也走同一条降级路径」因此能被钉住。
+     * 构造注入：HTTP 客户端是 Spring Bean，测试可换成假的，「厂商报错也走同一条降级路径」因此能被钉住。
      */
     @Autowired
-    public TencentCardRecognition(TencentCardRecognitionProperties properties, TencentOcrClient client) {
-        this.properties = properties;
+    public TencentCardRecognition(CardRecognitionConfigService configService, TencentOcrClient client) {
+        this.configService = configService;
         this.client = client;
     }
 
@@ -92,28 +91,34 @@ public class TencentCardRecognition implements CardRecognitionPort {
     }
 
     private <T> T mapOrEmpty(String action, JSONObject payload, Function<JSONObject, T> mapper, T empty) {
-        if (!configured()) {
+        CardRecognitionEffectiveConfig effective;
+        try {
+            effective = configService.resolveEffectiveConfig();
+        } catch (RuntimeException e) {
+            // #103 起每次识别都读一次库：配置读不出来（表未迁移 / DB 抖动）也必须安静降级，
+            // 不能把收货员卡在识别上——ADR 0037 的「不阻断建档」是硬承诺。
+            log.warn("[mapOrEmpty][读取卡证识别配置失败，识别返回空结果，不阻断建档：error={}]", e.getMessage());
+            return empty;
+        }
+        if (!effective.isTencent()) {
+            // 未启用（stub）是有意的配置：安静降级，不刷日志、不触网
+            return empty;
+        }
+        if (!effective.hasCredentials()) {
+            if (missingConfigLogged.compareAndSet(false, true)) {
+                log.warn("[mapOrEmpty][腾讯云卡证识别选的是 tencent 但未配密钥（后台「平台运营 / 卡证识别」"
+                        + "或 icbc.card-recognition.secret-id/secret-key），识别一律返回空结果，向导退化为手工录入]");
+            }
             return empty;
         }
         try {
-            JSONObject response = client.call(action, payload);
+            JSONObject response = client.call(effective.toOcrSettings(), action, payload);
             return response == null ? empty : mapper.apply(response);
         } catch (RuntimeException e) {
             // 映射层出意外也算识别失败：手工录入那条路必须始终能走
             log.warn("[mapOrEmpty][腾讯云 OCR 结果处理失败：action={}, error={}]", action, e.getMessage());
             return empty;
         }
-    }
-
-    private boolean configured() {
-        if (StrUtil.isNotBlank(properties.getSecretId()) && StrUtil.isNotBlank(properties.getSecretKey())) {
-            return true;
-        }
-        if (missingConfigLogged.compareAndSet(false, true)) {
-            log.warn("[configured][腾讯云卡证识别未配置密钥（icbc.card-recognition.secret-id/secret-key），"
-                    + "识别一律返回空结果，向导退化为手工录入]");
-        }
-        return false;
     }
 
     /**
