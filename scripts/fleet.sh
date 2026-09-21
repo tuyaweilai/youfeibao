@@ -317,7 +317,7 @@ $(echo "$hit" | sed 's/^/    /')" | tee -a "$report" >&2; pass=0
     pass=0
   fi
 
-  local exitline; exitline=$(grep -o 'PI_EXIT=[0-9]*' "$FLEET/logs/$n.log" 2>/dev/null | tail -1)
+  local exitline; exitline=$(grep -o 'PI_EXIT=[0-9]*' "$(state_field "$n" 8)" 2>/dev/null | tail -1)
   [ -n "$exitline" ] && echo "- $exitline" >> "$report"
 
   if [ $pass = 1 ]; then ok "#$n 过闸（${summary}）"; return 0; else echo "✗ #$n 没过闸，详见 $report" >&2; return 1; fi
@@ -338,7 +338,7 @@ cmd_integrate() {
     ok "#$n 已合并（$commits 个提交）"
   else
     git -C "$ROOT" merge --abort 2>/dev/null
-    state_set "$n" conflict "$branch" "$wt" "" "$(state_field "$n" 6)" "$(state_field "$n" 7)" "$FLEET/logs/$n.log"
+    state_set "$n" conflict "$branch" "$wt" "" "$(state_field "$n" 6)" "$(state_field "$n" 7)" "$(state_field "$n" 8)"
     gh issue edit "$n" --add-label ready-for-human >/dev/null 2>&1
     gh issue comment "$n" --body "自动舰队：合并 \`$branch\` 到 main 时**撞了冲突**，已 abort，没有硬合。冲突文件见 \`$FLEET/logs/$n.merge.log\`。分支留在本地，请人工按 \`/resolving-merge-conflicts\` 的方式按意图解。" >/dev/null 2>&1
     die "#$n 合并冲突，已 abort 并标 ready-for-human（分支保留）"
@@ -348,22 +348,27 @@ cmd_integrate() {
   local merged_sha; merged_sha=$(git -C "$ROOT" rev-parse --short HEAD)
   local files; files=$(git -C "$ROOT" diff --name-only "HEAD^1..HEAD" | wc -l | tr -d ' ')
 
+  # 日志路径按 state 里记的来：收养的票日志在仓库外（/tmp），写死 $FLEET/logs/$n.log 会找不到
+  local log; log=$(state_field "$n" 8)
+  local review_note=""
+  if [ -f "$FLEET/gates/$n.review.md" ]; then
+    review_note="
+- 独立评审：$(grep -o 'REVIEW_VERDICT: [A-Z]*' "$FLEET/gates/$n.review.md" | tail -1 | awk '{print $2}')（报告 \`.fleet/gates/$n.review.md\`）"
+  fi
+
+  # 只记一行「合并记录」：实现细节由这张票自己的 handoff 段写（agent 写的），
+  # 驱动再凭空追加一整节会变成两段同标题的重复。
   {
     echo
-    echo "## #$n ${title}（已合并）"
+    echo "### 合并记录：#$n（自动舰队）"
     echo
-    echo "- 分支 \`$branch\`，合并提交 \`$merged_sha\`，$files 个文件，$commits 个提交"
-    echo "- 全量测试：$summary"
-    echo "- 闸门报告：\`$FLEET/gates/$n.md\`，派工书：\`$FLEET/prompts/$n.md\`，运行日志：\`$FLEET/logs/$n.log\`"
-    echo
-    echo "\`\`\`"
-    tail -25 "$FLEET/logs/$n.log" | sed -n '/改了什么\|^## \|^- /p' | head -20
-    echo "\`\`\`"
+    echo "- 分支 \`$branch\` → \`$merged_sha\`：$files 个文件、$commits 个提交${review_note}"
+    echo "- 闸门：全量 icbc \`$summary\`；报告 \`.fleet/gates/$n.md\`，运行日志 \`$log\`（\`.fleet/\` 与收养票的仓库外日志不入库）"
   } >> "$ROOT/docs/agents/handoff.md"
 
   git -C "$ROOT" add docs/agents/handoff.md
   git -C "$ROOT" commit -q -m "docs(handoff): #$n 记录（自动舰队）"
-  state_set "$n" merged "$branch" "$wt" "" "$(state_field "$n" 6)" "$(state_field "$n" 7)" "$FLEET/logs/$n.log"
+  state_set "$n" merged "$branch" "$wt" "" "$(state_field "$n" 6)" "$(state_field "$n" 7)" "$log"
   [ -n "$wt" ] && [ -d "$wt" ] && git -C "$ROOT" worktree remove --force "$wt" >/dev/null 2>&1
   [ "$PUSH" = 1 ] && {
     if git -C "$ROOT" push origin main > "$FLEET/logs/push.log" 2>&1; then
@@ -374,13 +379,16 @@ cmd_integrate() {
     fi
   }
 
+  local log; log=$(state_field "$n" 8)
+  local tail_report; tail_report=$(sed -n '/验收清单/,$p' "$log" 2>/dev/null | head -20)
   gh issue comment "$n" --body "自动舰队已合并到 main：
 - 合并提交 \`$merged_sha\`（$commits 个提交，$files 个文件）
-- 全量测试：$summary
-- 闸门报告 \`.fleet/gates/$n.md\`；派工书与运行日志在 \`.fleet/\`（不入库）
+- 闸门：全量 icbc \`$summary\`
+- 报告：\`.fleet/gates/$n.md\`、复审 \`.fleet/gates/$n.review.md\`（\`.fleet/\` 不入库）
 
-**下面这些是机器验不了、留给人验收的**：
-$(sed -n '/验收清单/,$p' "$FLEET/logs/$n.log" | head -20)" >/dev/null 2>&1
+**机器验不了、留给人验收的**（agent 报告里的那一段）：
+
+${tail_report:-（报告里没有这一节，请翻 $log）}" >/dev/null 2>&1
   gh issue close "$n" --comment "代码与验收已核，关闭。" >/dev/null 2>&1
   ok "#$n 已关票"
 }
@@ -462,7 +470,7 @@ EOF
 park() { # <票> <状态> <给议题的说明>
   local n=$1 st=$2 why=$3
   state_set "$n" "$st" "$(state_field "$n" 3)" "$(state_field "$n" 4)" "" \
-            "$(state_field "$n" 6)" "$(state_field "$n" 7)" "$FLEET/logs/$n.log"
+            "$(state_field "$n" 6)" "$(state_field "$n" 7)" "$(state_field "$n" 8)"
   gh issue edit "$n" --add-label ready-for-human >/dev/null 2>&1
   gh issue comment "$n" --body "$why" >/dev/null 2>&1
   info "#$n 停下等人（不自动重试）"
