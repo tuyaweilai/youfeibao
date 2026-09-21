@@ -2496,3 +2496,28 @@ cardNumber / drawerCardNumber / payerAcctNum / taxPayerAccountNo / address / sel
 - 分支 `i98-access-log-pii` → `8e57e22d`：7 个文件、1 个提交
 - 独立评审：PASS（报告 `.fleet/gates/98.review.md`）
 - 闸门：全量 icbc `[WARNING] Tests run: 898, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/98.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/98.log`（`.fleet/` 与收养票的仓库外日志不入库）
+
+### #99 测试建表与生产建表全对齐（唯一键）
+
+`#97` 的比对测试只钉「租户级唯一键」（列集合含 `tenant_id`），并留了 2 条白名单（`icbc_invoice_order` / `icbc_payment_order`）。**留白名单等于下一个同类差异只需再加一行**，而 `#97` 的 bug 恰恰是靠白名单以外的一处不一致藏了很久。本票把比对范围扩到**两份脚本里都存在的全部 `icbc_*` 表的全部唯一键**，并把白名单清空。
+
+对齐方向一律是**测试建表向生产看齐**，没有为了迁就测试改松生产 schema：
+
+| 表 | 测试建表改动 | 方向 |
+|---|---|---|
+| `icbc_payee_info` | 补全局 `uk_payee_no (payee_no)`、`uk_partner_payee_id (partner_payee_id)` | 测试更松 → 收紧 |
+| `icbc_invoice_order` | 全局 `uk_partner_order_id` 的 `(tenant_id, partner_order_id)` → `(partner_order_id)` | 测试更松 → 收紧 |
+| `icbc_payment_order` | `(partner_order_id)` / `(order_no)` → `(partner_order_id, deleted, tenant_id)` / `(order_no, deleted, tenant_id)` | 测试更严 → 放开 |
+| `icbc_api_log` | 补全局唯一 `(msg_id)`（原为非唯一索引） | 新发现，测试更松 |
+| `icbc_invoice_download` | 补全局唯一 `(partner_order_id, deleted)` | 新发现，测试更松 |
+| `icbc_invoice_file` | 补全局唯一 `(download_id, file_type, deleted)` | 新发现，测试更松 |
+
+**改到的测试数据（对齐后红了才改，均按生产真实形状）**：
+
+1. `IcbcTenantIsolationTest#newPayee`：原来 `payeeNo` / `partnerPayeeId` 由手机号派生，于是「同一自然人跨租户」的用例会插出两条**相同的**全局编号——生产不会出现（`generatePartnerPayeeId()` 是 `PAYEE_<毫秒>_<UUID8>`、`payee_no` 由工行返回）。改成每次调用各生成一份。影响 `testPayeeSameNaturalPersonCanExistInTwoTenants` / `testIdentityConflictList*`。
+2. `PayeeInfoServiceImplTest#testGetPayeeInfoPage`：`cloneIgnoreId` 会把原行的 `partner_payee_id` / `payee_no` 一起复制，5 条克隆撞全局键；逐个换成不同编号。
+3. `NaturalPersonQuotaServiceImplTest#insertPayee`、`TaxDeclarationServiceImplTest#insertPayee`：同样由手机号派生编号，同一自然人跨租户撞键；改成每个档案各自生成。
+
+**明确没动**：`icbc_payer_info` 的四个全局键（`uk_payer_no` / `uk_partner_payer_id` / `uk_credit_code` / `uk_tax_no`）属 #100 的领域决定，比对测试用 `KEY_DECISION_PENDING` 把这张表整体排除（自清理：若哪天两侧一致，测试会要求删掉这条排除）。
+
+`icbc_payment_order` 那处方向相反（测试更严 → 放开）：全量 896 条跑完没有任何用例依赖「全局唯一」，确认无回归。

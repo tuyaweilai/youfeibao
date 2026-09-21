@@ -68,6 +68,7 @@ import javax.annotation.Resource;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
@@ -482,8 +483,12 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
 
     private static PayeeInfoDO newPayee(String name, String idCardNo, String mobile) {
         PayeeInfoDO payee = new PayeeInfoDO();
-        payee.setPayeeNo("PAYEE_" + mobile);
-        payee.setPartnerPayeeId("PARTNER_" + mobile);
+        // 生产真实形状：partner_payee_id 由 generatePartnerPayeeId() 生成（PAYEE_<毫秒>_<UUID8>）、
+        // payee_no 由工行返回。同一自然人在两家企业各建一份档案时，两边编号各自生成、不会相同；
+        // 用手机号派生编号会让「同一人跨租户」的用例插出生产上不存在的重复键（#99）。
+        String unique = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        payee.setPartnerPayeeId("PAYEE_" + System.currentTimeMillis() + "_" + unique);
+        payee.setPayeeNo("PAYEE_NO_" + unique);
         payee.setName(name);
         payee.setIdCardNo(idCardNo);
         payee.setMobile(mobile);

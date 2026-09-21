@@ -172,33 +172,45 @@ public class PayeeInfoServiceImplTest extends BaseDbUnitTest {
             o.setBusinessType("RECYCLE");
         });
         payeeInfoMapper.insert(dbPayeeInfo);
+        // partner_payee_id / payee_no 是全局唯一键（生产形状：每个档案各自生成，#99）。
+        // cloneIgnoreId 会把原行的这两个编号一并复制，必须逐个换掉，否则第二行就撞生产上会撞的键。
         // 测试 name 不匹配
         payeeInfoMapper.insert(cloneIgnoreId(dbPayeeInfo, o -> {
             o.setName("李四");
             o.setIdCardNo("110101199001011241");
             o.setMobile("13800138007");
+            o.setPartnerPayeeId("PARTNER_CLONE_1");
+            o.setPayeeNo("PAYEE_NO_CLONE_1");
         }));
         // 测试 idCardNo 不匹配
         payeeInfoMapper.insert(cloneIgnoreId(dbPayeeInfo, o -> {
             o.setIdCardNo("110101199001011242");
             o.setMobile("13800138008");
+            o.setPartnerPayeeId("PARTNER_CLONE_2");
+            o.setPayeeNo("PAYEE_NO_CLONE_2");
         }));
         // 测试 mobile 不匹配
         payeeInfoMapper.insert(cloneIgnoreId(dbPayeeInfo, o -> {
             o.setIdCardNo("110101199001011243");
             o.setMobile("13800138009");
+            o.setPartnerPayeeId("PARTNER_CLONE_3");
+            o.setPayeeNo("PAYEE_NO_CLONE_3");
         }));
         // 测试 status 不匹配
         payeeInfoMapper.insert(cloneIgnoreId(dbPayeeInfo, o -> {
             o.setIdCardNo("110101199001011244");
             o.setMobile("13800138010");
             o.setStatus(IcbcStatusEnum.AuditStatus.PENDING.getStatus());
+            o.setPartnerPayeeId("PARTNER_CLONE_4");
+            o.setPayeeNo("PAYEE_NO_CLONE_4");
         }));
         // 测试 businessType 不匹配
         payeeInfoMapper.insert(cloneIgnoreId(dbPayeeInfo, o -> {
             o.setIdCardNo("110101199001011245");
             o.setMobile("13800138011");
             o.setBusinessType("OTHER");
+            o.setPartnerPayeeId("PARTNER_CLONE_5");
+            o.setPayeeNo("PAYEE_NO_CLONE_5");
         }));
         // 准备参数
         PayeeInfoPageReqVO reqVO = new PayeeInfoPageReqVO();
