@@ -23,31 +23,11 @@
 
       <view class="card">
         <view class="card__title">建档</view>
-        <view class="field">
-          <text class="field__label">姓名</text>
-          <input v-model="newSeller.name" class="input" placeholder="与身份证一致" />
-        </view>
-        <view class="field">
-          <text class="field__label">身份证号</text>
-          <input v-model="newSeller.idCardNo" class="input" placeholder="身份证号" />
-        </view>
-        <view class="field">
-          <text class="field__label">手机号</text>
-          <input v-model="newSeller.mobile" class="input" placeholder="手机号" />
-        </view>
-        <view class="field">
-          <text class="field__label">银行卡号（本人）</text>
-          <input v-model="newSeller.bankCardNo" class="input" type="number" placeholder="出售者本人银行卡" />
-        </view>
-        <view class="field">
-          <text class="field__label">地址</text>
-          <input v-model="newSeller.address" class="input" placeholder="常住地址" />
-        </view>
-        <button class="btn btn--primary" :loading="creating" @click="onCreateSeller">建档并交给本人实名</button>
         <view class="tip">
-          建档后把二维码或链接交给本人：实名由他本人在微信里做，收方入驻随后自动完成，
-          现场不需要再点任何手续。
+          用五步向导建档：拍身份证正反面与银行卡 → 识别 → 确认 → 落库 → 纸质协议。
+          识别不出时手工录入也能走完；未开通电子签章时协议落纸质签法。
         </view>
+        <button class="btn btn--primary" @click="startWizard">开始建档向导</button>
       </view>
     </template>
 
@@ -126,20 +106,18 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import QRCode from 'qrcode'
-import { createPayee, findReturningCustomer, PayeeVO } from '@/api/payee'
-import { createPublicToken } from '@/api/publicToken'
-import { isRealNamePassed, useSellerOnboarding } from '@youfeibao/field-shared'
-import { SELLER_APP_URL } from '@/config/env'
+import { findReturningCustomer, PayeeVO } from '@/api/payee'
+import { isRealNamePassed, useHandoffLink, useSellerOnboarding } from '@youfeibao/field-shared'
+import { clearWizardDraft } from '@/utils/wizardDraft'
 
 /**
- * 现场端「自然人建档」（#88）：**只登记与转达，不做实名**。
+ * 现场端「自然人建档」（#88 只登记与转达，#91 换上五步向导）。
  *
- * 建档后显示「待本人实名」+ 二维码 / 可复制链接 + **只读**的准入进度；
- * 实名只能本人做（工行活体，我们替代不了），他做完之后收方入驻由平台自动发起（#85）。
- * 因此这一页**没有**「发起实名认证 / 查询结果 / 发起收方入驻」这类按钮——
- * 谁来做、什么时候做，都由本人决定，现场只负责把入口交给他。
+ * 建档改走五步向导（`pages/payee/wizard`）：拍身份证正反面与银行卡 → 识别 → 确认 → 落库 →
+ * 纸质协议。这一页仍做两件事：回头客带档，以及建档后的**只读准入进度** +
+ * 二维码 / 可复制链接（实名只能本人做，现场只负责把入口交给他）。
  *
  * 四步的接口与状态走共享 composable（同一份也在司机端用，见 packages/field-shared/README.md）。
  */
@@ -150,22 +128,18 @@ const payeeName = ref('')
 const looking = ref(false)
 const lookedUp = ref(false)
 const foundSeller = ref<PayeeVO | null>(null)
-const creating = ref(false)
-const issuing = ref(false)
-/** 「交给本人」的入口：令牌、链接、二维码与有效期一起生成、一起清空 */
-const handoff = reactive({ token: '', link: '', qr: '', expiresText: '' })
 
 const lookup = reactive({ idCardNo: '', mobile: '' })
-const newSeller = reactive({ name: '', idCardNo: '', mobile: '', bankCardNo: '', address: '' })
-
-/** 工行收方账号：16-19 位数字（与后端 PayeeInfoSaveReqVO 同一条规则） */
-const BANK_CARD_RE = /^\d{16,19}$/
-/** 工行住址规则：不少于 4 个汉字，或不少于 7 个字符 */
-const ADDRESS_MIN_CHINESE = 4
-const ADDRESS_MIN_CHARS = 7
 
 // 只读准入进度：composable 在 payeeId 变化时自动拉取（watch immediate）
 const { overview, load, tips } = useSellerOnboarding(() => payeeId.value)
+
+// 「交给本人」的入口：令牌 / 链接 / 二维码 / 有效期一起生成、一起清空（#91 复审 ST-B 收进共享包）
+const { issuing, handoff, issueLink, copyLink, resetHandoff } = useHandoffLink(
+  () => payeeId.value,
+  renderQr,
+  tips
+)
 
 /** 实名未通过（含未认证 / 认证中 / 未通过）就算「待本人实名」；进度未加载完不下结论 */
 const awaitingRealName = computed(() => !!overview.value && !isRealNamePassed(overview.value.realNameStatus))
@@ -176,6 +150,18 @@ onShow(() => {
     load()
   }
 })
+
+/** 向导走完跳回来时带上 payeeId：直接进只读进度并准备好「交给本人」的入口 */
+onLoad((query) => {
+  const id = Number(query?.payeeId || 0)
+  if (id) {
+    openOnboarding(id)
+  }
+})
+
+function startWizard() {
+  uni.navigateTo({ url: '/pages/payee/wizard' })
+}
 
 async function onLookup() {
   if (!lookup.idCardNo && !lookup.mobile) {
@@ -199,47 +185,6 @@ async function onLookup() {
   }
 }
 
-async function onCreateSeller() {
-  const invalid = validateNewSeller()
-  if (invalid) {
-    uni.showModal({ title: '还差一点', content: invalid, showCancel: false })
-    return
-  }
-  creating.value = true
-  try {
-    const id = await createPayee({ ...newSeller, businessType: 'RECYCLE' })
-    await openOnboarding(id, newSeller.name)
-  } catch (e) {
-    tips((e as Error).message || '建档失败')
-  } finally {
-    creating.value = false
-  }
-}
-
-/**
- * 建档前的现场校验：拦下「现场能填进去、工行不收」的值（#84）。
- *
- * 银行卡与住址都是工行收方入驻的必输 / 有格式要求的字段，到了工行才被驳回就晚了：
- * 现场要当场说清缺什么。返回空字符串表示通过。
- */
-function validateNewSeller(): string {
-  if (!newSeller.name || !newSeller.idCardNo || !newSeller.mobile) {
-    return '姓名、身份证号与手机号必填'
-  }
-  if (!newSeller.bankCardNo) {
-    return '请填出售者本人的银行卡号（收方入驻要用）'
-  }
-  if (!BANK_CARD_RE.test(newSeller.bankCardNo)) {
-    return '银行卡号应为 16-19 位数字，请核对后重填'
-  }
-  const address = (newSeller.address || '').trim()
-  const chineseCount = (address.match(/[\u4e00-\u9fa5]/g) || []).length
-  if (chineseCount < ADDRESS_MIN_CHINESE && address.length < ADDRESS_MIN_CHARS) {
-    return `住址至少 ${ADDRESS_MIN_CHINESE} 个汉字（或不少于 ${ADDRESS_MIN_CHARS} 个字符），工行才收`
-  }
-  return ''
-}
-
 /** 进入某位出售者：拉一次只读进度，并立刻把「交给本人」的入口准备好 */
 async function openOnboarding(id: number, name?: string) {
   payeeId.value = id
@@ -253,30 +198,8 @@ async function refresh() {
 }
 
 /**
- * 签发一枚 ONBOARDING 一次性令牌，拼出本人要打开的执行链接。
- *
- * 链接是「再次展示」的核心：出售者当时没做，回头还能从这里再拿一次（令牌 24 小时内有效）。
+ * 把链接渲染成二维码（`qrcode` 是宿主依赖，不引到共享包，见 `useHandoffLink` 的注释）。
  */
-async function issueLink() {
-  if (!payeeId.value) {
-    return
-  }
-  issuing.value = true
-  try {
-    const resp = await createPublicToken({ purpose: 'ONBOARDING', payeeId: payeeId.value })
-    handoff.token = resp.token || ''
-    handoff.link = handoff.token && SELLER_APP_URL
-      ? `${SELLER_APP_URL.replace(/\/$/, '')}/#/?token=${encodeURIComponent(handoff.token)}&purpose=ONBOARDING`
-      : ''
-    handoff.expiresText = resp.expiresTime ? `链接 24 小时内有效，至 ${formatTime(resp.expiresTime)}` : ''
-    handoff.qr = await renderQr(handoff.link)
-  } catch (e) {
-    tips((e as Error).message || '生成链接失败')
-  } finally {
-    issuing.value = false
-  }
-}
-
 async function renderQr(text: string) {
   if (!text) {
     return ''
@@ -288,32 +211,16 @@ async function renderQr(text: string) {
   }
 }
 
-function copyLink() {
-  const text = handoff.link || handoff.token
-  if (!text) {
-    return
-  }
-  uni.setClipboardData({
-    data: text,
-    success: () => tips('已复制，请交给出售者本人打开')
-  })
-}
-
 function backToSeller() {
+  // 「换一位出售者」：把上一位未完成的向导草稿一并清干净，下一位不会看到他/她的照片与字段（#91 评审 SP-5）
+  clearWizardDraft()
   payeeId.value = undefined
   payeeName.value = ''
   foundSeller.value = null
   lookedUp.value = false
-  handoff.token = ''
-  handoff.link = ''
-  handoff.qr = ''
-  handoff.expiresText = ''
+  resetHandoff()
   lookup.idCardNo = ''
   lookup.mobile = ''
-}
-
-function formatTime(ts?: number) {
-  return ts ? new Date(ts).toLocaleString() : ''
 }
 </script>
 

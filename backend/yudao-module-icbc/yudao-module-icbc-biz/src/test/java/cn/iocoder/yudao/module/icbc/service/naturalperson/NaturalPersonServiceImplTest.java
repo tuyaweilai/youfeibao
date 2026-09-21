@@ -67,6 +67,44 @@ public class NaturalPersonServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testRegister_keepsIdValidityOnCreate() {
+        NaturalPersonRegisterReqVO reqVO = registerReq("张三", ID_CARD, MOBILE);
+        reqVO.setIdSignDate("2020-01-01");
+        reqVO.setIdValidityPeriod("9999-12-30");
+
+        IcbcNaturalPersonDO person = naturalPersonService.register(reqVO);
+
+        // 证件有效期是平台级身份字段，由自然人主体持有（#81 决策 5、CONTEXT）
+        assertEquals("2020-01-01", person.getIdSignDate());
+        assertEquals("9999-12-30", person.getIdValidityPeriod());
+    }
+
+    @Test
+    public void testRegister_backfillsIdValidityOnlyWhenBlank() {
+        // 第一次登记没带证件有效期（#91 之前的身份登记只有姓名 / 证件号 / 手机号）
+        IcbcNaturalPersonDO first = naturalPersonService.register(registerReq("张三", ID_CARD, MOBILE));
+        assertNull(first.getIdSignDate());
+        assertNull(first.getIdValidityPeriod());
+
+        // 第二次带上：空缺处回填（#91 评审 SP-1）
+        NaturalPersonRegisterReqVO withDates = registerReq("张三", ID_CARD, MOBILE);
+        withDates.setIdSignDate("2020-01-01");
+        withDates.setIdValidityPeriod("2030-01-01");
+        IcbcNaturalPersonDO filled = naturalPersonService.register(withDates);
+        assertEquals(first.getId(), filled.getId());
+        assertEquals("2020-01-01", naturalPersonService.getNaturalPerson(first.getId()).getIdSignDate());
+        assertEquals("2030-01-01", naturalPersonService.getNaturalPerson(first.getId()).getIdValidityPeriod());
+
+        // 第三次带不同的：已填的值不被覆盖（与 reuse 那条「不覆盖」同一精神）
+        NaturalPersonRegisterReqVO other = registerReq("张三", ID_CARD, MOBILE);
+        other.setIdSignDate("2015-05-05");
+        other.setIdValidityPeriod("2035-05-05");
+        naturalPersonService.register(other);
+        assertEquals("2020-01-01", naturalPersonService.getNaturalPerson(first.getId()).getIdSignDate());
+        assertEquals("2030-01-01", naturalPersonService.getNaturalPerson(first.getId()).getIdValidityPeriod());
+    }
+
+    @Test
     public void testRegister_differentMobileIsRejectedNotMerged() {
         naturalPersonService.register(registerReq("张三", ID_CARD, MOBILE));
 

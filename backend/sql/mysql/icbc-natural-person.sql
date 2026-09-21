@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS `icbc_natural_person` (
   `name` varchar(100) DEFAULT NULL COMMENT '身份登记姓名（最近一次）',
   `id_card_no` varchar(32) NOT NULL COMMENT '身份证件号码：身份的唯一锚点',
   `mobile` varchar(32) DEFAULT NULL COMMENT '身份登记手机号（最近一次，不等于登录凭证）',
+  `id_sign_date` varchar(10) DEFAULT NULL COMMENT '证件签发日期 yyyy-MM-dd（平台级身份字段，跨企业复用，#91）',
+  `id_validity_period` varchar(10) DEFAULT NULL COMMENT '证件截止日期 yyyy-MM-dd，永久有效传 9999-12-30（同上）',
   `real_name_status` tinyint DEFAULT '0' COMMENT '实人认证状态：0-未认证，1-认证中，2-认证通过，3-认证未通过',
   `real_name_msg` varchar(500) DEFAULT NULL COMMENT '实人认证失败原因',
   `real_name_time` datetime DEFAULT NULL COMMENT '实人认证通过时间',

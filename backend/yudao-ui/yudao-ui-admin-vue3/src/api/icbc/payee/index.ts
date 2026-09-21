@@ -12,6 +12,9 @@ export interface PayeeVO {
   bankName?: string // 开户银行
   bankBranch?: string // 开户支行
   address?: string // 地址
+  idSignDate?: string // 证件签发日期 yyyy-MM-dd
+  idValidityPeriod?: string // 证件截止日期 yyyy-MM-dd，永久有效填 9999-12-30
+  accountCode?: string // 是否我行用户：0-非我行用户，1-我行用户
   status?: number // 审核状态：0-待审核，1-审核通过，2-审核拒绝
   auditMsg?: string // 审核信息
   businessType?: string // 业务类型

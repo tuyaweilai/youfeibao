@@ -54,6 +54,17 @@ public class PayeeInfoSaveReqVOValidationTest {
     }
 
     @Test
+    public void testOptionalFields_clearedToBlankStillPass() {
+        // element-plus 清空 el-select / 文本框会传空串，空串代表「没填」；
+        // 不能因为格式校验让整单保存被拒（#91 复审 ST-E）
+        PayeeInfoSaveReqVO vo = baseValid();
+        vo.setIdSignDate("");
+        vo.setIdValidityPeriod("");
+        vo.setAccountCode("");
+        assertTrue(validator.validate(vo).isEmpty(), () -> validator.validate(vo).toString());
+    }
+
+    @Test
     public void testRequiredFieldsStillEnforced() {
         PayeeInfoSaveReqVO vo = baseValid();
         vo.setName(null);

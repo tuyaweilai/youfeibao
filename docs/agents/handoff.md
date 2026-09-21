@@ -2051,3 +2051,132 @@ member 令牌回 `code=401 账号未登录`。
 - **独立评审：PASS**（首轮 BLOCK：回调未登记 `yudao.tenant.ignore-urls`，会被 `TenantSecurityWebFilter` 以 400 拦在 Controller 之前——19 个单测照不见它）。报告 `.fleet/gates/92.review.md`
 - 闸门：全量 icbc `Tests run: 761, Failures: 0, Errors: 0, Skipped: 1`；报告 `.fleet/gates/92.md`，运行日志 `/tmp/i92.log`（收养票，日志在仓库外）
 - `.fleet/` 不入库
+
+## #91 建档向导（现场端壳）：拍证件与银行卡 → 识别 → 确认 → 落库，协议落纸质（已落地）
+
+五步向导把「废品堆前手抄」换成「拍一下、确认、落库」。后端只做两件事——**无状态识别**与
+**一次性落库**；分步状态只在现场端本地暂存，中途不落后端草稿表。
+
+1. **识别端口注入即用**：`OnboardingWizardServiceImpl` 注入 `CardRecognitionPort`（#91 前的
+   `db4c09f` 已落）与 `EsignPort`，**不新建、不改签名**。识别是「上传 + 识别」的无状态请求，
+   图片 base64 进来、结果返回，不留存、不进文件服务（ADR 0037）。
+2. **只在空缺处回填**：`pick(人工值, 识别值)` —— 人工非空就保持原样，只有空白才回填；
+   一经确认即以确认页的值提交（`OnboardingWizardSubmitReqVO`）。有 mock 端口的测试钉住
+   （`OnboardingWizardServiceImplTest`，8 例，不触网）。
+3. **落库口径**：姓名 / 证件号登记并关联平台级**自然人主体**（有则复用，复用测试用同一身份证
+   预先注册主体再提交断言同一 `naturalPersonId`）；证件签发 / 截止日期、卡号 / 开户行 / 住址 /
+   是否我行卡写进**收方档案**。`PayeeInfoSaveReqVO` / `PayeeAddReqVO` 补了这两个日期字段，
+   后台 `PayeeForm` 同步。
+4. **是否我行卡新落一列**：`icbc_payee_info.account_code`（迁移 `icbc-payee-account-code.sql`，
+   幂等；建表脚本 / 测试建表同步，README 导入顺序加 22m）。向导确认页定下来的值从此不是猜的：
+   `SellerOnboardingServiceImpl.submitOnboarding` 取「入参 → 档案 → 缺省 1」的顺序，
+   自动发起入驻时把档案上的值带过去。
+5. **协议落 PAPER**：`EsignPort.isAvailable` 是唯一判据，本票不调 `initiate` / `createSignUrl`
+   （合同组电子签署是 #95）；协议 `status=1` + `signMethod=PAPER`，向导照常走完并明确告知
+   「请打印纸质件请本人签字」。新增 `FrameworkAgreementSignMethodEnum`。
+6. **现场端**：新页 `pages/payee/wizard.vue`（五步：拍身份证正反面 → 确认身份 → 拍银行卡 →
+   确认卡信息 + 协议要素 → 签署结果），草稿与照片走 `utils/wizardDraft.ts` 本地暂存；
+   `pages/payee/index.vue` 的旧「手填建档」表单换成「开始建档向导」入口，向导走完带 `payeeId`
+   跳回只读进度页。走完给二维码与可复制链接（复用既有公开令牌机制，ADR 0023）。
+7. **错误码**：新增段 `1_030_040_xxx`（现有最大 039，与并行 #92 的 041 不冲突）。
+8. **测试**：ICBC 模块 **742 全绿**（`db4c09f` 的 734 + 本票 8）；现场端 `ts:check` 零错误、
+   `build:h5` 通过；司机端 `ts:check` 通过；PC `build:local` 通过。
+
+> **如实记下的缺口**：① **证件有效期只落在收方档案、没落在自然人主体** —— `icbc_natural_person`
+> 没有这两列，而本票边界明说「不要写迁移 SQL」，故未扩自然人主体；CONTEXT.md 说这两列应由主体持有，
+> 留给后续票收（要扩列时同步 `icbc-natural-person.sql` / 测试建表 / `clean.sql`）。
+> ② **前端压缩只靠 `chooseImage` 的 compressed 模式 + 10M 上限拦截**，没有显式 canvas 压缩；
+> 真机（尤其大图、反光）需冒烟。③ 卡证识别是 stub，有效期格式转换、行名推 `accountCode`、
+> 电子银行卡截图拒收都归 **#93**。
+
+**frontier**：#91 已解 → **#94（免注册链接壳）解锁**；**#93（腾讯卡证识别）** 挂 #91/#92、
+**#95（合同组电子签署）** 挂 #91 + #92。与 #92 的段位约定：错误码 `1_030_040_xxx`（本票）/
+`1_030_041_xxx`（#92）。
+
+## #91 修票：独立评审 BLOCK 后的补齐（追加一个提交，未改历史）
+
+评审给了 `REVIEW_VERDICT: BLOCK`（报告 `.fleet/gates/91.review.md`），根因是 **SP-1 证件有效期
+没落在自然人主体**。这一轮逐条对账后的结果：
+
+1. **SP-1（阻断项）已修**：`icbc_natural_person` 补 `id_sign_date` / `id_validity_period`
+   （`varchar(10)`，`yyyy-MM-dd`，长期 `9999-12-30`），语义与收方档案同名列一致。新迁移
+   `icbc-natural-person-id-validity.sql`（幂等 + 回填，README 导入顺序 22n + 一键导入循环），
+   建表脚本 `icbc-natural-person.sql` 与测试建表同步。`IcbcNaturalPersonDO` / `NaturalPersonRegisterReqVO`
+   各补两个字段；`NaturalPersonServiceImpl.register` **创建时写入、复用时只在空缺处回填**（不覆盖）；
+   `PayeeInfoServiceImpl.registerNaturalPerson` 四个调用点全部带上。
+2. **ST-1 已修**：`PayeeBankCardChangeServiceImpl.promoteCard` 把新卡的 `accountCode` 一并搬上档案
+   （空白时按发起 / 上送同一缺省 1 补齐），档案与「报给工行的结论」保持一致。
+3. **SP-3 已修**：向导第 1 步人像面 / 国徽面各自保留一份 `warnings / blockReasons`，放行时两边都看。
+4. **SP-5 部分已修**：草稿 key 与本次建档绑定（`…:<身份证号>`，未认出身份时 `pending`），
+   `saveWizardDraft` 同时清掉其余 key；建档结束 / 「换一位出售者」清干净；草稿带出时页面顶部有
+   「不是同一位？重新开始」；同一租户第二次建档改为可读错误码
+   `WIZARD_PAYEE_ALREADY_ARCHIVED`（`1_030_040_005`）。**完整「此人已有档案，去改那一份」分支没做**，
+   留给后续票。
+5. **SP-2 已修**：`accountCode` 草稿初值改为空（未确认），识别结果单独存 `accountCodeRecognized`，
+   提交时按「人工确认 → 识别结果 → 后端缺省」三级取；确认页的开关不再默认高亮。
+6. **T-1 / T-2 已修**：向导测试 `@Import(IcbcTenantTestConfiguration)` 真正打开多租户拦截器，
+   「第二家回收企业复用同一主体」现在真的跨租户跑；另补「端口全空 → 仍能 submit 且落库形状同形」
+   （与识别成功路径共用同一套断言）。测试数 742 → 749。
+7. **ST-3 已修**：`DEFAULT_ACCOUNT_CODE` 的两份字面量收敛成 `IcbcAccountCodeEnum`
+   （`-api`，0/1 + 缺省语义一处）；`PayeeAddReqVO` 与本票无关的 `@Schema` 文案改动已还原。
+8. **未修、留记录**：SP-4（协议建档即 `status=1` + `signedAt=now`，而第 5 步才让本人签字）——
+   #95 接合同组签署时这一处要一起动；ST-2（H5 把三张 base64 塞 localStorage 的配额问题）——
+   继承 `utils/draft.ts` 现状，ADR 0016 未落地，不修。
+
+> 上面「#91 建档向导」小节里「**如实记下的缺口** ①（证件有效期只落在收方档案、没落在自然人主体）」
+> 已被本次修票推翻，以本节为准；②③ 仍然成立。
+
+## #91 修票（第二轮）：复审 BLOCK 的证件影像落日志问题（追加提交，未改历史）
+
+第二轮独立评审仍是 `REVIEW_VERDICT: BLOCK`（报告 `.fleet/gates/91.review.md`），根因是
+**SP-A / ST-A 证件影像进了平台访问日志**。本轮逐条对账：
+
+1. **SP-A / ST-A（阻断项）已修**：`OnboardingWizardController` 的**四个带请求体的接口**
+   （三枚识别的 `imageBase64`、`submit` 的姓名 / 身份证号 / 手机号 / 住址 / 银行卡号）
+   各加 `@ApiAccessLog(requestEnable = false)`。平台的 `ApiAccessLogFilter` 默认记录所有
+   `/admin-api` 的 JSON 请求体（`requestEnable` 缺省 `true`，`yudao.access-log.enable=false`
+   只在 `application-local.yaml` 配过，dev / 生产默认开），`SANITIZE_KEYS` 又只脱敏
+   password / token——不关就会把每张图截 8000 字符写进 `infra_api_access_log.request_params`
+   （可查、可导出），与 ADR 0037 决策 5「图片识别完即弃」、本票验收「影像不落库」相抵。
+   新增反射式一致性测试 `OnboardingWizardAccessLogAnnotationTest` 钉住这条不变量
+   （带请求体的接口必须关请求体记录，且集合恰好是这四枚；注释会漂、注解不会）。
+2. **SP-C 已修**：`wizard.vue` 三枚拍照从「先 await 识别、成功才落图」改成「**先落图再识别**」，
+   识别失败只提示、照片不丢，收货员仍能回第 2 步手工录入；失败文案改为
+   「识别失败，照片已保留，可继续手工录入」。新照片落图时清掉上一张的告警 / 硬拦原因。
+3. **ST-E 已修**：`PayeeInfoSaveReqVO` 的 `idSignDate / idValidityPeriod / accountCode`
+   允许空串（`^$|...`）——element-plus 清空 `el-select` / 输入框会传 `''`，原来会让整单保存
+   被拒且提示看不懂。`PayeeInfoSaveReqVOValidationTest` 补一条断言。
+4. **ST-D 已修**：`FrameworkAgreementSignMethodEnum` 类注释改成与实现一致
+   （「#91 起一律 `PAPER`，可用性判据在 #95 接入时启用」），不再写「可用就 ENUM ELECTRONIC」。
+5. **ST-B 已修（部分收口）**：`issueLink / copyLink / handoff 状态` 收进
+   `packages/field-shared/src/composables/useHandoffLink.ts`，`pages/payee/index.vue` 与
+   `wizard.vue` 共用一份；向导里丢失的有效期插值（`链接 24 小时内有效` 后面没有时间）随收口
+   一并修好。**二维码渲染仍留在各端**：`qrcode` 是宿主依赖，`field-shared` 没有
+   `node_modules`，裸依赖不引到共享包（README 已记这个坑）。
+6. **ST-C 不再增加第五处**：本票已把旧 `pages/payee/index.vue` 的手填表单整体移除，那里的
+   一份规则随之消失；现场端只剩 `wizard.vue` 一份，后台 `PayeeForm.vue` 与后端 `@Pattern`
+   各一份。跨端（Java / admin-vue3 / field-uniapp）收成一处需要一个跨工程共享包，本票不做。
+7. **顺带补 `onUnload` 草稿回写**：`onHide` 只覆盖切后台，返回键 / 关页面走 `onUnload`，
+   不补这一下第 2、4 步刚手输的文字会随退出丢掉（验收「切走再回来已填的还在」只覆盖了 `onHide`）。
+   `finish` 用 `finished` 标记防止清掉的草稿被 `onUnload` 又存回来。
+8. **同类扫描结论**：
+   - `icbc_api_log`：`logApiStart / logApiSuccess / logApiFailure` 目前**没有调用方**
+     （全仓只有 service / controller 自身），不含任何 PII，本票无需动。
+   - `infra_api_access_log`：**本票新加的接口只有向导那四枚**，已全部关请求体记录；但
+     **平台既有的 `/admin-api` 接口普遍把 PII 放进请求体**（如 `POST /icbc/payee-info/create`
+     带身份证号 / 手机号 / 银行卡号，且未加 `@ApiAccessLog`），这是建平台以来就有的面，
+     本票不扩权逐个改；**建议单开一张「平台访问日志 PII 脱敏 / 关请求体」票统一处理**。
+   - 请求体 / 查询串 / 路径参数：向导四枚都是 POST body，无 query / path 变量，影像与 PII 不进 URL。
+   - 异常栈 / 日志：`icbc` 侧全量 grep `log.*`，命中带卡号的只有
+     `PayeeBankCardChangeServiceImpl` 的「旧卡尾号 → 新卡尾号」，已 `MaskUtils.cardTail` 脱敏；
+     向导侧无 PII 日志。
+
+> **仍未做，如实记**：① **提交超时后的重试**——`submit` 非幂等，弱网下服务端已落库但客户端超时，
+> 重提会撞 `WIZARD_PAYEE_ALREADY_ARCHIVED`，向导停在步骤 4 拿不到链接（可回首页用「回头客带档」
+> 找回，但不是向导内的闭环）；要闭环需给 `submit` 加幂等键，或「已有档案则返回既有档案」，留给后续票。
+> ② SP-B（生产唯一键不含 `tenant_id`）仍单开票；SP-D（建档即 `status=1` + `signedAt=now`）归 #95。
+> ③ 本票无 PC 后台改动，`PayeeForm.vue` 未动（ST-E 改在后端 VO）。
+
+> **测试数字**：ICBC 模块 **751 passed / 0 fail / 1 skipped**（上一轮 749；本票新增
+> `OnboardingWizardAccessLogAnnotationTest` 1 例 + `PayeeInfoSaveReqVOValidationTest` 1 例）。
+> 现场端 `ts:check` 零错误、`build:h5` 通过；司机端 `ts:check` 零错误、`build:h5` 通过。

@@ -73,6 +73,8 @@ public class NaturalPersonServiceImpl implements NaturalPersonService {
                 .name(reqVO.getName())
                 .idCardNo(reqVO.getIdCardNo())
                 .mobile(reqVO.getMobile())
+                .idSignDate(reqVO.getIdSignDate())
+                .idValidityPeriod(reqVO.getIdValidityPeriod())
                 .realNameStatus(PayeeRealNameStatusEnum.NOT_STARTED.getStatus())
                 .status(NaturalPersonStatusEnum.NORMAL.getStatus())
                 .build();
@@ -93,6 +95,10 @@ public class NaturalPersonServiceImpl implements NaturalPersonService {
      * 已有主体时的处置：一致则幂等返回，不一致则**拒绝**（不覆盖、不自动合并）。
      *
      * <p>这是 ADR 0017 的核心约束——自动合并等于让任何人用同一个身份证号接管他人的身份与收款。
+     *
+     * <p>证件签发 / 截止日期是这条约束的例外：它们不是身份锚点，只是身份字段的**补充**，
+     * 所以只在空缺处回填（已有值不覆盖）。这样一来第二家回收企业建档时，第一家填过的值不会被本次
+     * 向导里确认的值改写；反过来第一家没填、第二家填了，也补得进去。
      */
     private IcbcNaturalPersonDO reuse(IcbcNaturalPersonDO existing, NaturalPersonRegisterReqVO reqVO) {
         if (NaturalPersonStatusEnum.DISABLED.getStatus().equals(existing.getStatus())) {
@@ -101,6 +107,28 @@ public class NaturalPersonServiceImpl implements NaturalPersonService {
         if (conflicts(existing.getMobile(), reqVO.getMobile()) || conflicts(existing.getName(), reqVO.getName())) {
             throw exception(NATURAL_PERSON_IDENTITY_TAKEN);
         }
+        return backfillIdValidity(existing, reqVO);
+    }
+
+    /**
+     * 证件有效期只在空缺处回填：已有值不覆盖（与 {@link #reuse} 的「不覆盖」同一条理由）。
+     */
+    private IcbcNaturalPersonDO backfillIdValidity(IcbcNaturalPersonDO existing, NaturalPersonRegisterReqVO reqVO) {
+        String signDate = StrUtil.isNotBlank(existing.getIdSignDate())
+                ? existing.getIdSignDate() : StrUtil.trimToNull(reqVO.getIdSignDate());
+        String validityPeriod = StrUtil.isNotBlank(existing.getIdValidityPeriod())
+                ? existing.getIdValidityPeriod() : StrUtil.trimToNull(reqVO.getIdValidityPeriod());
+        if (Objects.equals(signDate, existing.getIdSignDate())
+                && Objects.equals(validityPeriod, existing.getIdValidityPeriod())) {
+            return existing; // 没有可回填的空缺：不写库
+        }
+        IcbcNaturalPersonDO update = new IcbcNaturalPersonDO();
+        update.setId(existing.getId());
+        update.setIdSignDate(signDate);
+        update.setIdValidityPeriod(validityPeriod);
+        naturalPersonMapper.updateById(update);
+        existing.setIdSignDate(signDate);
+        existing.setIdValidityPeriod(validityPeriod);
         return existing;
     }
 

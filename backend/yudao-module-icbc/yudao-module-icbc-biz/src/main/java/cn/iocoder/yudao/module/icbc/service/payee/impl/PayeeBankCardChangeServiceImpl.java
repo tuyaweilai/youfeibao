@@ -8,6 +8,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.IcbcPayeeBankCardChange
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeBankCardChangeMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
+import cn.iocoder.yudao.module.icbc.enums.IcbcAccountCodeEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeBankCardChangeStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOutcomeEnum;
@@ -156,6 +157,11 @@ public class PayeeBankCardChangeServiceImpl implements PayeeBankCardChangeServic
      *
      * <p>新卡的开户行 / 支行由自然人自己填，可能为空；工行回执不带这两个字段，所以空就空着——
      * 留着旧卡的开户行会变成一句我们无法核验的话（ADR 0021）。
+     *
+     * <p>「是否我行卡」是同一张卡的属性，必须与卡号一起搬：收方入驻发起时优先取档案上的值
+     * （{@code SellerOnboardingServiceImpl#submitOnboarding}），不同步的话档案里会留着**旧卡**的
+     * 结论，下次重发入驻就把旧结论报给工行，后台表单也显示一个假值（#91 评审 ST-1）。
+     * 为空时按发起侧与工行上送时的同一缺省（1-我行用户）补齐，保证档案与真实上送一致。
      */
     private void promoteCard(Long payeeId, IcbcPayeeBankCardChangeDO change, String result) {
         PayeeInfoDO update = new PayeeInfoDO();
@@ -165,6 +171,7 @@ public class PayeeBankCardChangeServiceImpl implements PayeeBankCardChangeServic
         update.setBankBranch(StrUtil.blankToDefault(change.getNewBankBranch(), null));
         update.setIdSignDate(StrUtil.blankToDefault(change.getIdSignDate(), null));
         update.setIdValidityPeriod(StrUtil.blankToDefault(change.getIdValidityPeriod(), null));
+        update.setAccountCode(StrUtil.blankToDefault(change.getAccountCode(), IcbcAccountCodeEnum.ICBC.getCode()));
         update.setAuditResult(StrUtil.blankToDefault(result, null));
         update.setOnboardingState(PayeeOnboardingOutcomeEnum.READY.getCode());
         update.setIcbcReceiverStatus("1");

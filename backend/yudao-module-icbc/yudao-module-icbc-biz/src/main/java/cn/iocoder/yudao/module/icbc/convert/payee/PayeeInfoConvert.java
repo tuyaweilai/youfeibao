@@ -40,6 +40,8 @@ public interface PayeeInfoConvert {
         payeeInfo.setMobile(reqVO.getMobile());
         payeeInfo.setBankCardNo(reqVO.getReceiverAccount());
         payeeInfo.setAddress(reqVO.getAddress());
+        payeeInfo.setIdSignDate(reqVO.getIdSignDate());
+        payeeInfo.setIdValidityPeriod(reqVO.getIdValidityPeriod());
         payeeInfo.setOccupation(reqVO.getOccupation());
         payeeInfo.setBusinessType("RECYCLE"); // 默认再生资源业务
         payeeInfo.setStatus(0); // 默认待审核状态

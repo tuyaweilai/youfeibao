@@ -34,6 +34,7 @@ CREATE TABLE `icbc_payee_info` (
   `onboarding_state` varchar(20) DEFAULT NULL COMMENT '收方入驻结果：READY/REJECTED/OPENACCT_FAILED/FAILED_AND_REJECTED',
   `id_sign_date` varchar(10) DEFAULT NULL COMMENT '证件签发日期 yyyy-MM-dd',
   `id_validity_period` varchar(10) DEFAULT NULL COMMENT '证件截止日期 yyyy-MM-dd，永久有效传 9999-12-30',
+  `account_code` varchar(2) DEFAULT NULL COMMENT '是否我行用户：0-非我行用户，1-我行用户（建档向导确认页定下来的值，#91）',
   `tenant_id` bigint unsigned NOT NULL DEFAULT '0' COMMENT '租户ID',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

@@ -508,6 +508,20 @@ public interface ErrorCodeConstants {
     ErrorCode REPORT_ANOMALY_TYPE_UNKNOWN = new ErrorCode(1_030_039_000,
             "未知的异常类型：{}（可选值见异常表口径，磅差 / 超采购量 / 超入库量 / 重复关联 / 长期未确认 / 资料缺失）");
 
+    // ========== 建档向导（#91：拍证件与银行卡 → 识别 → 确认 → 落库） 1-030-040-000 ==========
+    ErrorCode WIZARD_IMAGE_REQUIRED = new ErrorCode(1_030_040_000,
+            "证件或银行卡影像不能为空（识别要的是压缩后的图片本身，不落库）");
+    ErrorCode WIZARD_NAME_REQUIRED = new ErrorCode(1_030_040_001,
+            "姓名不能为空：识别不出时请手工录入");
+    ErrorCode WIZARD_ID_CARD_NO_REQUIRED = new ErrorCode(1_030_040_002,
+            "身份证号不能为空：识别不出时请手工录入");
+    ErrorCode WIZARD_MOBILE_REQUIRED = new ErrorCode(1_030_040_003,
+            "手机号不能为空：本人实名要靠它");
+    ErrorCode WIZARD_BANK_CARD_NO_REQUIRED = new ErrorCode(1_030_040_004,
+            "银行卡号不能为空：收方入驻要打到本人卡上");
+    ErrorCode WIZARD_PAYEE_ALREADY_ARCHIVED = new ErrorCode(1_030_040_005,
+            "此人在本企业已有收方档案（一张身份证在本企业只能建一份）：请到「收方档案」里找到他修改，或换一位出售者");
+
     // ========== 电子签章的平台级配置与租户开通（#92，ADR 0036 / 0037） 1_030_041_000 ==========
     ErrorCode ESIGN_CONFIG_NOT_EXISTS = new ErrorCode(1_030_041_000,
             "电子签章平台参数尚未配置，请先在平台运营配置环境、应用标识与密钥");

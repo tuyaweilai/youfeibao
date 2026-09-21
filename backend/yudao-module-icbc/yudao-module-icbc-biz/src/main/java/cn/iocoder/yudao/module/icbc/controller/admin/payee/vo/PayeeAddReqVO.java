@@ -46,4 +46,10 @@ public class PayeeAddReqVO {
     @Schema(description = "常用住址", example = "北京市朝阳区xxx街道")
     private String address;
 
+    @Schema(description = "证件签发日期 yyyy-MM-dd", example = "2020-01-01")
+    private String idSignDate;
+
+    @Schema(description = "证件截止日期 yyyy-MM-dd，永久有效传 9999-12-30", example = "2030-01-01")
+    private String idValidityPeriod;
+
 } 

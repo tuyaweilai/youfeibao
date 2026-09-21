@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.*;
 
+import javax.validation.constraints.Size;
 import java.time.LocalDateTime;
 
 /**
@@ -50,6 +51,26 @@ public class IcbcNaturalPersonDO extends BaseDO {
 
     /** 身份登记手机号（最近一次登记的快照，不等于登录凭证） */
     private String mobile;
+
+    // ==================== 证件有效期（平台级身份字段，跨企业复用） ====================
+
+    /**
+     * 证件签发日期 {@code yyyy-MM-dd}。
+     *
+     * <p>与收方档案上的同名列（{@code icbc_payee_info.id_sign_date}）语义一致，但这一份是
+     * **平台级身份字段**、跨回收企业复用（#81 决策 5 / ADR 0017）；档案上那份是「本次登记确认的值」。
+     */
+    @Size(max = 10)
+    private String idSignDate;
+
+    /**
+     * 证件截止日期 {@code yyyy-MM-dd}，长期有效传 {@code 9999-12-30}。
+     *
+     * <p>{@code @Size(max = 10)} 与库内 {@code varchar(10)} 对齐：随机造数的测试（Podam）会读
+     * {@link Size} 造值，不写这条就会撞列宽（与 #84 / #91 收方档案 {@code accountCode} 同一条教训）。
+     */
+    @Size(max = 10)
+    private String idValidityPeriod;
 
     // ==================== 实人认证（工行，跨企业复用） ====================
 
