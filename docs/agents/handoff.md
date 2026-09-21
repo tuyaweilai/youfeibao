@@ -2389,3 +2389,9 @@ member 令牌回 `code=401 账号未登录`。
 > **仍然只能靠人 / 留到后面（不要当成已验）**：
 > - **SP-5**：①「企业先盖章、自然人后签署」只能靠端口实现，本期唯一实现是 `StubEsignPort`，业务层只保证签署方列表里只有自然人，**无从验证真实时序**；②「已签署文书查询与下载」目前是纯 API（`GET /icbc/seller-onboarding/agreement/signed-documents`），**无调用方、无页面**——上一轮按 API 判它成立，本轮沿用该口径并在此如实标注。
 > - 真实腾讯电子签联调（发链接 / 回调验签 / 文件下载）仍属拿到账号后的工作。
+
+### 合并记录：#95（自动舰队）
+
+- 分支 `i95-` → `a78cb1f8`：59 个文件、3 个提交
+- 独立评审：PASS（报告 `.fleet/gates/95.review.md`）
+- 闸门：全量 icbc `[WARNING] Tests run: 892, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/95.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/95.log`（`.fleet/` 与收养票的仓库外日志不入库）
