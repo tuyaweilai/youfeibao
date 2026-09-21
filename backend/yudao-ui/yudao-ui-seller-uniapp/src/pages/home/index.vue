@@ -48,7 +48,6 @@
             :key="`${item.type}-${item.settlementId || item.title}`"
             class="pending"
             :class="{ 'pending--urgent': item.urgent }"
-            @click="openPending(item)"
           >
             <view class="pending__top">
               <text class="pending__type">{{ item.typeName }}</text>
@@ -58,6 +57,20 @@
             <view class="pending__ent">{{ item.enterpriseName }}</view>
             <view v-if="item.deadlineTime" class="pending__deadline">
               截止 {{ formatTime(item.deadlineTime) }}
+            </view>
+            <!-- 真动作入口（#95）：待签协议点一下才现取签署链接；其余待办给一个可点的说明 -->
+            <view class="pending__actions">
+              <button
+                v-if="item.action === 'SIGN_AGREEMENT'"
+                class="mini-btn"
+                :disabled="signing"
+                @click.stop="openPending(item)"
+              >
+                {{ signing ? '正在打开…' : '去签署' }}
+              </button>
+              <text v-else-if="item.type === 'SETTLEMENT'" class="link" @click.stop="openPending(item)">
+                去确认
+              </text>
             </view>
           </view>
         </view>
@@ -253,6 +266,7 @@ import {
 import { createAgreementSignUrl } from '@/api/public'
 import { useSellerAuthStore } from '@/store/auth'
 import { downloadWithAuth, openHtmlWithAuth } from '@/utils/download'
+import { openExternalUrl } from '@/utils/external'
 
 defineOptions({ name: 'SellerHome' })
 
@@ -343,6 +357,7 @@ async function onSignAgreement(payeeId: number) {
     return
   }
   signing.value = true
+  uni.showLoading({ title: '正在打开签署页…', mask: true })
   try {
     const link = await mintAgreementSignToken(naturalPersonId.value, payeeId)
     if (!link.token) {
@@ -352,22 +367,14 @@ async function onSignAgreement(payeeId: number) {
     if (!sign.signUrl) {
       throw new Error('未取到签署链接，请稍后重试')
     }
+    uni.hideLoading()
     openExternalUrl(sign.signUrl)
   } catch (e) {
+    uni.hideLoading()
     uni.showToast({ title: (e as Error).message || '去签署失败，请稍后重试', icon: 'none' })
   } finally {
     signing.value = false
   }
-}
-
-/** H5 直接跳第三方签署页；小程序 / App 用 web-view 承接（外部链接不能直接打开） */
-function openExternalUrl(url: string) {
-  // #ifdef H5
-  window.location.href = url
-  // #endif
-  // #ifndef H5
-  uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` })
-  // #endif
 }
 
 function changeYear(delta: number) {
@@ -541,6 +548,10 @@ function formatTime(time?: string) {
     margin-top: 6rpx;
     color: $seller-text-secondary;
     font-size: 26rpx;
+  }
+
+  &__actions {
+    margin-top: 12rpx;
   }
 }
 

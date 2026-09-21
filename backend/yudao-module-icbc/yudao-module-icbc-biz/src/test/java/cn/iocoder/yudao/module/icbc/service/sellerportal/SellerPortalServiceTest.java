@@ -427,7 +427,6 @@ public class SellerPortalServiceTest extends BaseDbUnitTest {
         SellerAgreementSignTokenRespVO resp = sellerPortalService.mintAgreementSignToken(reqVO);
 
         assertEquals("TK_SIGN", resp.getToken());
-        assertTrue(resp.getMessage().contains("去签署"));
         ArgumentCaptor<PublicTokenCreateReqVO> captor = ArgumentCaptor.forClass(PublicTokenCreateReqVO.class);
         verify(publicTokenService).mint(captor.capture());
         assertEquals(PublicTokenPurposeEnum.ONBOARDING.getCode(), captor.getValue().getPurpose());

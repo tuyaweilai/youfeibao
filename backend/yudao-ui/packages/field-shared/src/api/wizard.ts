@@ -83,6 +83,10 @@ export interface OnboardingWizardSubmitVO {
    * / `PAPER`-纸质签署（未开通时降级，当场生效）。不再是「恒为 PAPER」——#95 起两条路都有。
    */
   signMethod?: string
+  /** 框架收购协议状态：0-待签署，1-生效（与 signMethod 一致，落库后回带，#95） */
+  agreementStatus?: number
+  /** 给现场的可读说明：走了哪条签署路径、本人接下来要做什么（后端组装，客户端照实展示，#95） */
+  message?: string
 }
 
 /** 识别身份证人像面（无状态，图片不留存） */

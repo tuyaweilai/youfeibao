@@ -22,7 +22,4 @@ public class SellerAgreementSignTokenRespVO {
     @Schema(description = "令牌过期时间")
     private LocalDateTime expiresTime;
 
-    @Schema(description = "给自然人看的一句话说明")
-    private String message;
-
 }

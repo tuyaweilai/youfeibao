@@ -77,6 +77,10 @@ export interface OnboardingStatusVO {
   bankCardChangeStatusName?: string
   nextStep?: string
   invoiceEligible?: boolean
+  /** 是否有待签署的电子框架收购协议：为 true 时落点页给出可点的「去签署」（#95） */
+  pendingAgreement?: boolean
+  /** 待签署协议编号（pendingAgreement 为 true 时非空） */
+  pendingAgreementNo?: string
   message?: string
 }
 

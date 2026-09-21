@@ -37,6 +37,14 @@ public class PublicOnboardingStatusRespVO {
     @Schema(description = "是否可用于开票")
     private Boolean invoiceEligible;
 
+    @Schema(description = "是否有待签署的电子框架收购协议：为 true 时落点页要给出可点的「去签署」"
+            + "（#95：向导第 5 步转达的链接落在这页，入口必须在这里，否则本人做完实名就断在那儿）",
+            example = "true")
+    private Boolean pendingAgreement;
+
+    @Schema(description = "待签署协议编号（pendingAgreement 为 true 时非空，供页面指认是哪一份）")
+    private String pendingAgreementNo;
+
     @Schema(description = "给自然人看的一句话说明")
     private String message;
 

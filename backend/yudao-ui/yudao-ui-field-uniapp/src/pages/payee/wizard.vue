@@ -202,16 +202,18 @@
       <view v-if="draft.signMethod === 'PAPER'" class="notice">
         <view class="notice__title">本企业未开通电子签章：协议走纸质签署</view>
         <view class="notice__desc">
-          请打印框架收购协议与反向发票合规告知函，请本人当场签字；系统已按纸质签法建档。
+          {{ draft.signMessage
+            || '请打印框架收购协议与反向发票合规告知函，请本人当场签字；系统已按纸质签法建档。' }}
         </view>
       </view>
       <view v-else class="notice">
         <view class="notice__title">协议待签署（电子签章）</view>
         <view class="notice__desc">
-          签署已发起，协议状态是「待签署」、还没生效。请把下面的二维码或链接交给本人，
-          让他在自己手机上点「去签署」，一次实名、一次签名把框架收购协议与反向发票合规告知函两份一起签完。
+          {{ draft.signMessage
+            || '签署已发起，协议还没生效。请把下面的二维码或链接交给本人。' }}
         </view>
       </view>
+      <view class="hint">协议状态：{{ agreementStatusName }}</view>
 
       <view class="handoff__title">
         {{ draft.signMethod === 'PAPER' ? '交给本人用微信办理实名' : '交给本人用微信打开去签署' }}
@@ -219,7 +221,7 @@
       <view class="tip">
         {{ draft.signMethod === 'PAPER'
           ? '建档已完成。实名只能本人做：让他用微信扫下面的码，或把链接发到他微信里打开。'
-          : '签署只能本人做：让他用微信扫下面的码，或把链接发到他微信里打开，进去点「去签署」。' }}
+          : '签署只能本人做：让他用微信扫下面的码或打开链接，在打开的页面里点「去签署」；点一下才会现取签署链接，现生成现用。' }}
       </view>
       <view v-if="handoff.qr" class="qr">
         <image class="qr__img" :src="handoff.qr" mode="aspectFit" />
@@ -324,6 +326,17 @@ const accountCodeShown = computed(() => draft.accountCode || draft.accountCodeRe
 const idBlockReasons = computed(() => [...draft.idFrontBlockReasons, ...draft.idBackBlockReasons])
 const idBlocked = computed(() => idBlockReasons.value.length > 0)
 const resumeLabel = computed(() => [draft.name, draft.idCardNo].filter(Boolean).join(' / '))
+
+/** 协议状态展示：后端回带了就以它为准，没回带（旧草稿 / 重进页面）就按签署方式推断（#95） */
+const agreementStatusName = computed(() => {
+  if (draft.agreementStatus === 0) {
+    return '待签署'
+  }
+  if (draft.agreementStatus === 1) {
+    return '已生效'
+  }
+  return draft.signMethod === 'ELECTRONIC' ? '待签署' : '已生效'
+})
 
 const canStep1Next = computed(
   () => !!draft.idFrontImage && !!draft.idBackImage && !idBlocked.value
@@ -549,6 +562,10 @@ async function onSubmit() {
     const resp = await submitOnboardingWizard(payload)
     draft.payeeId = resp.payeeId
     draft.signMethod = resp.signMethod || 'PAPER'
+    // 消费后端回带的两件事（#95）：协议状态与「本人接下来做什么」的说明。以前只读了 signMethod，
+    // 结果状态与现场话术都由前端自己猜；现在直接展示后端组装的那份，避免页面与事实相反。
+    draft.agreementStatus = resp.agreementStatus
+    draft.signMessage = resp.message || ''
     draft.step = 5
     persist()
     await issueLink()

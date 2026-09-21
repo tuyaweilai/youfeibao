@@ -460,6 +460,13 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
             IcbcFrameworkAgreementDO update = toAgreement(reqVO, existing.getStatus());
             update.setId(existing.getId());
             update.setSignMethod(existing.getSignMethod());
+            // 修改只改协议要素：**签署时间与文书地址只能由签署回调写**（#81 Problem Statement / #95 SP-4）。
+            // toAgreement 会把入参里的 signedAt / fileUrl 带上，而 updateById 只写非空字段，
+            // 于是 POST /agreement/create {id=<待签署协议>, signedAt=…} 原本能给一份没人签过的协议
+            // 盖上签署时间。这里显式清空，把这道窄门也堵上。
+            update.setSignedAt(null);
+            update.setFileUrl(null);
+            update.setNoticeFileUrl(null);
             frameworkAgreementMapper.updateById(update);
             // 待签署的电子协议若还没有任务号（历史数据 / 上一次发起未落上），补发起一次，
             // 别让本人点「去签署」必然报 ESIGN_SIGN_TASK_ID_MISSING

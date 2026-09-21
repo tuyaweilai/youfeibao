@@ -10,13 +10,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * 一致性测试：{@link PublicEsignController#signUrl} 把**公开令牌放在查询串里**，
- * 必须关掉访问日志的请求参数记录（{@code @ApiAccessLog(requestEnable = false)}）。
+ * 必须显式关掉访问日志的请求参数记录（{@code @ApiAccessLog(requestEnable = false)}）。
  *
- * <p>平台 {@code ApiAccessLogFilter} 默认把 {@code query} 原样写进 {@code infra_api_access_log}；
- * 令牌是通往本人档案与一次性签署链接的凭证，不该落到运维日志表里。注释会漂，注解不会：
- * 谁把这个接口改回默认记录，这条测试就红。
- */
-public class PublicEsignAccessLogAnnotationTest {
+ * <p>框架当前的 {@code ApiAccessLogFilter} 恰好会把查询串里的 {@code token} 脱敏、且记录的是
+ * 不带查询串的 {@code requestURI}，所以现在未必真会写进日志表；但这是两个框架内部细节，接口不该
+ * 依赖它们。这条测试钉住的是「声明本身」：谁把这个接口改回默认记录，它就红。
+ */public class PublicEsignAccessLogAnnotationTest {
 
     @Test
     public void testSignUrlTokenEndpointDisablesRequestLog() throws NoSuchMethodException {

@@ -287,14 +287,16 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
 
         // 合同流：出售者**生效中**的框架收购协议（两份文书一个合同组，已签文件托管在第三方，#95 / ADR 0036）。
         // 两份文书**分别成条**：ADR 0036 决策 3 否决「拼成一个 PDF」的理由就是要能分别引用，
-        // 所以这里按主文书 + 告知函各挂一条，同归 FRAMEWORK_AGREEMENT 这一类型 / 合同流，
+        // 所以这里按主文书 + 告知函各自挂一条，同归 FRAMEWORK_AGREEMENT 这一类型 / 合同流，
         // 不新增证据类型、不新增第六流。主文书 = 框架收购协议（`fileUrl`），告知函单独放 `noticeFileUrl`。
+        // **地址为空不成条**（#95 SP-2）：纸路径没有电子地址时不会挂出空壳条目。
         IcbcFrameworkAgreementDO agreement = order.getPayeeId() != null
                 ? ctx.agreementByPayee.get(order.getPayeeId()) : null;
         if (agreement != null) {
-            addSource(flowSources.get(EvidenceFlowEnum.CONTRACT), "FRAMEWORK_AGREEMENT",
+            String type = IcbcEvidenceTypeEnum.FRAMEWORK_AGREEMENT.getCode();
+            addSource(flowSources.get(EvidenceFlowEnum.CONTRACT), type,
                     "框架收购协议", agreement.getAgreementNo(), agreement.getFileUrl(), agreement.getSignedAt());
-            addSource(flowSources.get(EvidenceFlowEnum.CONTRACT), "FRAMEWORK_AGREEMENT",
+            addSource(flowSources.get(EvidenceFlowEnum.CONTRACT), type,
                     "反向发票合规告知函", agreement.getAgreementNo(), agreement.getNoticeFileUrl(),
                     agreement.getSignedAt());
         }
@@ -573,10 +575,16 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
      * 往某条流里挂一条证据来源。
      *
      * <p>框架收购协议的两份文书都用它：主文书（框架收购协议）与告知函各自成条。
-     * url 为空也照挂（entry 里有标题与协议号可指认），是否算「有」由流的非空与否决定。
+     * <b>地址为空不成条</b>（#95 SP-2）：纸路径的告知函没有电子地址，`noticeFileUrl` 全仓只有
+     * 签署回调会写，纸路径下它就是空的；硬挂一条永远没有地址的条目，等于在证据链上凭空多出
+     * 一份「无法引用的文书」。ADR 0036 决策 3 要的是两份文书能**分别引用**，不是条数固定为二，
+     * 所以哪份有地址就挂哪份，两份都没有（纸签且主文书也没扫描件）就不挂。
      */
     private void addSource(List<EvidenceSourceRespVO> sources, String sourceType, String title,
                            String ref, String url, LocalDateTime occurredTime) {
+        if (StrUtil.isBlank(url)) {
+            return;
+        }
         EvidenceSourceRespVO source = new EvidenceSourceRespVO();
         source.setSourceType(sourceType);
         source.setTitle(title);

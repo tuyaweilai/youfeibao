@@ -47,6 +47,9 @@ export interface OnboardingWizardDraft {
   // 落库结果（第 4 步提交后写入）：档案编号与本次的签署方式
   payeeId?: number
   signMethod?: string
+  /** 后端回带的框架收购协议状态（0-待签署 / 1-生效）与给现场的可读说明（#95，第 5 步展示） */
+  agreementStatus?: number
+  signMessage?: string
 }
 
 const DRAFT_KEY_PREFIX = 'field_onboarding_wizard_draft'
@@ -96,7 +99,9 @@ export function emptyWizardDraft(): OnboardingWizardDraft {
     recyclePeriod: '',
     settlementMethod: '',
     payeeId: undefined,
-    signMethod: ''
+    signMethod: '',
+    agreementStatus: undefined,
+    signMessage: ''
   }
 }
 

@@ -471,7 +471,6 @@ public class SellerPortalServiceImpl implements SellerPortalService {
         SellerAgreementSignTokenRespVO resp = new SellerAgreementSignTokenRespVO();
         resp.setToken(token.getToken());
         resp.setExpiresTime(token.getExpiresTime());
-        resp.setMessage("点「去签署」后会在你手机上打开签署页；链接现生成现用，请尽快完成签署。");
         return resp;
     }
 

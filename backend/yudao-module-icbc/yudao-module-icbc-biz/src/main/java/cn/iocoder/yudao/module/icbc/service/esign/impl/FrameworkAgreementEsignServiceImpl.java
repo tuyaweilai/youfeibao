@@ -258,15 +258,17 @@ public class FrameworkAgreementEsignServiceImpl implements FrameworkAgreementEsi
         variables.put("sellerIdCardNo", payee.getIdCardNo());
         variables.put("signDate", LocalDate.now().toString());
         List<EsignPort.EsignDocument> documents = new ArrayList<>(2);
+        // 两份文书各持一份变量 map（#95 评审 ST-4）：共享同一个可变实例时，将来任一端按文书
+        // 裁剪 / 覆盖变量会连带改掉另一份。现在变量集合相同，也先把可变性隔开。
         documents.add(EsignPort.EsignDocument.builder()
                 .name(DOC_FRAMEWORK_AGREEMENT)
                 .templateId(platform != null ? platform.getAgreementTemplateId() : null)
-                .variables(variables)
+                .variables(new LinkedHashMap<>(variables))
                 .build());
         documents.add(EsignPort.EsignDocument.builder()
                 .name(DOC_REVERSE_INVOICE_NOTICE)
                 .templateId(platform != null ? platform.getNoticeTemplateId() : null)
-                .variables(variables)
+                .variables(new LinkedHashMap<>(variables))
                 .build());
         return documents;
     }

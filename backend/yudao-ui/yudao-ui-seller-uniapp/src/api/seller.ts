@@ -247,7 +247,6 @@ export const mintRealNameLink = (naturalPersonId: number, payeeId: number) =>
 export interface SellerAgreementSignToken {
   token?: string
   expiresTime?: string
-  message?: string
 }
 
 /**

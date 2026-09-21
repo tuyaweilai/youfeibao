@@ -47,6 +47,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
@@ -616,6 +617,31 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         assertNull(stored.getSignedAt());
         assertEquals("废纸", stored.getProductName(), "协议要素照常更新");
         verify(frameworkAgreementEsignService).initiate(eq(1L), eq(existing.getId()));
+    }
+
+    @Test
+    public void testSaveFrameworkAgreement_updateCannotStampSignTimeOrFileUrl() {
+        // #81 Problem Statement / #95 SP-4：修改仍走 toAgreement(reqVO, existing.getStatus())，
+        // 而 updateById 只写非空字段。若不显式清空，POST /agreement/create {id=<待签署协议>,
+        // signedAt=…} 就能给一份没人签过、状态仍是待签署的协议盖上签署时间。
+        PayeeInfoDO payee = insertPayee("USER_AGREE_STAMP", "110101199001010033", "13800000033");
+        IcbcFrameworkAgreementDO existing = IcbcFrameworkAgreementDO.builder()
+                .payeeId(payee.getId()).agreementNo("FW_STAMP_1").productName("废钢").quantity("5 吨")
+                .specification("重型").recyclePeriod("2026 年 9 月第 1 期").settlementMethod("银行转账")
+                .signMethod("ELECTRONIC").signTaskId("TASK_STAMP").status(0).build();
+        frameworkAgreementMapper.insert(existing);
+
+        FrameworkAgreementSaveReqVO reqVO = agreementReq(payee.getId(), "废纸");
+        reqVO.setId(existing.getId());
+        reqVO.setSignedAt(LocalDateTime.of(2026, 9, 21, 10, 0));
+        reqVO.setFileUrl("https://forged/signed.pdf");
+
+        sellerOnboardingService.saveFrameworkAgreement(reqVO);
+
+        IcbcFrameworkAgreementDO stored = frameworkAgreementMapper.selectById(existing.getId());
+        assertNull(stored.getSignedAt(), "没人签过，外部入参不得盖上签署时间");
+        assertNull(stored.getFileUrl(), "文书地址只能由签署回调写");
+        assertEquals(0, stored.getStatus(), "状态仍是待签署");
     }
 
     // ==================== 首次授权 ====================

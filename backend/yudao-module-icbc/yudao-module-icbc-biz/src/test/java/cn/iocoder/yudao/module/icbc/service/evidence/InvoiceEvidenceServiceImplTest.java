@@ -132,6 +132,54 @@ public class InvoiceEvidenceServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testGetEvidenceChain_paperAgreementWithoutFileUrlAddsNoShellEntry() {
+        // SP-2：纸签路径（默认 StubEsignPort.isAvailable=false）没有电子地址，
+        // notice_file_url / file_url 都不会被签署回调写。不能因为「生效协议存在」就硬挂一条
+        // 永远没有地址的告知函条目——那是证据链上的空壳。有地址才成条。
+        PayeeInfoDO payee = insertPayee("秦十七", "13300133002", "北京市丰台区");
+        InvoiceOrderDO order = insertOrder("ORDER_PAPER", "INV_PAPER", payee.getId(), null);
+        insertItem(order);
+        frameworkAgreementMapper.insert(IcbcFrameworkAgreementDO.builder()
+                .payeeId(payee.getId()).agreementNo("FW_PAPER_ONLY")
+                .productName("废钢").quantity("5 吨").specification("重型")
+                .recyclePeriod("2026 年 9 月第 1 期").settlementMethod("银行转账")
+                .signMethod("PAPER").status(1).build());
+
+        EvidenceChainRespVO chain = invoiceEvidenceService.getEvidenceChain("ORDER_PAPER");
+
+        assertEquals(0, flowSources(chain, "CONTRACT").stream()
+                        .filter(source -> "FRAMEWORK_AGREEMENT".equals(source.getSourceType())).count(),
+                "纸签且没有任何文书地址时，不应挂出永远没有地址的框架收购协议条目");
+        assertTrue(flowSources(chain, "CONTRACT").stream()
+                        .noneMatch(source -> "反向发票合规告知函".equals(source.getTitle())),
+                "告知函地址为空就不该成条");
+    }
+
+    @Test
+    public void testGetEvidenceChain_agreementWithOnlyMainDocumentAddsOneEntry() {
+        // 主文书有地址、告知函没有（例如纸质告知函尚未扫描上传）时，只挂主文书一条
+        PayeeInfoDO payee = insertPayee("秦十八", "13300133003", "北京市石景山区");
+        InvoiceOrderDO order = insertOrder("ORDER_MAIN_ONLY", "INV_MAIN_ONLY", payee.getId(), null);
+        insertItem(order);
+        frameworkAgreementMapper.insert(IcbcFrameworkAgreementDO.builder()
+                .payeeId(payee.getId()).agreementNo("FW_MAIN_ONLY")
+                .productName("废钢").quantity("5 吨").specification("重型")
+                .recyclePeriod("2026 年 9 月第 1 期").settlementMethod("银行转账")
+                .signMethod("PAPER").status(1)
+                .fileUrl("https://oss/scanned/agreement.pdf")
+                .build());
+
+        EvidenceChainRespVO chain = invoiceEvidenceService.getEvidenceChain("ORDER_MAIN_ONLY");
+
+        assertEquals(1, flowSources(chain, "CONTRACT").stream()
+                        .filter(source -> "FRAMEWORK_AGREEMENT".equals(source.getSourceType())).count(),
+                "只有主文书有地址时只挂一条，不挂空的告知函");
+        assertTrue(flowSources(chain, "CONTRACT").stream()
+                        .anyMatch(source -> "框架收购协议".equals(source.getTitle())
+                                && "https://oss/scanned/agreement.pdf".equals(source.getUrl())));
+    }
+
+    @Test
     public void testGetLedgerRows_prefersAcquisitionTradeFields() {
         PayeeInfoDO payee = insertPayee("尤十六", "13200132000", "上海市");
         InvoiceOrderDO order = insertOrder("ORDER_ACQ_LEDGER", "INV_ACQ_LEDGER", payee.getId(), null);
