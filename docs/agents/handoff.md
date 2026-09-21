@@ -2521,3 +2521,9 @@ cardNumber / drawerCardNumber / payerAcctNum / taxPayerAccountNo / address / sel
 **明确没动**：`icbc_payer_info` 的四个全局键（`uk_payer_no` / `uk_partner_payer_id` / `uk_credit_code` / `uk_tax_no`）属 #100 的领域决定，比对测试用 `KEY_DECISION_PENDING` 把这张表整体排除（自清理：若哪天两侧一致，测试会要求删掉这条排除）。
 
 `icbc_payment_order` 那处方向相反（测试更严 → 放开）：全量 896 条跑完没有任何用例依赖「全局唯一」，确认无回归。
+
+### 合并记录：#99（自动舰队）
+
+- 分支 `i99-schema-parity` → `d58027fe`：7 个文件、1 个提交
+- 独立评审：PASS（报告 `.fleet/gates/99.review.md`）
+- 闸门：全量 icbc `[WARNING] Tests run: 898, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/99.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/99.log`（`.fleet/` 与收养票的仓库外日志不入库）
