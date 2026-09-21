@@ -10,8 +10,8 @@ import javax.validation.constraints.Size;
 /**
  * 发起收方入驻请求
  *
- * <p>姓名、身份证、手机号、银行卡号取自出售者档案；这里补上证件签发 / 截止日期与交易渠道。
- * 银行卡识别结果（开户行 / 支行）由前端 OCR 后一并写回档案。
+ * <p>姓名、身份证、手机号、银行卡号取自出售者档案；这里补上证件签发 / 截止日期与「是否我行用户」。
+ * 开户行 / 支行仍由现场录入（银行卡 OCR 接入后改由识别结果回填，见 #81）。
  */
 @Schema(description = "管理后台 - 发起出售者收方入驻请求")
 @Data
@@ -29,10 +29,9 @@ public class SellerOnboardingSubmitReqVO {
     @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$", message = "证件截止日期格式应为 yyyy-MM-dd")
     private String idValidityPeriod;
 
-    @Schema(description = "交易渠道：01 安卓 APP、02 iOS APP、03 H5、04 微信公众号、05 微信小程序、06 支付宝场景号",
-            example = "05")
-    @Size(max = 2, message = "交易渠道长度不能超过2个字符")
-    private String trxChannel;
+    @Schema(description = "是否我行用户：0-非我行用户，1-我行用户；缺省视为 1", example = "1")
+    @Pattern(regexp = "^[01]$", message = "是否我行用户只能填 0 或 1")
+    private String accountCode;
 
     @Schema(description = "银行卡识别结果：开户银行", example = "中国工商银行")
     private String bankName;

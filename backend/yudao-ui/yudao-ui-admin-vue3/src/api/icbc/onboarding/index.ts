@@ -50,9 +50,7 @@ export interface SellerOnboardingVO {
   auditResult?: string
   rejectReason?: string
   status?: number
-  icbcOpenacctStatus?: string
   icbcReceiverStatus?: string
-  icbcMediumId?: string
   frameworkAgreement?: FrameworkAgreementVO
   authorization?: SellerAuthorizationVO
   invoiceEligible?: boolean
@@ -82,7 +80,7 @@ export const OnboardingApi = {
     return await request.post({ url: `/icbc/seller-onboarding/real-name/sync?payeeId=` + payeeId })
   },
 
-  // 发起收方入驻
+  // 发起收方入驻（数据接口直接受理，返回受理后的建档总览；不再是页面表单）
   submitOnboarding: async (data: any) => {
     return await request.post({ url: `/icbc/seller-onboarding/onboarding/submit`, data })
   },

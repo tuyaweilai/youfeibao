@@ -6,7 +6,8 @@ import lombok.Data;
 /**
  * 收方入驻结果查询
  *
- * 对应工行 `/api/jft/api/user/edpopenacct/query/V1`。
+ * <p>对应工行 `/api/jft/api/user/edpopenacct/query/V1`。收方入驻只绑**一张卡**、只有**一条审核线**
+ * （ADR 0035）：没有电子钱包，所以这里不带开户状态与电子账户账号。
  */
 @Data
 @Builder
@@ -26,10 +27,6 @@ public class PayeeOnboardingStatus {
      */
     private String freezeStatus;
     /**
-     * 工行侧开户状态（openacctStatus，原样透传）
-     */
-    private String openacctStatus;
-    /**
      * 收方审核结果（result，原样透传）：pass-审核通过，reject-审核拒绝
      */
     private String result;
@@ -37,10 +34,6 @@ public class PayeeOnboardingStatus {
      * 审核拒绝原因
      */
     private String rejectReason;
-    /**
-     * 工行返回的账户标识（mediumId，原样透传）
-     */
-    private String mediumId;
     /**
      * 明细信息
      */

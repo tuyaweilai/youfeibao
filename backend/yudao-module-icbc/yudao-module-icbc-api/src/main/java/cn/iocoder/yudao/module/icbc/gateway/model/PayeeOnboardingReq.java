@@ -4,16 +4,17 @@ import lombok.Builder;
 import lombok.Data;
 
 /**
- * 收方入驻页面接口请求
+ * 收方入驻请求
  *
- * 对应工行 `/ui/jft/ui/user/edpopenacct/submit/V1`，收方入驻页面（实名 + 绑定银行卡 + 入驻）。
- * `edpopenacct` 是工行历史接口名；本项目**不开电子钱包**（见 ADR 0010），也不在端口上暴露钱包概念。
- * 再生资源场景固定 `businessType=0004`、`accountKind=02`、`receiverType=03`，
- * 由适配层填充，平台只给业务字段。
+ * <p>对应工行 `/api/jft/api/user/edpreceive/add/V1`（数据接口）。平台直接发起，**没有任何页面**：
+ * 收方入驻与电子钱包无关（ADR 0035），所以这里不带预填信息、CAMS 公钥、交易渠道这些页面专属字段。
+ *
+ * <p>再生资源场景固定 `businessType=0004`、`accountKind=02`（个人）、`receiverType=03`（自然人）、
+ * `idType=0`（身份证），由适配层填充，平台只给业务字段。
  */
 @Data
 @Builder
-public class PayeeOnboardingPageReq {
+public class PayeeOnboardingReq {
 
     /**
      * 子商户编号（回收企业）。与预下单 / 付款用同一个值：本租户付方档案的合作方付方编号。
@@ -33,6 +34,14 @@ public class PayeeOnboardingPageReq {
      */
     private String receiverAccount;
     /**
+     * 是否我行用户：0-非我行用户，1-我行用户
+     */
+    private String accountCode;
+    /**
+     * 收方行名。非我行用户（{@link #accountCode}=0）时可选填，可以是行名级别
+     */
+    private String bankName;
+    /**
      * 手机号
      */
     private String mobile;
@@ -41,11 +50,11 @@ public class PayeeOnboardingPageReq {
      */
     private String idNo;
     /**
-     * 职业，字典见工行接口文档
+     * 职业，字典见工行接口文档；自然人为必填
      */
     private String occupation;
     /**
-     * 常用住址
+     * 常用住址；自然人为必填，且不少于 4 个汉字或 7 个字符
      */
     private String address;
     /**
@@ -61,24 +70,8 @@ public class PayeeOnboardingPageReq {
      */
     private String corpSerno;
     /**
-     * 成功返回页面
-     */
-    private String jumpUrl;
-    /**
-     * 失败返回页面
-     */
-    private String failJumpUrl;
-    /**
      * 审核结果回调地址
      */
     private String callbackUrl;
-    /**
-     * 交易渠道：01 安卓 APP、02 iOS APP、03 H5、04 微信公众号、05 微信小程序、06 支付宝场景号
-     */
-    private String trxChannel;
-    /**
-     * 是否跳过影像上传
-     */
-    private String skipImgUpload;
 
 }

@@ -4,8 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.module.icbc.enums.CallbackNotifyTypeEnum;
 import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyContext;
 import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyHandler;
-import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
-import com.alibaba.fastjson.JSONObject;
+import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;import com.alibaba.fastjson.JSONObject;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
@@ -13,10 +12,8 @@ import javax.annotation.Resource;
 /**
  * 收方入驻结果通知处理器
  *
- * <p>报文形如
- * {@code {appId, appIdSub, outUserId, result, receiverAccount, openacctStatus, mediumId, mobileNo}}。
- * 两条独立的成败线：{@code openacctStatus}（02 成功 / 03 失败）与 {@code result}
- * （pass / reject）。归一到出售者建档状态机的四种组合。
+ * <p>报文形如 {@code {appId, appIdSub, outUserId, result}}（换卡时另带 {@code operaType}）。
+ * 只有**审核一条线**：pass / reject（ADR 0035）。
  */
 @Component
 public class PayeeOnboardingNotifyHandler implements IcbcNotifyHandler {
@@ -35,12 +32,9 @@ public class PayeeOnboardingNotifyHandler implements IcbcNotifyHandler {
         String outUserId = payload.getString("outUserId");
         String outVendorId = payload.getString("appIdSub");
         String result = payload.getString("result");
-        String openacctStatus = payload.getString("openacctStatus");
-        String mediumId = payload.getString("mediumId");
         String rejectReason = StrUtil.blankToDefault(payload.getString("rejectReason"),
                 payload.getString("custStatusDetail"));
-        sellerOnboardingService.handleOnboardingNotify(outUserId, outVendorId, result, openacctStatus,
-                mediumId, rejectReason);
+        sellerOnboardingService.handleOnboardingNotify(outUserId, outVendorId, result, rejectReason);
     }
 
 }

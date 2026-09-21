@@ -6,28 +6,26 @@ import lombok.Getter;
 import java.util.Arrays;
 
 /**
- * 出售者收方入驻的四种结果组合。
+ * 收方入驻的状态：**只有审核一条线**。
  *
- * <p>工行侧有两条独立的成败线：{@code openacctStatus}（开户状态：02-成功 / 03-失败）
- * 与 {@code result}（审核结果：pass / reject，见
- * {@code docs/icbc/智慧清分收方审核回调示例文档.md}）。四种组合各有不同的下一步，
- * 这就是本票「四种组合分别进入正确的下一步」的落地。
+ * <p>收方入驻改走数据接口后（ADR 0035），工行不再返回开户状态与电子账户账号，于是
+ * 原先「开户 × 审核」四种组合的枚举收敛成三态：已受理待审核 / 通过 / 拒绝。
  *
- * <p>结算仍走公对私直付银行卡（ADR 0010），这里的「开户状态」是不透明字段透传，
- * 不代表平台给出售者开了电子钱包。
+ * <p>数据接口是同步受理、异步审核的：这一次调用成功只代表工行收下了申请（{@link #PENDING}），
+ * 结论要等通知或查询；所以 {@link #PENDING} 必须保留——去掉它就等于假设同步返回即通过。
+ *
+ * <p>结算仍走公对私直付银行卡（ADR 0010），这里的状态只讲**收方登记是否可用**。
  */
 @Getter
 @AllArgsConstructor
 public enum PayeeOnboardingOutcomeEnum {
 
-    /** 开户成功 + 审核通过：可继续签署框架协议、完成授权后开票 */
+    /** 已受理，等工行审核结论 */
+    PENDING("PENDING", "审核中", "等待工行审核结果，通常很快；到点后可主动查询一次"),
+    /** 审核通过：可继续签署框架协议、完成授权后开票 */
     READY("READY", "入驻完成", "签署框架收购协议并完成首次授权"),
-    /** 开户成功 + 审核拒绝：不可开票，留联系方式等待联系 */
-    REJECTED("REJECTED", "审核拒绝", "留下联系方式等待平台联系"),
-    /** 开户失败 + 审核通过：不可开票，重新发起收方入驻 */
-    OPENACCT_FAILED("OPENACCT_FAILED", "开户失败", "重新发起收方入驻"),
-    /** 开户失败 + 审核拒绝：不可开票，留联系方式等待联系 */
-    FAILED_AND_REJECTED("FAILED_AND_REJECTED", "开户失败且审核拒绝", "留下联系方式等待平台联系");
+    /** 审核拒绝：可重新发起，或留联系方式等待平台联系 */
+    REJECTED("REJECTED", "审核拒绝", "重新发起收方入驻，或留下联系方式等待平台联系");
 
     /**
      * 持久化用的编码
@@ -43,27 +41,29 @@ public enum PayeeOnboardingOutcomeEnum {
     private final String nextStep;
 
     /**
-     * 由两条成败线推导结果。两条线尚未同时到齐（开户仍在途，或审核结果未知）时返回 {@code null}，
-     * 调用方据此保持当前状态、等待异步通知或下一次查询。
+     * 由审核结果推导状态。
      *
-     * @param openacctStatus 开户状态，02-成功，03-失败
-     * @param result         审核结果，pass-通过，reject-拒绝
+     * @param result 审核结果：pass-审核通过，reject-审核拒绝；其余（含 null）视为尚未出结论
+     * @return 未出结论时返回 {@code null}，调用方据此保持当前状态
      */
-    public static PayeeOnboardingOutcomeEnum of(String openacctStatus, String result) {
-        boolean accountOpened = "02".equals(openacctStatus);
-        boolean accountFailed = "03".equals(openacctStatus);
-        boolean approved = "pass".equalsIgnoreCase(result);
-        boolean rejected = "reject".equalsIgnoreCase(result);
-        if (!(accountOpened || accountFailed) || !(approved || rejected)) {
-            return null;
-        }
-        if (accountOpened && approved) {
+    public static PayeeOnboardingOutcomeEnum of(String result) {
+        if ("pass".equalsIgnoreCase(result)) {
             return READY;
         }
-        if (accountOpened) {
-            return REJECTED;
+        return "reject".equalsIgnoreCase(result) ? REJECTED : null;
+    }
+
+    /**
+     * 由查询接口的审核状态推导。
+     *
+     * @param auditStatus 1-审核通过，2-新增审核中，3-修改审核中，4-删除审核中
+     * @return 未出结论或取值不在字典内时返回 {@code null}（不猜）
+     */
+    public static PayeeOnboardingOutcomeEnum ofAuditStatus(String auditStatus) {
+        if ("1".equals(auditStatus)) {
+            return READY;
         }
-        return approved ? OPENACCT_FAILED : FAILED_AND_REJECTED;
+        return "2".equals(auditStatus) || "3".equals(auditStatus) || "4".equals(auditStatus) ? PENDING : null;
     }
 
     public static PayeeOnboardingOutcomeEnum ofCode(String code) {
@@ -81,10 +81,10 @@ public enum PayeeOnboardingOutcomeEnum {
     }
 
     /**
-     * 是否是审核 / 开户失败，需要留联系方式等待人工跟进
+     * 是否是审核拒绝，需要留联系方式等待人工跟进
      */
     public boolean needsContactFallback() {
-        return this == REJECTED || this == FAILED_AND_REJECTED;
+        return this == REJECTED;
     }
 
 }

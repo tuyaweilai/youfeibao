@@ -11,7 +11,9 @@ import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceDownloadReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceFile;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceInfo;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceQueryReq;
-import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingPageReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.PayeeBankCardUpdateReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReceipt;
+import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingStatus;
 import cn.iocoder.yudao.module.icbc.gateway.model.PaymentReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderReq;
@@ -26,7 +28,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.RedInvoiceRevokeResult;
  * <ul>
  *   <li>平台其余部分不得出现工行的网关地址、签名与加解密逻辑。它们全部收在本端口之后的
  *       {@code gateway.sdk} 包内。</li>
- *   <li>端口覆盖收方入驻页面与结果查询、企业授权、预下单、预查询、付方支付、发票下载、
+ *   <li>端口覆盖收方入驻与结果查询、企业授权、预下单、预查询、付方支付、发票下载、
  *       发票取消、红字冲销与撤销。</li>
  *   <li>每个方法返回 {@link IcbcGatewayResult}，调用方据 {@link IcbcOutcome} 分支，
  *       不解析工行返回码字典。</li>
@@ -48,12 +50,21 @@ public interface IcbcGateway {
     IcbcGatewayResult<FaceVerifyStatus> queryFaceVerification(String outUserId);
 
     /**
-     * 收方入驻页面（实名 + 绑定银行卡）
+     * 收方入驻：数据接口直接受理，**不生成任何页面**（ADR 0035）。
+     *
+     * <p>同步返回的只是受理回执；审核结论要等异步通知或 {@link #queryPayeeOnboarding}。
      */
-    IcbcGatewayResult<IcbcPage> submitPayeeOnboarding(PayeeOnboardingPageReq req);
+    IcbcGatewayResult<PayeeOnboardingReceipt> submitPayeeOnboarding(PayeeOnboardingReq req);
 
     /**
-     * 收方入驻结果查询：查开户与智慧清分入驻结果。
+     * 收方修改：换卡走这条，而不是重跑一次入驻。
+     *
+     * <p>与入驻一样只返回**受理回执**：工行收下修改申请，结论等审核通知。
+     */
+    IcbcGatewayResult<PayeeOnboardingReceipt> updatePayeeBankCard(PayeeBankCardUpdateReq req);
+
+    /**
+     * 收方入驻结果查询：查审核结论。
      *
      * @param outUserId   平台级外部用户编号（自然人主体）
      * @param outVendorId 子商户编号（回收企业）；收方是「自然人 × 子商户」的，所以查询也要带它

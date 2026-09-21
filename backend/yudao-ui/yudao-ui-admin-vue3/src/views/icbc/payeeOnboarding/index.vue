@@ -32,7 +32,6 @@
           <el-tag :type="statusType(scope.row.status)">{{ statusLabel(scope.row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="工行开户状态" align="center" prop="icbcOpenacctStatus" width="120" />
       <el-table-column label="操作" align="center" fixed="right" width="120">
         <template #default="scope">
           <el-button link type="primary" @click="openOnboarding(scope.row.id)">建档</el-button>
@@ -93,6 +92,12 @@
           <el-form-item label="证件截止日期">
             <el-input v-model="onboardingForm.idValidityPeriod" placeholder="永久有效填 9999-12-30" />
           </el-form-item>
+          <el-form-item label="是否我行卡">
+            <el-radio-group v-model="onboardingForm.accountCode">
+              <el-radio value="1">工行卡</el-radio>
+              <el-radio value="0">他行卡</el-radio>
+            </el-radio-group>
+          </el-form-item>
           <el-form-item label="开户银行">
             <el-input v-model="onboardingForm.bankName" placeholder="银行卡识别结果" />
           </el-form-item>
@@ -103,6 +108,8 @@
             <el-button type="primary" @click="handleSubmitOnboarding">发起收方入驻</el-button>
             <el-button @click="handleSyncOnboarding">查询结果</el-button>
           </el-form-item>
+          <el-alert type="info" :closable="false" show-icon
+            title="收方入驻走工行数据接口，直接受理、无页面；受理后状态为「审核中」，结论以审核通知或主动查询为准。" />
         </el-form>
         <el-divider v-if="overview.onboardingState && !overview.invoiceEligible" />
         <el-form v-if="overview.onboardingState && !overview.invoiceEligible" :model="leadForm" inline>
@@ -208,7 +215,7 @@ const onboardingForm = reactive({
   idValidityPeriod: '',
   bankName: '',
   bankBranch: '',
-  trxChannel: '03'
+  accountCode: '1'
 })
 const leadForm = reactive({ mobile: '', remark: '' })
 const agreementForm = reactive<FrameworkAgreementVO>({})
@@ -289,9 +296,9 @@ const handleSyncRealName = async () => {
 }
 
 const handleSubmitOnboarding = async () => {
-  const step = await OnboardingApi.submitOnboarding({ ...onboardingForm })
-  openIcbcForm(step.formHtml, '收方入驻')
-  await refreshOverview()
+  // 数据接口直接受理：没有工行页面可开，返回的就是刷新后的建档总览
+  overview.value = await OnboardingApi.submitOnboarding({ ...onboardingForm })
+  message.success('已受理，等待工行审核结果')
 }
 
 const handleSyncOnboarding = async () => {

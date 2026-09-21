@@ -78,15 +78,16 @@ public class SellerOnboardingController {
     // ==================== 收方入驻 ====================
 
     @PostMapping("/onboarding/submit")
-    @Operation(summary = "发起收方入驻（返回工行页面表单）")
+    @Operation(summary = "发起收方入驻（数据接口直接受理，进入审核中）")
     @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_ONBOARDING_EXECUTE + "')")
-    public CommonResult<SellerStepRespVO> submitOnboarding(
+    public CommonResult<SellerOnboardingRespVO> submitOnboarding(
             @Valid @RequestBody SellerOnboardingSubmitReqVO reqVO) {
-        return success(sellerOnboardingService.submitOnboarding(reqVO));
+        sellerOnboardingService.submitOnboarding(reqVO);
+        return success(sellerOnboardingService.getOnboarding(reqVO.getPayeeId()));
     }
 
     @PostMapping("/onboarding/sync")
-    @Operation(summary = "查询收方入驻结果（两条成败线四种组合）")
+    @Operation(summary = "查询收方入驻结果（审核一条线）")
     @Parameter(name = "payeeId", description = "出售者编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_ONBOARDING_EXECUTE + "')")
     public CommonResult<SellerOnboardingRespVO> syncOnboarding(@RequestParam("payeeId") Long payeeId) {

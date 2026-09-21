@@ -53,6 +53,7 @@ import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.PUBLIC_TOKEN
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -196,7 +197,7 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
         when(sellerOnboardingService.startRealName(any())).thenReturn(step);
         String token = mint("ONBOARDING", null, payee.getId());
 
-        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token, "03");
+        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token);
 
         assertEquals("REAL_NAME", page.getStep());
         assertEquals("<form>real-name</form>", page.getFormHtml());
@@ -204,18 +205,19 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testGetOnboardingPage_onboardingAfterRealName() {
+    public void testGetOnboardingPage_doneAfterRealNameWithoutAnyPage() {
+        // 实名一过，自然人侧就没有事要做了：收方入驻是数据接口、由平台自动发起（ADR 0035），
+        // 所以这里不再输出任何工行入驻页面。
         PayeeInfoDO payee = insertPayee("钱七", "110101199005055678");
         when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(onboarding(2, null, null));
-        SellerStepRespVO step = new SellerStepRespVO();
-        step.setFormHtml("<form>onboarding</form>");
-        when(sellerOnboardingService.submitOnboarding(any())).thenReturn(step);
         String token = mint("ONBOARDING", null, payee.getId());
 
-        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token, "05");
+        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token);
 
-        assertEquals("ONBOARDING", page.getStep());
-        assertEquals("<form>onboarding</form>", page.getFormHtml());
+        assertEquals("DONE", page.getStep());
+        assertNull(page.getFormHtml());
+        assertTrue(page.getMessage().contains("平台"), "实际：" + page.getMessage());
+        verify(sellerOnboardingService, never()).submitOnboarding(any());
     }
 
     @Test
@@ -224,29 +226,25 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
         when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(onboarding(2, "READY", true));
         String token = mint("ONBOARDING", null, payee.getId());
 
-        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token, "03");
+        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token);
 
         assertEquals("DONE", page.getStep());
         assertNull(page.getFormHtml());
     }
 
     @Test
-    public void testGetOnboardingPage_changeCardReusesOnboardingForm() {
+    public void testGetOnboardingPage_changeCardDoesNotOutputOnboardingPage() {
         PayeeInfoDO payee = insertPayee("王五", "110101199003033456");
-        // 建档已完成、但换卡在途：不能短路成 DONE，要输出新卡的收方入驻页面（#37）
+        // 换卡在途也只是状态：换卡的入口是自然人端的表单（#89），不再是工行页面
         when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(onboarding(2, "READY", true));
         when(sellerOnboardingService.hasPendingBankCardChange(payee.getId())).thenReturn(true);
-        SellerStepRespVO step = new SellerStepRespVO();
-        step.setFormHtml("<form>change-card</form>");
-        when(sellerOnboardingService.submitOnboarding(any())).thenReturn(step);
         String token = mint("ONBOARDING", null, payee.getId());
 
-        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token, "03");
+        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token);
 
-        assertEquals("ONBOARDING", page.getStep());
-        assertEquals("变更银行卡", page.getStepName());
-        assertEquals("<form>change-card</form>", page.getFormHtml());
-        verify(sellerOnboardingService).submitOnboarding(any());
+        assertEquals("DONE", page.getStep());
+        assertNull(page.getFormHtml());
+        verify(sellerOnboardingService, never()).submitOnboarding(any());
     }
 
     @Test
@@ -271,10 +269,10 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
         when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(onboarding(2, "REJECTED", false));
         String token = mint("ONBOARDING", null, payee.getId());
 
-        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token, "03");
+        PublicOnboardingPageRespVO page = publicAccessService.getOnboardingPage(token);
 
         assertEquals("DONE", page.getStep());
-        assertTrue(page.getMessage().contains("联系方式"), "实际：" + page.getMessage());
+        assertTrue(page.getMessage().contains("平台"), "实际：" + page.getMessage());
     }
 
     @Test
@@ -301,7 +299,7 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
         String token = mint("ONBOARDING", null, payee.getId());
 
         MockHttpServletResponse response = new MockHttpServletResponse();
-        publicAccessService.writeOnboardingForm(token, "03", response);
+        publicAccessService.writeOnboardingForm(token, response);
 
         assertTrue(response.getContentAsString().contains("<form>go</form>"));
     }

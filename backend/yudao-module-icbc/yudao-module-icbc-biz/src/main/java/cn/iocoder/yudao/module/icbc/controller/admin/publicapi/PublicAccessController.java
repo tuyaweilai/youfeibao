@@ -83,13 +83,10 @@ public class PublicAccessController {
     }
 
     @GetMapping("/onboarding/page")
-    @Operation(summary = "用令牌取自然人当前该做的工行建档页面（实名认证 / 收方入驻）")
+    @Operation(summary = "用令牌取自然人当前该做的工行实名页面")
     @Parameter(name = "token", description = "公开令牌", required = true)
-    @Parameter(name = "trxChannel", description = "交易渠道：H5=03、微信小程序=05", example = "03")
-    public CommonResult<PublicOnboardingPageRespVO> getOnboardingPage(
-            @RequestParam("token") String token,
-            @RequestParam(value = "trxChannel", required = false) String trxChannel) {
-        return success(publicAccessService.getOnboardingPage(token, trxChannel));
+    public CommonResult<PublicOnboardingPageRespVO> getOnboardingPage(@RequestParam("token") String token) {
+        return success(publicAccessService.getOnboardingPage(token));
     }
 
     @PostMapping("/onboarding/sync")
@@ -100,13 +97,11 @@ public class PublicAccessController {
     }
 
     @GetMapping("/onboarding/form")
-    @Operation(summary = "用令牌直接取当前该做的工行建档页面 HTML")
+    @Operation(summary = "用令牌直接取当前该做的工行实名页面 HTML")
     @Parameter(name = "token", description = "公开令牌", required = true)
-    @Parameter(name = "trxChannel", description = "交易渠道：H5=03、微信小程序=05", example = "03")
     public void onboardingForm(@RequestParam("token") String token,
-                              @RequestParam(value = "trxChannel", required = false) String trxChannel,
                               HttpServletResponse response) throws IOException {
-        publicAccessService.writeOnboardingForm(token, trxChannel, response);
+        publicAccessService.writeOnboardingForm(token, response);
     }
 
 }

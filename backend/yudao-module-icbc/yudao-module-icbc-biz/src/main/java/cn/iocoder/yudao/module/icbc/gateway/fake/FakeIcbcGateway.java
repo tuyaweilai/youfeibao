@@ -13,7 +13,9 @@ import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceDownloadReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceFile;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceInfo;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceQueryReq;
-import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingPageReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.PayeeBankCardUpdateReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReceipt;
+import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingStatus;
 import cn.iocoder.yudao.module.icbc.gateway.model.PaymentReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderReq;
@@ -48,6 +50,7 @@ public class FakeIcbcGateway implements IcbcGateway {
     public static final String OP_SUBMIT_FACE_VERIFICATION = "submitFaceVerification";
     public static final String OP_QUERY_FACE_VERIFICATION = "queryFaceVerification";
     public static final String OP_SUBMIT_PAYEE_ONBOARDING = "submitPayeeOnboarding";
+    public static final String OP_UPDATE_PAYEE_BANK_CARD = "updatePayeeBankCard";
     public static final String OP_QUERY_PAYEE_ONBOARDING = "queryPayeeOnboarding";
     public static final String OP_SUBMIT_ENTERPRISE_AUTHORIZATION = "submitEnterpriseAuthorization";
     public static final String OP_SUBMIT_PRE_ORDER = "submitPreOrder";
@@ -65,8 +68,10 @@ public class FakeIcbcGateway implements IcbcGateway {
             IcbcGatewayResult.success(IcbcPage.builder().formHtml("<form id=\"face-verify\"></form>").build(), 0, "成功");
     private IcbcGatewayResult<FaceVerifyStatus> faceVerifyStatusResult =
             IcbcGatewayResult.success(FaceVerifyStatus.builder().outUserId("x").authResult("02").passed(true).build(), 0, "成功");
-    private IcbcGatewayResult<IcbcPage> payeeOnboardingResult =
-            IcbcGatewayResult.success(IcbcPage.builder().formHtml("<form id=\"payee-onboarding\"></form>").build(), 0, "成功");
+    private IcbcGatewayResult<PayeeOnboardingReceipt> payeeOnboardingResult =
+            IcbcGatewayResult.success(PayeeOnboardingReceipt.builder().outUserId("x").build(), 0, "受理成功");
+    private IcbcGatewayResult<PayeeOnboardingReceipt> payeeBankCardUpdateResult =
+            IcbcGatewayResult.success(PayeeOnboardingReceipt.builder().outUserId("x").build(), 0, "受理成功");
     private IcbcGatewayResult<PayeeOnboardingStatus> payeeOnboardingStatusResult =
             IcbcGatewayResult.success(PayeeOnboardingStatus.builder().receiverStatus("1").auditStatus("1").build(), 0, "成功");
     private IcbcGatewayResult<IcbcPage> enterpriseAuthResult =
@@ -105,9 +110,15 @@ public class FakeIcbcGateway implements IcbcGateway {
     }
 
     @Override
-    public IcbcGatewayResult<IcbcPage> submitPayeeOnboarding(PayeeOnboardingPageReq req) {
+    public IcbcGatewayResult<PayeeOnboardingReceipt> submitPayeeOnboarding(PayeeOnboardingReq req) {
         record(OP_SUBMIT_PAYEE_ONBOARDING, req);
         return payeeOnboardingResult;
+    }
+
+    @Override
+    public IcbcGatewayResult<PayeeOnboardingReceipt> updatePayeeBankCard(PayeeBankCardUpdateReq req) {
+        record(OP_UPDATE_PAYEE_BANK_CARD, req);
+        return payeeBankCardUpdateResult;
     }
 
     @Override
@@ -223,7 +234,9 @@ public class FakeIcbcGateway implements IcbcGateway {
         faceVerifyStatusResult = IcbcGatewayResult.success(
                 FaceVerifyStatus.builder().outUserId("x").authResult("02").passed(true).build(), 0, "成功");
         payeeOnboardingResult = IcbcGatewayResult.success(
-                IcbcPage.builder().formHtml("<form id=\"payee-onboarding\"></form>").build(), 0, "成功");
+                PayeeOnboardingReceipt.builder().outUserId("x").build(), 0, "受理成功");
+        payeeBankCardUpdateResult = IcbcGatewayResult.success(
+                PayeeOnboardingReceipt.builder().outUserId("x").build(), 0, "受理成功");
         payeeOnboardingStatusResult = IcbcGatewayResult.success(
                 PayeeOnboardingStatus.builder().receiverStatus("1").auditStatus("1").build(), 0, "成功");
         enterpriseAuthResult = IcbcGatewayResult.success(
@@ -264,8 +277,12 @@ public class FakeIcbcGateway implements IcbcGateway {
         this.faceVerifyStatusResult = result;
     }
 
-    public void setPayeeOnboardingResult(IcbcGatewayResult<IcbcPage> result) {
+    public void setPayeeOnboardingResult(IcbcGatewayResult<PayeeOnboardingReceipt> result) {
         this.payeeOnboardingResult = result;
+    }
+
+    public void setPayeeBankCardUpdateResult(IcbcGatewayResult<PayeeOnboardingReceipt> result) {
+        this.payeeBankCardUpdateResult = result;
     }
 
     public void setPayeeOnboardingStatusResult(IcbcGatewayResult<PayeeOnboardingStatus> result) {

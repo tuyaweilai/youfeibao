@@ -17,7 +17,9 @@ import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceDownloadReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceFile;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceInfo;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceQueryReq;
-import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingPageReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.PayeeBankCardUpdateReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReceipt;
+import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingStatus;
 import cn.iocoder.yudao.module.icbc.gateway.model.PaymentReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderGoods;
@@ -33,19 +35,22 @@ import com.icbc.api.request.JftApiInvoiceInfoQueryRequestV1;
 import com.icbc.api.request.JftApiInvoiceRedOffsetRevokeRequestV1;
 import com.icbc.api.request.JftApiInvoiceReversalRequestV1;
 import com.icbc.api.request.JftApiUserEdpopenacctQueryRequestV1;
+import com.icbc.api.request.JftApiUserEdpreceiveAddRequestV1;
 import com.icbc.api.request.JftApiUserEdpreceiveQueryRequestV1;
+import com.icbc.api.request.JftApiUserEdpreceiveUpdateRequestV1;
 import com.icbc.api.request.JftUiUserFaceH5SubmitRequestV1;
 import com.icbc.api.request.JftUiInvoicePayRequestV1;
 import com.icbc.api.request.JftUiInvoicePreOrderRequestV1;
 import com.icbc.api.request.JftUiRedInvoiceOffsetRequestV1;
-import com.icbc.api.request.JftUiUserEdpopenacctSubmitRequestV1;
 import com.icbc.api.request.JftUiVendorAuthRequestV1;
 import com.icbc.api.response.JftApiInvoiceDownloadResponseV1;
 import com.icbc.api.response.JftApiInvoiceInfoQueryResponseV1;
 import com.icbc.api.response.JftApiInvoiceRedOffsetRevokeResponseV1;
 import com.icbc.api.response.JftApiInvoiceReversalResponseV1;
 import com.icbc.api.response.JftApiUserEdpopenacctQueryResponseV1;
+import com.icbc.api.response.JftApiUserEdpreceiveAddResponseV1;
 import com.icbc.api.response.JftApiUserEdpreceiveQueryResponseV1;
+import com.icbc.api.response.JftApiUserEdpreceiveUpdateResponseV1;
 import lombok.extern.slf4j.Slf4j;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
@@ -54,9 +59,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -76,6 +79,18 @@ public class IcbcSdkGateway implements IcbcGateway {
      * 再生资源业务类型
      */
     private static final String BUSINESS_TYPE_RECYCLE = "0004";
+    /**
+     * 账户类型：个人（自然人的收款账户）
+     */
+    private static final String ACCOUNT_KIND_PERSONAL = "02";
+    /**
+     * 用户类型：自然人
+     */
+    private static final String RECEIVER_TYPE_NATURAL = "03";
+    /**
+     * 证件类型：身份证（工行当前仅支持身份证）
+     */
+    private static final String ID_TYPE_ID_CARD = "0";
     /**
      * 连通性探测用的外部用户编号
      */
@@ -127,28 +142,64 @@ public class IcbcSdkGateway implements IcbcGateway {
     // ==================== 收方入驻 ====================
 
     @Override
-    public IcbcGatewayResult<IcbcPage> submitPayeeOnboarding(PayeeOnboardingPageReq req) {
-        JftUiUserEdpopenacctSubmitRequestV1 request = new JftUiUserEdpopenacctSubmitRequestV1();
-        request.setServiceUrl(clientFactory.url(IcbcApiPaths.PAYEE_ONBOARDING_PAGE));
-        JftUiUserEdpopenacctSubmitRequestV1.JftUiUserEdpopenacctSubmitRequestV1Biz biz =
-                new JftUiUserEdpopenacctSubmitRequestV1.JftUiUserEdpopenacctSubmitRequestV1Biz();
+    public IcbcGatewayResult<PayeeOnboardingReceipt> submitPayeeOnboarding(PayeeOnboardingReq req) {
+        JftApiUserEdpreceiveAddRequestV1 request = new JftApiUserEdpreceiveAddRequestV1();
+        request.setServiceUrl(clientFactory.url(IcbcApiPaths.PAYEE_ONBOARDING));
+        JftApiUserEdpreceiveAddRequestV1.JftApiUserEdpreceiveAddRequestV1Biz biz =
+                new JftApiUserEdpreceiveAddRequestV1.JftApiUserEdpreceiveAddRequestV1Biz();
         biz.setAppId(clientFactory.appId());
         // 子商户 = 回收企业：优先用业务层给的（本租户付方档案），没给才回退全局配置（本地 / 联调）
         biz.setAppIdSub(StrUtil.isNotBlank(req.getOutVendorId()) ? req.getOutVendorId() : clientFactory.outVendorId());
+        // 再生资源场景的三个固定值（ADR 0010）：个人 + 自然人 + 身份证
         biz.setBusinessType(BUSINESS_TYPE_RECYCLE);
+        biz.setAccountKind(ACCOUNT_KIND_PERSONAL);
+        biz.setReceiverType(RECEIVER_TYPE_NATURAL);
+        biz.setIdType(ID_TYPE_ID_CARD);
         biz.setOutUserId(req.getOutUserId());
-        biz.setCorpSerno(req.getCorpSerno());
-        biz.setTrxChannel(req.getTrxChannel());
-        // 不主动开通电子钱包（见 ADR 0010）；工行若要求该字段必填，联调时再由适配层补默认值
-        biz.setSkipImgUpload(req.getSkipImgUpload());
+        biz.setReceiverName(req.getReceiverName());
+        biz.setReceiverAccount(req.getReceiverAccount());
+        biz.setAccountCode(req.getAccountCode());
+        biz.setBankName(req.getBankName());
+        biz.setMobile(req.getMobile());
+        biz.setIdNo(req.getIdNo());
+        biz.setOccupation(req.getOccupation());
+        biz.setAddress(req.getAddress());
         biz.setSignDate(req.getSignDate());
         biz.setValidityPeriod(req.getValidityPeriod());
-        biz.setJumpUrl(req.getJumpUrl());
-        biz.setFailJumpUrl(req.getFailJumpUrl());
         biz.setCallbackUrl(req.getCallbackUrl());
-        biz.setPreFillItems(buildPreFillItems(req));
         request.setBizContent(biz);
-        return buildForm(request, null);
+        return execute(request, IcbcApiPaths.RECEIVE_SUCCESS_CODE, response -> PayeeOnboardingReceipt.builder()
+                .outUserId(response.getOutUserId())
+                .applyTime(response.getApplyTime())
+                .auditTime(response.getAuditTime())
+                .build());
+    }
+
+    @Override
+    public IcbcGatewayResult<PayeeOnboardingReceipt> updatePayeeBankCard(PayeeBankCardUpdateReq req) {
+        JftApiUserEdpreceiveUpdateRequestV1 request = new JftApiUserEdpreceiveUpdateRequestV1();
+        request.setServiceUrl(clientFactory.url(IcbcApiPaths.PAYEE_BANK_CARD_UPDATE));
+        JftApiUserEdpreceiveUpdateRequestV1.JftApiUserEdpreceiveUpdateRequestV1Biz biz =
+                new JftApiUserEdpreceiveUpdateRequestV1.JftApiUserEdpreceiveUpdateRequestV1Biz();
+        biz.setAppId(clientFactory.appId());
+        biz.setAppIdSub(StrUtil.isNotBlank(req.getOutVendorId()) ? req.getOutVendorId() : clientFactory.outVendorId());
+        biz.setBusinessType(BUSINESS_TYPE_RECYCLE);
+        biz.setAccountKind(ACCOUNT_KIND_PERSONAL);
+        biz.setOutUserId(req.getOutUserId());
+        // 卡号与「是否我行用户」要成对上送或成对不上送（工行规则）
+        biz.setReceiverAccount(req.getReceiverAccount());
+        biz.setAccountCode(req.getAccountCode());
+        biz.setBankName(req.getBankName());
+        biz.setBankCode(req.getBankCode());
+        biz.setSignDate(req.getSignDate());
+        biz.setValidityPeriod(req.getValidityPeriod());
+        biz.setCallbackUrl(req.getCallbackUrl());
+        request.setBizContent(biz);
+        return execute(request, IcbcApiPaths.RECEIVE_SUCCESS_CODE, response -> PayeeOnboardingReceipt.builder()
+                .outUserId(response.getOutUserId())
+                .applyTime(response.getApplyTime())
+                .auditTime(response.getAuditTime())
+                .build());
     }
 
     @Override
@@ -167,11 +218,7 @@ public class IcbcSdkGateway implements IcbcGateway {
                 .outUserId(response.getOutUserId())
                 .receiverStatus(response.getReceiverStatus())
                 .auditStatus(response.getAuditStatus())
-                // 数据接口不回传 result；审核通过时以 auditStatus=1 归一为 pass，其余留空等待异步通知
-                .result("1".equals(response.getAuditStatus()) ? "pass" : null)
                 .freezeStatus(response.getFreezeStatus())
-                .openacctStatus(response.getOpenacctStatus())
-                .mediumId(response.getMediumId())
                 .custStatusDetail(response.getCustStatusDetail())
                 .build());
     }
@@ -432,17 +479,6 @@ public class IcbcSdkGateway implements IcbcGateway {
             log.error("[buildForm] 生成工行页面表单运行时异常", e);
             return IcbcGatewayResult.unknown(0, e.getMessage());
         }
-    }
-
-    private Map<String, Object> buildPreFillItems(PayeeOnboardingPageReq req) {
-        Map<String, Object> items = new HashMap<>();
-        items.put("receiverName", req.getReceiverName());
-        items.put("receiverAccount", req.getReceiverAccount());
-        items.put("mobile", req.getMobile());
-        items.put("idNo", req.getIdNo());
-        items.put("occupation", req.getOccupation());
-        items.put("address", req.getAddress());
-        return items;
     }
 
     private List<JftUiInvoicePreOrderRequestV1.GoodsInfo> toGoodsInfoList(List<PreOrderGoods> goods) {

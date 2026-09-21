@@ -57,7 +57,6 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     /** 收方入驻就绪 */
     private static final String ONBOARDING_READY = "READY";
     private static final String STEP_REAL_NAME = "REAL_NAME";
-    private static final String STEP_ONBOARDING = "ONBOARDING";
     private static final String STEP_DONE = "DONE";
 
     @Resource
@@ -142,13 +141,13 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     }
 
     @Override
-    public PublicOnboardingPageRespVO getOnboardingPage(String token, String trxChannel) {
+    public PublicOnboardingPageRespVO getOnboardingPage(String token) {
         PublicTokenPayload payload = publicTokenService.redeem(token, PublicTokenPurposeEnum.ONBOARDING);
         Long payeeId = Long.valueOf(payload.getBusinessKey());
-        return inTenant(payload.getTenantId(), () -> buildOnboardingPage(payeeId, trxChannel));
+        return inTenant(payload.getTenantId(), () -> buildOnboardingPage(payeeId));
     }
 
-    private PublicOnboardingPageRespVO buildOnboardingPage(Long payeeId, String trxChannel) {
+    private PublicOnboardingPageRespVO buildOnboardingPage(Long payeeId) {
         SellerOnboardingRespVO overview = sellerOnboardingService.getOnboarding(payeeId);
         PublicOnboardingPageRespVO resp = new PublicOnboardingPageRespVO();
         resp.setPayeeId(payeeId);
@@ -162,41 +161,10 @@ public class PublicAccessServiceImpl implements PublicAccessService {
             resp.setMessage("请在工行页面完成人脸识别实名认证。");
             return resp;
         }
-        // 换卡（#37）：有在途变更时不能因「建档已完成」而短路——要输出**新卡**的收方入驻页面。
-        // 走的是同一个 ONBOARDING 令牌与后端输出表单机制，不新造流程（ADR 0010）。
-        if (sellerOnboardingService.hasPendingBankCardChange(payeeId)) {
-            SellerOnboardingSubmitReqVO req = new SellerOnboardingSubmitReqVO();
-            req.setPayeeId(payeeId);
-            req.setTrxChannel(trxChannel == null || trxChannel.isBlank() ? "03" : trxChannel);
-            SellerStepRespVO step = sellerOnboardingService.submitOnboarding(req);
-            resp.setStep(STEP_ONBOARDING);
-            resp.setStepName("变更银行卡");
-            resp.setFormHtml(step == null ? null : step.getFormHtml());
-            resp.setMessage("请在工行页面绑定你的新银行卡并完成审核。审核期间新交易的付款会挂起，原卡在你确认前仍然有效。");
-            return resp;
-        }
-        if (!ONBOARDING_READY.equals(overview.getOnboardingState())) {
-            if (isOnboardingFailed(overview.getOnboardingState())) {
-                resp.setStep(STEP_DONE);
-                resp.setStepName("已结束");
-                resp.setMessage("收方入驻未通过"
-                        + (overview.getOnboardingStateName() == null ? "" : "（" + overview.getOnboardingStateName() + "）")
-                        + "，请留联系方式等待联系。");
-                return resp;
-            }
-            SellerOnboardingSubmitReqVO req = new SellerOnboardingSubmitReqVO();
-            req.setPayeeId(payeeId);
-            req.setTrxChannel(trxChannel == null || trxChannel.isBlank() ? "03" : trxChannel);
-            SellerStepRespVO step = sellerOnboardingService.submitOnboarding(req);
-            resp.setStep(STEP_ONBOARDING);
-            resp.setStepName("收方入驻");
-            resp.setFormHtml(step == null ? null : step.getFormHtml());
-            resp.setMessage("请在工行页面绑定本人银行卡完成收方入驻。");
-            return resp;
-        }
+        // 实名之后就没人需要再点东西了：收方入驻由平台自动发起（ADR 0035）
         resp.setStep(STEP_DONE);
         resp.setStepName("已完成");
-        resp.setMessage("建档已完成，无需再办。");
+        resp.setMessage("实名已完成，其余手续由平台办理，无需你再操作。");
         return resp;
     }
 
@@ -219,11 +187,11 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     }
 
     @Override
-    public void writeOnboardingForm(String token, String trxChannel, HttpServletResponse response) {
+    public void writeOnboardingForm(String token, HttpServletResponse response) {
         PublicTokenPayload payload = publicTokenService.redeem(token, PublicTokenPurposeEnum.ONBOARDING);
         Long payeeId = Long.valueOf(payload.getBusinessKey());
         String formHtml = inTenant(payload.getTenantId(),
-                () -> buildOnboardingPage(payeeId, trxChannel).getFormHtml());
+                () -> buildOnboardingPage(payeeId).getFormHtml());
         if (formHtml == null || formHtml.isBlank()) {
             formHtml = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
                     + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>"
@@ -262,19 +230,7 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     }
 
     private String currentStep(SellerOnboardingRespVO overview) {
-        if (!REAL_NAME_PASSED.equals(overview.getRealNameStatus())) {
-            return STEP_REAL_NAME;
-        }
-        // 换卡在途：即使建档已完成，他也还有一步要做（在工行页面绑新卡）
-        if (overview.getBankCardChangeStatusName() != null) {
-            return STEP_ONBOARDING;
-        }
-        return ONBOARDING_READY.equals(overview.getOnboardingState()) ? STEP_DONE : STEP_ONBOARDING;
-    }
-
-    private boolean isOnboardingFailed(String state) {
-        return "REJECTED".equals(state) || "OPENACCT_FAILED".equals(state)
-                || "FAILED_AND_REJECTED".equals(state);
+        return REAL_NAME_PASSED.equals(overview.getRealNameStatus()) ? STEP_DONE : STEP_REAL_NAME;
     }
 
     private void inTenant(Long tenantId, Runnable runnable) {

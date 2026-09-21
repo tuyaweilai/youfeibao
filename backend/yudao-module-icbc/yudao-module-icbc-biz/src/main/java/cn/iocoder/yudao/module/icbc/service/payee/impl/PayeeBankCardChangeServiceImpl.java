@@ -122,21 +122,14 @@ public class PayeeBankCardChangeServiceImpl implements PayeeBankCardChangeServic
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public IcbcPayeeBankCardChangeDO applyOnboardingResult(Long payeeId, String openacctStatus, String result,
-                                                           String mediumId, String rejectReason) {
+    public IcbcPayeeBankCardChangeDO applyOnboardingResult(Long payeeId, String result, String rejectReason) {
         IcbcPayeeBankCardChangeDO change = bankCardChangeMapper.selectPendingByPayeeId(payeeId);
         if (change == null) {
             return null; // 没有在途变更：本次入驻结果属于首次建档，由建档流程自己收敛
         }
-        PayeeOnboardingOutcomeEnum outcome = PayeeOnboardingOutcomeEnum.of(openacctStatus, result);
-        // 审核拒绝是权威结论：即便开户状态缺失也要落下来
-        if (outcome == null && "reject".equalsIgnoreCase(result)) {
-            outcome = PayeeOnboardingOutcomeEnum.REJECTED;
-        }
+        PayeeOnboardingOutcomeEnum outcome = PayeeOnboardingOutcomeEnum.of(result);
         IcbcPayeeBankCardChangeDO update = new IcbcPayeeBankCardChangeDO();
         update.setId(change.getId());
-        update.setIcbcOpenacctStatus(StrUtil.blankToDefault(openacctStatus, null));
-        update.setIcbcMediumId(StrUtil.blankToDefault(mediumId, null));
         update.setAuditResult(StrUtil.blankToDefault(result, null));
         if (outcome != null && !outcome.isInvoiceEligible()) {
             update.setRejectReason(StrUtil.blankToDefault(rejectReason, outcome.getName()));
@@ -144,15 +137,15 @@ public class PayeeBankCardChangeServiceImpl implements PayeeBankCardChangeServic
         if (outcome != null) {
             update.setResolvedAt(LocalDateTime.now());
             if (outcome.isInvoiceEligible()) {
-                promoteCard(payeeId, change, openacctStatus, mediumId, result);
+                promoteCard(payeeId, change, result);
                 update.setStatus(PayeeBankCardChangeStatusEnum.EFFECTIVE.getStatus());
             } else {
                 update.setStatus(PayeeBankCardChangeStatusEnum.REJECTED.getStatus());
             }
         }
         bankCardChangeMapper.updateById(update);
-        log.info("[applyOnboardingResult][换卡 {} 收敛：openacctStatus={} result={} → {}]",
-                change.getChangeNo(), openacctStatus, result, PayeeBankCardChangeStatusEnum.nameOf(update.getStatus()));
+        log.info("[applyOnboardingResult][换卡 {} 收敛：result={} → {}]",
+                change.getChangeNo(), result, PayeeBankCardChangeStatusEnum.nameOf(update.getStatus()));
         return bankCardChangeMapper.selectById(change.getId());
     }
 
@@ -162,8 +155,7 @@ public class PayeeBankCardChangeServiceImpl implements PayeeBankCardChangeServic
      * <p>新卡的开户行 / 支行由自然人自己填，可能为空；工行回执不带这两个字段，所以空就空着——
      * 留着旧卡的开户行会变成一句我们无法核验的话（ADR 0021）。
      */
-    private void promoteCard(Long payeeId, IcbcPayeeBankCardChangeDO change, String openacctStatus,
-                             String mediumId, String result) {
+    private void promoteCard(Long payeeId, IcbcPayeeBankCardChangeDO change, String result) {
         PayeeInfoDO update = new PayeeInfoDO();
         update.setId(payeeId);
         update.setBankCardNo(change.getNewBankCardNo());
@@ -171,9 +163,6 @@ public class PayeeBankCardChangeServiceImpl implements PayeeBankCardChangeServic
         update.setBankBranch(StrUtil.blankToDefault(change.getNewBankBranch(), null));
         update.setIdSignDate(StrUtil.blankToDefault(change.getIdSignDate(), null));
         update.setIdValidityPeriod(StrUtil.blankToDefault(change.getIdValidityPeriod(), null));
-        // 工行侧的账户事实跟着生效中的这张卡走
-        update.setIcbcOpenacctStatus(StrUtil.blankToDefault(openacctStatus, null));
-        update.setIcbcMediumId(StrUtil.blankToDefault(mediumId, null));
         update.setAuditResult(StrUtil.blankToDefault(result, null));
         update.setOnboardingState(PayeeOnboardingOutcomeEnum.READY.getCode());
         update.setIcbcReceiverStatus("1");

@@ -58,14 +58,8 @@ public class SellerOnboardingRespVO {
     @Schema(description = "审核状态：0-待审核，1-审核通过，2-审核拒绝")
     private Integer status;
 
-    @Schema(description = "工行侧开户状态（openacctStatus，原样透传）")
-    private String icbcOpenacctStatus;
-
     @Schema(description = "工行收方状态：0-不可用，1-可用")
     private String icbcReceiverStatus;
-
-    @Schema(description = "工行账户标识（mediumId）")
-    private String icbcMediumId;
 
     @Schema(description = "有效框架收购协议（未签署时为空）")
     private FrameworkAgreementRespVO frameworkAgreement;

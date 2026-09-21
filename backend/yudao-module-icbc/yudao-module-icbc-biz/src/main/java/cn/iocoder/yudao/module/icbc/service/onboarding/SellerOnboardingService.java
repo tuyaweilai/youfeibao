@@ -41,9 +41,14 @@ public interface SellerOnboardingService {
     // ==================== 收方入驻 ====================
 
     /**
-     * 发起收方入驻，返回工行页面表单（实名通过后才可发起）
+     * 发起收方入驻（实名通过后才可发起）。
+     *
+     * <p>走的是工行数据接口，**不生成任何页面**（ADR 0035）：调用成功只代表受理，状态进入「审核中」，
+     * 结论等审核通知或 {@link #syncOnboarding}。已在途或已通过的重复发起会被忽略（不重复提交）。
+     *
+     * @return 受理后的收方档案
      */
-    SellerStepRespVO submitOnboarding(@Valid SellerOnboardingSubmitReqVO reqVO);
+    PayeeInfoDO submitOnboarding(@Valid SellerOnboardingSubmitReqVO reqVO);
 
     /**
      * 主动查询收方入驻结果并回写档案
@@ -51,17 +56,15 @@ public interface SellerOnboardingService {
     PayeeInfoDO syncOnboarding(Long payeeId);
 
     /**
-     * 按工行的两条成败线（开户状态 × 审核结果）推进建档状态机。
+     * 把审核结果收敛到建档状态机上（只有审核一条线）。
      *
-     * @param payeeId        出售者编号
-     * @param openacctStatus 开户状态：02-成功，03-失败，其余视为在途
-     * @param result         审核结果：pass / reject，为空视为未回
-     * @param mediumId       工行账户标识
-     * @param rejectReason   审核拒绝原因
+     * @param payeeId     出售者编号
+     * @param auditStatus 查询接口给的审核状态：1-审核通过，2-新增审核中，3-修改审核中，4-删除审核中；回调路径传空
+     * @param result      审核结果：pass / reject；查询接口不带这个字段，传空
+     * @param rejectReason 审核拒绝原因
      * @return 更新后的档案
      */
-    PayeeInfoDO reconcileOnboardingStatus(Long payeeId, String openacctStatus, String result,
-                                          String mediumId, String rejectReason);
+    PayeeInfoDO reconcileOnboardingStatus(Long payeeId, String auditStatus, String result, String rejectReason);
 
     /**
      * 收方入驻失败时留下联系方式等待联系
@@ -92,8 +95,6 @@ public interface SellerOnboardingService {
 
     /**
      * 某收方是否有在途的收款账户变更（换卡，#37）。
-     *
-     * <p>有在途变更时，建档页面不该因「建档已完成」而短路——它要输出**新卡**的收方入驻页面。
      */
     boolean hasPendingBankCardChange(Long payeeId);
 
@@ -144,14 +145,11 @@ public interface SellerOnboardingService {
      * 所以还要靠 {@code outVendorId}（报文里的 {@code appIdSub}）定位是哪家回收企业。
      * 定位不了时抛业务异常，让通知落失败、在平台运营的通知监控里人工处理——不猜、不跨企业乱写。
      *
-     * @param outUserId      平台级外部用户编号
-     * @param outVendorId    子商户编号（回收企业），即报文里的 appIdSub
-     * @param result         审核结果（pass / reject）
-     * @param openacctStatus 工行侧开户状态
-     * @param mediumId       工行返回的账户标识
-     * @param rejectReason   拒绝原因
+     * @param outUserId    平台级外部用户编号
+     * @param outVendorId  子商户编号（回收企业），即报文里的 appIdSub
+     * @param result       审核结果（pass / reject）
+     * @param rejectReason 拒绝原因
      */
-    void handleOnboardingNotify(String outUserId, String outVendorId, String result, String openacctStatus,
-                                String mediumId, String rejectReason);
+    void handleOnboardingNotify(String outUserId, String outVendorId, String result, String rejectReason);
 
 }

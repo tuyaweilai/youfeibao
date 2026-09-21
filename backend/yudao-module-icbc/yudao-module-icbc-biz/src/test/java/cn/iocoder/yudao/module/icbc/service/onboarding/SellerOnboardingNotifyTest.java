@@ -85,12 +85,11 @@ public class SellerOnboardingNotifyTest extends BaseDbUnitTest {
 
         String result = callbackNotifyService.receive(
                 "{\"appId\":\"A\",\"appIdSub\":\"" + OUT_VENDOR_ID + "\",\"outUserId\":\"" + person.getOutUserId()
-                        + "\",\"result\":\"pass\",\"openacctStatus\":\"02\",\"mediumId\":\"MEDIUM_N\"}");
+                        + "\",\"result\":\"pass\"}");
 
         assertEquals("SUCCESS", result);
         PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
         assertEquals(PayeeOnboardingOutcomeEnum.READY.getCode(), updated.getOnboardingState());
-        assertEquals("MEDIUM_N", updated.getIcbcMediumId());
     }
 
     @Test

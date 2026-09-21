@@ -102,16 +102,15 @@ public class PayeeBankCardChangeServiceTest extends BaseDbUnitTest {
         bankCardChangeService.requestChange(req(payee.getId(), NEW_CARD, "中国工商银行"));
 
         IcbcPayeeBankCardChangeDO resolved =
-                bankCardChangeService.applyOnboardingResult(payee.getId(), "02", "pass", "M-NEW", null);
+                bankCardChangeService.applyOnboardingResult(payee.getId(), "pass", null);
 
         assertEquals(PayeeBankCardChangeStatusEnum.EFFECTIVE.getStatus(), resolved.getStatus());
         assertNotNull(resolved.getResolvedAt());
         assertEquals("pass", resolved.getAuditResult());
-        // 新卡生效：收方档案换成新卡，工行账户事实跟着走
+        // 新卡生效：收方档案换成新卡
         PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
         assertEquals(NEW_CARD, updated.getBankCardNo());
         assertEquals("中国工商银行", updated.getBankName());
-        assertEquals("M-NEW", updated.getIcbcMediumId());
         assertEquals(PayeeOnboardingOutcomeEnum.READY.getCode(), updated.getOnboardingState());
         // 在途已清，付款不再挂起
         assertFalse(bankCardChangeService.hasPending(payee.getId()));
@@ -124,7 +123,7 @@ public class PayeeBankCardChangeServiceTest extends BaseDbUnitTest {
         bankCardChangeService.requestChange(req(payee.getId(), NEW_CARD, null));
 
         IcbcPayeeBankCardChangeDO resolved =
-                bankCardChangeService.applyOnboardingResult(payee.getId(), "02", "reject", null, "卡号与姓名不符");
+                bankCardChangeService.applyOnboardingResult(payee.getId(), "reject", "卡号与姓名不符");
 
         assertEquals(PayeeBankCardChangeStatusEnum.REJECTED.getStatus(), resolved.getStatus());
         assertEquals("卡号与姓名不符", resolved.getRejectReason());
@@ -136,13 +135,13 @@ public class PayeeBankCardChangeServiceTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testApplyOnboardingResult_rejectWithoutOpenacctStatusStillResolves() {
+    public void testApplyOnboardingResult_rejectOnlyCallbackStillResolves() {
         PayeeInfoDO payee = insertReadyPayee("USER_BC7", "110101199001020007", "13800010007", OLD_CARD);
         bankCardChangeService.requestChange(req(payee.getId(), NEW_CARD, null));
 
-        // 数据接口回调可能只带 result=reject：拒绝是权威结论，照样收敛
+        // 数据接口回调只带 result=reject：拒绝是权威结论，照样收敛
         IcbcPayeeBankCardChangeDO resolved =
-                bankCardChangeService.applyOnboardingResult(payee.getId(), null, "reject", null, null);
+                bankCardChangeService.applyOnboardingResult(payee.getId(), "reject", null);
 
         assertEquals(PayeeBankCardChangeStatusEnum.REJECTED.getStatus(), resolved.getStatus());
     }
@@ -152,7 +151,7 @@ public class PayeeBankCardChangeServiceTest extends BaseDbUnitTest {
         PayeeInfoDO payee = insertReadyPayee("USER_BC8", "110101199001020008", "13800010008", OLD_CARD);
 
         // 没有在途变更时属于首次建档的结果，本服务不该碰收方档案
-        assertNull(bankCardChangeService.applyOnboardingResult(payee.getId(), "02", "pass", "M1", null));
+        assertNull(bankCardChangeService.applyOnboardingResult(payee.getId(), "pass", null));
         assertEquals(OLD_CARD, payeeInfoMapper.selectById(payee.getId()).getBankCardNo());
     }
 
@@ -193,7 +192,7 @@ public class PayeeBankCardChangeServiceTest extends BaseDbUnitTest {
         IcbcPayeeBankCardChangeDO first = bankCardChangeService.requestChange(req(payeeA.getId(), NEW_CARD, null));
         bankCardChangeService.requestChange(req(payeeB.getId(), NEW_CARD, null));
         // A 的第一笔被拒后再发起第二笔，历史里有两条
-        bankCardChangeService.applyOnboardingResult(payeeA.getId(), "02", "reject", null, "重来");
+        bankCardChangeService.applyOnboardingResult(payeeA.getId(), "reject", "重来");
         bankCardChangeService.requestChange(req(payeeA.getId(), "6222020000333344", null));
 
         Map<Long, IcbcPayeeBankCardChangeDO> pending =

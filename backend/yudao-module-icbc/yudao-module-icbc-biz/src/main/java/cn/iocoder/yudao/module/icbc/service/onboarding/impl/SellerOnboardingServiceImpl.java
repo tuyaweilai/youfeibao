@@ -26,7 +26,9 @@ import cn.iocoder.yudao.module.icbc.gateway.IcbcGatewayResult;
 import cn.iocoder.yudao.module.icbc.gateway.model.FaceVerifyPageReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.FaceVerifyStatus;
 import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
-import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingPageReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.PayeeBankCardUpdateReq;
+import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReceipt;
+import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingStatus;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
@@ -61,9 +63,16 @@ import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 public class SellerOnboardingServiceImpl implements SellerOnboardingService {
 
     /**
-     * 默认交易渠道：H5。全程不要求出售者安装 App 或关注公众号（issue #6 验收）。
+     * 工行职业字典的缺省值：「14-其他」。15 个取值里只有它**不宣称任何事实**——「13-无职业」是在断言
+     * 这个人没有工作，那是编造；「其他」只表示我们没问。将来建档向导加一步问职业，这里就不再兜底。
      */
-    private static final String DEFAULT_TRX_CHANNEL = "03";
+    private static final String DEFAULT_OCCUPATION = "14";
+
+    /**
+     * 「是否我行用户」的缺省值：1-我行用户。现场端拿到的多是工行卡；非工行卡由现场端或后续的
+     * 银行卡 OCR 显式上送 0。猜错的代价是工行驳回入驻，而不是默默写错一笔钱。
+     */
+    private static final String DEFAULT_ACCOUNT_CODE = "1";
 
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
@@ -85,14 +94,13 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     private IcbcGateway icbcGateway;
 
     /**
-     * 工行页面回调 / 跳转地址。是平台外网可达地址，不是工行地址，故不进适配层配置。
+     * 收方入驻审核结果回调地址。是平台外网可达地址，不是工行地址，故不进适配层配置。
      */
     @Value("${icbc.seller-onboarding.callback-url:}")
     private String onboardingCallbackUrl;
-    @Value("${icbc.seller-onboarding.jump-url:}")
-    private String onboardingJumpUrl;
-    @Value("${icbc.seller-onboarding.fail-jump-url:}")
-    private String onboardingFailJumpUrl;
+    /**
+     * 实人认证结果回调地址（同样是平台外网可达地址）
+     */
     @Value("${icbc.seller-onboarding.face-callback-url:}")
     private String faceCallbackUrl;
 
@@ -151,61 +159,89 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     // ==================== 收方入驻 ====================
 
     @Override
-    public SellerStepRespVO submitOnboarding(SellerOnboardingSubmitReqVO reqVO) {
+    public PayeeInfoDO submitOnboarding(SellerOnboardingSubmitReqVO reqVO) {
         PayeeInfoDO payee = validatePayeeExists(reqVO.getPayeeId());
         IcbcNaturalPersonDO person = payeeInfoService.ensureNaturalPerson(payee);
         // 实人认证是前置环节：认证记在自然人主体上，所以同一人在别的企业认证过也算数
         if (!PayeeRealNameStatusEnum.PASSED.getStatus().equals(person.getRealNameStatus())) {
             throw exception(SELLER_REAL_NAME_NOT_PASSED);
         }
-        // 换卡（#37）：有在途变更就用**变更单上的新卡**重走收方入驻，生效中的那张卡在这期间不动
+        // 换卡（#37）：有在途变更就走**收方修改**。不能重跑一次新增——同一个 outUserId 档案下
+        // 不可重复使用，而且换卡只允许改卡与证件有效期那几个字段。
         IcbcPayeeBankCardChangeDO change = payeeBankCardChangeService.getPending(payee.getId());
-        String bankCardNo = change != null ? change.getNewBankCardNo() : payee.getBankCardNo();
-        if (StrUtil.isBlank(bankCardNo)) {
+        if (change != null) {
+            return submitBankCardChange(payee, person, change, reqVO);
+        }
+        // 已在途或已通过就不再打一次工行：重复提交会多出一条待审记录，且工行要求未知时先查询
+        PayeeOnboardingOutcomeEnum current = PayeeOnboardingOutcomeEnum.ofCode(payee.getOnboardingState());
+        if (current == PayeeOnboardingOutcomeEnum.PENDING || current == PayeeOnboardingOutcomeEnum.READY) {
+            return payee;
+        }
+        if (StrUtil.isBlank(payee.getBankCardNo())) {
             throw exception(SELLER_BANK_CARD_REQUIRED);
         }
-        String idSignDate = change != null
-                ? StrUtil.blankToDefault(change.getIdSignDate(), payee.getIdSignDate()) : reqVO.getIdSignDate();
-        String idValidityPeriod = change != null
-                ? StrUtil.blankToDefault(change.getIdValidityPeriod(), payee.getIdValidityPeriod())
-                : reqVO.getIdValidityPeriod();
+        // 首次建档：证件有效期与开户行一并写回档案。
+        PayeeInfoDO update = new PayeeInfoDO();
+        update.setId(payee.getId());
+        update.setIdSignDate(reqVO.getIdSignDate());
+        update.setIdValidityPeriod(reqVO.getIdValidityPeriod());
+        update.setBankName(reqVO.getBankName());
+        update.setBankBranch(reqVO.getBankBranch());
+        payeeInfoMapper.updateById(update);
+        payee.setIdSignDate(StrUtil.blankToDefault(reqVO.getIdSignDate(), payee.getIdSignDate()));
+        payee.setIdValidityPeriod(StrUtil.blankToDefault(reqVO.getIdValidityPeriod(), payee.getIdValidityPeriod()));
 
-        // 首次建档：银行卡识别结果与证件有效期一并写回档案。
-        // 换卡时**不写回**——新卡要等工行审核通过才生效（见 PayeeBankCardChangeService#applyOnboardingResult）。
-        if (change == null) {
-            PayeeInfoDO update = new PayeeInfoDO();
-            update.setId(payee.getId());
-            update.setIdSignDate(reqVO.getIdSignDate());
-            update.setIdValidityPeriod(reqVO.getIdValidityPeriod());
-            update.setBankName(reqVO.getBankName());
-            update.setBankBranch(reqVO.getBankBranch());
-            payeeInfoMapper.updateById(update);
+        IcbcGatewayResult<PayeeOnboardingReceipt> result =
+                icbcGateway.submitPayeeOnboarding(PayeeOnboardingReq.builder()
+                        .outUserId(person.getOutUserId())
+                        // 子商户 = 回收企业 = 本租户的付方档案；与预下单 / 付款用的是同一个值
+                        .outVendorId(currentOutVendorId())
+                        .receiverName(payee.getName())
+                        .receiverAccount(payee.getBankCardNo())
+                        .accountCode(StrUtil.blankToDefault(reqVO.getAccountCode(), DEFAULT_ACCOUNT_CODE))
+                        .bankName(StrUtil.blankToDefault(payee.getBankName(), reqVO.getBankName()))
+                        .mobile(payee.getMobile())
+                        .idNo(payee.getIdCardNo())
+                        .occupation(StrUtil.blankToDefault(payee.getOccupation(), DEFAULT_OCCUPATION))
+                        .address(payee.getAddress())
+                        .signDate(payee.getIdSignDate())
+                        .validityPeriod(payee.getIdValidityPeriod())
+                        .callbackUrl(StrUtil.blankToDefault(onboardingCallbackUrl, null))
+                        .build());
+        if (!result.isSuccess()) {
+            throw exception(ICBC_API_CALL_FAILED);
         }
-        payee.setIdSignDate(StrUtil.blankToDefault(idSignDate, payee.getIdSignDate()));
-        payee.setIdValidityPeriod(StrUtil.blankToDefault(idValidityPeriod, payee.getIdValidityPeriod()));
+        // 受理即「审核中」：这是同步受理、异步审核，不能假设同步返回就是通过
+        PayeeInfoDO accepted = new PayeeInfoDO();
+        accepted.setId(payee.getId());
+        accepted.setOnboardingState(PayeeOnboardingOutcomeEnum.PENDING.getCode());
+        payeeInfoMapper.updateById(accepted);
+        return payeeInfoMapper.selectById(payee.getId());
+    }
 
-        IcbcGatewayResult<IcbcPage> result = icbcGateway.submitPayeeOnboarding(PayeeOnboardingPageReq.builder()
+    /**
+     * 换卡：走收方修改接口，只上送允许修改的字段（卡号、是否我行卡、行名、行号、证件签发/截止日期）。
+     *
+     * <p>收方档案里的卡**一条都不动**：新卡要等工行审核通过才由
+     * {@link PayeeBankCardChangeService#applyOnboardingResult} 搬过去。
+     */
+    private PayeeInfoDO submitBankCardChange(PayeeInfoDO payee, IcbcNaturalPersonDO person,
+                                             IcbcPayeeBankCardChangeDO change,
+                                             SellerOnboardingSubmitReqVO reqVO) {
+        IcbcGatewayResult<PayeeOnboardingReceipt> result = icbcGateway.updatePayeeBankCard(PayeeBankCardUpdateReq.builder()
                 .outUserId(person.getOutUserId())
-                // 子商户 = 回收企业 = 本租户的付方档案；与预下单 / 付款用的是同一个值（此前这里错用了全局配置）
                 .outVendorId(currentOutVendorId())
-                .receiverName(payee.getName())
-                .receiverAccount(bankCardNo)
-                .mobile(payee.getMobile())
-                .idNo(payee.getIdCardNo())
-                .occupation(payee.getOccupation())
-                .address(payee.getAddress())
-                .signDate(payee.getIdSignDate())
-                .validityPeriod(payee.getIdValidityPeriod())
-                .corpSerno(generateTransNo("ONBOARD"))
-                .trxChannel(StrUtil.blankToDefault(reqVO.getTrxChannel(), DEFAULT_TRX_CHANNEL))
+                .receiverAccount(change.getNewBankCardNo())
+                .accountCode(StrUtil.blankToDefault(reqVO.getAccountCode(), DEFAULT_ACCOUNT_CODE))
+                .bankName(StrUtil.blankToDefault(reqVO.getBankName(), change.getNewBankName()))
+                .signDate(StrUtil.blankToDefault(change.getIdSignDate(), payee.getIdSignDate()))
+                .validityPeriod(StrUtil.blankToDefault(change.getIdValidityPeriod(), payee.getIdValidityPeriod()))
                 .callbackUrl(StrUtil.blankToDefault(onboardingCallbackUrl, null))
-                .jumpUrl(StrUtil.blankToDefault(onboardingJumpUrl, null))
-                .failJumpUrl(StrUtil.blankToDefault(onboardingFailJumpUrl, null))
                 .build());
         if (!result.isSuccess()) {
             throw exception(ICBC_API_CALL_FAILED);
         }
-        return step(payee.getId(), "ONBOARDING", formHtml(result));
+        return payeeInfoMapper.selectById(payee.getId());
     }
 
     @Override
@@ -218,40 +254,33 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
             throw exception(ICBC_API_CALL_FAILED);
         }
         PayeeOnboardingStatus status = result.getData();
-        reconcileOnboardingStatus(payee.getId(), status.getOpenacctStatus(), status.getResult(),
-                status.getMediumId(), status.getRejectReason());
-        return payeeInfoMapper.selectById(payeeId);
+        return reconcileOnboardingStatus(payee.getId(), status.getAuditStatus(), status.getResult(),
+                status.getRejectReason());
     }
 
     @Override
-    public PayeeInfoDO reconcileOnboardingStatus(Long payeeId, String openacctStatus, String result,
-                                                 String mediumId, String rejectReason) {
+    public PayeeInfoDO reconcileOnboardingStatus(Long payeeId, String auditStatus, String result,
+                                                 String rejectReason) {
         PayeeInfoDO payee = validatePayeeExists(payeeId);
         // 换卡（#37）：在途变更时，入驻结果属于**新卡**，不能拿它去改「建档状态」——
         // 被拒时原卡仍然有效，他依然可开票可收款（否则一次换卡失败会把他的收款能力打掉）。
-        if (payeeBankCardChangeService.applyOnboardingResult(payeeId, openacctStatus, result, mediumId,
-                rejectReason) != null) {
+        if (payeeBankCardChangeService.applyOnboardingResult(payeeId, result, rejectReason) != null) {
             return payeeInfoMapper.selectById(payeeId);
         }
-        PayeeOnboardingOutcomeEnum outcome = PayeeOnboardingOutcomeEnum.of(openacctStatus, result);
-        // 审核拒绝是权威结论：即便开户状态缺失（如数据接口回调只带 result），也要把拒绝状态与原因落下来
-        if (outcome == null && "reject".equalsIgnoreCase(result)) {
-            outcome = PayeeOnboardingOutcomeEnum.REJECTED;
-        }
+        // 审核只一条线：回调只带 result，查询带 auditStatus（1-通过，2/3/4-还在审）
+        PayeeOnboardingOutcomeEnum outcome = result != null
+                ? PayeeOnboardingOutcomeEnum.of(result) : PayeeOnboardingOutcomeEnum.ofAuditStatus(auditStatus);
 
         PayeeInfoDO update = new PayeeInfoDO();
         update.setId(payee.getId());
-        // 两条线各自的原样透传：即便尚未收敛，也先把已知的一半记下来
-        update.setIcbcOpenacctStatus(StrUtil.blankToDefault(openacctStatus, null));
-        update.setIcbcMediumId(StrUtil.blankToDefault(mediumId, null));
         update.setAuditResult(StrUtil.blankToDefault(result, null));
         update.setRejectReason(StrUtil.blankToDefault(rejectReason, null));
         if (outcome != null) {
             update.setOnboardingState(outcome.getCode());
             update.setIcbcReceiverStatus(outcome.isInvoiceEligible() ? "1" : "0");
-            if ("pass".equalsIgnoreCase(result)) {
+            if (outcome == PayeeOnboardingOutcomeEnum.READY) {
                 update.setStatus(IcbcStatusEnum.AuditStatus.APPROVED.getStatus());
-            } else if ("reject".equalsIgnoreCase(result)) {
+            } else if (outcome == PayeeOnboardingOutcomeEnum.REJECTED) {
                 update.setStatus(IcbcStatusEnum.AuditStatus.REJECTED.getStatus());
                 update.setAuditMsg(rejectReason);
             }
@@ -298,9 +327,7 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
         resp.setAuditResult(payee.getAuditResult());
         resp.setRejectReason(payee.getRejectReason());
         resp.setStatus(payee.getStatus());
-        resp.setIcbcOpenacctStatus(payee.getIcbcOpenacctStatus());
         resp.setIcbcReceiverStatus(payee.getIcbcReceiverStatus());
-        resp.setIcbcMediumId(payee.getIcbcMediumId());
         resp.setUpdateTime(payee.getUpdateTime());
         resp.setFrameworkAgreement(toAgreementResp(agreement));
         resp.setAuthorization(toAuthorizationResp(authorization));
@@ -460,7 +487,7 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
 
     @Override
     public void handleOnboardingNotify(String outUserId, String outVendorId, String result,
-                                       String openacctStatus, String mediumId, String rejectReason) {
+                                       String rejectReason) {
         IcbcNaturalPersonDO person = naturalPersonService.getByOutUserId(outUserId);
         if (person == null) {
             log.warn("[handleOnboardingNotify][未找到自然人主体] outUserId={}", outUserId);
@@ -479,7 +506,7 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
                         tenantId, outUserId);
                 return;
             }
-            reconcileOnboardingStatus(payee.getId(), openacctStatus, result, mediumId, rejectReason);
+            reconcileOnboardingStatus(payee.getId(), null, result, rejectReason);
         });
     }
 

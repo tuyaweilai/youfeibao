@@ -7,7 +7,8 @@ package cn.iocoder.yudao.module.icbc.gateway.sdk;
  */
 public final class IcbcApiPaths {
 
-    public static final String PAYEE_ONBOARDING_PAGE = "/ui/jft/ui/user/edpopenacct/submit/V1";
+    public static final String PAYEE_ONBOARDING = "/api/jft/api/user/edpreceive/add/V1";
+    public static final String PAYEE_BANK_CARD_UPDATE = "/api/jft/api/user/edpreceive/update/V1";
     public static final String PAYEE_ONBOARDING_QUERY = "/api/jft/api/user/edpopenacct/query/V1";
     public static final String FACE_VERIFY_PAGE = "/ui/jft/ui/user/faceH5/submit/V1";
     public static final String FACE_VERIFY_QUERY = "/api/jft/api/user/faceH5/query/V1";
