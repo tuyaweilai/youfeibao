@@ -40,6 +40,16 @@
 - 前端：这个工作树里**没有 `node_modules`**。先 `pnpm install --prefer-offline`；装不动就从主工作树软链（`ln -s @@ROOT@@/backend/yudao-ui/<app>/node_modules node_modules`）。PC 后台额外需要 `src/types/auto-imports.d.ts` / `auto-components.d.ts`（vite 生成物，被 gitignore，可从主工作树拷贝）与 `NODE_OPTIONS=--max_old_space_size=8192`。
 - **PC 后台本来就有 1254 条既存类型错误**：判断标准是「新增文件零错误」，不是 `ts:check` 全绿；至少 `pnpm build:local` 要通过。
 
+## 提交前自己过一遍这几面透镜
+
+单测全绿 + 验收逐条核，盖不住「默认配置下真实会发生什么」。三轮独立评审被拦下的问题，共同点都是这个。提交前请自己回答，并写进报告：
+
+1. **默认配置**（`application.yaml`，不是 `application-local.yaml`）下，这条新路径的哪些开关是**开着**的？平台的 `ApiAccessLogFilter` 默认记录所有 `/admin-api` 的 JSON 请求体，而 `SANITIZE_KEYS` 只脱敏 `password/token`——所以请求体里**不能出现**影像字节、身份证号、银行卡号、手机号、住址。带这些的接口要 `@ApiAccessLog(requestEnable = false)`，并留一条能钉住它的测试。
+2. **PII 去哪了**：请求体 / 查询串 / 路径参数 / 日志 / 异常栈 / 新建的表 / 文件服务，有没有不该留的？ADR 0037 定了证件影像识别完即弃。
+3. **异常路径会不会丢输入或卡住**：弱网、超时、重复提交、第三方报错时，用户已经输入的东西还在不在？状态会不会推到回不来的地方（拿不到链接、回不到上一步）？现场端的主要故障模式就是弱网。
+4. **只有人才能验的**（真机相机、第三方联调）单独列一节，**不要记成「已验」**。
+5. **有没有把「临时态 / 预留 / 等下游」写成「已经做到」**？注释、枚举文档、报告里都算。
+
 ## 交付
 
 - **只 `git add` 你自己改的文件，不要 `git add -A`。**
