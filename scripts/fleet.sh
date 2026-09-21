@@ -46,6 +46,23 @@ PARENT=$(dirname "$ROOT")
 mkdir -p "$FLEET/logs" "$FLEET/prompts" "$FLEET/gates"
 
 die()  { echo "✗ $*" >&2; exit 1; }
+# 写议题追踪（评论 / 标签 / 关票）。这些调用**必须**成功：关票失败会让依赖它的下游票
+# **永远解不开**（frontier 按 issue 状态算），而 `#98` 那次网络抖动就是这么静默漏掉的——
+# 脚本还照样打了「已关票」，因为当时没检查退出码。现在：重试 3 次，失败就吵并给出人手命令。
+gh_write() { # <干什么> <gh 参数...>
+  local what=$1; shift
+  local i=0
+  while [ $i -lt 3 ]; do
+    "$@" >/dev/null 2>&1 && return 0
+    i=$((i + 1))
+    [ $i -lt 3 ] && sleep 3
+  done
+  echo "✗ 议题追踪写入失败（重试 3 次）：${what}" >&2
+  echo "    手工补：gh $*" >&2
+  return 1
+}
+
+
 info() { echo "· $*"; }
 ok()   { echo "✓ $*"; }
 
@@ -367,8 +384,8 @@ cmd_integrate() {
   else
     git -C "$ROOT" merge --abort 2>/dev/null
     state_set "$n" conflict "$branch" "$wt" "" "$(state_field "$n" 6)" "$(state_field "$n" 7)" "$(state_field "$n" 8)"
-    gh issue edit "$n" --add-label ready-for-human >/dev/null 2>&1
-    gh issue comment "$n" --body "自动舰队：合并 \`$branch\` 到 main 时**撞了冲突**，已 abort，没有硬合。冲突文件见 \`$FLEET/logs/$n.merge.log\`。分支留在本地，请人工按 \`/resolving-merge-conflicts\` 的方式按意图解。" >/dev/null 2>&1
+    gh_write "给 #$n 打 ready-for-human（合并冲突）" gh issue edit "$n" --add-label ready-for-human
+    gh_write "在 #$n 上留言（合并冲突）" gh issue comment "$n" --body "自动舰队：合并 \`$branch\` 到 main 时**撞了冲突**，已 abort，没有硬合。冲突文件见 \`$FLEET/logs/$n.merge.log\`。分支留在本地，请人工按 \`/resolving-merge-conflicts\` 的方式按意图解。"
     die "#$n 合并冲突，已 abort 并标 ready-for-human（分支保留）"
   fi
 
@@ -404,23 +421,26 @@ cmd_integrate() {
       info "已 push 到 origin/main"
     else
       echo "✗ push 失败！票已合并并关，但远端 main 落后了。看 $FLEET/logs/push.log" >&2
-      gh issue comment "$n" --body "⚠ 自动舰队：**本地**已合并（\`$merged_sha\`）并关票，但 \`git push origin main\` **失败**。远端 main 落后于本地，需要人工推一次。" >/dev/null 2>&1
+      gh_write "在 #$n 上留言（push 失败）" gh issue comment "$n" --body "⚠ 自动舰队：**本地**已合并（\`$merged_sha\`）并关票，但 \`git push origin main\` **失败**。远端 main 落后于本地，需要人工推一次。"
     fi
   }
 
   local log; log=$(state_field "$n" 8)
   [ -n "$log" ] && [ -f "$log" ] || log="$FLEET/logs/$n.log"
   local tail_report; tail_report=$(sed -n '/验收清单/,$p' "$log" 2>/dev/null | head -20)
-  gh issue comment "$n" --body "自动舰队已合并到 main：
+  gh_write "在 #$n 上留言（合并证据）" gh issue comment "$n" --body "自动舰队已合并到 main：
 - 合并提交 \`$merged_sha\`（$commits 个提交，$files 个文件）
 - 闸门：全量 icbc \`$summary\`
 - 报告：\`.fleet/gates/$n.md\`、复审 \`.fleet/gates/$n.review.md\`（\`.fleet/\` 不入库）
 
 **机器验不了、留给人验收的**（agent 报告里的那一段）：
 
-${tail_report:-（报告里没有这一节，请翻 ${log}）}" >/dev/null 2>&1
-  gh issue close "$n" --comment "代码与验收已核，关闭。" >/dev/null 2>&1
-  ok "#$n 已关票"
+${tail_report:-（报告里没有这一节，请翻 ${log}）}"
+  if gh_write "关闭 #$n" gh issue close "$n" --comment "代码与验收已核，关闭。"; then
+    ok "#$n 已关票"
+  else
+    echo "  ⚠ #$n 已合并但**没关上**——依赖它的票在 frontier 里永远不会解封，请手工：gh issue close $n" >&2
+  fi
 }
 
 # ---------------------------------------------------------------- 带超时地跑一个子进程
@@ -501,8 +521,8 @@ park() { # <票> <状态> <给议题的说明>
   local n=$1 st=$2 why=$3
   state_set "$n" "$st" "$(state_field "$n" 3)" "$(state_field "$n" 4)" "" \
             "$(state_field "$n" 6)" "$(state_field "$n" 7)" "$(state_field "$n" 8)"
-  gh issue edit "$n" --add-label ready-for-human >/dev/null 2>&1
-  gh issue comment "$n" --body "$why" >/dev/null 2>&1
+  gh_write "给 #$n 打 ready-for-human" gh issue edit "$n" --add-label ready-for-human
+  gh_write "在 #$n 上留言（停下等人）" gh issue comment "$n" --body "$why"
   info "#$n 停下等人（不自动重试）"
 }
 
