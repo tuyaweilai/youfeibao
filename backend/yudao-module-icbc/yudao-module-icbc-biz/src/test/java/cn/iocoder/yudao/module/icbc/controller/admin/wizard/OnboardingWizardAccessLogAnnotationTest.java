@@ -24,8 +24,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * ——本控制器的请求体要么是**证件 / 银行卡影像本身**（三枚识别的 {@code imageBase64}，现场端按
  * 10M 上限传），要么是**完整 PII**（{@code submit} 带姓名 / 身份证号 / 手机号 / 住址 / 银行卡号）。
  * 关掉请求体记录的唯一途径是本注解，而 {@code yudao.access-log.enable=false} 只在
- * {@code application-local.yaml} 里配过，dev / 生产默认开启，{@code SANITIZE_KEYS} 又只脱敏
- * password / token——不锁就会把影像片段与 PII 落进后台可查、可导出的运维日志表。
+ * {@code application-local.yaml} 里配过，dev / 生产默认开启——不锁就会把影像片段与 PII
+ * 落进后台可查、可导出的运维日志表。
+ *
+ * <p>#98 之后平台的默认脱敏名单（{@code ApiAccessLogFilter.SANITIZE_KEYS}）已经覆盖
+ * {@code imageBase64} / {@code idCardNo} / {@code mobile} / {@code bankCardNo} / {@code address}
+ * 这类**字段名**，但这条注解**不撤**：两个机制管的不是一件事——默认名单治「记了也不出 PII」，
+ * 注解治「整段别记」（影像按 10M 上限进来，本身就值得连解析都不做；且姓名 {@code name}
+ * 按 #98 的口径不进名单）。
  *
  * <p>注释会漂，注解不会：以后往这个控制器加「请求体带影像或 PII」的接口，忘了加注解这条测试就红。
  * 反过来，若某接口真的不再带敏感请求体，应当把它显式迁出这条规则并更新下方集合，而不是悄悄放开。

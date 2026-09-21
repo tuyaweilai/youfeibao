@@ -32,9 +32,15 @@ import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
  * <p><b>请求体一律不记访问日志</b>（{@code @ApiAccessLog(requestEnable = false)}，#91 复审 ST-A）：
  * 三枚识别的请求体就是证件 / 银行卡影像本身（{@code imageBase64}，现场端按 10M 上限传），{@code submit}
  * 带完整 PII（姓名 / 身份证号 / 手机号 / 住址 / 银行卡号）。平台的 {@code ApiAccessLogFilter} 默认把
- * {@code /admin-api} 的 JSON 请求体截 8000 字符写进 {@code infra_api_access_log.request_params}，而
- * {@code SANITIZE_KEYS} 只脱敏 password / token——不关就会与 ADR 0037 决策 5「图片识别完即弃」、
- * 本票验收「影像不落库」相抵。这条不变量由 {@code OnboardingWizardAccessLogAnnotationTest} 钉住。
+ * {@code /admin-api} 的 JSON 请求体截 8000 字符写进 {@code infra_api_access_log.request_params}——
+ * 不关就会与 ADR 0037 决策 5「图片识别完即弃」、本票验收「影像不落库」相抵。
+ *
+ * <p>#98 已经把 {@code imageBase64} / {@code idCardNo} / {@code mobile} / {@code bankCardNo} /
+ * {@code address} 这些**字段名**加进默认脱敏名单（全平台生效），但这条注解**保留**：两个机制管的不是
+ * 一件事——默认名单治「记了也不出 PII」，注解治「整段别记」（十几 MB 的影像进来，本身就值得连解析都
+ * 不做；且姓名 {@code name} 太通用、按 #98 的口径不进名单）。这条不变量由
+ * {@code OnboardingWizardAccessLogAnnotationTest} 钉住，字段名级别的覆盖由
+ * {@code ApiAccessLogPiiCoverageTest} 钉住。
  */
 @Tag(name = "管理后台 - 建档向导")
 @RestController

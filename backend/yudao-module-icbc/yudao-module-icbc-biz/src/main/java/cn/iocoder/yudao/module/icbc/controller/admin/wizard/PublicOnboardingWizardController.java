@@ -29,7 +29,8 @@ import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
  * 三枚识别的请求体就是证件 / 银行卡影像本身，{@code submit} 带完整 PII。平台的
  * {@code ApiAccessLogFilter} 默认把 {@code /admin-api} 的 JSON 请求体写进
  * {@code infra_api_access_log.request_params}，不关就与 ADR 0037「识别完即弃」、本票「不落库」相抵。
- * 由 {@code PublicOnboardingWizardAccessLogAnnotationTest} 钉住。
+ * #98 之后默认脱敏名单已覆盖这些**字段名**，但这条注解保留（整段别记：影像十几 MB；姓名不在名单里）。
+ * 由 {@code PublicOnboardingWizardAccessLogAnnotationTest} 与 {@code ApiAccessLogPiiCoverageTest} 钉住。
  */
 @Tag(name = "公开端点 - 本人自填建档")
 @RestController

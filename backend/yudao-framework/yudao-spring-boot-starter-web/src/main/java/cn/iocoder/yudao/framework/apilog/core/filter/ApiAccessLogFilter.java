@@ -49,7 +49,33 @@ import static cn.iocoder.yudao.framework.common.util.json.JsonUtils.toJsonString
 @Slf4j
 public class ApiAccessLogFilter extends ApiRequestFilter {
 
-    private static final String[] SANITIZE_KEYS = new String[]{"password", "token", "accessToken", "refreshToken"};
+    // ========== 默认脱敏名单 ==========
+    // 1. 上游默认四个键：password、token、accessToken、refreshToken。
+    // 2. 本地追加（#98「平台访问日志的 PII 面级收口」）：平台的 ApiAccessLogFilter 默认把 /admin-api 与
+    //    /app-api 的 JSON 请求体写进 infra_api_access_log.request_params，而上游只脱敏上面那四个键，
+    //    于是带 PII 的请求体（身份证号、银行卡号、手机号、住址、证件影像 base64……）会被整段留库。这是
+    //    本地偏离**：默认安全优先——以后任何人写的新接口，只要字段名命中就自动脱敏，不靠每个接口记得
+    //    加注解（逐接口加注解要改 34+ 处，还会永久腐化）。上游默认名单不含 PII，这条本身值得提 PR。
+    // 3. 有意**不加** name / *Name：商品名、企业名、菜单名、自然人姓名都叫 name，加了会把访问日志废掉。
+    //    代价是**姓名仍会进访问日志**，这是 #98 写在票面上的已知残留，不在这里假装解决。
+    // 4. 脱敏按**键名**递归做（数组、嵌套对象都走），不认值的内容——换个字段名就绕过了。所以新增请求
+    //    DTO 时字段名要往这份名单里的写法靠；守卫测试：icbc 的 ApiAccessLogPiiCoverageTest（扫控制器 +
+    //    请求 DTO 字段，落在名单外就红），行为测试：本包的 ApiAccessLogFilterSanitizeTest。
+    private static final String[] SANITIZE_KEYS = new String[]{
+            // 上游默认
+            "password", "token", "accessToken", "refreshToken",
+            // #98：证件 / 影像
+            "idCardNo", "idNo", "certNo", "imageBase64",
+            // #98：联系方式
+            "mobile", "contactMobile", "driverMobile", "telephone", "phone", "payPhoneno",
+            "sellerTelephone", "email",
+            // #98：银行卡 / 账户
+            "bankCardNo", "newBankCardNo", "bankAccount", "receiverAccount",
+            "cardNumber", "drawerCardNumber", "payerAcctNum", "taxPayerAccountNo",
+            // #98：住址
+            "address", "sellerAddress",
+            // #98 顺带：与 password / token 同类的短期凭据与密钥（扫请求体时发现的，漏在日志里更糟）
+            "verifiedCode", "secretKey", "secretId", "callbackSignKey", "consoleToken"};
 
     private final String applicationName;
 
@@ -182,8 +208,11 @@ public class ApiAccessLogFilter extends ApiRequestFilter {
     }
 
     // ========== 请求和响应的脱敏逻辑，移除类似 password、token 等敏感字段 ==========
+    // 下面几个方法包级可见（而不是 private）：ApiAccessLogFilterSanitizeTest 直接调它们，
+    // 断言的是实际输入 → 实际输出，而不是「名单里有这个字符串」。doFilter 用的就是这几个方法，
+    // 没有第二条脱敏路径。
 
-    private static String sanitizeMap(Map<String, ?> map, String[] sanitizeKeys) {
+    static String sanitizeMap(Map<String, ?> map, String[] sanitizeKeys) {
         if (CollUtil.isEmpty(map)) {
             return null;
         }
@@ -194,7 +223,7 @@ public class ApiAccessLogFilter extends ApiRequestFilter {
         return JsonUtils.toJsonString(map);
     }
 
-    private static String sanitizeJson(String jsonString, String[] sanitizeKeys) {
+    static String sanitizeJson(String jsonString, String[] sanitizeKeys) {
         if (StrUtil.isEmpty(jsonString)) {
             return null;
         }
@@ -209,7 +238,7 @@ public class ApiAccessLogFilter extends ApiRequestFilter {
         }
     }
 
-    private static String sanitizeJson(CommonResult<?> commonResult, String[] sanitizeKeys) {
+    static String sanitizeJson(CommonResult<?> commonResult, String[] sanitizeKeys) {
         if (commonResult == null) {
             return null;
         }
