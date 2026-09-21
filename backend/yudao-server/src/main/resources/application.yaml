@@ -293,6 +293,7 @@ yudao:
       - system_tenant_package
       - icbc_scrap_code
       - icbc_esign_config # 电子签章平台级参数：平台级唯一一份，不属任何租户
+      - icbc_card_recognition_config # 卡证识别平台级参数：平台级唯一一份，不属任何租户（#103）
       - icbc_billing_ledger # 平台计费台账：tenant_id 是被计费租户，不是隔离维度
       - icbc_natural_person # 平台级自然人主体：身份证为唯一锚点，本身就是跨企业的
       - icbc_natural_person_login # 自然人主体与登录凭证的绑定：同上

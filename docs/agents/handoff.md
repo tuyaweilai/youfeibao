@@ -2720,3 +2720,51 @@ admin 登录 / 用户保存（`@Mobile`）。**本票不治这条**，真实理�
 - 分支 `i102-error-log-values` → `1054e071`：11 个文件、3 个提交
 - 独立评审：PASS（报告 `.fleet/gates/102.review.md`）
 - 闸门：全量 icbc `[WARNING] Tests run: 912, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/102.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/102.log`（`.fleet/` 与收养票的仓库外日志不入库）
+
+### #103 卡证识别后台配置：密钥 / 开关 / 连通性自检（与电子签章各立一处）
+
+**口径（照议题「待拍的决定」，不再论证）**：① DB 有值用 DB、DB 为空回落 yaml / env，页面标注「来自配置文件」；
+② 密钥明文落库 + 永不回显（照 esign，不上 `@EncryptField`）；③ `provider`（`stub` / `tencent`）等价替换原
+`mode`，`stub` 或未配齐时页面显著提示「未启用，现场为手工录入」。
+
+**做的四件事**：
+
+1. **启动期 → 运行期**（本票的难点）：`StubCardRecognition` 删除，`TencentCardRecognition` 成为**唯一常驻 Bean**，
+   `provider` 每次调用时由新的 `CardRecognitionConfigService#resolveEffectiveConfig()` 现算（DB 优先、空则回落
+   `TencentCardRecognitionProperties`）。`TencentOcrClient` 也从 `@ConditionalOnProperty` 变常驻，签名 / 请求头
+   用的密钥 / 地域 / endpoint / 超时改为**每次调用显式传入** `TencentOcrSettings`。`TencentCardRecognitionProperties`
+   的 `mode` 改名 `provider`（`application-local.yaml` 的 `ICBC_CARD_RECOGNITION_MODE` → `ICBC_CARD_RECOGNITION_PROVIDER`）。
+   红→绿那条测试是 `CardRecognitionPortRuntimeSwitchTest`：真实 DB + 真实配置 Service + 真实常驻端口，只把
+   `TencentOcrTransport` 换成假的——保存 `tencent` + 密钥后**不重启**立刻走到真实实现，再切回 `stub` 立刻回到空结果。
+2. **配置表与后台入口**：新表 `icbc_card_recognition_config`（**全局表**，已登记进 `yudao.tenant.ignore-tables`；
+   不登记就查不到行——这是配置页永远「未配置」的经典死法）+ `CardRecognitionConfigService` +
+   `PlatformCardRecognitionController`（`GET / PUT /icbc/platform/card-recognition/config`、
+   `POST /config/check`）。菜单 **5390（查询）/ 5391（保存）** 在平台运营（5140）下，**不进回收企业套餐**（ADR 0026）。
+3. **连通性自检**：1x1 占位图走同一枚 `TencentOcrClient` 的 `callRaw`（不另起 HTTP），**只在 `AuthFailure.*`
+   上判 AUTH_FAILED**。结果分类落库 `OK / AUTH_FAILED / NETWORK / VENDOR_ERROR` + `last_check_time`，**只存分类**，
+   不存密钥、不整段存厂商原始报文。注意口径：1x1 占位图必然在识别阶段报业务错（`VENDOR_ERROR`），
+   **那恰恰说明鉴权已通过**，所以响应里的 `ok = OK || VENDOR_ERROR`，`AUTH_FAILED` / `NETWORK` 才算失败
+   （与 `TencentCardRecognitionLiveTest` 的判据一致）。自检请求允许带密钥（留空 = 用已存值），「先验证、再保存」成立。
+4. **密钥不进日志**：`PUT /config` 与 `POST /config/check` 都加 `@ApiAccessLog(requestEnable = false)`。
+   注意**不是「不脱敏的洞」**：`secretId` / `secretKey` 早在 #98 就进了 `ApiLogSanitizer.SANITIZE_KEYS`，按键名会打码；
+   注解治的是「密钥只该整段不记」——别把安全寄托在「字段名碰巧命中」。护栏
+   `PlatformCardRecognitionAccessLogAnnotationTest` 反射读注解钉住这一点（按键名名单兜不住它）。
+
+**前端**：`api/icbc/cardRecognition/index.ts` + `views/icbc/platformCardRecognition/index.vue`，照 esign 对应文件；
+密钥框 `type="password"`、placeholder「已配置，留空不改动」；页面顶部按 `provider=stub` / `configured=false` /
+已配置三态给显著提示语。
+
+**已知边界（如实说，别读成「已验」）**：
+
+- **真机 / 真密钥联调没做**（要 `TENCENT_OCR_SECRET_ID` / `TENCENT_OCR_SECRET_KEY`，`TencentCardRecognitionLiveTest`
+  默认跳过）；`region` / `endpoint` / `timeout` 三项虽在配置表里，**没有真机验过改它们的效果**——单测只覆盖
+  「传进 `TencentOcrSettings` 并出现在请求头 / URL / 超时上」。
+- **保存不重置自检结果**：为让「先自检、再保存」成立，`saveConfig` 保留上一次 `last_check_*`。因此改完密钥
+  再保存，页面仍显示旧的「验证通过（时间）」，要重新点一次自检才更新。这是有意的取舍，不是遗漏。
+- **#93 的 56 条映射 / 降级测试是资产**：只按机制变更调整了构造签名与「二选一」那组（改写成「永远只有一枚
+  常驻 Bean + 新判据」），映射逻辑与降级断言的覆盖一条没删。
+
+**验收实测**：全量 icbc `[WARNING] Tests run: 922, Failures: 0, Errors: 0, Skipped: 2`（基线 912：删掉旧机制的
+6 条、新增 16 条）；前端 `vite build` 通过，`vue-tsc` 新增文件零错误（仓库既有基线 1254 条不变）。
+红→绿：改动前 `CardRecognitionPortRuntimeSwitchTest` 在「保存 tencent 后」断言 `expected: <张三> but was: <null>`，
+实现运行期判定后转绿。

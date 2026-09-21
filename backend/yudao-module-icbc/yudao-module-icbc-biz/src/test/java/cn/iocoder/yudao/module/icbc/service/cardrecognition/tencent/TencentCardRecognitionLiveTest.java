@@ -36,11 +36,18 @@ public class TencentCardRecognitionLiveTest {
         if (region != null && !region.trim().isEmpty()) {
             properties.setRegion(region);
         }
-        TencentOcrClient client = new TencentOcrClient(properties, new HutoolTencentOcrTransport());
+        TencentOcrSettings settings = TencentOcrSettings.builder()
+                .secretId(properties.getSecretId())
+                .secretKey(properties.getSecretKey())
+                .region(properties.getRegion())
+                .endpoint(properties.getEndpoint())
+                .timeout(properties.getTimeout())
+                .build();
+        TencentOcrClient client = new TencentOcrClient(new HutoolTencentOcrTransport());
 
         JSONObject payload = JSON.parseObject("{\"ImageBase64\":\"" + TINY_PNG_BASE64
                 + "\",\"CardSide\":\"FRONT\"}");
-        JSONObject response = client.callRaw("IDCardOCR", payload);
+        JSONObject response = client.callRaw(settings, "IDCardOCR", payload);
 
         assertNotNull(response, "腾讯云 OCR 不可达：网络或域名配置有问题");
         JSONObject error = response.getJSONObject("Error");

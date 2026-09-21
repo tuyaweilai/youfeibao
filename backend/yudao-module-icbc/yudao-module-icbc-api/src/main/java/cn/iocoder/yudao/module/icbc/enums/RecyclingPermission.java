@@ -303,4 +303,11 @@ public interface RecyclingPermission {
     String PLATFORM_ESIGN_QUERY = "icbc:platform:esign:query";
     String PLATFORM_ESIGN_MANAGE = "icbc:platform:esign:manage";
 
+    // ========== 卡证识别：平台级配置（#103，ADR 0037，与电子签章各立一处） ==========
+
+    /** 平台运营：查看卡证识别配置（供应商 / 密钥是否已配 / 地域 / endpoint / 超时 / 自检结果） */
+    String PLATFORM_CARD_RECOGNITION_QUERY = "icbc:platform:card-recognition:query";
+    /** 平台运营：保存卡证识别配置与发起连通性自检 */
+    String PLATFORM_CARD_RECOGNITION_MANAGE = "icbc:platform:card-recognition:manage";
+
 }

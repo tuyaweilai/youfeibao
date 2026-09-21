@@ -1,6 +1,8 @@
 package cn.iocoder.yudao.module.icbc.service.cardrecognition.tencent;
 
 import cn.iocoder.yudao.module.icbc.service.cardrecognition.CardRecognitionPort;
+import cn.iocoder.yudao.module.icbc.service.cardrecognition.config.CardRecognitionConfigService;
+import cn.iocoder.yudao.module.icbc.service.cardrecognition.config.CardRecognitionEffectiveConfig;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import org.junit.jupiter.api.Test;
@@ -9,21 +11,28 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
- * {@link TencentCardRecognition} 的单元测试（#93）：用假的 {@link TencentOcrClient} 不触网。
+ * {@link TencentCardRecognition} 的单元测试（#93，机制在 #103 收敛成运行期判定）：用假的
+ * {@link TencentOcrClient} / 配置 Service 不触网。
  *
- * <p>锁住的是**降级路径只有一条**：未配置密钥、客户端返回 {@code null}（网络 / 超时 / 额度耗尽 /
- * 厂商报错）、客户端抛异常——三种都返回空结果，绝不把异常抛给向导（ADR 0037）。
- * 成功路径断言的是「请求送对了 Action / CardSide，响应交给映射层」。
+ * <p>锁住的是**降级路径只有一条**：
+ * <ul>
+ *   <li>{@code provider=stub}（未启用）：返回空结果、绝不触网；</li>
+ *   <li>{@code provider=tencent} 但未配置密钥：返回空结果、绝不触网（ADR 0037）；</li>
+ *   <li>客户端返回 {@code null}（网络 / 超时 / 额度耗尽 / 厂商报错）、客户端抛异常：返回空结果，</li>
+ * </ul>
+ * 绝不把异常抛给向导。成功路径断言的是「请求送对了 Action / CardSide，响应交给映射层」。
  */
 public class TencentCardRecognitionTest {
 
     @Test
-    public void testRecognize_whenNotConfigured_returnsEmptyAndNeverCallsClient() {
-        TencentCardRecognitionProperties properties = new TencentCardRecognitionProperties(); // 无密钥
-        RecordingClient client = new RecordingClient(properties);
-        TencentCardRecognition port = new TencentCardRecognition(properties, client);
+    public void testRecognize_whenProviderStub_returnsEmptyAndNeverCallsClient() {
+        TencentCardRecognitionProperties properties = new TencentCardRecognitionProperties(); // 默认 provider=stub
+        RecordingClient client = new RecordingClient();
+        TencentCardRecognition port = new TencentCardRecognition(config(properties), client);
 
         CardRecognitionPort.IdCardFront front = port.recognizeIdCardFront("base64");
         CardRecognitionPort.IdCardBack back = port.recognizeIdCardBack("base64");
@@ -31,16 +40,32 @@ public class TencentCardRecognitionTest {
 
         assertNotNull(front);
         assertNull(front.getName());
+        assertNull(front.getIdCardNo());
+        assertNull(front.getAddress());
+        assertNull(back.getIdSignDate());
         assertNull(back.getIdValidityPeriod());
         assertNull(bank.getBankCardNo());
+        assertNull(bank.getBankName());
+        assertNull(bank.getAccountCode());
+        assertEquals(0, client.calls, "未启用（stub）不许触网");
+    }
+
+    @Test
+    public void testRecognize_whenTencentButNoSecret_returnsEmptyAndNeverCallsClient() {
+        CardRecognitionEffectiveConfig effective = configured("tencent", null, null);
+        RecordingClient client = new RecordingClient();
+        TencentCardRecognition port = new TencentCardRecognition(mockConfig(effective), client);
+
+        assertNull(port.recognizeIdCardFront("base64").getName());
+        assertNull(port.recognizeIdCardBack("base64").getIdValidityPeriod());
+        assertNull(port.recognizeBankCard("base64").getBankCardNo());
         assertEquals(0, client.calls, "未配置密钥不许触网");
     }
 
     @Test
     public void testRecognize_whenClientReturnsNull_isEmpty_noException() {
         // 网络 / 超时 / 额度耗尽 / 厂商报错：客户端一律返回 null，实现要走同一条降级路径
-        TencentCardRecognitionProperties properties = configuredProperties();
-        TencentCardRecognition port = new TencentCardRecognition(properties, new NullClient(properties));
+        TencentCardRecognition port = new TencentCardRecognition(configuredService(), new NullClient());
 
         assertNull(port.recognizeIdCardFront("base64").getName());
         assertNull(port.recognizeIdCardBack("base64").getIdValidityPeriod());
@@ -49,8 +74,7 @@ public class TencentCardRecognitionTest {
 
     @Test
     public void testRecognize_whenClientThrows_isEmpty_noException() {
-        TencentCardRecognitionProperties properties = configuredProperties();
-        TencentCardRecognition port = new TencentCardRecognition(properties, new ThrowingClient(properties));
+        TencentCardRecognition port = new TencentCardRecognition(configuredService(), new ThrowingClient());
 
         assertNull(port.recognizeIdCardFront("base64").getName());
         assertNull(port.recognizeBankCard("base64").getBankCardNo());
@@ -58,11 +82,10 @@ public class TencentCardRecognitionTest {
 
     @Test
     public void testRecognizeIdCardFront_sendsFrontSideAndMapsResponse() {
-        TencentCardRecognitionProperties properties = configuredProperties();
-        RecordingClient client = new RecordingClient(properties);
+        RecordingClient client = new RecordingClient();
         client.result = JSON.parseObject("{\"Name\":\"张三\",\"IdNum\":\"110101199001011234\","
                 + "\"Address\":\"北京市朝阳区\",\"AdvancedInfo\":\"{\\\"Quality\\\":\\\"80\\\"}\"}");
-        TencentCardRecognition port = new TencentCardRecognition(properties, client);
+        TencentCardRecognition port = new TencentCardRecognition(configuredService(), client);
 
         CardRecognitionPort.IdCardFront result = port.recognizeIdCardFront("data:image/jpeg;base64,QUJD");
 
@@ -80,10 +103,9 @@ public class TencentCardRecognitionTest {
 
     @Test
     public void testRecognizeIdCardBack_sendsBackSide() {
-        TencentCardRecognitionProperties properties = configuredProperties();
-        RecordingClient client = new RecordingClient(properties);
+        RecordingClient client = new RecordingClient();
         client.result = JSON.parseObject("{\"ValidDate\":\"2018.08.12-长期\"}");
-        TencentCardRecognition port = new TencentCardRecognition(properties, client);
+        TencentCardRecognition port = new TencentCardRecognition(configuredService(), client);
 
         CardRecognitionPort.IdCardBack result = port.recognizeIdCardBack("QUJD");
 
@@ -94,13 +116,12 @@ public class TencentCardRecognitionTest {
 
     @Test
     public void testRecognizeBankCard_usesBankCardAction() {
-        TencentCardRecognitionProperties properties = configuredProperties();
-        RecordingClient client = new RecordingClient(properties);
+        RecordingClient client = new RecordingClient();
         client.result = JSON.parseObject("{\"CardNo\":\"6222021234567890123\","
                 + "\"BankInfo\":\"中国工商银行(03080000)\","
                 + "\"CardCategory\":\"标准实体银行卡\","
                 + "\"WarningCode\":[-9113],\"QualityValue\":88}");
-        TencentCardRecognition port = new TencentCardRecognition(properties, client);
+        TencentCardRecognition port = new TencentCardRecognition(configuredService(), client);
 
         CardRecognitionPort.BankCard result = port.recognizeBankCard("QUJD");
 
@@ -129,9 +150,8 @@ public class TencentCardRecognitionTest {
     @Test
     public void testRecognize_blankImageIsStillHandledWithoutNetwork() {
         // 控制器已用 @NotBlank 拦空图；即便漏到这里，也只能是空结果 + 不触网，不能抛异常
-        TencentCardRecognitionProperties properties = configuredProperties();
-        RecordingClient client = new RecordingClient(properties);
-        TencentCardRecognition port = new TencentCardRecognition(properties, client);
+        RecordingClient client = new RecordingClient();
+        TencentCardRecognition port = new TencentCardRecognition(configuredService(), client);
 
         CardRecognitionPort.IdCardFront result = port.recognizeIdCardFront("  ");
 
@@ -139,13 +159,28 @@ public class TencentCardRecognitionTest {
         assertNull(result.getName());
     }
 
-    // ==================== 假客户端 ====================
+    // ==================== 假的配置 Service 与客户端 ====================
 
-    private TencentCardRecognitionProperties configuredProperties() {
-        TencentCardRecognitionProperties properties = new TencentCardRecognitionProperties();
-        properties.setSecretId("secret-id");
-        properties.setSecretKey("secret-key");
-        return properties;
+    private static CardRecognitionEffectiveConfig configured(String provider, String secretId, String secretKey) {
+        return CardRecognitionEffectiveConfig.builder()
+                .provider(provider).secretId(secretId).secretKey(secretKey)
+                .region("ap-guangzhou").endpoint("ocr.tencentcloudapi.com").timeout(10000)
+                .build();
+    }
+
+    /** provider 回落到配置文件的 stub：等价于「未启用」。 */
+    private static CardRecognitionConfigService config(TencentCardRecognitionProperties properties) {
+        return mockConfig(configured(properties.getProvider(), properties.getSecretId(), properties.getSecretKey()));
+    }
+
+    private static CardRecognitionConfigService configuredService() {
+        return mockConfig(configured("tencent", "secret-id", "secret-key"));
+    }
+
+    private static CardRecognitionConfigService mockConfig(CardRecognitionEffectiveConfig effective) {
+        CardRecognitionConfigService configService = mock(CardRecognitionConfigService.class);
+        when(configService.resolveEffectiveConfig()).thenReturn(effective);
+        return configService;
     }
 
     private static class RecordingClient extends TencentOcrClient {
@@ -154,12 +189,12 @@ public class TencentCardRecognitionTest {
         JSONObject payload;
         int calls;
 
-        RecordingClient(TencentCardRecognitionProperties properties) {
-            super(properties, new HutoolTencentOcrTransport());
+        RecordingClient() {
+            super(new HutoolTencentOcrTransport());
         }
 
         @Override
-        public JSONObject call(String action, JSONObject payload) {
+        public JSONObject call(TencentOcrSettings settings, String action, JSONObject payload) {
             this.calls++;
             this.action = action;
             this.payload = payload;
@@ -168,23 +203,23 @@ public class TencentCardRecognitionTest {
     }
 
     private static class NullClient extends TencentOcrClient {
-        NullClient(TencentCardRecognitionProperties properties) {
-            super(properties, new HutoolTencentOcrTransport());
+        NullClient() {
+            super(new HutoolTencentOcrTransport());
         }
 
         @Override
-        public JSONObject call(String action, JSONObject payload) {
+        public JSONObject call(TencentOcrSettings settings, String action, JSONObject payload) {
             return null;
         }
     }
 
     private static class ThrowingClient extends TencentOcrClient {
-        ThrowingClient(TencentCardRecognitionProperties properties) {
-            super(properties, new HutoolTencentOcrTransport());
+        ThrowingClient() {
+            super(new HutoolTencentOcrTransport());
         }
 
         @Override
-        public JSONObject call(String action, JSONObject payload) {
+        public JSONObject call(TencentOcrSettings settings, String action, JSONObject payload) {
             throw new IllegalStateException("network down");
         }
     }
