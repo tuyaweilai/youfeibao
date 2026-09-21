@@ -59,7 +59,6 @@ public class CardRecognitionConfigServiceTest extends BaseDbUnitTest {
         CardRecognitionConfigRespVO resp = cardRecognitionConfigService.getConfig();
 
         assertEquals("stub", resp.getProvider());
-        assertTrue(resp.getProviderFromConfigFile(), "DB 为空时供应商来自配置文件");
         assertTrue(resp.getConfigFileFields().contains("供应商"));
         assertFalse(resp.getConfigured());
         assertFalse(resp.getSecretIdConfigured());
@@ -91,7 +90,7 @@ public class CardRecognitionConfigServiceTest extends BaseDbUnitTest {
         CardRecognitionConfigRespVO resp = cardRecognitionConfigService.getConfig();
         assertTrue(resp.getConfigured());
         assertEquals("tencent", resp.getProvider());
-        assertFalse(resp.getProviderFromConfigFile(), "DB 有值就不该再标「来自配置文件」");
+        assertFalse(resp.getConfigFileFields().contains("供应商"), "DB 有值就不该再标「来自配置文件」");
         assertTrue(resp.getSecretIdConfigured());
         assertTrue(resp.getSecretKeyConfigured());
         assertTrue(resp.getMissingFields().isEmpty());
@@ -123,14 +122,17 @@ public class CardRecognitionConfigServiceTest extends BaseDbUnitTest {
 
     @Test
     public void testCheck_authFailure_classifiedAndPersisted() {
+        // 审评观察 3：只有用**已存配置**的密钥自检才落库；先保存、再空请求
+        cardRecognitionConfigService.saveConfig(fullTencent());
         given(tencentOcrTransport.post(any()))
                 .willReturn(new TencentOcrTransport.Result(200, AUTH_FAILURE_BODY));
 
         CardRecognitionCheckRespVO resp = cardRecognitionConfigService.checkConnectivity(
-                requestWithSecret());
+                new CardRecognitionCheckReqVO());
 
         assertFalse(resp.getOk());
         assertEquals("AUTH_FAILED", resp.getResult());
+        assertTrue(resp.getPersisted());
         assertNotNull(resp.getCheckTime());
         IcbcCardRecognitionConfigDO raw = cardRecognitionConfigMapper.selectConfig();
         assertEquals("AUTH_FAILED", raw.getLastCheckResult());
@@ -140,11 +142,12 @@ public class CardRecognitionConfigServiceTest extends BaseDbUnitTest {
     @Test
     public void testCheck_vendorBusinessError_stillPassesAuth() {
         // 1x1 占位图必然在识别阶段报业务错：它不是密钥问题，页面按「鉴权通过」处理
+        cardRecognitionConfigService.saveConfig(fullTencent());
         given(tencentOcrTransport.post(any()))
                 .willReturn(new TencentOcrTransport.Result(200, VENDOR_ERROR_BODY));
 
         CardRecognitionCheckRespVO resp = cardRecognitionConfigService.checkConnectivity(
-                requestWithSecret());
+                new CardRecognitionCheckReqVO());
 
         assertTrue(resp.getOk());
         assertEquals("VENDOR_ERROR", resp.getResult());
@@ -153,11 +156,12 @@ public class CardRecognitionConfigServiceTest extends BaseDbUnitTest {
 
     @Test
     public void testCheck_ok() {
+        cardRecognitionConfigService.saveConfig(fullTencent());
         given(tencentOcrTransport.post(any()))
                 .willReturn(new TencentOcrTransport.Result(200, OK_BODY));
 
         CardRecognitionCheckRespVO resp = cardRecognitionConfigService.checkConnectivity(
-                requestWithSecret());
+                new CardRecognitionCheckReqVO());
 
         assertTrue(resp.getOk());
         assertEquals("OK", resp.getResult());
@@ -165,11 +169,12 @@ public class CardRecognitionConfigServiceTest extends BaseDbUnitTest {
 
     @Test
     public void testCheck_networkFailure() {
+        cardRecognitionConfigService.saveConfig(fullTencent());
         given(tencentOcrTransport.post(any()))
                 .willThrow(new RuntimeException("connect timed out"));
 
         CardRecognitionCheckRespVO resp = cardRecognitionConfigService.checkConnectivity(
-                requestWithSecret());
+                new CardRecognitionCheckReqVO());
 
         assertFalse(resp.getOk());
         assertEquals("NETWORK", resp.getResult());
@@ -177,13 +182,32 @@ public class CardRecognitionConfigServiceTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testCheck_requestSecretUsedBeforeSave() {
+    public void testCheck_requestSecretUsedBeforeSave_notPersisted() {
         // 还没保存过配置，请求体里带密钥：先验证、再保存能成立
         given(tencentOcrTransport.post(any()))
                 .willReturn(new TencentOcrTransport.Result(200, OK_BODY));
         CardRecognitionCheckRespVO resp = cardRecognitionConfigService.checkConnectivity(
                 requestWithSecret());
+
         assertTrue(resp.getOk());
+        verify(tencentOcrTransport).post(any());
+        // 审评观察 3：未保存的密钥只是「临时凭据试通」，不是「已存配置验证通过」
+        assertFalse(resp.getPersisted());
+        assertNull(cardRecognitionConfigMapper.selectConfig(), "临时凭据的结果不落库");
+    }
+
+    @Test
+    public void testCheck_requestBlank_usesStoredSecret() {
+        // 审评观察 4：「请求留空 → 用库里已存密钥」这条分支此前没有测试
+        cardRecognitionConfigService.saveConfig(fullTencent());
+        given(tencentOcrTransport.post(any()))
+                .willReturn(new TencentOcrTransport.Result(200, OK_BODY));
+
+        CardRecognitionCheckRespVO resp = cardRecognitionConfigService.checkConnectivity(
+                new CardRecognitionCheckReqVO());
+
+        assertTrue(resp.getOk(), "请求留空时必须用已存密钥，否则会因 hasCredentials=false 直接抛未配置");
+        assertTrue(resp.getPersisted());
         verify(tencentOcrTransport).post(any());
     }
 

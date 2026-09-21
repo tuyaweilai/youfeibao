@@ -61,7 +61,7 @@ public class PlatformCardRecognitionController {
     }
 
     @PostMapping("/config/check")
-    @Operation(summary = "卡证识别连通性自检", description = "用 1x1 占位图走完鉴权，只在 AuthFailure 上判失败；不消耗识别额度")
+    @Operation(summary = "卡证识别连通性自检", description = "用 1x1 占位图走完鉴权，只在 AuthFailure 上判失败；不涉及真证件影像，但会计入腾讯云调用次数")
     @ApiAccessLog(requestEnable = false)
     @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.PLATFORM_CARD_RECOGNITION_MANAGE + "')")
     public CommonResult<CardRecognitionCheckRespVO> checkConnectivity(@Valid @RequestBody CardRecognitionCheckReqVO reqVO) {

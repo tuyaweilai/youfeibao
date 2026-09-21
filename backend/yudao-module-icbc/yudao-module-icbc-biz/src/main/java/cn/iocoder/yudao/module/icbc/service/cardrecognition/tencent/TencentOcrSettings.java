@@ -34,6 +34,14 @@ public class TencentOcrSettings {
      * 密钥是否齐备：不齐时调用方一律返回空结果（安静降级），不触网。
      */
     public boolean hasCredentials() {
+        return hasCredentials(secretId, secretKey);
+    }
+
+    /**
+     * 密钥齐备的**唯一判据**（#103 自查 STD-1）：识别端口用的生效参数与一次调用的入参共用这一处，
+     * 不让同一个谓词在两处各写一遍、各漂各的。
+     */
+    public static boolean hasCredentials(String secretId, String secretKey) {
         return StrUtil.isNotBlank(secretId) && StrUtil.isNotBlank(secretKey);
     }
 

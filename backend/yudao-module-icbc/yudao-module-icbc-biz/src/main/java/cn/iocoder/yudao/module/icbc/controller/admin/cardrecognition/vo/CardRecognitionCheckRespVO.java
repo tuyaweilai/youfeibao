@@ -26,4 +26,8 @@ public class CardRecognitionCheckRespVO {
     @Schema(description = "自检时间")
     private LocalDateTime checkTime;
 
+    @Schema(description = "本次结果是否已落库；用请求体里未保存的密钥自检时不落库（false），"
+            + "页面据此区分「已存配置验证通过」与「临时凭据试通」", example = "true")
+    private Boolean persisted;
+
 }

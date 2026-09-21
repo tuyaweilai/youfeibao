@@ -1,6 +1,5 @@
 package cn.iocoder.yudao.module.icbc.service.cardrecognition.config;
 
-import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.module.icbc.enums.CardRecognitionProviderEnum;
 import cn.iocoder.yudao.module.icbc.service.cardrecognition.tencent.TencentOcrSettings;
 import lombok.AllArgsConstructor;
@@ -45,7 +44,8 @@ public class CardRecognitionEffectiveConfig {
      * 密钥是否齐备：不齐时真实实现也走空结果，与额度耗尽同一条降级路径（ADR 0037）。
      */
     public boolean hasCredentials() {
-        return StrUtil.isNotBlank(secretId) && StrUtil.isNotBlank(secretKey);
+        // 判据只有一处，见 TencentOcrSettings#hasCredentials(String, String)
+        return TencentOcrSettings.hasCredentials(secretId, secretKey);
     }
 
     /**

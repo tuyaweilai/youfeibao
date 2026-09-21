@@ -14,7 +14,7 @@ SET NAMES utf8mb4;
 -- **密钥只落后端、界面不回显明文**：`secret_id` / `secret_key` 只写不读——保存时留空表示「不改动」，
 -- 查询响应里只回「已配置」与否。
 --
--- `provider` 取代了 #93 的启动期 `icbc.card-recognition.mode`：它现在是**运行期**判定的一栏
+-- `provider` 取代了 #93 的启动期供应商开关：它现在是**运行期**判定的一栏
 -- （`stub` / `tencent`），保存后无需重启即生效。DB 为空时回落 yaml / env（页面标注「来自配置文件」）。
 --
 -- `last_check_result` / `last_check_time` 是连通性自检的分类结果（OK / AUTH_FAILED / NETWORK /

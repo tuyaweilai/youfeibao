@@ -31,7 +31,9 @@ public interface CardRecognitionConfigService {
     /**
      * 连通性自检：用 1x1 占位图走完鉴权，把结果分类落库。
      *
-     * <p>请求允许带密钥（留空 = 用已存值），因此「先验证、再保存」成立。不消耗识别额度。
+     * <p>请求允许带密钥（留空 = 用已存值），因此「先验证、再保存」成立；但**带未保存的密钥时只回
+     * 当次结果、不落库**——不把「临时凭据试通」写成「已存配置验证通过」。占位图不涉及真证件影像，
+     * 但仍是**一次计费调用**，会进腾讯云调用次数。
      */
     CardRecognitionCheckRespVO checkConnectivity(CardRecognitionCheckReqVO reqVO);
 

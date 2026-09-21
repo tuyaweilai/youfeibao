@@ -16,7 +16,7 @@ import java.util.Map;
  * <p>HTTP 走构造注入的 {@link TencentOcrTransport}（Spring 里是 {@link HutoolTencentOcrTransport}），
  * 所以「厂商报错」这条降级判据能被测试直接钉住，而不是只能靠断言（独立评审 ST-2）。
  *
- * <p><b>#103 起它是一枚常驻 Bean</b>：不再按 {@code icbc.card-recognition.mode} 在启动时决定在不在场，
+ * <p><b>#103 起它是一枚常驻 Bean</b>：不再靠启动期的 {@code @ConditionalOnProperty} 决定在不在场，
  * 每次调用由调用方传入一份 {@link TencentOcrSettings}（DB 优先、空则回落 yaml / env）。连通性自检
  * 也走同一枚客户端，不另起一套 HTTP。
  *

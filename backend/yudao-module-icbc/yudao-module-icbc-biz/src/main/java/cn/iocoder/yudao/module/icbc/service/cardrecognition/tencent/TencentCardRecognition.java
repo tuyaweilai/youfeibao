@@ -18,7 +18,7 @@ import java.util.function.Function;
  * 厂商报文的映射（有效期转换、行名剥联行号、是否我行卡推断、电子卡截图拒收、告警分级）全在
  * {@link TencentOcrResultMapper}，这里只负责「把图片送出去、把结果收回来」。
  *
- * <p><b>供应商运行期判定（#103）</b>：它不再按 {@code icbc.card-recognition.mode} 在启动时二选一，
+ * <p><b>供应商运行期判定（#103）</b>：它不再在启动期靠 {@code @ConditionalOnProperty} 二选一，
  * 而是每次调用时向 {@link CardRecognitionConfigService#resolveEffectiveConfig()} 取一份生效参数
  * （DB 有值用 DB、DB 为空回落 yaml / env）。这就是「后台改完保存即生效、无需重启」的落点。
  *

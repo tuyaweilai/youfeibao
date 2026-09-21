@@ -9,9 +9,29 @@
       title="接入腾讯云 OCR 是配置动作而不是改代码：供应商（保存后无需重启即生效）/ 密钥 / 地域 / 服务域名 / 超时都在这里维护。密钥只落后端，界面不回显明文；留空表示不改动既有值。"
     />
 
-    <!-- 本票存在的理由：一眼回答「现在到底开了没」 -->
+    <!-- 本票存在的理由：一眼回答「现在到底开了没」。
+         四态是显式的（加载中 / 读取失败 / 未启用 / 已启用），不靠 config={} 的字段缺省猜；
+         「已配置，识别已启用」只在确证（provider=tencent 且 configured===true）时出现。 -->
     <el-alert
-      v-if="config.provider === 'stub'"
+      v-if="status === 'loading'"
+      type="info"
+      :closable="false"
+      class="mb-10px"
+      title="正在读取配置…"
+      description="读取完成前不判断「已启用 / 未启用」。"
+      show-icon
+    />
+    <el-alert
+      v-else-if="status === 'error'"
+      type="error"
+      :closable="false"
+      class="mb-10px"
+      title="配置读取失败，未读到任何配置——别当成已启用"
+      :description="`${loadError || '请求失败'}。请检查网络或权限后重试。`"
+      show-icon
+    />
+    <el-alert
+      v-else-if="status === 'stub'"
       type="warning"
       :closable="false"
       class="mb-10px"
@@ -20,7 +40,7 @@
       show-icon
     />
     <el-alert
-      v-else-if="config.configured === false"
+      v-else-if="status === 'incomplete'"
       type="warning"
       :closable="false"
       class="mb-10px"
@@ -29,13 +49,26 @@
       show-icon
     />
     <el-alert
-      v-else
+      v-else-if="status === 'enabled'"
       type="success"
       :closable="false"
       class="mb-10px"
       title="已配置，识别已启用：现场拍照将走腾讯云 OCR"
+      description="配置齐备，识别能力已开启。是否真的能连通腾讯云，要看下方「最近自检」的结果——从未自检时不等于验证通过。"
       show-icon
     />
+    <el-alert
+      v-else
+      type="info"
+      :closable="false"
+      class="mb-10px"
+      title="状态未知，别当成已启用"
+      description="没拿到明确的「已启用 / 未启用」结论（供应商或配置状态缺失）。请重试读取或核对供应商设置。"
+      show-icon
+    />
+    <el-button v-if="status === 'error'" class="mb-10px" :loading="loading" @click="getConfig">
+      重试读取
+    </el-button>
 
     <el-form ref="configFormRef" :model="config" label-width="140px">
       <el-row :gutter="16">
@@ -101,6 +134,7 @@
         <el-button
           type="primary"
           :loading="saving"
+          :disabled="loadState !== 'ready'"
           v-hasPermi="['icbc:platform:card-recognition:manage']"
           @click="saveConfig"
         >
@@ -108,6 +142,7 @@
         </el-button>
         <el-button
           :loading="checking"
+          :disabled="loadState !== 'ready'"
           v-hasPermi="['icbc:platform:card-recognition:manage']"
           @click="checkConnectivity"
         >
@@ -118,7 +153,15 @@
     </el-form>
 
     <el-alert
-      v-if="checkResult.resultName"
+      v-if="checkResult.resultName && checkResult.persisted === false"
+      type="info"
+      :closable="false"
+      :title="`临时密钥自检：${checkResult.resultName}${checkResult.checkTime ? '（' + formatDate(checkResult.checkTime) + '）' : ''}`"
+      description="本次用的是尚未保存的密钥，未记为「已存配置验证通过」；保存后再点一次自检即可记为已存配置验证。"
+      show-icon
+    />
+    <el-alert
+      v-else-if="checkResult.resultName"
       :type="checkResult.ok ? 'success' : 'error'"
       :closable="false"
       :title="`最近自检：${checkResult.resultName}${checkResult.checkTime ? '（' + formatDate(checkResult.checkTime) + '）' : ''}`"
@@ -143,11 +186,31 @@ const message = useMessage()
 
 const saving = ref(false)
 const checking = ref(false)
+const loading = ref(false)
 const configFormRef = ref()
 const config = ref<CardRecognitionConfigVO>({})
 
+// 显式三态：加载中 / 读取失败 / 已就绪。不看 config={} 的字段缺省去猜「现在到底开了没」。
+const loadState = ref<'loading' | 'error' | 'ready'>('loading')
+const loadError = ref('')
+
+// 「已启用」只在确证（provider=tencent 且 configured===true）时出现；其余一律不冒充成功。
+const status = computed<'loading' | 'error' | 'stub' | 'incomplete' | 'enabled' | 'unknown'>(() => {
+  if (loadState.value === 'loading') return 'loading'
+  if (loadState.value === 'error') return 'error'
+  if (config.value.provider === 'stub') return 'stub'
+  if (config.value.provider === 'tencent' && config.value.configured === true) return 'enabled'
+  if (config.value.provider === 'tencent' && config.value.configured === false) return 'incomplete'
+  return 'unknown'
+})
+
 // 自检结果：优先用刚刚这一次的返回值，否则回显库里上一次的分类
-const lastCheck = ref<{ ok?: boolean; resultName?: string; checkTime?: Date }>({})
+const lastCheck = ref<{
+  ok?: boolean
+  resultName?: string
+  checkTime?: Date
+  persisted?: boolean
+}>({})
 const checkResult = computed(() => {
   if (lastCheck.value.resultName) {
     return lastCheck.value
@@ -157,15 +220,32 @@ const checkResult = computed(() => {
     // 与后端同一判据：只有 AUTH_FAILED / NETWORK 算失败，厂商在识别阶段报错说明鉴权已通过
     ok: result === 'OK' || result === 'VENDOR_ERROR',
     resultName: config.value.lastCheckResultName,
-    checkTime: config.value.lastCheckTime
+    checkTime: config.value.lastCheckTime,
+    // 库里存的只可能是「用已存配置」的自检（临时凭据不落库），故为 true
+    persisted: true
   }
 })
 
 const getConfig = async () => {
-  // 密钥字段清空，避免把「已配置」的占位误当明文再次提交
-  const data = await PlatformCardRecognitionApi.getConfig()
-  config.value = { ...data, secretId: '', secretKey: '' }
-  lastCheck.value = {}
+  loading.value = true
+  loadState.value = 'loading'
+  loadError.value = ''
+  try {
+    // 密钥字段清空，避免把「已配置」的占位误当明文再次提交
+    const data = await PlatformCardRecognitionApi.getConfig()
+    config.value = { ...data, secretId: '', secretKey: '' }
+    lastCheck.value = {}
+    loadState.value = 'ready'
+  } catch (e: any) {
+    // axios 只弹一条 toast；若在这里吞掉异常，config 会永远停在 {}，
+    // 以前落到 v-else 就会持续断言「已启用」——正是最该说实话的时候说反。
+    config.value = {}
+    lastCheck.value = {}
+    loadError.value = e?.message || '请求失败'
+    loadState.value = 'error'
+  } finally {
+    loading.value = false
+  }
 }
 
 const saveConfig = async () => {
@@ -192,7 +272,11 @@ const checkConnectivity = async () => {
     })
     lastCheck.value = result
     if (result.ok) {
-      message.success(`自检通过：${result.resultName}`)
+      message.success(
+        result.persisted === false
+          ? `自检通过（临时密钥，未落库）：${result.resultName}`
+          : `自检通过：${result.resultName}`
+      )
     } else {
       message.error(`自检失败：${result.resultName}`)
     }

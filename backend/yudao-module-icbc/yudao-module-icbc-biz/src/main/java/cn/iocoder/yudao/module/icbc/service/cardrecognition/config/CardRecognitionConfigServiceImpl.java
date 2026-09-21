@@ -23,6 +23,7 @@ import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.CARD_RECOGNITION_CHECK_NOT_CONFIGURED;
@@ -40,7 +41,8 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
 
     /**
      * 1x1 PNG：足以让腾讯云走完鉴权、在解码 / 识别阶段报业务错（照 {@code TencentCardRecognitionLiveTest}）。
-     * 自检因此**不消耗识别额度**，也拿不到任何真证件信息。
+     * 因此拿不到任何真证件信息，但它**仍是一次 {@code IDCardOCR} 调用、会计入腾讯云调用次数**。
+     * 所以自检的承诺只能是「不留存影像 / 不写档案」，不是「不消耗识别额度」（#103 自查 OBS-6）。
      */
     private static final String TINY_PNG_BASE64 =
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -59,7 +61,6 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
 
         CardRecognitionConfigRespVO resp = new CardRecognitionConfigRespVO();
         resp.setProvider(effective.getProvider());
-        resp.setProviderFromConfigFile(StrUtil.isBlank(db == null ? null : db.getProvider()));
         // 密钥只写不读：回「已配置」与否，绝不回明文
         resp.setSecretIdConfigured(StrUtil.isNotBlank(effective.getSecretId()));
         resp.setSecretKeyConfigured(StrUtil.isNotBlank(effective.getSecretKey()));
@@ -70,10 +71,10 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
         List<String> missing = missingRequiredFields(effective);
         resp.setMissingFields(missing);
         resp.setConfigured(effective.isEnabled());
-        resp.setLastCheckResult(db == null ? null : db.getLastCheckResult());
-        resp.setLastCheckResultName(checkResultName(db == null ? null : db.getLastCheckResult()));
-        resp.setLastCheckTime(db == null ? null : db.getLastCheckTime());
-        resp.setRemark(db == null ? null : db.getRemark());
+        resp.setLastCheckResult(value(db, IcbcCardRecognitionConfigDO::getLastCheckResult));
+        resp.setLastCheckResultName(checkResultName(value(db, IcbcCardRecognitionConfigDO::getLastCheckResult)));
+        resp.setLastCheckTime(value(db, IcbcCardRecognitionConfigDO::getLastCheckTime));
+        resp.setRemark(value(db, IcbcCardRecognitionConfigDO::getRemark));
         return resp;
     }
 
@@ -129,7 +130,12 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
         }
         CardRecognitionCheckResultEnum result = classify(settings);
         LocalDateTime checkTime = LocalDateTime.now();
-        persistCheckResult(result, checkTime);
+        // 「落库的东西不许比事实更乐观」（#103 自查 OBS-3）：只有这次自检用的是**已存配置**的密钥才落库。
+        // 请求体里带的、尚未保存的密钥只把当次结果回给页面，不写成「已存配置验证通过」。
+        boolean usedStoredCredentials = StrUtil.isBlank(reqVO.getSecretId()) && StrUtil.isBlank(reqVO.getSecretKey());
+        if (usedStoredCredentials) {
+            persistCheckResult(result, checkTime);
+        }
 
         CardRecognitionCheckRespVO resp = new CardRecognitionCheckRespVO();
         // 只在 AUTH_FAILED 与 NETWORK 上判失败：1x1 占位图必然在识别阶段报业务错（VENDOR_ERROR），
@@ -139,6 +145,7 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
         resp.setResult(result.name());
         resp.setResultName(result.getName());
         resp.setCheckTime(checkTime);
+        resp.setPersisted(usedStoredCredentials);
         return resp;
     }
 
@@ -151,18 +158,19 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
      * 把一行 DB 配置与 yaml / env 回落层合成一套生效参数（DB 有值用 DB、DB 为空回落配置文件）。
      */
     private CardRecognitionEffectiveConfig resolve(IcbcCardRecognitionConfigDO db) {
-        String provider = firstNonBlank(db == null ? null : db.getProvider(), properties.getProvider());
+        String provider = firstNonBlank(value(db, IcbcCardRecognitionConfigDO::getProvider), properties.getProvider());
+        Integer timeout = value(db, IcbcCardRecognitionConfigDO::getTimeout);
         // 非 tencent 一律当 stub：安静降级是 ADR 0037 的决策，一个拼错的供应商不该让现场报错
         if (!CardRecognitionProviderEnum.TENCENT.getCode().equals(provider)) {
             provider = CardRecognitionProviderEnum.STUB.getCode();
         }
         return CardRecognitionEffectiveConfig.builder()
                 .provider(provider)
-                .secretId(firstNonBlank(db == null ? null : db.getSecretId(), properties.getSecretId()))
-                .secretKey(firstNonBlank(db == null ? null : db.getSecretKey(), properties.getSecretKey()))
-                .region(firstNonBlank(db == null ? null : db.getRegion(), properties.getRegion()))
-                .endpoint(firstNonBlank(db == null ? null : db.getEndpoint(), properties.getEndpoint()))
-                .timeout(db != null && db.getTimeout() != null ? db.getTimeout() : properties.getTimeout())
+                .secretId(firstNonBlank(value(db, IcbcCardRecognitionConfigDO::getSecretId), properties.getSecretId()))
+                .secretKey(firstNonBlank(value(db, IcbcCardRecognitionConfigDO::getSecretKey), properties.getSecretKey()))
+                .region(firstNonBlank(value(db, IcbcCardRecognitionConfigDO::getRegion), properties.getRegion()))
+                .endpoint(firstNonBlank(value(db, IcbcCardRecognitionConfigDO::getEndpoint), properties.getEndpoint()))
+                .timeout(timeout != null ? timeout : properties.getTimeout())
                 .build();
     }
 
@@ -225,28 +233,34 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
     }
 
     /**
-     * 哪些生效值来自配置文件（DB 为空、但回落取到了值）：页面据此标注「来自配置文件」，
-     * 避免「我明明配了却不生效」的困惑。DB 与配置文件都为空时不算「来自配置文件」，它只是缺失。
+     * 哪些生效值来自回落层（DB 为空、由 yaml / env —— 以及未显式配置时的 Java 默认值 —— 给出）：
+     * 页面据此标注「来自配置文件」，避免「我明明配了却不生效」的困惑。六项同一判据：
+     * DB 为空且生效值非空。（{@code provider} 以前无条件加入，与这条判据不一致，已修齐——#103 自查 OBS-1。）
      */
     private List<String> configFileFields(IcbcCardRecognitionConfigDO db,
                                           CardRecognitionEffectiveConfig effective) {
         List<String> fields = new ArrayList<>();
-        if (db == null || StrUtil.isBlank(db.getProvider())) {
+        if (StrUtil.isBlank(value(db, IcbcCardRecognitionConfigDO::getProvider))
+                && StrUtil.isNotBlank(effective.getProvider())) {
             fields.add("供应商");
         }
-        if (StrUtil.isBlank(db == null ? null : db.getSecretId()) && StrUtil.isNotBlank(effective.getSecretId())) {
+        if (StrUtil.isBlank(value(db, IcbcCardRecognitionConfigDO::getSecretId))
+                && StrUtil.isNotBlank(effective.getSecretId())) {
             fields.add("SecretId");
         }
-        if (StrUtil.isBlank(db == null ? null : db.getSecretKey()) && StrUtil.isNotBlank(effective.getSecretKey())) {
+        if (StrUtil.isBlank(value(db, IcbcCardRecognitionConfigDO::getSecretKey))
+                && StrUtil.isNotBlank(effective.getSecretKey())) {
             fields.add("SecretKey");
         }
-        if (StrUtil.isBlank(db == null ? null : db.getRegion()) && StrUtil.isNotBlank(effective.getRegion())) {
+        if (StrUtil.isBlank(value(db, IcbcCardRecognitionConfigDO::getRegion))
+                && StrUtil.isNotBlank(effective.getRegion())) {
             fields.add("地域");
         }
-        if (StrUtil.isBlank(db == null ? null : db.getEndpoint()) && StrUtil.isNotBlank(effective.getEndpoint())) {
+        if (StrUtil.isBlank(value(db, IcbcCardRecognitionConfigDO::getEndpoint))
+                && StrUtil.isNotBlank(effective.getEndpoint())) {
             fields.add("Endpoint");
         }
-        if ((db == null || db.getTimeout() == null) && effective.getTimeout() != null) {
+        if (value(db, IcbcCardRecognitionConfigDO::getTimeout) == null && effective.getTimeout() != null) {
             fields.add("超时");
         }
         return fields;
@@ -266,6 +280,14 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
 
     private static String firstNonBlank(String first, String fallback) {
         return StrUtil.isNotBlank(first) ? first : fallback;
+    }
+
+    /**
+     * DB 为 null 时取 null、否则取字段值：消灭 {@code db == null ? null : db.getX()} 的重复
+     * （#103 自查 STD-2，原来 {@code resolve} 与 {@code configFileFields} 加起来抄了 12 遍）。
+     */
+    private static <T> T value(IcbcCardRecognitionConfigDO db, Function<IcbcCardRecognitionConfigDO, T> getter) {
+        return db == null ? null : getter.apply(db);
     }
 
 }

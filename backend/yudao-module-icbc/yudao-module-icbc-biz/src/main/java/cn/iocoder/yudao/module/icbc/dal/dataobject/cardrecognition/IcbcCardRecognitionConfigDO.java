@@ -24,7 +24,7 @@ import java.time.LocalDateTime;
  * 保存时留空表示「不改动」，查询响应里只回「已配置」与否。
  *
  * <p>{@code provider} 是**运行期**判定的供应商（{@code stub} / {@code tencent}），取代了 #93 的
- * 启动期 {@code icbc.card-recognition.mode}；DB 为空时回落 yaml / env。
+ * 启动期供应商开关；DB 为空时回落 yaml / env。
  */
 @TableName("icbc_card_recognition_config")
 @KeySequence("icbc_card_recognition_config_seq")

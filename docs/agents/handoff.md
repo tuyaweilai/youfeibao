@@ -2724,8 +2724,8 @@ admin 登录 / 用户保存（`@Mobile`）。**本票不治这条**，真实理�
 ### #103 卡证识别后台配置：密钥 / 开关 / 连通性自检（与电子签章各立一处）
 
 **口径（照议题「待拍的决定」，不再论证）**：① DB 有值用 DB、DB 为空回落 yaml / env，页面标注「来自配置文件」；
-② 密钥明文落库 + 永不回显（照 esign，不上 `@EncryptField`）；③ `provider`（`stub` / `tencent`）等价替换原
-`mode`，`stub` 或未配齐时页面显著提示「未启用，现场为手工录入」。
+② 密钥明文落库 + 永不回显（照 esign，不上 `@EncryptField`）；③ `provider`（`stub` / `tencent`）取代 #93 的
+启动期供应商开关，`stub` 或未配齐时页面显著提示「未启用，现场为手工录入」。
 
 **做的四件事**：
 
@@ -2733,7 +2733,7 @@ admin 登录 / 用户保存（`@Mobile`）。**本票不治这条**，真实理�
    `provider` 每次调用时由新的 `CardRecognitionConfigService#resolveEffectiveConfig()` 现算（DB 优先、空则回落
    `TencentCardRecognitionProperties`）。`TencentOcrClient` 也从 `@ConditionalOnProperty` 变常驻，签名 / 请求头
    用的密钥 / 地域 / endpoint / 超时改为**每次调用显式传入** `TencentOcrSettings`。`TencentCardRecognitionProperties`
-   的 `mode` 改名 `provider`（`application-local.yaml` 的 `ICBC_CARD_RECOGNITION_MODE` → `ICBC_CARD_RECOGNITION_PROVIDER`）。
+   的启动期供应商开关随之改名 `provider`，环境变量改为 `ICBC_CARD_RECOGNITION_PROVIDER`（根目录 `.env.example` 同步）。
    红→绿那条测试是 `CardRecognitionPortRuntimeSwitchTest`：真实 DB + 真实配置 Service + 真实常驻端口，只把
    `TencentOcrTransport` 换成假的——保存 `tencent` + 密钥后**不重启**立刻走到真实实现，再切回 `stub` 立刻回到空结果。
 2. **配置表与后台入口**：新表 `icbc_card_recognition_config`（**全局表**，已登记进 `yudao.tenant.ignore-tables`；
@@ -2751,14 +2751,14 @@ admin 登录 / 用户保存（`@Mobile`）。**本票不治这条**，真实理�
    `PlatformCardRecognitionAccessLogAnnotationTest` 反射读注解钉住这一点（按键名名单兜不住它）。
 
 **前端**：`api/icbc/cardRecognition/index.ts` + `views/icbc/platformCardRecognition/index.vue`，照 esign 对应文件；
-密钥框 `type="password"`、placeholder「已配置，留空不改动」；页面顶部按 `provider=stub` / `configured=false` /
-已配置三态给显著提示语。
+密钥框 `type="password"`、placeholder「已配置，留空不改动」；页面顶部按「加载中 / 读取失败 / 未启用 / 已启用」四态
+给显著提示语，**「已配置，识别已启用」只在 `provider=tencent && configured===true`（确证）时出现**。
 
 **已知边界（如实说，别读成「已验」）**：
 
 - **真机 / 真密钥联调没做**（要 `TENCENT_OCR_SECRET_ID` / `TENCENT_OCR_SECRET_KEY`，`TencentCardRecognitionLiveTest`
   默认跳过）；`region` / `endpoint` / `timeout` 三项虽在配置表里，**没有真机验过改它们的效果**——单测只覆盖
-  「传进 `TencentOcrSettings` 并出现在请求头 / URL / 超时上」。
+  「传进 `TencentOcrSettings` 并出现在请求头 / URL / 超时上」（`X-TC-Region` 与 `Request.timeoutMillis()` 已有断言）。
 - **配置读不出来也安静降级**：识别端口每次调用都读一次配置，读失败（表未迁移 / DB 抖动）会记一条
   warn 并返回空结果，不把异常抛给建档向导——ADR 0037 的「不阻断建档」是硬承诺。
 - **保存不重置自检结果**：为让「先自检、再保存」成立，`saveConfig` 保留上一次 `last_check_*`。因此改完密钥
@@ -2770,3 +2770,16 @@ admin 登录 / 用户保存（`@Mobile`）。**本票不治这条**，真实理�
 6 条、新增 17 条）；前端 `vite build` 通过，`vue-tsc` 新增文件零错误（仓库既有基线 1254 条不变）。
 红→绿：改动前 `CardRecognitionPortRuntimeSwitchTest` 在「保存 tencent 后」断言 `expected: <张三> but was: <null>`，
 实现运行期判定后转绿。
+
+**评审补修（第二批次，追加提交）**：
+
+- **改名扫尾**：`.env.example` 里那份旧的环境变量名（启动期供应商开关）漏改（AGENTS.md 本地起环境第一步就是
+  `cp .env.example .env`），已对齐 `provider` / `ICBC_CARD_RECOGNITION_PROVIDER`；`grep` 旧键名零命中（排除 `.fleet/`），
+  类注释 / SQL 注释 / 本节里对已不存在的旧键的引用一并改成「启动期供应商开关」。
+- **页面四态**：`views/icbc/platformCardRecognition/index.vue` 从「靠 `{}` 缺省猜」改成显式 `loading / error / ready`；
+  GET 失败给失败态 + 重试；「已配置，识别已启用」只在 `provider=tencent && configured===true`（确证）时出现，
+  其余落「未知 / 未启用」，不再在加载中或读取失败时断言已启用。
+- **自检落库口径**：请求体里带、尚未保存的密钥只回当次结果（响应 `persisted=false`），**不落库**——
+  不把「临时凭据试通」写成「已存配置验证通过」。
+- **措辞**：「不消耗识别额度」不成立（1×1 占位图仍是一次 `IDCardOCR` 计费调用），已改成「不涉及真证件影像，
+  但会计入腾讯云调用次数」。

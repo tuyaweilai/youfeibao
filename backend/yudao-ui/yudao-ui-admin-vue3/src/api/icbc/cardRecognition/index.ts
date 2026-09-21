@@ -6,7 +6,6 @@ import request from '@/config/axios'
 /** 平台级参数（密钥只回「已配置」与否，不回明文） */
 export interface CardRecognitionConfigVO {
   provider?: string // stub-未启用 / tencent-腾讯云 OCR
-  providerFromConfigFile?: boolean
   secretId?: string
   secretKey?: string
   secretIdConfigured?: boolean
@@ -38,6 +37,7 @@ export interface CardRecognitionCheckRespVO {
   result?: string
   resultName?: string
   checkTime?: Date
+  persisted?: boolean // 是否已落库；用未保存的密钥自检时为 false
 }
 
 export const PlatformCardRecognitionApi = {

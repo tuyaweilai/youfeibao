@@ -114,6 +114,9 @@ public class TencentOcrClientTest {
         assertEquals("https://ocr.tencentcloudapi.com", transport.request.url());
         assertEquals("IDCardOCR", transport.request.headers().get("X-TC-Action"));
         assertEquals("2018-11-19", transport.request.headers().get("X-TC-Version"));
+        // 审评观察 5：region / timeout 曾被 handoff 说成「已覆盖」，其实当时没有任何断言
+        assertEquals("ap-guangzhou", transport.request.headers().get("X-TC-Region"));
+        assertEquals(10000, transport.request.timeoutMillis());
         assertTrue(transport.request.headers().get("Authorization").startsWith("TC3-HMAC-SHA256 "));
         assertTrue(transport.request.body().contains("\"ImageBase64\":\"QUJD\""));
     }

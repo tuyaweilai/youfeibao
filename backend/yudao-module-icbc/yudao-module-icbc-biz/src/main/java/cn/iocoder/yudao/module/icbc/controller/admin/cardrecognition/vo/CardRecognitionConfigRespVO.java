@@ -11,7 +11,7 @@ import java.util.List;
  *
  * <p><b>密钥只写不读</b>：只回「已配置」与否，绝不回明文。
  *
- * <p>页面要能一眼回答「现在到底开了没」：{@link #enabled} 是唯一的口径——
+ * <p>页面要能一眼回答「现在到底开了没」：{@link #configured} 是唯一的口径——
  * {@code provider=tencent} 且密钥齐备才算开了；{@code provider=stub} 或密钥缺失时，
  * 现场端返回空、退化为手工录入（ADR 0037 的安静降级，不是缺陷）。
  */
@@ -21,9 +21,6 @@ public class CardRecognitionConfigRespVO {
 
     @Schema(description = "生效的供应商：stub-未启用 / tencent-腾讯云 OCR", example = "tencent")
     private String provider;
-
-    @Schema(description = "供应商是否来自配置文件（DB 为空回落 yaml / env）", example = "false")
-    private Boolean providerFromConfigFile;
 
     @Schema(description = "SecretId 是否已配置（不回明文）", example = "true")
     private Boolean secretIdConfigured;
