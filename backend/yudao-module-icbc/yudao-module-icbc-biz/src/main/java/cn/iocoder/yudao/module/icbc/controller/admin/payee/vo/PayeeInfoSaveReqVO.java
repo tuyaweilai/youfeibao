@@ -47,6 +47,18 @@ public class PayeeInfoSaveReqVO {
     @Schema(description = "地址", example = "北京市朝阳区xxx街道")
     private String address;
 
+    @Schema(description = "证件签发日期 yyyy-MM-dd", example = "2020-01-01")
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$", message = "证件签发日期格式应为 yyyy-MM-dd")
+    private String idSignDate;
+
+    @Schema(description = "证件截止日期 yyyy-MM-dd，永久有效传 9999-12-30", example = "2030-01-01")
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$", message = "证件截止日期格式应为 yyyy-MM-dd")
+    private String idValidityPeriod;
+
+    @Schema(description = "是否我行用户：0-非我行用户，1-我行用户（建档向导确认页定下来的值）", example = "1")
+    @Pattern(regexp = "^[01]$", message = "是否我行用户只能填 0 或 1")
+    private String accountCode;
+
     @Schema(description = "业务类型", example = "RECYCLE")
     private String businessType;
 

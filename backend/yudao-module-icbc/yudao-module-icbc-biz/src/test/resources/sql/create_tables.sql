@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS icbc_payee_info (
     onboarding_state VARCHAR(20),
     id_sign_date VARCHAR(10),
     id_validity_period VARCHAR(10),
+    account_code VARCHAR(2),
     tenant_id BIGINT NOT NULL DEFAULT 0,
     creator VARCHAR(64) DEFAULT '',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

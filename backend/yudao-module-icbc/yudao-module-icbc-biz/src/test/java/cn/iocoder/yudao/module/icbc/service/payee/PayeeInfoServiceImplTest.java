@@ -112,6 +112,11 @@ public class PayeeInfoServiceImplTest extends BaseDbUnitTest {
             // 银行卡号与职业有格式 / 字典约束（#84）：randomPojo 给这两个字段生成不出合法值，显式给
             o.setBankCardNo("6222021234567890123");
             o.setOccupation(IcbcOccupationEnum.OTHER.getCode());
+            // 证件签发 / 截止日期与「是否我行卡」是新加的字段（#91），randomPojo 同样造不出合法值；
+            // 而且 updateById 会忽略 null，不给的话库里会留着 dbPayeeInfo 的随机值，令下面的比对失败
+            o.setIdSignDate("2020-01-01");
+            o.setIdValidityPeriod("2030-01-01");
+            o.setAccountCode("1");
         });
 
         // 调用

@@ -32,6 +32,12 @@
       }
     },
     {
+      "path": "pages/payee/wizard",
+      "style": {
+        "navigationBarTitleText": "建档向导"
+      }
+    },
+    {
       "path": "pages/my-acquisitions/index",
       "style": {
         "navigationBarTitleText": "我的收购单"

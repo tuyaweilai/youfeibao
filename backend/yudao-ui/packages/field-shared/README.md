@@ -12,6 +12,7 @@
 | `src/api/onboarding.ts` | 四步的接口：建档总览、发起/同步实人认证、发起/同步收方入驻、留联系方式、框架协议、首次授权 |
 | `src/api/payee.ts` | 自然人档案：带档（身份证号 / 手机号）、建档 |
 | `src/api/publicToken.ts` | 签发一次性令牌（把建档链接交给出售者本人） |
+| `src/api/wizard.ts` | 建档向导（#91）的五步壳接口：无状态识别三枚 + 一次性落库 |
 | `src/utils/icbcForm.ts` | 工行 UI 页面接口的自动提交表单：新窗口承载（ADR 0016） |
 | `src/utils/realName.ts` | 实人认证状态的判定：**1 是「认证中」，只有 2 是「认证通过」**（#90） |
 | `src/utils/onboarding.ts` | 收方入驻状态的判定：只有 `READY` 是「入驻完成」（#90 顺带修的同类问题） |

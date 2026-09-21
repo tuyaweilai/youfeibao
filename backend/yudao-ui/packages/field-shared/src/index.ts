@@ -12,6 +12,7 @@
 export * from './api/onboarding'
 export * from './api/payee'
 export * from './api/publicToken'
+export * from './api/wizard'
 export { openIcbcFormHtml } from './utils/icbcForm'
 export { REAL_NAME_STATUS, isRealNamePassed } from './utils/realName'
 export { ONBOARDING_STATE, isOnboardingReady } from './utils/onboarding'

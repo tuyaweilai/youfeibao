@@ -62,6 +62,26 @@
 
       <el-row :gutter="20">
         <el-col :span="12">
+          <el-form-item label="证件签发日期" prop="idSignDate">
+            <el-input v-model="formData.idSignDate" placeholder="yyyy-MM-dd" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="证件有效期至" prop="idValidityPeriod">
+            <el-input v-model="formData.idValidityPeriod" placeholder="永久有效填 9999-12-30" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-form-item label="是否本人工行卡" prop="accountCode">
+        <el-select v-model="formData.accountCode" class="w-full" clearable placeholder="请选择（建档向导确认页定下来的值）">
+          <el-option label="工行卡" value="1" />
+          <el-option label="非工行卡" value="0" />
+        </el-select>
+      </el-form-item>
+
+      <el-row :gutter="20">
+        <el-col :span="12">
           <el-form-item label="业务类型" prop="businessType">
             <el-select v-model="formData.businessType" placeholder="请选择" class="w-full">
               <el-option label="再生资源" value="RECYCLE" />
@@ -110,6 +130,9 @@ function buildEmpty(): PayeeVO {
     bankName: undefined,
     bankBranch: undefined,
     address: undefined,
+    idSignDate: undefined,
+    idValidityPeriod: undefined,
+    accountCode: undefined,
     businessType: 'RECYCLE',
     occupation: undefined,
     companyName: undefined

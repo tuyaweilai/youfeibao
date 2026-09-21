@@ -1983,3 +1983,44 @@ member 令牌回 `code=401 账号未登录`。
 **frontier**：`#91`（建档向导现场端壳）、`#92`（电子签章端口与租户开通）可立即开工；`#93`（腾讯卡证识别）、`#94`（免注册链接壳）挂 #91，`#95`（合同组电子签署）挂 #91 + #92。外部依赖仍是 #30/#36/#37。
 
 ⚠️ 工作区里 `icbc-menu.sql` / `logistics-menu.sql` / 现场端 `pages.json`、`home`、`login` 的未提交改动**与本票无关**，是会话开始前就存在的。
+
+## #91 建档向导（现场端壳）：拍证件与银行卡 → 识别 → 确认 → 落库，协议落纸质（已落地）
+
+五步向导把「废品堆前手抄」换成「拍一下、确认、落库」。后端只做两件事——**无状态识别**与
+**一次性落库**；分步状态只在现场端本地暂存，中途不落后端草稿表。
+
+1. **识别端口注入即用**：`OnboardingWizardServiceImpl` 注入 `CardRecognitionPort`（#91 前的
+   `db4c09f` 已落）与 `EsignPort`，**不新建、不改签名**。识别是「上传 + 识别」的无状态请求，
+   图片 base64 进来、结果返回，不留存、不进文件服务（ADR 0037）。
+2. **只在空缺处回填**：`pick(人工值, 识别值)` —— 人工非空就保持原样，只有空白才回填；
+   一经确认即以确认页的值提交（`OnboardingWizardSubmitReqVO`）。有 mock 端口的测试钉住
+   （`OnboardingWizardServiceImplTest`，8 例，不触网）。
+3. **落库口径**：姓名 / 证件号登记并关联平台级**自然人主体**（有则复用，复用测试用同一身份证
+   预先注册主体再提交断言同一 `naturalPersonId`）；证件签发 / 截止日期、卡号 / 开户行 / 住址 /
+   是否我行卡写进**收方档案**。`PayeeInfoSaveReqVO` / `PayeeAddReqVO` 补了这两个日期字段，
+   后台 `PayeeForm` 同步。
+4. **是否我行卡新落一列**：`icbc_payee_info.account_code`（迁移 `icbc-payee-account-code.sql`，
+   幂等；建表脚本 / 测试建表同步，README 导入顺序加 22m）。向导确认页定下来的值从此不是猜的：
+   `SellerOnboardingServiceImpl.submitOnboarding` 取「入参 → 档案 → 缺省 1」的顺序，
+   自动发起入驻时把档案上的值带过去。
+5. **协议落 PAPER**：`EsignPort.isAvailable` 是唯一判据，本票不调 `initiate` / `createSignUrl`
+   （合同组电子签署是 #95）；协议 `status=1` + `signMethod=PAPER`，向导照常走完并明确告知
+   「请打印纸质件请本人签字」。新增 `FrameworkAgreementSignMethodEnum`。
+6. **现场端**：新页 `pages/payee/wizard.vue`（五步：拍身份证正反面 → 确认身份 → 拍银行卡 →
+   确认卡信息 + 协议要素 → 签署结果），草稿与照片走 `utils/wizardDraft.ts` 本地暂存；
+   `pages/payee/index.vue` 的旧「手填建档」表单换成「开始建档向导」入口，向导走完带 `payeeId`
+   跳回只读进度页。走完给二维码与可复制链接（复用既有公开令牌机制，ADR 0023）。
+7. **错误码**：新增段 `1_030_040_xxx`（现有最大 039，与并行 #92 的 041 不冲突）。
+8. **测试**：ICBC 模块 **742 全绿**（`db4c09f` 的 734 + 本票 8）；现场端 `ts:check` 零错误、
+   `build:h5` 通过；司机端 `ts:check` 通过；PC `build:local` 通过。
+
+> **如实记下的缺口**：① **证件有效期只落在收方档案、没落在自然人主体** —— `icbc_natural_person`
+> 没有这两列，而本票边界明说「不要写迁移 SQL」，故未扩自然人主体；CONTEXT.md 说这两列应由主体持有，
+> 留给后续票收（要扩列时同步 `icbc-natural-person.sql` / 测试建表 / `clean.sql`）。
+> ② **前端压缩只靠 `chooseImage` 的 compressed 模式 + 10M 上限拦截**，没有显式 canvas 压缩；
+> 真机（尤其大图、反光）需冒烟。③ 卡证识别是 stub，有效期格式转换、行名推 `accountCode`、
+> 电子银行卡截图拒收都归 **#93**。
+
+**frontier**：#91 已解 → **#94（免注册链接壳）解锁**；**#93（腾讯卡证识别）** 挂 #91/#92、
+**#95（合同组电子签署）** 挂 #91 + #92。与 #92 的段位约定：错误码 `1_030_040_xxx`（本票）/
+`1_030_041_xxx`（#92）。

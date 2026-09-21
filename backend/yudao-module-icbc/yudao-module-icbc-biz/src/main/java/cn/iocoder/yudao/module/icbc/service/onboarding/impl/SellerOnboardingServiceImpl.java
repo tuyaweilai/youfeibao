@@ -222,7 +222,8 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
                         .outVendorId(currentOutVendorId())
                         .receiverName(payee.getName())
                         .receiverAccount(payee.getBankCardNo())
-                        .accountCode(StrUtil.blankToDefault(reqVO.getAccountCode(), DEFAULT_ACCOUNT_CODE))
+                        .accountCode(StrUtil.blankToDefault(reqVO.getAccountCode(),
+                                StrUtil.blankToDefault(payee.getAccountCode(), DEFAULT_ACCOUNT_CODE)))
                         .bankName(StrUtil.blankToDefault(payee.getBankName(), reqVO.getBankName()))
                         .mobile(payee.getMobile())
                         .idNo(payee.getIdCardNo())
@@ -596,6 +597,8 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
         reqVO.setIdValidityPeriod(payee.getIdValidityPeriod());
         reqVO.setBankName(payee.getBankName());
         reqVO.setBankBranch(payee.getBankBranch());
+        // 「是否我行卡」是建档向导确认页定下来、存在收方档案上的值（#91）；原样带过去，不再猜缺省
+        reqVO.setAccountCode(payee.getAccountCode());
         try {
             submitOnboarding(reqVO);
         } catch (ServiceException e) {

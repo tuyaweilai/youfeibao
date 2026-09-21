@@ -507,4 +507,16 @@ public interface ErrorCodeConstants {
     // ========== 经营报表与异常表（#57 T19：只读聚合，口径不混） 1_030_039_000 ==========
     ErrorCode REPORT_ANOMALY_TYPE_UNKNOWN = new ErrorCode(1_030_039_000,
             "未知的异常类型：{}（可选值见异常表口径，磅差 / 超采购量 / 超入库量 / 重复关联 / 长期未确认 / 资料缺失）");
+
+    // ========== 建档向导（#91：拍证件与银行卡 → 识别 → 确认 → 落库） 1-030-040-000 ==========
+    ErrorCode WIZARD_IMAGE_REQUIRED = new ErrorCode(1_030_040_000,
+            "证件或银行卡影像不能为空（识别要的是压缩后的图片本身，不落库）");
+    ErrorCode WIZARD_NAME_REQUIRED = new ErrorCode(1_030_040_001,
+            "姓名不能为空：识别不出时请手工录入");
+    ErrorCode WIZARD_ID_CARD_NO_REQUIRED = new ErrorCode(1_030_040_002,
+            "身份证号不能为空：识别不出时请手工录入");
+    ErrorCode WIZARD_MOBILE_REQUIRED = new ErrorCode(1_030_040_003,
+            "手机号不能为空：本人实名要靠它");
+    ErrorCode WIZARD_BANK_CARD_NO_REQUIRED = new ErrorCode(1_030_040_004,
+            "银行卡号不能为空：收方入驻要打到本人卡上");
 }

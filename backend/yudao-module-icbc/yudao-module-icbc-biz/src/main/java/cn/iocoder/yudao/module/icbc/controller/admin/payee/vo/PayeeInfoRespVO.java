@@ -54,6 +54,18 @@ public class PayeeInfoRespVO {
     @ExcelProperty("地址")
     private String address;
 
+    @Schema(description = "证件签发日期 yyyy-MM-dd", example = "2020-01-01")
+    @ExcelProperty("证件签发日期")
+    private String idSignDate;
+
+    @Schema(description = "证件截止日期 yyyy-MM-dd，永久有效为 9999-12-30", example = "2030-01-01")
+    @ExcelProperty("证件截止日期")
+    private String idValidityPeriod;
+
+    @Schema(description = "是否我行用户：0-非我行用户，1-我行用户", example = "1")
+    @ExcelProperty("是否我行用户")
+    private String accountCode;
+
     @Schema(description = "状态", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     @ExcelProperty("状态")
     private Integer status;

@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.*;
 
+import javax.validation.constraints.Size;
 import java.time.LocalDateTime;
 
 /**
@@ -164,5 +165,17 @@ public class PayeeInfoDO extends TenantBaseDO {
      * 证件截止日期 yyyy-MM-dd，永久有效传 9999-12-30（收方入驻页面入参，透传）
      */
     private String idValidityPeriod;
+
+    /**
+     * 是否我行用户：0-非我行用户，1-我行用户。
+     *
+     * <p>建档向导（#91）在确认页定下来后存在这里，收方入驻发起时优先取它，而不是拿
+     * 「没人确认过的缺省 1」去猜（原来那个缺省见 #81 盘问结论）。
+     *
+     * <p>{@code @Size(max = 2)} 与库内 {@code varchar(2)} 对齐：DO 上的长度约束让随机造数的
+     * 测试（Podam）不会造出超长值（与 #84 的 {@code @Pattern} 同一条教训）。
+     */
+    @Size(max = 2)
+    private String accountCode;
 
 } 
