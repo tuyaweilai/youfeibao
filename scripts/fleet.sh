@@ -328,8 +328,6 @@ cmd_integrate() {
   local n=$1 branch; branch=$(state_field "$n" 3)
   local wt; wt=$(state_field "$n" 4)
   local title; title=$(gh issue view "$n" --json title -q .title)
-  # 人工解完冲突再跑一次时，分支已经合过了，`main..branch` 会数成 0——改从合并提交自身数。
-  local commits; commits=$(git -C "$ROOT" rev-list --count "$merged_sha^1..$merged_sha^2" 2>/dev/null || echo 0)
 
   if ! git -C "$ROOT" diff --quiet || ! git -C "$ROOT" diff --cached --quiet; then
     die "main 工作树不干净，先处理：$ROOT"
@@ -345,8 +343,10 @@ cmd_integrate() {
     die "#$n 合并冲突，已 abort 并标 ready-for-human（分支保留）"
   fi
 
-  local summary; summary=$(test_summary "$FLEET/logs/$n.tests.log" 2>/dev/null)
+  # 人工解完冲突再跑一次时，分支已经合过了，`main..branch` 会数成 0——改从合并提交自身数。
   local merged_sha; merged_sha=$(git -C "$ROOT" rev-parse --short HEAD)
+  local commits; commits=$(git -C "$ROOT" rev-list --count "${merged_sha}^1..${merged_sha}^2" 2>/dev/null || echo 0)
+  local summary; summary=$(test_summary "$FLEET/logs/$n.tests.log" 2>/dev/null)
   local files; files=$(git -C "$ROOT" diff --name-only "HEAD^1..HEAD" | wc -l | tr -d ' ')
 
   # 日志路径按 state 里记的来：收养的票日志在仓库外（/tmp），写死 $FLEET/logs/$n.log 会找不到
