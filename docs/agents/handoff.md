@@ -2714,3 +2714,9 @@ admin 登录 / 用户保存（`@Mobile`）。**本票不治这条**，真实理�
 但**自然人姓名**这类会被漏掉，例如 `AcquisitionServiceImpl:373` 把 `order.getCounterpartyName()` 拼进
 `ACQUISITION_PURCHASE_ORDER_COUNTERPARTY_MISMATCH`（走 HTTP 时由 `serviceExceptionHandler` 处理，值只回在
 响应体、不进落库三字段；要治得逐个改文案）。
+
+### 合并记录：#102（自动舰队）
+
+- 分支 `i102-error-log-values` → `1054e071`：11 个文件、3 个提交
+- 独立评审：PASS（报告 `.fleet/gates/102.review.md`）
+- 闸门：全量 icbc `[WARNING] Tests run: 912, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/102.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/102.log`（`.fleet/` 与收养票的仓库外日志不入库）
