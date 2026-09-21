@@ -19,6 +19,12 @@ public class PublicOnboardingStatusRespVO {
     @Schema(description = "实名认证状态名", example = "认证通过")
     private String realNameStatusName;
 
+    @Schema(description = "实名认证状态值（0 未认证 / 1 认证中 / 2 认证通过 / 3 认证未通过）", example = "2")
+    private Integer realNameStatus;
+
+    @Schema(description = "实名未通过的原因（未通过时非空，落点页展示并给重试入口）", example = "人脸比对不通过")
+    private String realNameMsg;
+
     @Schema(description = "收方入驻结果名", example = "入驻成功")
     private String onboardingStateName;
 

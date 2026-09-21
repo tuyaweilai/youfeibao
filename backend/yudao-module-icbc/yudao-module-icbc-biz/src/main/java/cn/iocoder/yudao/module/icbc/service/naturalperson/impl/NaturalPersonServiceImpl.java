@@ -150,6 +150,10 @@ public class NaturalPersonServiceImpl implements NaturalPersonService {
     @Override
     public void applyRealNameResult(Long naturalPersonId, boolean passed, String failReason) {
         IcbcNaturalPersonDO person = getNaturalPerson(naturalPersonId);
+        if (PayeeRealNameStatusEnum.PASSED.getStatus().equals(person.getRealNameStatus())) {
+            // 已通过是终态：异步通知与主动查询都可能晚到，晚到的失败不许把「通过」改回去（#82 先到先写）
+            return;
+        }
         if (!passed && StrUtil.isBlank(failReason)) {
             return; // 认证中，不动状态
         }

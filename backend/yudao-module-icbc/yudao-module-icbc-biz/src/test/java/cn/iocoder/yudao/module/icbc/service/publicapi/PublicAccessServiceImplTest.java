@@ -290,6 +290,23 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testSyncOnboarding_failedRealNameExposesReasonForRetry() {
+        PayeeInfoDO payee = insertPayee("许十二", "110101199011119012");
+        SellerOnboardingRespVO failed = onboarding(3, null, false);
+        failed.setRealNameMsg("人脸比对不通过");
+        when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(failed);
+        String token = mint("ONBOARDING", null, payee.getId());
+
+        PublicOnboardingStatusRespVO status = publicAccessService.syncOnboarding(token);
+
+        // 落点页据此显示「未通过 + 原因」并给重试入口（#82）
+        verify(sellerOnboardingService).syncRealName(eq(payee.getId()));
+        assertEquals("REAL_NAME", status.getStep());
+        assertEquals(3, status.getRealNameStatus().intValue());
+        assertEquals("人脸比对不通过", status.getRealNameMsg());
+    }
+
+    @Test
     public void testWriteOnboardingForm_returnsHtml() throws Exception {
         PayeeInfoDO payee = insertPayee("郑十一", "110101199009099012");
         when(sellerOnboardingService.getOnboarding(payee.getId())).thenReturn(onboarding(0, null, null));

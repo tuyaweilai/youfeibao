@@ -141,6 +141,9 @@ public interface ErrorCodeConstants {
     ErrorCode SELLER_BANK_CARD_REQUIRED = new ErrorCode(1_030_013_007, "出售者未绑定银行卡，不能发起收方入驻");
     ErrorCode SELLER_ONBOARDING_PAYER_NOT_CONFIGURED = new ErrorCode(1_030_013_008, "本租户尚未配置付方档案（开票主体），不能发起收方入驻");
     ErrorCode SELLER_ONBOARDING_VENDOR_UNRESOLVED = new ErrorCode(1_030_013_009, "收方入驻通知无法确定所属回收企业（子商户 {}），请人工核对");
+    ErrorCode SELLER_APP_ENTRY_NOT_CONFIGURED = new ErrorCode(1_030_013_010,
+            "尚未配置自然人端入口地址（icbc.notify.seller-app-url，可回退 icbc.station.entry-url），"
+                    + "无法生成实人认证完成后的跳转地址");
 
     // ========== 收购登记 1-030-014-000 ==========
     ErrorCode ACQUISITION_NOT_EXISTS = new ErrorCode(1_030_014_000, "收购单不存在");

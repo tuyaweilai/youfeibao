@@ -54,6 +54,15 @@
         <view v-if="onboarding" class="quota">
           <view class="quota__name">实名与收方入驻</view>
           <view class="quota__message">{{ onboarding.message }}</view>
+          <!-- 从工行实名结果页跳回来的落点（#82）：不用再点「查询结果」，打开就是最新状态 -->
+          <view v-if="faceReturn === 'face-success'" class="face-return face-return--ok">
+            已从工行返回，实名结果已刷新。
+          </view>
+          <view v-else-if="faceReturn === 'face-fail' || realNameFailed" class="face-return face-return--fail">
+            <view class="face-return__title">实名未通过</view>
+            <view v-if="onboarding.realNameMsg" class="face-return__reason">{{ onboarding.realNameMsg }}</view>
+            <view class="face-return__desc">可以重新发起一次实名；也可以先留个联系方式，让企业联系你。</view>
+          </view>
           <view class="kv"><text class="kv__k">实名认证</text><text>{{ onboarding.realNameStatusName || '未认证' }}</text></view>
           <view class="kv"><text class="kv__k">收方入驻</text><text>{{ onboarding.onboardingStateName || '未开始' }}</text></view>
           <view v-if="onboarding.bankCardChangeStatusName" class="kv">
@@ -69,7 +78,7 @@
             <button class="btn btn--ghost" @click="copyCurrentUrl">复制本页链接</button>
           </view>
           <button v-else-if="onboarding.step !== 'DONE'" class="btn btn--primary" @click="openOnboardingForm">
-            去工行页面完成实名
+            {{ realNameFailed ? '重新发起实名认证' : '去工行页面完成实名' }}
           </button>
           <button class="btn btn--ghost" :loading="loading" @click="loadOnboarding">我已完成，刷新</button>
         </view>
@@ -158,7 +167,7 @@
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { queryQuota, queryNotice, querySettlement, submitContactLead, syncOnboarding, onboardingFormUrl, QuotaVO, SettlementVO, OnboardingStatusVO, PublicNoticeVO } from '@/api/public'
-import { resolveEntryParams, resolveStationCode, setPurpose, setToken } from '@/utils/token'
+import { resolveEntryParams, resolveFaceReturn, resolveStationCode, setPurpose, setToken } from '@/utils/token'
 import { getSubject, getToken } from '@/utils/auth'
 import { setTenantId } from '@/config/env'
 import { downloadInvoicePdf } from '@/utils/download'
@@ -196,6 +205,7 @@ const settlement = ref<SettlementVO | null>(null)
 const onboarding = ref<OnboardingStatusVO | null>(null)
 const webViewUrl = ref('')
 const notInWechat = ref(false)
+const faceReturn = ref('')
 const contact = reactive({ name: '', mobile: '', remark: '' })
 
 // 令牌按用途签发，只放行对应功能；没带用途时给出全部入口
@@ -203,6 +213,9 @@ const visibleTabs = computed(() => {
   const section = PURPOSE_SECTION[purpose.value]
   return section ? ALL_TABS.filter((tab) => tab.key === section) : ALL_TABS
 })
+
+/** 实名未通过（PayeeRealNameStatusEnum.FAILED = 3）：落点页要说清原因并给重试入口 */
+const realNameFailed = computed(() => onboarding.value?.realNameStatus === 3)
 
 onLoad(() => {
   // 非微信环境（H5）：实名页在这里唤不起来，别让本人点了没反应（#88）
@@ -218,6 +231,7 @@ onLoad(() => {
   const params = resolveEntryParams()
   token.value = params.token
   purpose.value = params.purpose
+  faceReturn.value = resolveFaceReturn()
   if (params.token) {
     setToken(params.token)
     setPurpose(params.purpose)
@@ -605,6 +619,36 @@ async function onSubmitContact() {
     color: #b26a00;
     font-size: 26rpx;
     line-height: 1.6;
+  }
+}
+
+.face-return {
+  margin-top: 16rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 12rpx;
+  line-height: 1.6;
+
+  &--ok {
+    background-color: #e8f7ee;
+    color: #1a7f43;
+  }
+
+  &--fail {
+    background-color: #fdecec;
+    color: #cf1322;
+  }
+
+  &__title {
+    font-weight: 600;
+  }
+
+  &__reason {
+    margin-top: 8rpx;
+  }
+
+  &__desc {
+    margin-top: 8rpx;
+    font-size: 26rpx;
   }
 }
 </style>

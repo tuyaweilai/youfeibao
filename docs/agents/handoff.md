@@ -1746,3 +1746,41 @@ canvas + `toDataURL` 渲染器已打包；自然人端 `pnpm ts:check` 零错误
 
 **frontier**：#88 已解。剩余同批待做 **#82**（实名回跳）、**#84**（字段校验收口）、**#86**（换卡）；
 #89 现在只被 **#86** 阻塞，**#87** 被 #86 阻塞。
+
+## #82 实名认证：签完回来就看到结果（已落地）
+
+工行实名结果页的「确认」现在跳回我们自己的落点页，**不用再有人点「查询结果」**。
+
+1. **两个跳转地址真的上送了**：`SellerOnboardingServiceImpl.startRealName` 给工行上送 `jumpUrl`（成功）
+   与 `failJumpUrl`（失败），两者是同一个令牌拼的、只差 `&from=face-success` / `&from=face-fail`
+   （工行文档把这两个字段标为必输，此前一个都没上）。
+2. **入口地址的唯一来源**：新增 `SellerAppLinkBuilder`（`service/token`），入口取
+   `icbc.notify.seller-app-url`、缺失回退 `icbc.station.entry-url`，令牌与链接形状只有这一份。
+   `SellerNotifyServiceImpl`（#36 触达）一并改用它，删掉了自己那套 `resolveSellerAppUrl` 与拼链接。
+3. **缺配置当场报错**（AC4）：`requirePayeeLink` 抛 `SELLER_APP_ENTRY_NOT_CONFIGURED`（`1_030_013_010`），
+   不再静默带空跳转地址去求工行。**本地 fake 模式也要配 `ICBC_SELLER_APP_URL`（如 `http://localhost:5174`）**，
+   否则发起实名会报错；已在 `.env.example` 与 `application-local.yaml` 写明。顺带删掉了随入驻页面一起作废的
+   `icbc.seller-onboarding.jump-url` / `fail-jump-url` 两个死配置。
+4. **落点页**（自然人端 `pages/index/index.vue`）：工行跳回时带令牌与 `from` 标记，页面打开即
+   `syncOnboarding` 主动查一次（这条链路本来就有，无需再点「查询结果」）；`from=face-success` 显示
+   「已从工行返回，实名结果已刷新」；失败或 `realNameStatus=3` 时显示「实名未通过 + 原因」，
+   按钮文案变「重新发起实名认证」。后端公开状态 VO 补了 `realNameStatus` / `realNameMsg`（原来只有状态名）。
+5. **先到先写**（AC5）：`NaturalPersonServiceImpl.applyRealNameResult` 把 **PASSED 当终态**——
+   异步通知与主动查询都可能晚到，晚到的失败不许把「通过」改回去（失败仍可通过重试走到通过）。
+
+**验收实测**：ICBC 模块 **712 个测试全绿**（#85 关闭时的 703 + 本票 9：`SellerAppLinkBuilderTest` 4 +
+`NaturalPersonServiceImplTest` 2 + `SellerOnboardingJumpUrlRequiredTest` 1 + 实名跳转 1 + 公开状态 1，
+另有 `SellerOnboardingServiceImplTest` 因签发令牌补了租户上下文）；全量 `compile` 通过。自然人端
+`pnpm ts:check` 零错误、`build:h5` 与 `build:mp-weixin` 都通过。
+
+**这一票踩到的坑**：
+
+1. **改了 `yudao-module-icbc-api` 就不能只跑 biz 的测试**：不加 `-am` 时 biz 用的是 `~/.m2` 里的旧
+   api jar，新加的 `ErrorCodeConstants` 常量找不到，接着 javac 中止注解处理，报出一大片**假的 Lombok
+   「找不到 getter/setter」**（看起来像 Lombok 坏了）。先 `mvn -pl yudao-module-icbc/yudao-module-icbc-api -am -DskipTests install` 再跑 biz 测试。
+2. **单测里签发公开令牌需要租户上下文**：`PublicTokenServiceImpl.mint` 要求 `TenantContextHolder` 非空，
+   否则回 `PUBLIC_TOKEN_INVALID`。`SellerOnboardingServiceImplTest` 现在在 `@BeforeEach` 里
+   `setTenantId(1L)`、`@AfterEach` 里 `clear()`（与 `SellerNotifyServiceTest` 同一做法）。
+
+**frontier**：#82 已解。剩余同批：**#84**（字段校验收口）、**#86**（换卡）；#89 被 #86 阻塞、#87 被 #86 阻塞。
+另有 #90（司机端实名状态判断的枚举值错，本票顺手发现）。

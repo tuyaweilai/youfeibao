@@ -210,6 +210,8 @@ public class PublicAccessServiceImpl implements PublicAccessService {
         PublicOnboardingStatusRespVO resp = new PublicOnboardingStatusRespVO();
         resp.setStep(currentStep(overview));
         resp.setRealNameStatusName(overview.getRealNameStatusName());
+        resp.setRealNameStatus(overview.getRealNameStatus());
+        resp.setRealNameMsg(overview.getRealNameMsg());
         resp.setOnboardingStateName(overview.getOnboardingStateName());
         resp.setBankCardChangeStatusName(overview.getBankCardChangeStatusName());
         resp.setNextStep(overview.getNextStep());

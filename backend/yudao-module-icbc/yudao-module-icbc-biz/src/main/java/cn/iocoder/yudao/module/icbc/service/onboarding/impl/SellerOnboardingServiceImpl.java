@@ -22,6 +22,7 @@ import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeBankCardChangeStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOutcomeEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeRealNameStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PublicTokenPurposeEnum;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGatewayResult;
 import cn.iocoder.yudao.module.icbc.gateway.model.FaceVerifyPageReq;
@@ -35,6 +36,8 @@ import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
+import cn.iocoder.yudao.module.icbc.service.token.SellerAppLink;
+import cn.iocoder.yudao.module.icbc.service.token.SellerAppLinkBuilder;
 import cn.iocoder.yudao.module.icbc.util.MaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -99,6 +102,8 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     private PayeeBankCardChangeService payeeBankCardChangeService;
     @Resource
     private IcbcGateway icbcGateway;
+    @Resource
+    private SellerAppLinkBuilder sellerAppLinkBuilder;
 
     /**
      * 收方入驻审核结果回调地址。是平台外网可达地址，不是工行地址，故不进适配层配置。
@@ -133,6 +138,10 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     public SellerStepRespVO startRealName(SellerRealNameReqVO reqVO) {
         PayeeInfoDO payee = validatePayeeExists(reqVO.getPayeeId());
         IcbcNaturalPersonDO person = payeeInfoService.ensureNaturalPerson(payee);
+        // 实名结果页的「确认」要跳回自然人端，落点页读到令牌会自己刷一次结果（#82）。
+        // jump / fail-jump 是工行标为必输的外网地址：缺配置当场报错，不带空值去求工行。
+        SellerAppLink returnLink = sellerAppLinkBuilder.requirePayeeLink(
+                payee.getId(), PublicTokenPurposeEnum.ONBOARDING);
         IcbcGatewayResult<IcbcPage> result = icbcGateway.submitFaceVerification(FaceVerifyPageReq.builder()
                 // 平台级外部用户编号：实名一次，跨企业复用
                 .outUserId(person.getOutUserId())
@@ -141,6 +150,8 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
                 .mobile(payee.getMobile())
                 .transNo(generateTransNo("FACE"))
                 .callbackUrl(StrUtil.blankToDefault(faceCallbackUrl, null))
+                .jumpUrl(faceReturnUrl(returnLink, true))
+                .failJumpUrl(faceReturnUrl(returnLink, false))
                 .build());
         if (!result.isSuccess()) {
             throw exception(ICBC_API_CALL_FAILED);
@@ -530,6 +541,14 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     }
 
     // ==================== 内部方法 ====================
+
+    /**
+     * 实名结果页「确认」的落点：成功 / 失败都回自然人端，只用一个 `from` 标记区分，
+     * 落点页据此显示「已提交」或「未通过，可重试」（#82）。
+     */
+    private String faceReturnUrl(SellerAppLink link, boolean passed) {
+        return link.getLink() + (passed ? "&from=face-success" : "&from=face-fail");
+    }
 
     /**
      * 实名通过后自动发起入驻（#85）。

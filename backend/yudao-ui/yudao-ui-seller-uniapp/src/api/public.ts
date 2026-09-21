@@ -68,6 +68,10 @@ export const submitContactLead = (data: { token: string; name: string; mobile: s
 export interface OnboardingStatusVO {
   step?: string
   realNameStatusName?: string
+  /** 实名状态值（0 未认证 / 1 认证中 / 2 认证通过 / 3 认证未通过）；3 时落点页给重试入口 */
+  realNameStatus?: number
+  /** 实名未通过的原因（未通过时非空） */
+  realNameMsg?: string
   onboardingStateName?: string
   /** 收款账户变更状态名（换卡在途时非空，例如「银行审核中」，#37） */
   bankCardChangeStatusName?: string

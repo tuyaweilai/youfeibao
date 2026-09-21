@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.icbc.service.onboarding;
 
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
+import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.*;
@@ -33,11 +34,14 @@ import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingStatus;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.impl.SellerOnboardingServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.Rollback;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
@@ -63,6 +67,11 @@ import static org.mockito.Mockito.when;
  * （与子商户绑定的动作）。
  */
 @Import({SellerOnboardingServiceImpl.class, UnitTestConfiguration.class})
+@TestPropertySource(properties = {
+        // 实名回跳（#82）要签发公开令牌，并需要自然人端入口地址
+        "icbc.public-token.secret=test-public-token-secret-0123456789abcdef",
+        "icbc.notify.seller-app-url=https://seller.example.com"
+})
 @Transactional
 @Rollback
 public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
@@ -92,6 +101,17 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
 
     @MockBean
     private IcbcGateway icbcGateway;
+
+    @BeforeEach
+    public void setUp() {
+        // 实名回跳要签发公开令牌（#82），而签发必须在某个租户上下文中
+        TenantContextHolder.setTenantId(1L);
+    }
+
+    @AfterEach
+    public void tearDown() {
+        TenantContextHolder.clear();
+    }
 
     // ==================== 回头客 ====================
 
@@ -129,6 +149,27 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         // 认证中记在自然人主体上，收方档案不再承载实人认证状态
         assertEquals(PayeeRealNameStatusEnum.PENDING.getStatus(),
                 naturalPersonService.getNaturalPerson(person.getId()).getRealNameStatus());
+    }
+
+    @Test
+    public void testStartRealName_sendsSuccessAndFailJumpUrlsWithBusinessKey() {
+        PayeeInfoDO payee = insertPayee("USER_JUMP", "110101199001010077", "13800000077");
+        when(icbcGateway.submitFaceVerification(any())).thenReturn(IcbcGatewayResult.success(
+                IcbcPage.builder().formHtml("<form id='face'/>").build(), 0, "成功"));
+
+        sellerOnboardingService.startRealName(realNameReq(payee.getId()));
+
+        // 工行把结果页「确认」跳回我们的自然人端：成功与失败两个地址都要上送，各自带上令牌（#82）
+        ArgumentCaptor<FaceVerifyPageReq> captor = ArgumentCaptor.forClass(FaceVerifyPageReq.class);
+        verify(icbcGateway).submitFaceVerification(captor.capture());
+        FaceVerifyPageReq req = captor.getValue();
+        assertTrue(req.getJumpUrl().startsWith("https://seller.example.com/#/?token="), req.getJumpUrl());
+        assertTrue(req.getJumpUrl().contains("purpose=ONBOARDING"), req.getJumpUrl());
+        assertTrue(req.getJumpUrl().endsWith("from=face-success"), req.getJumpUrl());
+        assertTrue(req.getFailJumpUrl().startsWith("https://seller.example.com/#/?token="), req.getFailJumpUrl());
+        assertTrue(req.getFailJumpUrl().endsWith("from=face-fail"), req.getFailJumpUrl());
+        // 两个地址定位的是同一笔：同一个令牌
+        assertEquals(tokenOf(req.getJumpUrl()), tokenOf(req.getFailJumpUrl()));
     }
 
     @Test
@@ -751,6 +792,12 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         SellerRealNameReqVO reqVO = new SellerRealNameReqVO();
         reqVO.setPayeeId(payeeId);
         return reqVO;
+    }
+
+    /** 从 `...?token=xxx&purpose=...` 里取出令牌 */
+    private String tokenOf(String url) {
+        String after = url.substring(url.indexOf("token=") + "token=".length());
+        return after.substring(0, after.indexOf('&'));
     }
 
     private FrameworkAgreementSaveReqVO agreementReq(Long payeeId, String productName) {

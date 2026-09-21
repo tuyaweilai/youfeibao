@@ -130,6 +130,30 @@ public class NaturalPersonServiceImplTest extends BaseDbUnitTest {
                 naturalPersonService.getNaturalPerson(person.getId()).getRealNameStatus());
     }
 
+    @Test
+    public void testApplyRealNameResult_passedIsNotOverwrittenByLateFailure() {
+        IcbcNaturalPersonDO person = naturalPersonService.register(registerReq("张三", ID_CARD, MOBILE));
+        naturalPersonService.applyRealNameResult(person.getId(), true, null);
+        // 异步通知与主动查询都可能晚到：已通过是终态，晚到的失败不许把「通过」改回去（#82 先到先写）
+        naturalPersonService.applyRealNameResult(person.getId(), false, "上一轮失败原因");
+
+        IcbcNaturalPersonDO refreshed = naturalPersonService.getNaturalPerson(person.getId());
+        assertEquals(PayeeRealNameStatusEnum.PASSED.getStatus(), refreshed.getRealNameStatus());
+        assertNull(refreshed.getRealNameMsg());
+    }
+
+    @Test
+    public void testApplyRealNameResult_retryAfterFailureCanPass() {
+        IcbcNaturalPersonDO person = naturalPersonService.register(registerReq("张三", ID_CARD, MOBILE));
+        naturalPersonService.applyRealNameResult(person.getId(), false, "活体检测未通过");
+        // 重新发起后真的通过了：失败不是终态，要能走到通过
+        naturalPersonService.applyRealNameResult(person.getId(), true, null);
+
+        IcbcNaturalPersonDO refreshed = naturalPersonService.getNaturalPerson(person.getId());
+        assertEquals(PayeeRealNameStatusEnum.PASSED.getStatus(), refreshed.getRealNameStatus());
+        assertNull(refreshed.getRealNameMsg());
+    }
+
     // ==================== 登录凭证 ====================
 
     @Test

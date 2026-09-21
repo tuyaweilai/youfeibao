@@ -40,6 +40,31 @@ export function getToken(): string {
 }
 
 /**
+ * 从启动参数 / URL 里取实名回跳标记（#82）。
+ * 工行实名结果页「确认」按成功 / 失败跳到本页，带 `from=face-success` / `from=face-fail`，
+ * 落点页据此显示「已提交」或「未通过，可重试」，并在打开时自动查一次结果。
+ */
+export function resolveFaceReturn(): string {
+  let from = ''
+  try {
+    const launch = uni.getLaunchOptionsSync()
+    from = (launch?.query?.from as string) || ''
+  } catch {
+    // 忽略：非启动场景
+  }
+  // #ifdef H5
+  if (!from) {
+    const url = new URL(window.location.href)
+    from = url.searchParams.get('from') || ''
+    if (!from && url.hash.includes('?')) {
+      from = new URLSearchParams(url.hash.split('?')[1]).get('from') || ''
+    }
+  }
+  // #endif
+  return from
+}
+
+/**
  * 从启动参数 / URL 里取场站码（场站二维码只编码它，码内不带任何令牌）。
  * 二维码指向 `https://<seller-app>/#/?station=STATION_A`。
  */

@@ -307,13 +307,13 @@ icbc:
     # 已确认但长期未开票时限（天）：只提醒企业尽快开票付款，不自动作废
     uninvoiced-timeout-days: ${ICBC_SETTLEMENT_UNINVOICED_TIMEOUT_DAYS:30}
 
-  # 出售者建档：工行 UI 页面接口的回调 / 跳转地址，须为外网可达地址（不是工行地址）。
-  # 工行不支持 scheme，jump / fail-jump 只能用 https 页面；自然人在小程序 web-view 里打开后
-  # 再由前端路由回具体页面。本地 fake 模式留空即可；联调时用 ngrok 等暴露出去。
+  # 出售者建档：工行 UI 页面接口的**结果通知**地址，须为外网可达地址（不是工行地址）。
+  # 实名结果页的「确认」跳转地址（jump / fail-jump，#82）现在是按单笔拼业务键的，
+  # 基地址取自然人端入口 icbc.notify.seller-app-url（见下方 notify），不再单独配置：
+  # 缺了它会直接报「尚未配置自然人端入口地址」，而不是带空跳转地址去求工行。
+  # 本地 fake 模式也建议配上（如 http://localhost:5174），否则发起实名会报错；联调用 https。
   seller-onboarding:
     callback-url: ${ICBC_ONBOARDING_CALLBACK_URL:}
-    jump-url: ${ICBC_ONBOARDING_JUMP_URL:}
-    fail-jump-url: ${ICBC_ONBOARDING_FAIL_JUMP_URL:}
     face-callback-url: ${ICBC_FACE_CALLBACK_URL:}
 
   api:

@@ -6,7 +6,6 @@ import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.module.icbc.controller.admin.notify.vo.*;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicNoticeRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenCreateReqVO;
-import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.notify.IcbcNotifySettingDO;
@@ -23,7 +22,8 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.settlement.IcbcSettlementMapper;
 import cn.iocoder.yudao.module.icbc.enums.*;
 import cn.iocoder.yudao.module.icbc.service.notify.SellerNotifyService;
-import cn.iocoder.yudao.module.icbc.service.token.PublicTokenService;
+import cn.iocoder.yudao.module.icbc.service.token.SellerAppLink;
+import cn.iocoder.yudao.module.icbc.service.token.SellerAppLinkBuilder;
 import cn.iocoder.yudao.module.icbc.util.MaskUtils;
 import cn.iocoder.yudao.module.system.api.sms.SmsSendApi;
 import cn.iocoder.yudao.module.system.api.sms.dto.send.SmsSendSingleToUserReqDTO;
@@ -75,11 +75,6 @@ public class SellerNotifyServiceImpl implements SellerNotifyService {
     /** 平台级短信开关（默认关闭；费用与到达率是运营成本） */
     @Value("${icbc.notify.sms-enabled:false}")
     private boolean platformSmsEnabled;
-    /** 自然人端入口地址（拼一次性令牌链接）；未配置时退化用场站入口地址 */
-    @Value("${icbc.notify.seller-app-url:}")
-    private String sellerAppUrl;
-    @Value("${icbc.station.entry-url:}")
-    private String stationEntryUrl;
 
     @Resource
     private IcbcSellerNotifyMapper notifyMapper;
@@ -96,7 +91,7 @@ public class SellerNotifyServiceImpl implements SellerNotifyService {
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
     @Resource
-    private PublicTokenService publicTokenService;
+    private SellerAppLinkBuilder sellerAppLinkBuilder;
     @Resource
     private ObjectProvider<SmsSendApi> smsSendApiProvider;
 
@@ -251,28 +246,27 @@ public class SellerNotifyServiceImpl implements SellerNotifyService {
         if (settlement == null) {
             throw exception(ErrorCodeConstants.SETTLEMENT_NOT_EXISTS);
         }
-        String base = resolveSellerAppUrl();
-        if (StrUtil.isBlank(base)) {
-            throw exception(SELLER_NOTIFY_LINK_UNAVAILABLE);
-        }
         if (settlement.getPayeeId() == null) {
             throw exception(ErrorCodeConstants.PAYEE_NOT_EXISTS);
         }
-        NoticeLink noticeLink = mintNoticeLink(settlement.getPayeeId(), base);
+        SellerAppLink noticeLink = mintNoticeLink(settlement.getPayeeId());
+        if (noticeLink == null) {
+            throw exception(SELLER_NOTIFY_LINK_UNAVAILABLE);
+        }
         Map<String, Object> params = new HashMap<>();
         params.put("settlementNo", settlement.getSettlementNo());
         params.put("count", acquisitionCount(settlement));
         params.put("amount", settlementTotalAmount(settlement));
-        params.put("link", noticeLink.link);
+        params.put("link", noticeLink.getLink());
         String content = render(SellerNotifyTypeEnum.SETTLEMENT_PENDING, params);
 
         NotifyForwardLinkRespVO resp = new NotifyForwardLinkRespVO();
         resp.setSettlementId(settlement.getId());
         resp.setSettlementNo(settlement.getSettlementNo());
-        resp.setToken(noticeLink.token);
-        resp.setLink(noticeLink.link);
+        resp.setToken(noticeLink.getToken());
+        resp.setLink(noticeLink.getLink());
         resp.setLinkConfigured(true);
-        resp.setExpiresTime(noticeLink.expiresTime);
+        resp.setExpiresTime(noticeLink.getExpiresTime());
         resp.setMobileMasked(MaskUtils.maskMobile(settlement.getSellerMobile()));
         resp.setNotificationText(content);
         resp.setSmsSent(false);
@@ -416,24 +410,15 @@ public class SellerNotifyServiceImpl implements SellerNotifyService {
     }
 
     private String resolveSellerAppUrl() {
-        if (StrUtil.isNotBlank(sellerAppUrl)) {
-            return sellerAppUrl.trim();
-        }
-        return StrUtil.isBlank(stationEntryUrl) ? null : stationEntryUrl.trim();
+        return sellerAppLinkBuilder.entryUrl();
     }
 
     /**
      * 结算 / 付款通知用的一次性链接：绑定收方（PAYEE），打开进自然人端看「待处理的事」。
      */
     private String sellerNoticeLink(Long payeeId) {
-        if (payeeId == null) {
-            return null;
-        }
-        String base = resolveSellerAppUrl();
-        if (StrUtil.isBlank(base)) {
-            return null;
-        }
-        return mintNoticeLink(payeeId, base).link;
+        SellerAppLink link = mintNoticeLink(payeeId);
+        return link == null ? null : link.getLink();
     }
 
     /**
@@ -441,33 +426,22 @@ public class SellerNotifyServiceImpl implements SellerNotifyService {
      * 不需要注册（ADR 0023）。
      */
     private String invoiceDownloadLink(String partnerOrderId) {
-        String base = resolveSellerAppUrl();
-        if (StrUtil.isBlank(base) || StrUtil.isBlank(partnerOrderId)) {
+        if (StrUtil.isBlank(partnerOrderId)) {
             return null;
         }
         PublicTokenCreateReqVO reqVO = new PublicTokenCreateReqVO();
         reqVO.setPurpose(PublicTokenPurposeEnum.INVOICE_DOWNLOAD.getCode());
         reqVO.setPartnerOrderId(partnerOrderId);
-        PublicTokenRespVO token = publicTokenService.mint(reqVO);
-        return base.replaceAll("/+$", "") + "/#/?token=" + token.getToken()
-                + "&purpose=" + PublicTokenPurposeEnum.INVOICE_DOWNLOAD.getCode();
+        SellerAppLink link = sellerAppLinkBuilder.buildLink(reqVO);
+        return link == null ? null : link.getLink();
     }
 
     /**
      * 签发一枚触达令牌并拼出链接。链接形如 {@code https://<seller-app>/#/?token=xxx&purpose=SELLER_NOTICE}，
      * 打开即可查看，**不需要注册**；要确认 / 操作时再用手机号验证。
      */
-    private NoticeLink mintNoticeLink(Long payeeId, String base) {
-        PublicTokenCreateReqVO reqVO = new PublicTokenCreateReqVO();
-        reqVO.setPurpose(PublicTokenPurposeEnum.SELLER_NOTICE.getCode());
-        reqVO.setPayeeId(payeeId);
-        PublicTokenRespVO token = publicTokenService.mint(reqVO);
-        NoticeLink info = new NoticeLink();
-        info.token = token.getToken();
-        info.expiresTime = token.getExpiresTime();
-        info.link = base.replaceAll("/+$", "") + "/#/?token=" + token.getToken()
-                + "&purpose=" + PublicTokenPurposeEnum.SELLER_NOTICE.getCode();
-        return info;
+    private SellerAppLink mintNoticeLink(Long payeeId) {
+        return sellerAppLinkBuilder.buildPayeeLink(payeeId, PublicTokenPurposeEnum.SELLER_NOTICE);
     }
 
     private Long sendSms(String mobile, String templateCode, Map<String, Object> params) {
@@ -533,10 +507,4 @@ public class SellerNotifyServiceImpl implements SellerNotifyService {
     }
 
     /** 一次性令牌链接的中间结果 */
-    private static class NoticeLink {
-        private String token;
-        private String link;
-        private LocalDateTime expiresTime;
-    }
-
 }
