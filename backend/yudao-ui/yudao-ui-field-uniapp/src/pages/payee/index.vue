@@ -109,10 +109,8 @@ import { computed, reactive, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import QRCode from 'qrcode'
 import { findReturningCustomer, PayeeVO } from '@/api/payee'
-import { createPublicToken } from '@/api/publicToken'
-import { isRealNamePassed, useSellerOnboarding } from '@youfeibao/field-shared'
+import { isRealNamePassed, useHandoffLink, useSellerOnboarding } from '@youfeibao/field-shared'
 import { clearWizardDraft } from '@/utils/wizardDraft'
-import { SELLER_APP_URL } from '@/config/env'
 
 /**
  * 现场端「自然人建档」（#88 只登记与转达，#91 换上五步向导）。
@@ -130,14 +128,18 @@ const payeeName = ref('')
 const looking = ref(false)
 const lookedUp = ref(false)
 const foundSeller = ref<PayeeVO | null>(null)
-const issuing = ref(false)
-/** 「交给本人」的入口：令牌、链接、二维码与有效期一起生成、一起清空 */
-const handoff = reactive({ token: '', link: '', qr: '', expiresText: '' })
 
 const lookup = reactive({ idCardNo: '', mobile: '' })
 
 // 只读准入进度：composable 在 payeeId 变化时自动拉取（watch immediate）
 const { overview, load, tips } = useSellerOnboarding(() => payeeId.value)
+
+// 「交给本人」的入口：令牌 / 链接 / 二维码 / 有效期一起生成、一起清空（#91 复审 ST-B 收进共享包）
+const { issuing, handoff, issueLink, copyLink, resetHandoff } = useHandoffLink(
+  () => payeeId.value,
+  renderQr,
+  tips
+)
 
 /** 实名未通过（含未认证 / 认证中 / 未通过）就算「待本人实名」；进度未加载完不下结论 */
 const awaitingRealName = computed(() => !!overview.value && !isRealNamePassed(overview.value.realNameStatus))
@@ -196,30 +198,8 @@ async function refresh() {
 }
 
 /**
- * 签发一枚 ONBOARDING 一次性令牌，拼出本人要打开的执行链接。
- *
- * 链接是「再次展示」的核心：出售者当时没做，回头还能从这里再拿一次（令牌 24 小时内有效）。
+ * 把链接渲染成二维码（`qrcode` 是宿主依赖，不引到共享包，见 `useHandoffLink` 的注释）。
  */
-async function issueLink() {
-  if (!payeeId.value) {
-    return
-  }
-  issuing.value = true
-  try {
-    const resp = await createPublicToken({ purpose: 'ONBOARDING', payeeId: payeeId.value })
-    handoff.token = resp.token || ''
-    handoff.link = handoff.token && SELLER_APP_URL
-      ? `${SELLER_APP_URL.replace(/\/$/, '')}/#/?token=${encodeURIComponent(handoff.token)}&purpose=ONBOARDING`
-      : ''
-    handoff.expiresText = resp.expiresTime ? `链接 24 小时内有效，至 ${formatTime(resp.expiresTime)}` : ''
-    handoff.qr = await renderQr(handoff.link)
-  } catch (e) {
-    tips((e as Error).message || '生成链接失败')
-  } finally {
-    issuing.value = false
-  }
-}
-
 async function renderQr(text: string) {
   if (!text) {
     return ''
@@ -231,17 +211,6 @@ async function renderQr(text: string) {
   }
 }
 
-function copyLink() {
-  const text = handoff.link || handoff.token
-  if (!text) {
-    return
-  }
-  uni.setClipboardData({
-    data: text,
-    success: () => tips('已复制，请交给出售者本人打开')
-  })
-}
-
 function backToSeller() {
   // 「换一位出售者」：把上一位未完成的向导草稿一并清干净，下一位不会看到他/她的照片与字段（#91 评审 SP-5）
   clearWizardDraft()
@@ -249,16 +218,9 @@ function backToSeller() {
   payeeName.value = ''
   foundSeller.value = null
   lookedUp.value = false
-  handoff.token = ''
-  handoff.link = ''
-  handoff.qr = ''
-  handoff.expiresText = ''
+  resetHandoff()
   lookup.idCardNo = ''
   lookup.mobile = ''
-}
-
-function formatTime(ts?: number) {
-  return ts ? new Date(ts).toLocaleString() : ''
 }
 </script>
 

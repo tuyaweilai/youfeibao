@@ -22,7 +22,7 @@
     <!-- 第 1 步：拍身份证（正反面） -->
     <view v-if="draft.step === 1" class="card">
       <view class="card__title">1. 拍身份证（正反面）</view>
-      <view class="tip">识别不出也能继续：下一步手工录入就行。照片识别完即弃，不会留存。</view>
+      <view class="tip">识别不出也能继续：下一步手工录入就行。照片只用于识别，平台不留存。</view>
 
       <view class="shot" @click="shootIdFront">
         <image v-if="draft.idFrontImage" class="shot__img" :src="draft.idFrontImage" mode="aspectFit" />
@@ -235,7 +235,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import { onHide, onLoad } from '@dcloudio/uni-app'
+import { onHide, onLoad, onUnload } from '@dcloudio/uni-app'
 import QRCode from 'qrcode'
 import {
   recognizeBankCard,
@@ -244,7 +244,7 @@ import {
   submitOnboardingWizard,
   OnboardingWizardSubmitReq
 } from '@/api/wizard'
-import { createPublicToken } from '@/api/publicToken'
+import { useHandoffLink } from '@youfeibao/field-shared'
 import { chooseImage, pathToDataUrl } from '@/utils/upload'
 import {
   clearWizardDraft,
@@ -253,7 +253,6 @@ import {
   saveWizardDraft,
   OnboardingWizardDraft
 } from '@/utils/wizardDraft'
-import { SELLER_APP_URL } from '@/config/env'
 
 /**
  * 建档向导（#91）：拍身份证正反面 → 确认 → 拍银行卡 → 确认 → 签署协议。
@@ -277,11 +276,18 @@ const MAX_BASE64_LENGTH = 10 * 1024 * 1024
 
 const draft = reactive<OnboardingWizardDraft>(emptyWizardDraft())
 const submitting = ref(false)
-const issuing = ref(false)
 const recognizing = ref(false)
 /** 本次是否从上次未完成的草稿继续（#91 评审 SP-5：带上一位的草稿时必须让人看得见） */
 const resumed = ref(false)
-const handoff = reactive({ token: '', link: '', qr: '', expiresText: '' })
+/** 建档完成（跳回进度页）后不再回写草稿，否则 `finish` 清掉的草稿会被 `onUnload` 又存回来 */
+let finished = false
+// 转达入口（令牌 / 链接 / 二维码 / 有效期）走共享 composable，与 `pages/payee/index.vue` 同一份
+// （#91 复审 ST-B：以前是整段复制，复制时把有效期文案的插值丢了）
+const { issuing, handoff, issueLink, copyLink, resetHandoff } = useHandoffLink(
+  () => draft.payeeId,
+  renderQr,
+  tips
+)
 
 onLoad(() => {
   const saved = loadWizardDraft()
@@ -297,6 +303,12 @@ onLoad(() => {
 
 // 切走（接电话、切后台）就把当前进度写回本地
 onHide(persist)
+// 返回键 / 关闭页面走 onUnload，不走 onHide：不补这一下，第 2、4 步刚手输的文字会随退出丢掉
+onUnload(() => {
+  if (!finished) {
+    persist()
+  }
+})
 
 /** 「是否我行卡」界面上显示的那个值：本人确认过的优先，否则显示识别结果（都不清空重拍） */
 const accountCodeShown = computed(() => draft.accountCode || draft.accountCodeRecognized)
@@ -326,10 +338,7 @@ function restart() {
   clearWizardDraft()
   Object.assign(draft, emptyWizardDraft())
   resumed.value = false
-  handoff.token = ''
-  handoff.link = ''
-  handoff.qr = ''
-  handoff.expiresText = ''
+  resetHandoff()
 }
 
 // ==================== 拍照 + 识别（无状态） ====================
@@ -359,23 +368,35 @@ async function shootIdFront() {
   }
   recognizing.value = true
   try {
-    const image = await pickImage()
-    const resp = await recognizeIdCardFront({
-      imageBase64: toBase64(image),
-      name: draft.name,
-      idCardNo: draft.idCardNo,
-      address: draft.address
-    })
+    let image: string
+    try {
+      image = await pickImage()
+    } catch (e) {
+      tips((e as Error).message || '未拍到照片，可重拍')
+      return
+    }
+    // **先落图再识别**：识别失败（弱网超时）也不丢照片，收货员仍能回第 2 步手工录入（#91 复审 SP-C）
     draft.idFrontImage = image
-    draft.name = resp.name || ''
-    draft.idCardNo = resp.idCardNo || ''
-    draft.address = resp.address || ''
-    // 正反面各留各的：同一对字段会被后拍的那张覆盖，硬拦就能被绕过（#91 评审 SP-3）
-    draft.idFrontWarnings = resp.warnings || []
-    draft.idFrontBlockReasons = resp.blockReasons || []
+    draft.idFrontWarnings = []
+    draft.idFrontBlockReasons = []
     persist()
-  } catch (e) {
-    tips((e as Error).message || '识别失败，可重拍或手工录入')
+    try {
+      const resp = await recognizeIdCardFront({
+        imageBase64: toBase64(image),
+        name: draft.name,
+        idCardNo: draft.idCardNo,
+        address: draft.address
+      })
+      draft.name = resp.name || ''
+      draft.idCardNo = resp.idCardNo || ''
+      draft.address = resp.address || ''
+      // 正反面各留各的：同一对字段会被后拍的那张覆盖，硬拦就能被绕过（#91 评审 SP-3）
+      draft.idFrontWarnings = resp.warnings || []
+      draft.idFrontBlockReasons = resp.blockReasons || []
+      persist()
+    } catch (e) {
+      tips((e as Error).message || '识别失败，照片已保留，可继续手工录入')
+    }
   } finally {
     recognizing.value = false
   }
@@ -387,20 +408,32 @@ async function shootIdBack() {
   }
   recognizing.value = true
   try {
-    const image = await pickImage()
-    const resp = await recognizeIdCardBack({
-      imageBase64: toBase64(image),
-      idSignDate: draft.idSignDate,
-      idValidityPeriod: draft.idValidityPeriod
-    })
+    let image: string
+    try {
+      image = await pickImage()
+    } catch (e) {
+      tips((e as Error).message || '未拍到照片，可重拍')
+      return
+    }
+    // 先落图再识别（#91 复审 SP-C）
     draft.idBackImage = image
-    draft.idSignDate = resp.idSignDate || ''
-    draft.idValidityPeriod = resp.idValidityPeriod || ''
-    draft.idBackWarnings = resp.warnings || []
-    draft.idBackBlockReasons = resp.blockReasons || []
+    draft.idBackWarnings = []
+    draft.idBackBlockReasons = []
     persist()
-  } catch (e) {
-    tips((e as Error).message || '识别失败，可重拍或手工录入')
+    try {
+      const resp = await recognizeIdCardBack({
+        imageBase64: toBase64(image),
+        idSignDate: draft.idSignDate,
+        idValidityPeriod: draft.idValidityPeriod
+      })
+      draft.idSignDate = resp.idSignDate || ''
+      draft.idValidityPeriod = resp.idValidityPeriod || ''
+      draft.idBackWarnings = resp.warnings || []
+      draft.idBackBlockReasons = resp.blockReasons || []
+      persist()
+    } catch (e) {
+      tips((e as Error).message || '识别失败，照片已保留，可继续手工录入')
+    }
   } finally {
     recognizing.value = false
   }
@@ -412,26 +445,38 @@ async function shootBankCard() {
   }
   recognizing.value = true
   try {
-    const image = await pickImage()
-    const resp = await recognizeBankCard({
-      imageBase64: toBase64(image),
-      bankCardNo: draft.bankCardNo,
-      bankName: draft.bankName,
-      // 只把**本人确认过**的值给后端：未确认时留空，识别结果才回填得进来（#91 评审 SP-2）
-      accountCode: draft.accountCode || undefined
-    })
-    draft.bankImage = image
-    draft.bankCardNo = resp.bankCardNo || ''
-    draft.bankName = resp.bankName || ''
-    // 确认过的值不动；未确认时把识别结果单独存下来，供确认页展示与提交时作为第二顺位
-    if (!draft.accountCode) {
-      draft.accountCodeRecognized = resp.accountCode || ''
+    let image: string
+    try {
+      image = await pickImage()
+    } catch (e) {
+      tips((e as Error).message || '未拍到照片，可重拍')
+      return
     }
-    draft.bankWarnings = resp.warnings || []
-    draft.bankBlockReasons = resp.blockReasons || []
+    // 先落图再识别（#91 复审 SP-C）
+    draft.bankImage = image
+    draft.bankWarnings = []
+    draft.bankBlockReasons = []
     persist()
-  } catch (e) {
-    tips((e as Error).message || '识别失败，可重拍或手工录入')
+    try {
+      const resp = await recognizeBankCard({
+        imageBase64: toBase64(image),
+        bankCardNo: draft.bankCardNo,
+        bankName: draft.bankName,
+        // 只把**本人确认过**的值给后端：未确认时留空，识别结果才回填得进来（#91 评审 SP-2）
+        accountCode: draft.accountCode || undefined
+      })
+      draft.bankCardNo = resp.bankCardNo || ''
+      draft.bankName = resp.bankName || ''
+      // 确认过的值不动；未确认时把识别结果单独存下来，供确认页展示与提交时作为第二顺位
+      if (!draft.accountCode) {
+        draft.accountCodeRecognized = resp.accountCode || ''
+      }
+      draft.bankWarnings = resp.warnings || []
+      draft.bankBlockReasons = resp.blockReasons || []
+      persist()
+    } catch (e) {
+      tips((e as Error).message || '识别失败，照片已保留，可继续手工录入')
+    }
   } finally {
     recognizing.value = false
   }
@@ -505,30 +550,11 @@ async function onSubmit() {
   }
 }
 
-// ==================== 二维码 / 可复制链接 ====================
+// ==================== 二维码 ====================
 
-/** 签发 ONBOARDING 一次性令牌，拼出本人要打开的链接（与建档页同一套「转达」机制） */
-async function issueLink() {
-  if (!draft.payeeId) {
-    return
-  }
-  issuing.value = true
-  try {
-    const resp = await createPublicToken({ purpose: 'ONBOARDING', payeeId: draft.payeeId })
-    handoff.token = resp.token || ''
-    handoff.link =
-      handoff.token && SELLER_APP_URL
-        ? `${SELLER_APP_URL.replace(/\/$/, '')}/#/?token=${encodeURIComponent(handoff.token)}&purpose=ONBOARDING`
-        : ''
-    handoff.expiresText = resp.expiresTime ? `链接 24 小时内有效` : ''
-    handoff.qr = await renderQr(handoff.link)
-  } catch (e) {
-    tips((e as Error).message || '生成链接失败')
-  } finally {
-    issuing.value = false
-  }
-}
-
+/**
+ * 把链接渲染成二维码（`qrcode` 是宿主依赖，不引到共享包；令牌 / 链接 / 有效期在 `useHandoffLink`）。
+ */
 async function renderQr(text: string) {
   if (!text) {
     return ''
@@ -540,15 +566,8 @@ async function renderQr(text: string) {
   }
 }
 
-function copyLink() {
-  const text = handoff.link || handoff.token
-  if (!text) {
-    return
-  }
-  uni.setClipboardData({ data: text, success: () => tips('已复制，请交给出售者本人打开') })
-}
-
 function finish() {
+  finished = true
   clearWizardDraft()
   const payeeId = draft.payeeId
   if (payeeId) {

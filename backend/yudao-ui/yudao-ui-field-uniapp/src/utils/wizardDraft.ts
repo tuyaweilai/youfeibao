@@ -10,7 +10,10 @@
  */
 export interface OnboardingWizardDraft {
   step: number
-  /** 身份证人像面 / 国徽面照片（dataURL，仅本地暂存与识别用，识别完即弃、不落库） */
+  /**
+   * 身份证人像面 / 国徽面照片（dataURL）。后端识别完即弃、不落库（ADR 0037）；
+   * 这里存的是**本机草稿**，只为「切走再回来还在」，建档完成 / 换人时随草稿一起清掉。
+   */
   idFrontImage?: string
   idBackImage?: string
   /** 银行卡照片（dataURL，同上） */
