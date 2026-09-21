@@ -118,6 +118,36 @@ public class PayeeBankCardChangeServiceTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testApplyOnboardingResult_passPromotesAccountCodeToo() {
+        PayeeInfoDO payee = insertReadyPayee("USER_BC13", "110101199001020013", "13800010013", OLD_CARD);
+        // 旧卡是工行卡
+        PayeeInfoDO seed = new PayeeInfoDO();
+        seed.setId(payee.getId());
+        seed.setAccountCode("1");
+        payeeInfoMapper.updateById(seed);
+        // 新卡是非工行卡（换卡发起侧带上，#86）
+        PayeeBankCardChangeSaveReqVO reqVO = req(payee.getId(), NEW_CARD, "招商银行");
+        reqVO.setAccountCode("0");
+        bankCardChangeService.requestChange(reqVO);
+
+        bankCardChangeService.applyOnboardingResult(payee.getId(), "pass", null);
+
+        // 「是否我行卡」与新卡一起搬上档案：不然下次重发入驻会把旧卡的结论报给工行（#91 评审 ST-1）
+        assertEquals("0", payeeInfoMapper.selectById(payee.getId()).getAccountCode());
+    }
+
+    @Test
+    public void testApplyOnboardingResult_passWithBlankAccountCodeFallsBackToIcbc() {
+        PayeeInfoDO payee = insertReadyPayee("USER_BC14", "110101199001020014", "13800010014", OLD_CARD);
+        // 发起侧没填：上送工行时按缺省 1 处理，档案也要与真实上送一致
+        bankCardChangeService.requestChange(req(payee.getId(), NEW_CARD, "中国工商银行"));
+
+        bankCardChangeService.applyOnboardingResult(payee.getId(), "pass", null);
+
+        assertEquals("1", payeeInfoMapper.selectById(payee.getId()).getAccountCode());
+    }
+
+    @Test
     public void testApplyOnboardingResult_rejectKeepsOldCardEffective() {
         PayeeInfoDO payee = insertReadyPayee("USER_BC6", "110101199001020006", "13800010006", OLD_CARD);
         bankCardChangeService.requestChange(req(payee.getId(), NEW_CARD, null));

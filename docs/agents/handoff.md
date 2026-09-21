@@ -2024,3 +2024,36 @@ member 令牌回 `code=401 账号未登录`。
 **frontier**：#91 已解 → **#94（免注册链接壳）解锁**；**#93（腾讯卡证识别）** 挂 #91/#92、
 **#95（合同组电子签署）** 挂 #91 + #92。与 #92 的段位约定：错误码 `1_030_040_xxx`（本票）/
 `1_030_041_xxx`（#92）。
+
+## #91 修票：独立评审 BLOCK 后的补齐（追加一个提交，未改历史）
+
+评审给了 `REVIEW_VERDICT: BLOCK`（报告 `.fleet/gates/91.review.md`），根因是 **SP-1 证件有效期
+没落在自然人主体**。这一轮逐条对账后的结果：
+
+1. **SP-1（阻断项）已修**：`icbc_natural_person` 补 `id_sign_date` / `id_validity_period`
+   （`varchar(10)`，`yyyy-MM-dd`，长期 `9999-12-30`），语义与收方档案同名列一致。新迁移
+   `icbc-natural-person-id-validity.sql`（幂等 + 回填，README 导入顺序 22n + 一键导入循环），
+   建表脚本 `icbc-natural-person.sql` 与测试建表同步。`IcbcNaturalPersonDO` / `NaturalPersonRegisterReqVO`
+   各补两个字段；`NaturalPersonServiceImpl.register` **创建时写入、复用时只在空缺处回填**（不覆盖）；
+   `PayeeInfoServiceImpl.registerNaturalPerson` 四个调用点全部带上。
+2. **ST-1 已修**：`PayeeBankCardChangeServiceImpl.promoteCard` 把新卡的 `accountCode` 一并搬上档案
+   （空白时按发起 / 上送同一缺省 1 补齐），档案与「报给工行的结论」保持一致。
+3. **SP-3 已修**：向导第 1 步人像面 / 国徽面各自保留一份 `warnings / blockReasons`，放行时两边都看。
+4. **SP-5 部分已修**：草稿 key 与本次建档绑定（`…:<身份证号>`，未认出身份时 `pending`），
+   `saveWizardDraft` 同时清掉其余 key；建档结束 / 「换一位出售者」清干净；草稿带出时页面顶部有
+   「不是同一位？重新开始」；同一租户第二次建档改为可读错误码
+   `WIZARD_PAYEE_ALREADY_ARCHIVED`（`1_030_040_005`）。**完整「此人已有档案，去改那一份」分支没做**，
+   留给后续票。
+5. **SP-2 已修**：`accountCode` 草稿初值改为空（未确认），识别结果单独存 `accountCodeRecognized`，
+   提交时按「人工确认 → 识别结果 → 后端缺省」三级取；确认页的开关不再默认高亮。
+6. **T-1 / T-2 已修**：向导测试 `@Import(IcbcTenantTestConfiguration)` 真正打开多租户拦截器，
+   「第二家回收企业复用同一主体」现在真的跨租户跑；另补「端口全空 → 仍能 submit 且落库形状同形」
+   （与识别成功路径共用同一套断言）。测试数 742 → 749。
+7. **ST-3 已修**：`DEFAULT_ACCOUNT_CODE` 的两份字面量收敛成 `IcbcAccountCodeEnum`
+   （`-api`，0/1 + 缺省语义一处）；`PayeeAddReqVO` 与本票无关的 `@Schema` 文案改动已还原。
+8. **未修、留记录**：SP-4（协议建档即 `status=1` + `signedAt=now`，而第 5 步才让本人签字）——
+   #95 接合同组签署时这一处要一起动；ST-2（H5 把三张 base64 塞 localStorage 的配额问题）——
+   继承 `utils/draft.ts` 现状，ADR 0016 未落地，不修。
+
+> 上面「#91 建档向导」小节里「**如实记下的缺口** ①（证件有效期只落在收方档案、没落在自然人主体）」
+> 已被本次修票推翻，以本节为准；②③ 仍然成立。

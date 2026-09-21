@@ -810,6 +810,8 @@ CREATE TABLE IF NOT EXISTS icbc_natural_person (
     name VARCHAR(100),
     id_card_no VARCHAR(32) NOT NULL,
     mobile VARCHAR(32),
+    id_sign_date VARCHAR(10),
+    id_validity_period VARCHAR(10),
     real_name_status TINYINT DEFAULT 0,
     real_name_msg VARCHAR(500),
     real_name_time DATETIME,

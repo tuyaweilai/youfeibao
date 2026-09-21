@@ -18,6 +18,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.authorization.IcbcSellerAuthorizat
 import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payer.PayerInfoMapper;
+import cn.iocoder.yudao.module.icbc.enums.IcbcAccountCodeEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcOccupationEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeBankCardChangeStatusEnum;
@@ -73,12 +74,6 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
      * 这个人没有工作，那是编造；「其他」只表示我们没问。将来建档向导加一步问职业，这里就不再兜底。
      */
     private static final String DEFAULT_OCCUPATION = IcbcOccupationEnum.OTHER.getCode();
-
-    /**
-     * 「是否我行用户」的缺省值：1-我行用户。现场端拿到的多是工行卡；非工行卡由现场端或后续的
-     * 银行卡 OCR 显式上送 0。猜错的代价是工行驳回入驻，而不是默默写错一笔钱。
-     */
-    private static final String DEFAULT_ACCOUNT_CODE = "1";
 
     /**
      * 自动发起入驻失败时写进「审核信息」的前缀（#85）。带前缀是为了与旧审核回调写入的 auditMsg 区分，
@@ -223,7 +218,7 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
                         .receiverName(payee.getName())
                         .receiverAccount(payee.getBankCardNo())
                         .accountCode(StrUtil.blankToDefault(reqVO.getAccountCode(),
-                                StrUtil.blankToDefault(payee.getAccountCode(), DEFAULT_ACCOUNT_CODE)))
+                                StrUtil.blankToDefault(payee.getAccountCode(), IcbcAccountCodeEnum.ICBC.getCode())))
                         .bankName(StrUtil.blankToDefault(payee.getBankName(), reqVO.getBankName()))
                         .mobile(payee.getMobile())
                         .idNo(payee.getIdCardNo())
@@ -258,7 +253,7 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
                 .receiverAccount(change.getNewBankCardNo())
                 // 是否我行卡与新卡行名都是**变更单**上的（#86）：不从入驻提交 VO 借，
                 // 免得把首次入驻时的旧卡识别结果带到这次修改上
-                .accountCode(StrUtil.blankToDefault(change.getAccountCode(), DEFAULT_ACCOUNT_CODE))
+                .accountCode(StrUtil.blankToDefault(change.getAccountCode(), IcbcAccountCodeEnum.ICBC.getCode()))
                 .bankName(StrUtil.blankToDefault(change.getNewBankName(), null))
                 .signDate(StrUtil.blankToDefault(change.getIdSignDate(), payee.getIdSignDate()))
                 .validityPeriod(StrUtil.blankToDefault(change.getIdValidityPeriod(), payee.getIdValidityPeriod()))

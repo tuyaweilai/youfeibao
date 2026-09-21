@@ -43,7 +43,7 @@ public class PayeeAddReqVO {
     @Schema(description = "职业代码", example = "001")
     private String occupation;
 
-    @Schema(description = "地址", example = "北京市朝阳区xxx街道")
+    @Schema(description = "常用住址", example = "北京市朝阳区xxx街道")
     private String address;
 
     @Schema(description = "证件签发日期 yyyy-MM-dd", example = "2020-01-01")

@@ -111,6 +111,7 @@ import QRCode from 'qrcode'
 import { findReturningCustomer, PayeeVO } from '@/api/payee'
 import { createPublicToken } from '@/api/publicToken'
 import { isRealNamePassed, useSellerOnboarding } from '@youfeibao/field-shared'
+import { clearWizardDraft } from '@/utils/wizardDraft'
 import { SELLER_APP_URL } from '@/config/env'
 
 /**
@@ -242,6 +243,8 @@ function copyLink() {
 }
 
 function backToSeller() {
+  // 「换一位出售者」：把上一位未完成的向导草稿一并清干净，下一位不会看到他/她的照片与字段（#91 评审 SP-5）
+  clearWizardDraft()
   payeeId.value = undefined
   payeeName.value = ''
   foundSeller.value = null

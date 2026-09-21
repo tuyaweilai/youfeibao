@@ -519,4 +519,6 @@ public interface ErrorCodeConstants {
             "手机号不能为空：本人实名要靠它");
     ErrorCode WIZARD_BANK_CARD_NO_REQUIRED = new ErrorCode(1_030_040_004,
             "银行卡号不能为空：收方入驻要打到本人卡上");
+    ErrorCode WIZARD_PAYEE_ALREADY_ARCHIVED = new ErrorCode(1_030_040_005,
+            "此人在本企业已有收方档案（一张身份证在本企业只能建一份）：请到「收方档案」里找到他修改，或换一位出售者");
 }

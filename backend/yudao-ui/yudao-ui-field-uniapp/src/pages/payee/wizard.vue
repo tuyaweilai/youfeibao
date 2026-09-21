@@ -13,6 +13,12 @@
       </view>
     </view>
 
+    <view v-if="resumed" class="resume">
+      <view class="resume__title">已带出上次未完成的建档{{ resumeLabel ? `：${resumeLabel}` : '' }}</view>
+      <view class="resume__desc">不是同一位出售者？请先清掉再开始。</view>
+      <button class="link" @click="restart">重新开始（清空草稿）</button>
+    </view>
+
     <!-- 第 1 步：拍身份证（正反面） -->
     <view v-if="draft.step === 1" class="card">
       <view class="card__title">1. 拍身份证（正反面）</view>
@@ -23,19 +29,25 @@
         <view v-else class="shot__empty">拍人像面（带姓名与住址）</view>
       </view>
       <view class="shot__hint">{{ draft.idFrontImage ? '点击重拍人像面' : '未拍摄人像面' }}</view>
+      <view v-if="draft.idFrontWarnings.length" class="alerts alerts--warn">
+        <view v-for="(word, i) in draft.idFrontWarnings" :key="i">· {{ word }}</view>
+      </view>
+      <view v-if="draft.idFrontBlockReasons.length" class="alerts alerts--block">
+        <view v-for="(word, i) in draft.idFrontBlockReasons" :key="i">· {{ word }}</view>
+        <view>人像面这张不能用，请重拍或换一张。</view>
+      </view>
 
       <view class="shot" @click="shootIdBack">
         <image v-if="draft.idBackImage" class="shot__img" :src="draft.idBackImage" mode="aspectFit" />
         <view v-else class="shot__empty">拍国徽面（带有效期）</view>
       </view>
       <view class="shot__hint">{{ draft.idBackImage ? '点击重拍国徽面' : '未拍摄国徽面' }}</view>
-
-      <view v-if="draft.idWarnings.length" class="alerts alerts--warn">
-        <view v-for="(word, i) in draft.idWarnings" :key="i">· {{ word }}</view>
+      <view v-if="draft.idBackWarnings.length" class="alerts alerts--warn">
+        <view v-for="(word, i) in draft.idBackWarnings" :key="i">· {{ word }}</view>
       </view>
-      <view v-if="draft.idBlockReasons.length" class="alerts alerts--block">
-        <view v-for="(word, i) in draft.idBlockReasons" :key="i">· {{ word }}</view>
-        <view>这张不能用，请重拍或换一张。</view>
+      <view v-if="draft.idBackBlockReasons.length" class="alerts alerts--block">
+        <view v-for="(word, i) in draft.idBackBlockReasons" :key="i">· {{ word }}</view>
+        <view>国徽面这张不能用，请重拍或换一张。</view>
       </view>
 
       <view class="actions">
@@ -73,12 +85,15 @@
         <input v-model="draft.mobile" class="input" type="number" placeholder="手机号" />
       </view>
 
-      <view v-if="draft.idWarnings.length" class="alerts alerts--warn">
-        <view v-for="(word, i) in draft.idWarnings" :key="i">· {{ word }}</view>
+      <view v-if="draft.idFrontWarnings.length" class="alerts alerts--warn">
+        <view v-for="(word, i) in draft.idFrontWarnings" :key="`f${i}`">· {{ word }}</view>
       </view>
-      <view v-if="draft.idBlockReasons.length" class="alerts alerts--block">
-        <view v-for="(word, i) in draft.idBlockReasons" :key="i">· {{ word }}</view>
-        <view>这张不能用，请回上一步重拍或换一张。</view>
+      <view v-if="draft.idBackWarnings.length" class="alerts alerts--warn">
+        <view v-for="(word, i) in draft.idBackWarnings" :key="`b${i}`">· {{ word }}</view>
+      </view>
+      <view v-if="idBlocked" class="alerts alerts--block">
+        <view v-for="(word, i) in idBlockReasons" :key="i">· {{ word }}</view>
+        <view>证件这张不能用，请回上一步重拍或换一张。</view>
       </view>
 
       <view class="actions">
@@ -129,18 +144,24 @@
         <view class="toggle">
           <view
             class="toggle__item"
-            :class="{ 'toggle__item--active': draft.accountCode === '1' }"
+            :class="{ 'toggle__item--active': accountCodeShown === '1' }"
             @click="draft.accountCode = '1'"
           >
             是工行卡
           </view>
           <view
             class="toggle__item"
-            :class="{ 'toggle__item--active': draft.accountCode === '0' }"
+            :class="{ 'toggle__item--active': accountCodeShown === '0' }"
             @click="draft.accountCode = '0'"
           >
             非工行卡
           </view>
+        </view>
+        <view v-if="!draft.accountCode && draft.accountCodeRecognized" class="tip">
+          识别为「{{ draft.accountCodeRecognized === '1' ? '是工行卡' : '非工行卡' }}」，请点一下确认。
+        </view>
+        <view v-else-if="!draft.accountCode" class="tip">
+          识别不到、本人也没选时，将按缺省「是工行卡」建档。
         </view>
       </view>
 
@@ -258,12 +279,15 @@ const draft = reactive<OnboardingWizardDraft>(emptyWizardDraft())
 const submitting = ref(false)
 const issuing = ref(false)
 const recognizing = ref(false)
+/** 本次是否从上次未完成的草稿继续（#91 评审 SP-5：带上一位的草稿时必须让人看得见） */
+const resumed = ref(false)
 const handoff = reactive({ token: '', link: '', qr: '', expiresText: '' })
 
 onLoad(() => {
   const saved = loadWizardDraft()
   if (saved) {
     Object.assign(draft, saved)
+    resumed.value = !!(saved.idCardNo || saved.name || saved.idFrontImage)
   }
   // 停在结果页时重进：档案已建好，只要把二维码 / 链接再取一次
   if (draft.step === 5 && draft.payeeId) {
@@ -274,8 +298,14 @@ onLoad(() => {
 // 切走（接电话、切后台）就把当前进度写回本地
 onHide(persist)
 
+/** 「是否我行卡」界面上显示的那个值：本人确认过的优先，否则显示识别结果（都不清空重拍） */
+const accountCodeShown = computed(() => draft.accountCode || draft.accountCodeRecognized)
+const idBlockReasons = computed(() => [...draft.idFrontBlockReasons, ...draft.idBackBlockReasons])
+const idBlocked = computed(() => idBlockReasons.value.length > 0)
+const resumeLabel = computed(() => [draft.name, draft.idCardNo].filter(Boolean).join(' / '))
+
 const canStep1Next = computed(
-  () => !!draft.idFrontImage && !!draft.idBackImage && draft.idBlockReasons.length === 0
+  () => !!draft.idFrontImage && !!draft.idBackImage && !idBlocked.value
 )
 const canStep3Next = computed(() => !!draft.bankImage && draft.bankBlockReasons.length === 0)
 
@@ -289,6 +319,17 @@ function persist() {
   } catch (e) {
     tips((e as Error).message)
   }
+}
+
+/** 不是同一位出售者：把上一位的草稿清干净（#91 评审 SP-5） */
+function restart() {
+  clearWizardDraft()
+  Object.assign(draft, emptyWizardDraft())
+  resumed.value = false
+  handoff.token = ''
+  handoff.link = ''
+  handoff.qr = ''
+  handoff.expiresText = ''
 }
 
 // ==================== 拍照 + 识别（无状态） ====================
@@ -329,8 +370,9 @@ async function shootIdFront() {
     draft.name = resp.name || ''
     draft.idCardNo = resp.idCardNo || ''
     draft.address = resp.address || ''
-    draft.idWarnings = resp.warnings || []
-    draft.idBlockReasons = resp.blockReasons || []
+    // 正反面各留各的：同一对字段会被后拍的那张覆盖，硬拦就能被绕过（#91 评审 SP-3）
+    draft.idFrontWarnings = resp.warnings || []
+    draft.idFrontBlockReasons = resp.blockReasons || []
     persist()
   } catch (e) {
     tips((e as Error).message || '识别失败，可重拍或手工录入')
@@ -354,8 +396,8 @@ async function shootIdBack() {
     draft.idBackImage = image
     draft.idSignDate = resp.idSignDate || ''
     draft.idValidityPeriod = resp.idValidityPeriod || ''
-    draft.idWarnings = resp.warnings || []
-    draft.idBlockReasons = resp.blockReasons || []
+    draft.idBackWarnings = resp.warnings || []
+    draft.idBackBlockReasons = resp.blockReasons || []
     persist()
   } catch (e) {
     tips((e as Error).message || '识别失败，可重拍或手工录入')
@@ -375,12 +417,16 @@ async function shootBankCard() {
       imageBase64: toBase64(image),
       bankCardNo: draft.bankCardNo,
       bankName: draft.bankName,
-      accountCode: draft.accountCode
+      // 只把**本人确认过**的值给后端：未确认时留空，识别结果才回填得进来（#91 评审 SP-2）
+      accountCode: draft.accountCode || undefined
     })
     draft.bankImage = image
     draft.bankCardNo = resp.bankCardNo || ''
     draft.bankName = resp.bankName || ''
-    draft.accountCode = resp.accountCode || draft.accountCode || '1'
+    // 确认过的值不动；未确认时把识别结果单独存下来，供确认页展示与提交时作为第二顺位
+    if (!draft.accountCode) {
+      draft.accountCodeRecognized = resp.accountCode || ''
+    }
     draft.bankWarnings = resp.warnings || []
     draft.bankBlockReasons = resp.blockReasons || []
     persist()
@@ -438,7 +484,8 @@ async function onSubmit() {
       idValidityPeriod: draft.idValidityPeriod || undefined,
       bankCardNo: draft.bankCardNo,
       bankName: draft.bankName || undefined,
-      accountCode: draft.accountCode,
+      // 人工确认 → 识别结果 → 留空（后端按缺省「是工行卡」兜底）（#91 评审 SP-2）
+      accountCode: draft.accountCode || draft.accountCodeRecognized || undefined,
       productName: draft.productName || undefined,
       quantity: draft.quantity || undefined,
       specification: draft.specification || undefined,
@@ -555,6 +602,25 @@ function finish() {
   &__item--done .steps__no {
     color: #ffffff;
     background-color: #1a7f43;
+  }
+}
+
+.resume {
+  padding: 20rpx 24rpx;
+  margin-bottom: 20rpx;
+  background-color: #eef4ff;
+  border-radius: 12rpx;
+
+  &__title {
+    font-size: 28rpx;
+    font-weight: 600;
+  }
+
+  &__desc {
+    margin-top: 8rpx;
+    color: $field-text-secondary;
+    font-size: 24rpx;
+    line-height: 1.6;
   }
 }
 

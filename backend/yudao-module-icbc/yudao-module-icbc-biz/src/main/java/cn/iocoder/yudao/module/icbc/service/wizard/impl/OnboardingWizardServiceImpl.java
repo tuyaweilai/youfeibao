@@ -7,6 +7,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeInfoSaveReqVO
 import cn.iocoder.yudao.module.icbc.controller.admin.wizard.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementSignMethodEnum;
+import cn.iocoder.yudao.module.icbc.enums.IcbcAccountCodeEnum;
 import cn.iocoder.yudao.module.icbc.service.cardrecognition.CardRecognitionPort;
 import cn.iocoder.yudao.module.icbc.service.esign.EsignPort;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
@@ -41,11 +42,6 @@ import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 @Service
 @Validated
 public class OnboardingWizardServiceImpl implements OnboardingWizardService {
-
-    /**
-     * 「是否我行卡」的缺省值：1-我行用户。向导确认页没选时按它兜底；确认过的值优先，不再是猜的。
-     */
-    private static final String DEFAULT_ACCOUNT_CODE = "1";
 
     /** 协议要素的缺省值：向导没改时与现场纸质件一致，但**不会留空**（税总 5 号公告第十七条）。 */
     private static final String DEFAULT_PRODUCT_NAME = "报废产品";
@@ -114,9 +110,15 @@ public class OnboardingWizardServiceImpl implements OnboardingWizardService {
     @Transactional(rollbackFor = Exception.class)
     public OnboardingWizardSubmitRespVO submit(@Valid OnboardingWizardSubmitReqVO reqVO) {
         validateSubmit(reqVO);
+        // 同一租户内一张身份证只能有一份收方档案：已有档案时该做的是「去改那一份」，不是再建一份。
+        // 这里换成一句可读的话，而不是让 createPayeeInfo 抛出「身份证号码已存在」的错码（#91 评审 SP-5）
+        if (payeeInfoService.getPayeeInfoByIdCardNo(reqVO.getIdCardNo()) != null) {
+            throw exception(WIZARD_PAYEE_ALREADY_ARCHIVED);
+        }
 
-        // 1. 收方档案：姓名 / 证件号登记并关联平台级自然人主体（有则复用），
-        //    证件有效期 / 卡号 / 开户行 / 住址 / 是否我行卡写进档案（ADR 0017）
+        // 1. 收方档案：姓名 / 证件号 / 证件有效期登记并关联平台级自然人主体（有则复用、主体上已填的值不覆盖），
+        //    证件有效期同时作为本次确认值留在档案上；卡号 / 开户行 / 住址 / 是否我行卡也写进档案
+        //    （ADR 0017、#81 决策 5）
         PayeeInfoSaveReqVO saveReqVO = new PayeeInfoSaveReqVO();
         saveReqVO.setName(reqVO.getName());
         saveReqVO.setIdCardNo(reqVO.getIdCardNo());
@@ -127,7 +129,7 @@ public class OnboardingWizardServiceImpl implements OnboardingWizardService {
         saveReqVO.setBankCardNo(reqVO.getBankCardNo());
         saveReqVO.setBankName(reqVO.getBankName());
         saveReqVO.setBankBranch(reqVO.getBankBranch());
-        saveReqVO.setAccountCode(StrUtil.blankToDefault(reqVO.getAccountCode(), DEFAULT_ACCOUNT_CODE));
+        saveReqVO.setAccountCode(StrUtil.blankToDefault(reqVO.getAccountCode(), IcbcAccountCodeEnum.ICBC.getCode()));
         saveReqVO.setBusinessType("RECYCLE");
         Long payeeId = payeeInfoService.createPayeeInfo(saveReqVO);
         PayeeInfoDO payee = payeeInfoService.getPayeeInfo(payeeId);
