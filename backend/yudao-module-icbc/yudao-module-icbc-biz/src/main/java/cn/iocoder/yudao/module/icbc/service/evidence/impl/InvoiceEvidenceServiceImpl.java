@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.evidence.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.settlement.IcbcSettlementDO;
 import cn.iocoder.yudao.module.icbc.enums.SettlementConfirmStatusEnum;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
@@ -17,6 +18,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.agreement.IcbcFrameworkAgreementMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.evidence.IcbcEvidenceMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
@@ -81,6 +83,8 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
     private IcbcEvidenceMapper evidenceMapper;
     @Resource
     private IcbcAcquisitionMapper acquisitionMapper;
+    @Resource
+    private IcbcFrameworkAgreementMapper frameworkAgreementMapper;
     @Resource
     private IcbcSettlementMapper settlementMapper;
     @Resource
@@ -279,6 +283,22 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
 
             // 合同流：出售者的结算确认记录（含快照哈希、线下签字件）也是签署证据（ADR 0018 / 0024，不新增第六流）
             addSettlementConfirmationSource(flowSources.get(EvidenceFlowEnum.CONTRACT), acquisition);
+        }
+
+        // 合同流：出售者**生效中**的框架收购协议（两份文书一个合同组，已签文件托管在第三方，#95 / ADR 0036）。
+        // 两份文书**分别成条**：ADR 0036 决策 3 否决「拼成一个 PDF」的理由就是要能分别引用，
+        // 所以这里按主文书 + 告知函各自挂一条，同归 FRAMEWORK_AGREEMENT 这一类型 / 合同流，
+        // 不新增证据类型、不新增第六流。主文书 = 框架收购协议（`fileUrl`），告知函单独放 `noticeFileUrl`。
+        // **地址为空不成条**（#95 SP-2）：纸路径没有电子地址时不会挂出空壳条目。
+        IcbcFrameworkAgreementDO agreement = order.getPayeeId() != null
+                ? ctx.agreementByPayee.get(order.getPayeeId()) : null;
+        if (agreement != null) {
+            String type = IcbcEvidenceTypeEnum.FRAMEWORK_AGREEMENT.getCode();
+            addSource(flowSources.get(EvidenceFlowEnum.CONTRACT), type,
+                    "框架收购协议", agreement.getAgreementNo(), agreement.getFileUrl(), agreement.getSignedAt());
+            addSource(flowSources.get(EvidenceFlowEnum.CONTRACT), type,
+                    "反向发票合规告知函", agreement.getAgreementNo(), agreement.getNoticeFileUrl(),
+                    agreement.getSignedAt());
         }
 
         // 货物流：磅单与车头车尾照片直接从收购登记单取
@@ -508,6 +528,10 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
             for (PayeeInfoDO payee : payeeInfoMapper.selectByIds(payeeIds)) {
                 ctx.payeeById.put(payee.getId(), payee);
             }
+            // 每人的生效协议取最新一条（mapper 已按 id 倒序）
+            for (IcbcFrameworkAgreementDO agreement : frameworkAgreementMapper.selectEffectiveByPayeeIds(payeeIds)) {
+                ctx.agreementByPayee.putIfAbsent(agreement.getPayeeId(), agreement);
+            }
         }
         return ctx;
     }
@@ -542,6 +566,29 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
         EvidenceSourceRespVO source = new EvidenceSourceRespVO();
         source.setSourceType("ACQUISITION");
         source.setTitle(title);
+        source.setUrl(url);
+        source.setOccurredTime(occurredTime);
+        sources.add(source);
+    }
+
+    /**
+     * 往某条流里挂一条证据来源。
+     *
+     * <p>框架收购协议的两份文书都用它：主文书（框架收购协议）与告知函各自成条。
+     * <b>地址为空不成条</b>（#95 SP-2）：纸路径的告知函没有电子地址，`noticeFileUrl` 全仓只有
+     * 签署回调会写，纸路径下它就是空的；硬挂一条永远没有地址的条目，等于在证据链上凭空多出
+     * 一份「无法引用的文书」。ADR 0036 决策 3 要的是两份文书能**分别引用**，不是条数固定为二，
+     * 所以哪份有地址就挂哪份，两份都没有（纸签且主文书也没扫描件）就不挂。
+     */
+    private void addSource(List<EvidenceSourceRespVO> sources, String sourceType, String title,
+                           String ref, String url, LocalDateTime occurredTime) {
+        if (StrUtil.isBlank(url)) {
+            return;
+        }
+        EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+        source.setSourceType(sourceType);
+        source.setTitle(title);
+        source.setRef(ref);
         source.setUrl(url);
         source.setOccurredTime(occurredTime);
         sources.add(source);
@@ -608,6 +655,7 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
         private final Map<Long, List<InvoiceFileDO>> filesByDownload = new HashMap<>();
         private final Map<Long, List<OrderItemDO>> itemsByOrderId = new HashMap<>();
         private final Map<Long, PayeeInfoDO> payeeById = new HashMap<>();
+        private final Map<Long, IcbcFrameworkAgreementDO> agreementByPayee = new HashMap<>();
         private final Map<String, RedInvoiceDO> redByOrder = new HashMap<>();
     }
 

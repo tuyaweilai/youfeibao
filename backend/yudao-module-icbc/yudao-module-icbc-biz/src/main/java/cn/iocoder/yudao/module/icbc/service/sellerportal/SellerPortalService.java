@@ -67,6 +67,15 @@ public interface SellerPortalService {
     SellerRealNameLinkRespVO mintRealNameLink(SellerRealNameLinkReqVO reqVO);
 
     /**
+     * 取「去签署」用的公开令牌（#95）：签发一枚绑定收方的 {@code ONBOARDING} 一次性令牌，
+     * 本人端拿它调公开端点 {@code /icbc/public/agreement/sign-url} 现取第三方签署链接并跳转。
+     *
+     * <p>令牌不是签署链接：签署链接只在本人点击那一刻向第三方现取，不缓存、不复用、不发短信。
+     * 该收方没有待签电子协议时明确报错，不签发一枚点了也没用的令牌。
+     */
+    SellerAgreementSignTokenRespVO mintAgreementSignToken(SellerAgreementSignTokenReqVO reqVO);
+
+    /**
      * 「我收到了」：自然人自行确认，不改动银行状态。
      */
     void confirmReceived(SellerConfirmReceiveReqVO reqVO, String ip);

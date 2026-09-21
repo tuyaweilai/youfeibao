@@ -69,17 +69,37 @@ public class IcbcFrameworkAgreementDO extends TenantBaseDO {
     private String signMethod;
 
     /**
+     * 第三方签署任务号（合同组任务号）。
+     *
+     * <p>电子签署发起成功后写入；回调靠它把「合同组整体签完」的通知路由回本协议
+     * （第三方回调只带子客编号与任务号，不带我们的协议编号）。纸质协议为空。
+     */
+    private String signTaskId;
+
+    /**
      * 签署时间
      */
     private LocalDateTime signedAt;
 
     /**
-     * 协议文件地址
+     * 协议**主文书**（框架收购协议）文件地址。
+     *
+     * <p>一个合同组里有两份文书，这是其中的主文书：一票一档证据链的「框架收购协议」条目、
+     * 后台协议列表的下载入口都取它。告知函地址单独放 {@link #noticeFileUrl}，两份文书在证据链上
+     * **分别成条**（ADR 0036 决策 3：证据上两份文书要能分别引用，所以不拼成一个 PDF）。
      */
     private String fileUrl;
 
     /**
-     * 状态：0-待签署，1-生效，2-作废
+     * 反向发票合规告知函（合同组里的第二份文书）文件地址。
+     *
+     * <p>与协议同属一个合同组、同一次签署完成，但独立成条进证据链（同归 {@code FRAMEWORK_AGREEMENT}
+     * 这一类型 / 合同流，不新增证据类型、不新增第六流）。
+     */
+    private String noticeFileUrl;
+
+    /**
+     * 状态：0-待签署，1-生效，2-作废，见 {@link cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementStatusEnum}
      */
     private Integer status;
 

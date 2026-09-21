@@ -16,8 +16,11 @@ import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettleme
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicStationRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.quota.vo.SellerQuotaRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.tax.vo.SellerSettlementStatementRespVO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.lead.IcbcContactLeadDO;
+import cn.iocoder.yudao.module.icbc.dal.mysql.agreement.IcbcFrameworkAgreementMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
+import cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementSignMethodEnum;
 import cn.iocoder.yudao.module.icbc.enums.PublicTokenPurposeEnum;
 import cn.iocoder.yudao.module.icbc.service.download.InvoiceDownloadService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
@@ -63,6 +66,8 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     private InvoiceDownloadService invoiceDownloadService;
     @Resource
     private IcbcContactLeadMapper contactLeadMapper;
+    @Resource
+    private IcbcFrameworkAgreementMapper frameworkAgreementMapper;
     @Resource
     private NaturalPersonQuotaService naturalPersonQuotaService;
     @Resource
@@ -180,7 +185,7 @@ public class PublicAccessServiceImpl implements PublicAccessService {
                 // 换卡在途时也要查：入驻结果是属于新卡的（#37）
                 sellerOnboardingService.syncOnboarding(payeeId);
             }
-            return toOnboardingStatus(sellerOnboardingService.getOnboarding(payeeId));
+            return toOnboardingStatus(payeeId, sellerOnboardingService.getOnboarding(payeeId));
         });
     }
 
@@ -204,7 +209,7 @@ public class PublicAccessServiceImpl implements PublicAccessService {
         }
     }
 
-    private PublicOnboardingStatusRespVO toOnboardingStatus(SellerOnboardingRespVO overview) {
+    private PublicOnboardingStatusRespVO toOnboardingStatus(Long payeeId, SellerOnboardingRespVO overview) {
         PublicOnboardingStatusRespVO resp = new PublicOnboardingStatusRespVO();
         resp.setStep(currentStep(overview));
         resp.setRealNameStatusName(overview.getRealNameStatusName());
@@ -214,6 +219,14 @@ public class PublicAccessServiceImpl implements PublicAccessService {
         resp.setBankCardChangeStatusName(overview.getBankCardChangeStatusName());
         resp.setNextStep(overview.getNextStep());
         resp.setInvoiceEligible(overview.getInvoiceEligible());
+        // 落点页（purpose=ONBOARDING）要能把「待签署」这件事显出来：向导第 5 步转达的链接就落到这里，
+        // 本人做完实名不必关掉重开 App 才看得到「去签署」（#95 SP-1）。只有待签的**电子**协议才给入口，
+        // 纸质协议当场生效、不存在这份待办。
+        IcbcFrameworkAgreementDO pending = frameworkAgreementMapper.selectPendingByPayeeId(payeeId);
+        boolean pendingElectronic = pending != null
+                && FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode().equals(pending.getSignMethod());
+        resp.setPendingAgreement(pendingElectronic);
+        resp.setPendingAgreementNo(pendingElectronic ? pending.getAgreementNo() : null);
         if (overview.getBankCardChangeStatusName() != null) {
             resp.setMessage("收款账户变更：" + overview.getBankCardChangeStatusName()
                     + "。审核通过前，新交易的付款会挂起；原卡在你确认变更前仍然有效。");

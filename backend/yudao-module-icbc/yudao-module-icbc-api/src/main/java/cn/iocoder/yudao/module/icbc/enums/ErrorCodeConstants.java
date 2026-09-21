@@ -548,6 +548,18 @@ public interface ErrorCodeConstants {
     ErrorCode ESIGN_ACTIVATION_STATUS_INVALID = new ErrorCode(1_030_041_011,
             "当前开通状态不是「认证中」，不能确认激活（当前状态：{}）；请先点「开通电子签」");
 
+    // ========== 合同组电子签署（#95，ADR 0036） 1_030_044_000 ==========
+    ErrorCode ESIGN_AGREEMENT_NOT_PENDING = new ErrorCode(1_030_044_000,
+            "框架收购协议当前不是待签署状态（当前状态：{}），不能生成签署链接");
+    ErrorCode ESIGN_SIGN_TASK_ID_MISSING = new ErrorCode(1_030_044_001,
+            "该协议没有第三方签署任务号，无法生成签署链接；请重新发起签署");
+    ErrorCode ESIGN_INITIATE_FAILED = new ErrorCode(1_030_044_002,
+            "电子签署发起失败：第三方没有返回合同组任务号，请稍后重试（本次未落任何签署记录）");
+    ErrorCode ESIGN_SIGN_URL_UNAVAILABLE = new ErrorCode(1_030_044_003,
+            "电子签章未返回签署链接，请稍后重试（链接现生成现用，不缓存）");
+    ErrorCode ESIGN_AGREEMENT_NOT_FOUND = new ErrorCode(1_030_044_004,
+            "签署回调里的合同组任务号没有对应到本企业的框架收购协议：{}（不猜、不乱改协议状态）");
+
     // ========== 免注册链接壳：本人自填建档（#94，ADR 0007 补充） 1_030_043_000 ==========
     // 取 043 段（跳过了 042）：042 留给并行票 #93（腾讯云卡证识别接入）的错误码段，两边不撞。
     // 收货员点「作废」被拒时看到的就是这一条（不是站在本人立场写的），所以正文按收货员视角措辞。

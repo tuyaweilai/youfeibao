@@ -33,6 +33,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReceipt;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingStatus;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
+import cn.iocoder.yudao.module.icbc.service.esign.FrameworkAgreementEsignService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.impl.SellerOnboardingServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import org.junit.jupiter.api.AfterEach;
@@ -46,6 +47,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
@@ -102,6 +104,10 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
 
     @MockBean
     private IcbcGateway icbcGateway;
+
+    /** 电子签发起由 {@code FrameworkAgreementEsignServiceImplTest} 覆盖；本类只测落库与门禁。 */
+    @MockBean
+    private FrameworkAgreementEsignService frameworkAgreementEsignService;
 
     @BeforeEach
     public void setUp() {
@@ -572,6 +578,72 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         assertNotNull(frameworkAgreementMapper.selectById(id).getAgreementNo());
     }
 
+    @Test
+    public void testSaveFrameworkAgreement_electronicCannotBeSelfMarkedEffective() {
+        // SP-4：手送 signMethod=ELECTRONIC&status=1 不能再当场盖 signedAt（#81 Problem Statement 点名的那件事）
+        PayeeInfoDO payee = insertPayee("USER_AGREE_E", "110101199001010031", "13800000031");
+        FrameworkAgreementSaveReqVO reqVO = agreementReq(payee.getId(), "废钢");
+        reqVO.setSignMethod("ELECTRONIC");
+        reqVO.setStatus(1);
+
+        Long id = sellerOnboardingService.saveFrameworkAgreement(reqVO);
+
+        IcbcFrameworkAgreementDO stored = frameworkAgreementMapper.selectById(id);
+        assertEquals(0, stored.getStatus(), "电子协议只能停在待签署：生效只能由签署回调推");
+        assertNull(stored.getSignedAt(), "没人签过就不该有签署时间");
+        verify(frameworkAgreementEsignService).initiate(eq(1L), eq(id));
+    }
+
+    @Test
+    public void testSaveFrameworkAgreement_updateKeepsSignatureStateAndInitiatesWhenTaskMissing() {
+        // SP-4：更新不得把待签署改成生效，也不能改成待签署却不发起（否则「去签署」必然报任务号缺失）
+        PayeeInfoDO payee = insertPayee("USER_AGREE_U", "110101199001010032", "13800000032");
+        IcbcFrameworkAgreementDO existing = IcbcFrameworkAgreementDO.builder()
+                .payeeId(payee.getId()).agreementNo("FW_UPDATE_1").productName("废钢").quantity("5 吨")
+                .specification("重型").recyclePeriod("2026 年 9 月第 1 期").settlementMethod("银行转账")
+                .signMethod("ELECTRONIC").status(0).build();
+        frameworkAgreementMapper.insert(existing);
+
+        FrameworkAgreementSaveReqVO reqVO = agreementReq(payee.getId(), "废纸");
+        reqVO.setId(existing.getId());
+        reqVO.setSignMethod("ELECTRONIC");
+        reqVO.setStatus(1);
+
+        Long id = sellerOnboardingService.saveFrameworkAgreement(reqVO);
+
+        assertEquals(existing.getId(), id);
+        IcbcFrameworkAgreementDO stored = frameworkAgreementMapper.selectById(id);
+        assertEquals(0, stored.getStatus(), "更新不得把待签署手改成生效");
+        assertNull(stored.getSignedAt());
+        assertEquals("废纸", stored.getProductName(), "协议要素照常更新");
+        verify(frameworkAgreementEsignService).initiate(eq(1L), eq(existing.getId()));
+    }
+
+    @Test
+    public void testSaveFrameworkAgreement_updateCannotStampSignTimeOrFileUrl() {
+        // #81 Problem Statement / #95 SP-4：修改仍走 toAgreement(reqVO, existing.getStatus())，
+        // 而 updateById 只写非空字段。若不显式清空，POST /agreement/create {id=<待签署协议>,
+        // signedAt=…} 就能给一份没人签过、状态仍是待签署的协议盖上签署时间。
+        PayeeInfoDO payee = insertPayee("USER_AGREE_STAMP", "110101199001010033", "13800000033");
+        IcbcFrameworkAgreementDO existing = IcbcFrameworkAgreementDO.builder()
+                .payeeId(payee.getId()).agreementNo("FW_STAMP_1").productName("废钢").quantity("5 吨")
+                .specification("重型").recyclePeriod("2026 年 9 月第 1 期").settlementMethod("银行转账")
+                .signMethod("ELECTRONIC").signTaskId("TASK_STAMP").status(0).build();
+        frameworkAgreementMapper.insert(existing);
+
+        FrameworkAgreementSaveReqVO reqVO = agreementReq(payee.getId(), "废纸");
+        reqVO.setId(existing.getId());
+        reqVO.setSignedAt(LocalDateTime.of(2026, 9, 21, 10, 0));
+        reqVO.setFileUrl("https://forged/signed.pdf");
+
+        sellerOnboardingService.saveFrameworkAgreement(reqVO);
+
+        IcbcFrameworkAgreementDO stored = frameworkAgreementMapper.selectById(existing.getId());
+        assertNull(stored.getSignedAt(), "没人签过，外部入参不得盖上签署时间");
+        assertNull(stored.getFileUrl(), "文书地址只能由签署回调写");
+        assertEquals(0, stored.getStatus(), "状态仍是待签署");
+    }
+
     // ==================== 首次授权 ====================
 
     @Test
@@ -866,7 +938,8 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         reqVO.setSpecification("重型");
         reqVO.setRecyclePeriod("2026 年 9 月第 1 期");
         reqVO.setSettlementMethod("银行转账，过磅后 3 日内结清");
-        reqVO.setSignMethod("ELECTRONIC");
+        // 本类的用例围绕「一份生效协议 + 门禁」：纸签当场生效；电子签的待签署路径另有专门用例（#95）
+        reqVO.setSignMethod("PAPER");
         return reqVO;
     }
 

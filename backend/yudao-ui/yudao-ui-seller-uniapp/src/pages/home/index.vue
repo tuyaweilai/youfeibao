@@ -48,7 +48,6 @@
             :key="`${item.type}-${item.settlementId || item.title}`"
             class="pending"
             :class="{ 'pending--urgent': item.urgent }"
-            @click="openPending(item)"
           >
             <view class="pending__top">
               <text class="pending__type">{{ item.typeName }}</text>
@@ -58,6 +57,20 @@
             <view class="pending__ent">{{ item.enterpriseName }}</view>
             <view v-if="item.deadlineTime" class="pending__deadline">
               截止 {{ formatTime(item.deadlineTime) }}
+            </view>
+            <!-- 真动作入口（#95）：待签协议点一下才现取签署链接；其余待办给一个可点的说明 -->
+            <view class="pending__actions">
+              <button
+                v-if="item.action === 'SIGN_AGREEMENT'"
+                class="mini-btn"
+                :disabled="signing"
+                @click.stop="openPending(item)"
+              >
+                {{ signing ? '正在打开…' : '去签署' }}
+              </button>
+              <text v-else-if="item.type === 'SETTLEMENT'" class="link" @click.stop="openPending(item)">
+                去确认
+              </text>
             </view>
           </view>
         </view>
@@ -239,6 +252,7 @@ import {
   getPayments,
   getProfile,
   getRecordGroups,
+  mintAgreementSignToken,
   revokeAuthorization,
   SellerAuthorization,
   SellerHome,
@@ -249,8 +263,10 @@ import {
   SellerBankCard,
   PendingItem
 } from '@/api/seller'
+import { createAgreementSignUrl } from '@/api/public'
 import { useSellerAuthStore } from '@/store/auth'
 import { downloadWithAuth, openHtmlWithAuth } from '@/utils/download'
+import { openExternalUrl } from '@/utils/external'
 
 defineOptions({ name: 'SellerHome' })
 
@@ -323,7 +339,42 @@ function openPending(item: PendingItem) {
     uni.navigateTo({ url: `/pages/settlement/detail?id=${item.settlementId}` })
     return
   }
+  // 待签电子协议：本人点一下才现取签署链接并跳转（#95）
+  if (item.type === 'AGREEMENT' && item.payeeId) {
+    onSignAgreement(item.payeeId)
+    return
+  }
   uni.showToast({ title: `${item.typeName}：请到现场与收货员办理`, icon: 'none' })
+}
+
+/**
+ * 去签署（#95）：① 用登录态换一枚绑定收方的 ONBOARDING 一次性令牌；
+ * ② 拿令牌调公开端点**现取**第三方签署链接（不缓存、不复用、不发短信）；③ 打开签署页。
+ */
+const signing = ref(false)
+async function onSignAgreement(payeeId: number) {
+  if (signing.value) {
+    return
+  }
+  signing.value = true
+  uni.showLoading({ title: '正在打开签署页…', mask: true })
+  try {
+    const link = await mintAgreementSignToken(naturalPersonId.value, payeeId)
+    if (!link.token) {
+      throw new Error('未取到签署入口，请稍后重试')
+    }
+    const sign = await createAgreementSignUrl(link.token)
+    if (!sign.signUrl) {
+      throw new Error('未取到签署链接，请稍后重试')
+    }
+    uni.hideLoading()
+    openExternalUrl(sign.signUrl)
+  } catch (e) {
+    uni.hideLoading()
+    uni.showToast({ title: (e as Error).message || '去签署失败，请稍后重试', icon: 'none' })
+  } finally {
+    signing.value = false
+  }
 }
 
 function changeYear(delta: number) {
@@ -497,6 +548,10 @@ function formatTime(time?: string) {
     margin-top: 6rpx;
     color: $seller-text-secondary;
     font-size: 26rpx;
+  }
+
+  &__actions {
+    margin-top: 12rpx;
   }
 }
 

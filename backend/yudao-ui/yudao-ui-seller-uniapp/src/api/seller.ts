@@ -46,6 +46,8 @@ export const logout = () => appPost<boolean>('/icbc/seller/auth/logout')
 export interface PendingItem {
   type: 'SETTLEMENT' | 'AGREEMENT' | string
   typeName?: string
+  /** 点击动作：SIGN_AGREEMENT-去签署（待签电子协议，点一下现取签署链接并跳转）；无动作时为空 */
+  action?: string
   tenantId?: number
   enterpriseName?: string
   settlementId?: number
@@ -240,6 +242,19 @@ export interface SellerRealNameLink {
  */
 export const mintRealNameLink = (naturalPersonId: number, payeeId: number) =>
   appPost<SellerRealNameLink>('/icbc/seller/portal/real-name/link', { naturalPersonId, payeeId })
+
+/** 取「去签署」用的公开令牌（#95）：拿它调公开端点现取第三方签署链接 */
+export interface SellerAgreementSignToken {
+  token?: string
+  expiresTime?: string
+}
+
+/**
+ * 用登录态换一枚绑定收方的 ONBOARDING 一次性令牌（不是签署链接）：
+ * 本人点「去签署」时先用它调 `/icbc/public/agreement/sign-url` 换第三方签署链接再跳转。
+ */
+export const mintAgreementSignToken = (naturalPersonId: number, payeeId: number) =>
+  appPost<SellerAgreementSignToken>('/icbc/seller/portal/agreement/sign-token', { naturalPersonId, payeeId })
 
 export const confirmReceived = (naturalPersonId: number, paymentOrderId: number) =>
   appPost<boolean>('/icbc/seller/portal/payments/received', { naturalPersonId, paymentOrderId })

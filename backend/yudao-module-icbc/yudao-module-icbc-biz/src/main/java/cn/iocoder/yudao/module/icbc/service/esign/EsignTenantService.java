@@ -47,6 +47,14 @@ public interface EsignTenantService {
     boolean isTenantActivated();
 
     /**
+     * 记一次合同额度消耗（#95）：**发起签署成功时**调用，一份合同组加一。
+     *
+     * <p>额度是否够用的判据只有 {@code EsignPort#isAvailable} 一处；本方法只负责把「已用」
+     * 原子加一，不在这里重复判额度，免得两处口径漂移。
+     */
+    void consumeContract();
+
+    /**
      * 按子客编号反查租户编号（回调路径，跨租户）。查不到返回 {@code null}，由调用方决定怎么处理——不猜。
      */
     Long resolveTenantIdBySubCustomerNo(String subCustomerNo);

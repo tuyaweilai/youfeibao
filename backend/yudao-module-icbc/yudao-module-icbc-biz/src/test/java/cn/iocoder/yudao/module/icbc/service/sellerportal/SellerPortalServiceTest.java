@@ -7,6 +7,7 @@ import cn.iocoder.yudao.module.icbc.controller.app.seller.vo.*;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenCreateReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.authorization.IcbcSellerAuthorizationDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
@@ -14,6 +15,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payer.PayerInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.agreement.IcbcFrameworkAgreementMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.authorization.IcbcSellerAuthorizationMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
@@ -86,6 +88,8 @@ public class SellerPortalServiceTest extends BaseDbUnitTest {
     private NaturalPersonService naturalPersonService;
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
+    @Resource
+    private IcbcFrameworkAgreementMapper frameworkAgreementMapper;
     @Resource
     private PayerInfoMapper payerInfoMapper;
     @Resource
@@ -404,6 +408,62 @@ public class SellerPortalServiceTest extends BaseDbUnitTest {
         reqVO.setNaturalPersonId(person.getId());
         reqVO.setPayeeId(999999L);
         assertServiceException(() -> sellerPortalService.mintRealNameLink(reqVO), SELLER_RECORD_NOT_FOUND);
+    }
+
+    @Test
+    public void testMintAgreementSignToken_returnsOnboardingTokenWhenPendingElectronic() {
+        IcbcNaturalPersonDO person = register("110101199001019905", "13800139905");
+        bindLogin(person);
+        PayeeInfoDO payee = insertPayee(person.getId(), 1L, "PARTNER_SIGN");
+        insertPendingElectronicAgreement(payee.getId());
+        PublicTokenRespVO token = new PublicTokenRespVO();
+        token.setToken("TK_SIGN");
+        token.setExpiresTime(LocalDateTime.now().plusHours(1));
+        when(publicTokenService.mint(any())).thenReturn(token);
+
+        SellerAgreementSignTokenReqVO reqVO = new SellerAgreementSignTokenReqVO();
+        reqVO.setNaturalPersonId(person.getId());
+        reqVO.setPayeeId(payee.getId());
+        SellerAgreementSignTokenRespVO resp = sellerPortalService.mintAgreementSignToken(reqVO);
+
+        assertEquals("TK_SIGN", resp.getToken());
+        ArgumentCaptor<PublicTokenCreateReqVO> captor = ArgumentCaptor.forClass(PublicTokenCreateReqVO.class);
+        verify(publicTokenService).mint(captor.capture());
+        assertEquals(PublicTokenPurposeEnum.ONBOARDING.getCode(), captor.getValue().getPurpose());
+        assertEquals(payee.getId(), captor.getValue().getPayeeId());
+    }
+
+    @Test
+    public void testMintAgreementSignToken_withoutPendingAgreementRejected() {
+        IcbcNaturalPersonDO person = register("110101199001019906", "13800139906");
+        bindLogin(person);
+        PayeeInfoDO payee = insertPayee(person.getId(), 1L, "PARTNER_SIGN2");
+
+        SellerAgreementSignTokenReqVO reqVO = new SellerAgreementSignTokenReqVO();
+        reqVO.setNaturalPersonId(person.getId());
+        reqVO.setPayeeId(payee.getId());
+
+        assertServiceException(() -> sellerPortalService.mintAgreementSignToken(reqVO),
+                ESIGN_AGREEMENT_NOT_PENDING, "无待签署协议");
+        verify(publicTokenService, never()).mint(any());
+    }
+
+    @Test
+    public void testMintAgreementSignToken_rejectsSomeoneElsesPayee() {
+        IcbcNaturalPersonDO person = register("110101199001019907", "13800139907");
+        bindLogin(person);
+
+        SellerAgreementSignTokenReqVO reqVO = new SellerAgreementSignTokenReqVO();
+        reqVO.setNaturalPersonId(person.getId());
+        reqVO.setPayeeId(999999L);
+        assertServiceException(() -> sellerPortalService.mintAgreementSignToken(reqVO), SELLER_RECORD_NOT_FOUND);
+    }
+
+    private void insertPendingElectronicAgreement(Long payeeId) {
+        frameworkAgreementMapper.insert(IcbcFrameworkAgreementDO.builder()
+                .payeeId(payeeId).agreementNo("FW_SIGN_" + payeeId).productName("废钢")
+                .quantity("5 吨").specification("重型").recyclePeriod("2026 年 9 月第 1 期")
+                .settlementMethod("银行转账").signMethod("ELECTRONIC").status(0).build());
     }
 
     // ==================== 造数 ====================

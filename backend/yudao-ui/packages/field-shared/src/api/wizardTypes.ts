@@ -82,8 +82,15 @@ export interface OnboardingWizardSubmitVO {
   payeeId?: number
   naturalPersonId?: number
   agreementId?: number
-  /** ELECTRONIC-电子签章，PAPER-纸质签署（未开通电子签章时恒为 PAPER） */
+  /**
+   * 签署方式：`ELECTRONIC`-电子签章（租户已开通，协议落「待签署」，本人在自己手机上点「去签署」）
+   * / `PAPER`-纸质签署（未开通时降级，当场生效）。不再是「恒为 PAPER」——#95 起两条路都有。
+   */
   signMethod?: string
+  /** 框架收购协议状态：0-待签署，1-生效（与 signMethod 一致，落库后回带，#95） */
+  agreementStatus?: number
+  /** 给现场的可读说明：走了哪条签署路径、本人接下来要做什么（后端组装，客户端照实展示，#95） */
+  message?: string
   /** 建档完成后换发的实名令牌（ONBOARDING），只有本人自填壳有；代录壳为空 */
   onboardingToken?: string
   /** 实名令牌有效期（epoch 毫秒：后端 LocalDateTime 走 TimestampLocalDateTimeSerializer） */

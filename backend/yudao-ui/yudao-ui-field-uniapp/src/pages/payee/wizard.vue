@@ -202,7 +202,7 @@
 
       <view class="divider" />
       <view class="card__title">框架收购协议要素</view>
-      <view class="tip">税总要求的合同流证据，留空按缺省值落库（本票协议走纸质签署）。</view>
+      <view class="tip">税总要求的合同流证据，留空按缺省值落库（电子签 / 纸质签由企业是否开通电子签章决定）。</view>
       <view class="field">
         <text class="field__label">货物名称</text>
         <input v-model="draft.productName" class="input" placeholder="留空按「报废产品」" />
@@ -230,23 +230,33 @@
       </view>
     </view>
 
-    <!-- 第 5 步：签署（本票落 PAPER）+ 二维码 / 可复制链接 -->
+    <!-- 第 5 步：签署（电子签 = 待签署，纸质 = 当场生效）+ 二维码 / 可复制链接 -->
     <view v-if="draft.step === 5" class="card">
       <view class="card__title">5. 签署框架收购协议</view>
 
       <view v-if="draft.signMethod === 'PAPER'" class="notice">
         <view class="notice__title">本企业未开通电子签章：协议走纸质签署</view>
         <view class="notice__desc">
-          请打印框架收购协议与反向发票合规告知函，请本人当场签字；系统已按纸质签法建档。
+          {{ draft.signMessage
+            || '请打印框架收购协议与反向发票合规告知函，请本人当场签字；系统已按纸质签法建档。' }}
         </view>
       </view>
       <view v-else class="notice">
-        <view class="notice__title">协议已按 {{ draft.signMethod || '电子签章' }} 建档</view>
+        <view class="notice__title">协议待签署（电子签章）</view>
+        <view class="notice__desc">
+          {{ draft.signMessage
+            || '签署已发起，协议还没生效。请把下面的二维码或链接交给本人。' }}
+        </view>
       </view>
+      <view class="hint">协议状态：{{ agreementStatusName }}</view>
 
-      <view class="handoff__title">交给本人用微信办理实名</view>
+      <view class="handoff__title">
+        {{ draft.signMethod === 'PAPER' ? '交给本人用微信办理实名' : '交给本人用微信打开去签署' }}
+      </view>
       <view class="tip">
-        建档已完成。实名只能本人做：让他用微信扫下面的码，或把链接发到他微信里打开。
+        {{ draft.signMethod === 'PAPER'
+          ? '建档已完成。实名只能本人做：让他用微信扫下面的码，或把链接发到他微信里打开。'
+          : '签署只能本人做：让他用微信扫下面的码或打开链接，在打开的页面里点「去签署」；点一下才会现取签署链接，现生成现用。' }}
       </view>
       <view v-if="handoff.qr" class="qr">
         <image class="qr__img" :src="handoff.qr" mode="aspectFit" />
@@ -295,7 +305,8 @@ import {
  * - 分步状态**只在本地暂存**（`wizardDraft`），第 4 步确认后一次性落库；
  * - 识别是「上传 + 识别」的无状态调用，图片识别完即弃、不落库、不进文件服务；
  * - 结果只在空缺处回填，人工输入的值优先；确认后以确认后的为准（提交的是确认页的值）；
- * - 本票协议一律落 `PAPER`（电子签章未开通），不做实名、不做电子签署。
+ * - 协议签署方式由后端定：租户开通电子签章则落「待签署」并发起合同组签署（本人在自己手机
+ *   上点「去签署」），未开通则降级纸质当场生效。
  */
 defineOptions({ name: 'FieldPayeeWizard' })
 
@@ -352,6 +363,17 @@ const accountCodeShown = computed(() => draft.accountCode || draft.accountCodeRe
 const idBlockReasons = computed(() => [...draft.idFrontBlockReasons, ...draft.idBackBlockReasons])
 const idBlocked = computed(() => idBlockReasons.value.length > 0)
 const resumeLabel = computed(() => [draft.name, draft.idCardNo].filter(Boolean).join(' / '))
+
+/** 协议状态展示：后端回带了就以它为准，没回带（旧草稿 / 重进页面）就按签署方式推断（#95） */
+const agreementStatusName = computed(() => {
+  if (draft.agreementStatus === 0) {
+    return '待签署'
+  }
+  if (draft.agreementStatus === 1) {
+    return '已生效'
+  }
+  return draft.signMethod === 'ELECTRONIC' ? '待签署' : '已生效'
+})
 
 const canStep1Next = computed(
   () => !!draft.idFrontImage && !!draft.idBackImage && !idBlocked.value
@@ -603,6 +625,10 @@ async function onSubmit() {
     const resp = await submitOnboardingWizard(payload)
     draft.payeeId = resp.payeeId
     draft.signMethod = resp.signMethod || 'PAPER'
+    // 消费后端回带的两件事（#95）：协议状态与「本人接下来做什么」的说明。以前只读了 signMethod，
+    // 结果状态与现场话术都由前端自己猜；现在直接展示后端组装的那份，避免页面与事实相反。
+    draft.agreementStatus = resp.agreementStatus
+    draft.signMessage = resp.message || ''
     draft.step = 5
     persist()
     await issueLink()

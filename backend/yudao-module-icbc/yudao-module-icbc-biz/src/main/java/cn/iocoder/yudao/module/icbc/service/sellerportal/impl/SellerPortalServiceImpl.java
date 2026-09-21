@@ -450,6 +450,30 @@ public class SellerPortalServiceImpl implements SellerPortalService {
         return resp;
     }
 
+    @Override
+    public SellerAgreementSignTokenRespVO mintAgreementSignToken(SellerAgreementSignTokenReqVO reqVO) {
+        assertBound(reqVO.getNaturalPersonId());
+        PayeeInfoDO payee = payeesOf(reqVO.getNaturalPersonId()).stream()
+                .filter(item -> Objects.equals(item.getId(), reqVO.getPayeeId()))
+                .findFirst()
+                .orElseThrow(() -> exception(SELLER_RECORD_NOT_FOUND));
+        // 只有确实有待签电子协议才签发：没有就明确报错，不签发一枚点了也没用的令牌
+        IcbcFrameworkAgreementDO pending = TenantUtils.execute(payee.getTenantId(),
+                () -> agreementMapper.selectPendingByPayeeId(payee.getId()));
+        if (pending == null
+                || !FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode().equals(pending.getSignMethod())) {
+            throw exception(ESIGN_AGREEMENT_NOT_PENDING, "无待签署协议");
+        }
+        PublicTokenCreateReqVO tokenReqVO = new PublicTokenCreateReqVO();
+        tokenReqVO.setPurpose(PublicTokenPurposeEnum.ONBOARDING.getCode());
+        tokenReqVO.setPayeeId(payee.getId());
+        PublicTokenRespVO token = TenantUtils.execute(payee.getTenantId(), () -> publicTokenService.mint(tokenReqVO));
+        SellerAgreementSignTokenRespVO resp = new SellerAgreementSignTokenRespVO();
+        resp.setToken(token.getToken());
+        resp.setExpiresTime(token.getExpiresTime());
+        return resp;
+    }
+
     // ==================== 「我收到了」 ====================
 
     @Override
@@ -663,6 +687,8 @@ public class SellerPortalServiceImpl implements SellerPortalService {
         SellerPendingItemVO item = new SellerPendingItemVO();
         item.setType("AGREEMENT");
         item.setTypeName("待签框架收购协议");
+        // 待签电子协议可点：本人点一下才现取签署链接并跳转（#95）
+        item.setAction("SIGN_AGREEMENT");
         item.setPayeeId(agreement.getPayeeId());
         if (payee != null) {
             item.setTenantId(payee.getTenantId());

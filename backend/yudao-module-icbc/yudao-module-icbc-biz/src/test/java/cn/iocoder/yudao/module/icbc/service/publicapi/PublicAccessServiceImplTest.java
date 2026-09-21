@@ -10,10 +10,12 @@ import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicSettleme
 import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.SellerOnboardingRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.SellerStepRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenCreateReqVO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceFileDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
+import cn.iocoder.yudao.module.icbc.dal.mysql.agreement.IcbcFrameworkAgreementMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
@@ -90,6 +92,8 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
     private InvoiceFileMapper invoiceFileMapper;
     @Resource
     private IcbcContactLeadMapper contactLeadMapper;
+    @Resource
+    private IcbcFrameworkAgreementMapper frameworkAgreementMapper;
 
     @MockBean
     private SellerOnboardingService sellerOnboardingService;
@@ -290,6 +294,37 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testSyncOnboarding_exposesPendingElectronicAgreementForSigning() {
+        // SP-1：向导第 5 步把人转达到本页（purpose=ONBOARDING）。本页必须能看出「还有一份待签协议」，
+        // 否则本人做完实名就断在这里、得关掉重开 App 才看得到「去签署」。
+        PayeeInfoDO payee = insertPayee("孙十一", "110101199012129013");
+        when(sellerOnboardingService.getOnboarding(payee.getId()))
+                .thenReturn(onboarding(2, "READY", false));
+        insertAgreement(payee.getId(), "ELECTRONIC", "FW_PENDING_1");
+        String token = mint("ONBOARDING", null, payee.getId());
+
+        PublicOnboardingStatusRespVO status = publicAccessService.syncOnboarding(token);
+
+        assertEquals(Boolean.TRUE, status.getPendingAgreement());
+        assertEquals("FW_PENDING_1", status.getPendingAgreementNo());
+    }
+
+    @Test
+    public void testSyncOnboarding_noSignEntryWhenAgreementIsPaper() {
+        // 纸质协议当场生效，本页不该给出一个点了也没用的「去签署」
+        PayeeInfoDO payee = insertPayee("孙十二", "110101199012129014");
+        when(sellerOnboardingService.getOnboarding(payee.getId()))
+                .thenReturn(onboarding(2, "READY", true));
+        insertAgreement(payee.getId(), "PAPER", "FW_PAPER_1");
+        String token = mint("ONBOARDING", null, payee.getId());
+
+        PublicOnboardingStatusRespVO status = publicAccessService.syncOnboarding(token);
+
+        assertEquals(Boolean.FALSE, status.getPendingAgreement());
+        assertNull(status.getPendingAgreementNo());
+    }
+
+    @Test
     public void testSyncOnboarding_failedRealNameExposesReasonForRetry() {
         PayeeInfoDO payee = insertPayee("许十二", "110101199011119012");
         SellerOnboardingRespVO failed = onboarding(3, null, false);
@@ -350,6 +385,15 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
                 .build();
         payeeInfoMapper.insert(payee);
         return payee;
+    }
+
+    private void insertAgreement(Long payeeId, String signMethod, String agreementNo) {
+        // status=0 只有电子协议会停在；纸质协议由 service 直接落生效，这里按真实语义造数
+        int status = "ELECTRONIC".equals(signMethod) ? 0 : 1;
+        frameworkAgreementMapper.insert(IcbcFrameworkAgreementDO.builder()
+                .payeeId(payeeId).agreementNo(agreementNo).productName("废钢").quantity("5 吨")
+                .specification("重型").recyclePeriod("2026 年 9 月第 1 期").settlementMethod("银行转账")
+                .signMethod(signMethod).status(status).build());
     }
 
     private void prepareInvoiceWithFile(String partnerOrderId, File file, long size) {

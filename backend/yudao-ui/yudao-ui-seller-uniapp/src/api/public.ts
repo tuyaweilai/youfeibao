@@ -77,6 +77,10 @@ export interface OnboardingStatusVO {
   bankCardChangeStatusName?: string
   nextStep?: string
   invoiceEligible?: boolean
+  /** 是否有待签署的电子框架收购协议：为 true 时落点页给出可点的「去签署」（#95） */
+  pendingAgreement?: boolean
+  /** 待签署协议编号（pendingAgreement 为 true 时非空） */
+  pendingAgreementNo?: string
   message?: string
 }
 
@@ -121,6 +125,18 @@ export interface PublicNoticeVO {
 /** 用令牌看触达通知（待确认结算 / 付款异常），打开即可看 */
 export const queryNotice = (token: string) =>
   get<PublicNoticeVO>('/icbc/public/notice', { token })
+
+/** 合同组签署链接返回（#95）：现生成现用，不缓存 */
+export interface AgreementSignUrlVO {
+  signUrl?: string
+}
+
+/**
+ * 用一次性令牌现取合同组签署链接（#95）：本人在自己页面上点「去签署」时才调，
+ * 拿到后立即跳转；链接不落库、不复用、不通过短信发送。
+ */
+export const createAgreementSignUrl = (token: string) =>
+  post<AgreementSignUrlVO>(`/icbc/public/agreement/sign-url?token=${encodeURIComponent(token)}`)
 
 /** 解析场站二维码：只编码场站码，返回公开信息（不含个人数据） */
 export const resolveStation = (code: string) =>

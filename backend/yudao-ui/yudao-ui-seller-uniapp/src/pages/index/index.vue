@@ -84,6 +84,18 @@
             {{ realNameFailed ? '重新发起实名认证' : '去工行页面完成实名' }}
           </button>
           <button class="btn btn--ghost" :loading="loading" @click="loadOnboarding">我已完成，刷新</button>
+          <!-- 本人做完实名不必关掉重开 App（#95 SP-1）：向导第 5 步转达的链接就落到本页，
+               有「待签的框架收购协议」时在这里给出可点的「去签署」。 -->
+          <view v-if="onboarding.pendingAgreement" class="sign-block">
+            <view class="sign-block__title">还有一份待签署的框架收购协议</view>
+            <view class="sign-block__desc">
+              协议编号 {{ onboarding.pendingAgreementNo || '—' }}。点下面的按钮，在你的手机上打开签署页；
+              一次实名、一次签名，把框架收购协议与反向发票合规告知函两份一起签完。链接现生成现用，请尽快完成。
+            </view>
+            <button class="btn btn--primary" :loading="signing" @click="onSignAgreement">去签署</button>
+          </view>
+          <button class="btn btn--ghost" @click="goTodo">登录后查看我的待办</button>
+          <view v-if="error" class="error">{{ error }}</view>
         </view>
         <view v-else-if="loading" class="loading">加载中…</view>
         <view v-else class="error">{{ error }}</view>
@@ -172,12 +184,13 @@ import { onLoad } from '@dcloudio/uni-app'
 // #ifdef H5
 import QRCode from 'qrcode'
 // #endif
-import { queryQuota, queryNotice, querySettlement, submitContactLead, syncOnboarding, onboardingFormUrl, QuotaVO, SettlementVO, OnboardingStatusVO, PublicNoticeVO } from '@/api/public'
+import { queryQuota, queryNotice, querySettlement, submitContactLead, syncOnboarding, onboardingFormUrl, createAgreementSignUrl, QuotaVO, SettlementVO, OnboardingStatusVO, PublicNoticeVO } from '@/api/public'
 import { resolveEntryParams, resolveFaceReturn, resolveStationCode, setPurpose, setToken } from '@/utils/token'
 import { getSubject, getToken } from '@/utils/auth'
 import { setTenantId } from '@/config/env'
 import { REAL_NAME_STATUS } from '@/api/seller'
 import { downloadInvoicePdf } from '@/utils/download'
+import { openExternalUrl } from '@/utils/external'
 
 defineOptions({ name: 'SellerIndex' })
 
@@ -215,6 +228,8 @@ const notInWechat = ref(false)
 const qrDataUrl = ref('')
 const faceReturn = ref('')
 const contact = reactive({ name: '', mobile: '', remark: '' })
+/** 「去签署」进行中：防止连点重复现取链接 */
+const signing = ref(false)
 
 // 令牌按用途签发，只放行对应功能；没带用途时给出全部入口
 const visibleTabs = computed(() => {
@@ -353,6 +368,37 @@ function openOnboardingForm() {
   // #ifndef H5
   webViewUrl.value = url
   // #endif
+}
+
+/**
+ * 去签署（#95）：本页的令牌本来就是 ONBOARDING 用途，直接拿它现取第三方签署链接并跳转，
+ * 不必先登录；链接现生成现用、不缓存、不复用。
+ */
+async function onSignAgreement() {
+  if (signing.value) {
+    return
+  }
+  signing.value = true
+  error.value = ''
+  uni.showLoading({ title: '正在打开签署页…', mask: true })
+  try {
+    const sign = await createAgreementSignUrl(token.value)
+    if (!sign.signUrl) {
+      throw new Error('未取到签署链接，请稍后重试')
+    }
+    uni.hideLoading()
+    openExternalUrl(sign.signUrl)
+  } catch (e) {
+    uni.hideLoading()
+    error.value = (e as Error).message || '去签署失败，请稍后重试'
+  } finally {
+    signing.value = false
+  }
+}
+
+/** 实名是本人身份的事，完成后登录才看得到「待我确认」的完整待办（#95） */
+function goTodo() {
+  uni.redirectTo({ url: '/pages/login/index' })
 }
 
 async function loadQuota() {
@@ -655,6 +701,25 @@ async function onSubmitContact() {
     height: 300rpx;
     background-color: #ffffff;
     border-radius: 8rpx;
+  }
+}
+
+.sign-block {
+  margin-top: 16rpx;
+  padding: 24rpx;
+  background-color: #fff7e6;
+  border-radius: 12rpx;
+
+  &__title {
+    font-weight: 600;
+    color: #b26a00;
+  }
+
+  &__desc {
+    margin: 8rpx 0 16rpx;
+    color: #b26a00;
+    font-size: 26rpx;
+    line-height: 1.7;
   }
 }
 

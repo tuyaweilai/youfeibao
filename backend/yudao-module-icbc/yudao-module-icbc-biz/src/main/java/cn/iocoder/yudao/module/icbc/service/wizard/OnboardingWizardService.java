@@ -40,9 +40,11 @@ public interface OnboardingWizardService {
      * 第 4 步确认后一次性落库：登记 / 复用自然人主体、写收方档案、把框架收购协议落成
      * 电子签或纸质签（以 {@code EsignPort.isAvailable} 为唯一判据，未开通即 {@code PAPER}）。
      *
-     * <p>本票不调 {@code EsignPort#initiate} / {@code createSignUrl}：合同组的电子签署见 #95。
+     * <p>电子签方式会在同一事务里发起**合同组签署**（框架收购协议 + 反向发票合规告知函，
+     * 企业先盖章、自然人后签署），协议落「待签署」，签完靠回调推到生效（#95 / ADR 0036）；
+     * 拿不到合同组任务号则整体回滚，不留拿不到签署链接的半成品。
      *
-     * @return 收方档案编号、自然人主体编号与本次的签署方式
+     * @return 收方档案编号、自然人主体编号、协议编号与本次的签署方式 / 协议状态 / 可读说明
      */
     OnboardingWizardSubmitRespVO submit(@Valid OnboardingWizardSubmitReqVO reqVO);
 

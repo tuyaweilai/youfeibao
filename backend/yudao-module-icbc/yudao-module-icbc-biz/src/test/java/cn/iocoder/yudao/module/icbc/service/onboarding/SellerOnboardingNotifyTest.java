@@ -17,6 +17,7 @@ import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyParser;
 import cn.iocoder.yudao.module.icbc.service.callback.handler.FaceVerifyNotifyHandler;
 import cn.iocoder.yudao.module.icbc.service.callback.handler.PayeeOnboardingNotifyHandler;
 import cn.iocoder.yudao.module.icbc.service.callback.impl.CallbackNotifyServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.esign.FrameworkAgreementEsignService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.impl.SellerOnboardingServiceImpl;
@@ -67,6 +68,10 @@ public class SellerOnboardingNotifyTest extends BaseDbUnitTest {
 
     @MockBean
     private IcbcGateway icbcGateway;
+
+    /** 协议落库会注入电子签（#95）；本测试只测工行通知处理，置空。 */
+    @MockBean
+    private FrameworkAgreementEsignService frameworkAgreementEsignService;
 
     @Test
     public void testFaceVerifyCallbackUpdatesNaturalPerson() {

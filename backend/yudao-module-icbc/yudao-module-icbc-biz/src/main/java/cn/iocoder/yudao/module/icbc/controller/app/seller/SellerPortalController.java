@@ -105,6 +105,14 @@ public class SellerPortalController {
         return success(sellerPortalService.mintRealNameLink(reqVO));
     }
 
+    @PostMapping("/agreement/sign-token")
+    @Operation(summary = "取去签署用的公开令牌",
+            description = "签发一次性 ONBOARDING 令牌；本人端拿它调公开端点现取签署链接并跳转（链接现生成现用）")
+    public CommonResult<SellerAgreementSignTokenRespVO> agreementSignToken(
+            @Valid @RequestBody SellerAgreementSignTokenReqVO reqVO) {
+        return success(sellerPortalService.mintAgreementSignToken(reqVO));
+    }
+
     @PostMapping("/payments/received")
     @Operation(summary = "我收到了", description = "自然人自行确认，不改动银行状态")
     public CommonResult<Boolean> confirmReceived(@Valid @RequestBody SellerConfirmReceiveReqVO reqVO) {

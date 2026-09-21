@@ -33,6 +33,7 @@ import cn.iocoder.yudao.test.icbc.IcbcTenantTestConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import cn.iocoder.yudao.module.system.api.tenant.TenantApi;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.Rollback;
@@ -94,6 +95,13 @@ public class PublicOnboardingWizardServiceImplTest extends BaseDbUnitTest {
     private CardRecognitionPort cardRecognitionPort;
     @MockBean
     private EsignPort esignPort;
+    /**
+     * #95 起向导的协议落库会经 {@code SellerOnboardingServiceImpl#saveFrameworkAgreement} 走到
+     * 电子签章的租户配置链（{@code EsignTenantServiceImpl} 要 {@code TenantApi}）。
+     * 合并前 #94 的这条链不需要它；合并后需要——这是只在合并台上跑测试才会暴露的那一类。
+     */
+    @MockBean
+    private TenantApi tenantApi;
 
     @BeforeEach
     public void setUp() {
