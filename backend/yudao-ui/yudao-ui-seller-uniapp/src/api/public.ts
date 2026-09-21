@@ -131,5 +131,5 @@ export const syncOnboarding = (token: string) =>
   post<OnboardingStatusVO>(`/icbc/public/onboarding/sync?token=${encodeURIComponent(token)}`)
 
 /** 当前该做的工行建档页面 URL（后端输出自动提交表单 HTML，前端只负责承载） */
-export const onboardingFormUrl = (token: string, trxChannel: string) =>
-  `${API_BASE_URL}/icbc/public/onboarding/form?token=${encodeURIComponent(token)}&trxChannel=${trxChannel}`
+export const onboardingFormUrl = (token: string) =>
+  `${API_BASE_URL}/icbc/public/onboarding/form?token=${encodeURIComponent(token)}`

@@ -1,9 +1,5 @@
 <template>
-  <view v-if="webViewUrl" class="webview">
-    <web-view :src="webViewUrl" />
-  </view>
-
-  <view v-else class="page">
+  <view class="page">
     <view class="card">
       <view class="card__title">变更收款账户</view>
       <view class="kv">
@@ -22,20 +18,30 @@
         <input v-model="form.bankCardNo" class="input" type="number" placeholder="请输入本人银行卡号" />
       </view>
       <view class="field">
-        <text class="field__label">开户银行</text>
-        <input v-model="form.bankName" class="input" placeholder="例如：中国工商银行（选填）" />
+        <text class="field__label">这张卡是你本人的工行卡吗？</text>
+        <view class="radios">
+          <view
+            class="radio"
+            :class="{ 'radio--on': form.accountCode === '1' }"
+            @click="form.accountCode = '1'"
+          >
+            <text class="radio__dot" />是，本人工行卡
+          </view>
+          <view
+            class="radio"
+            :class="{ 'radio--on': form.accountCode === '0' }"
+            @click="form.accountCode = '0'"
+          >
+            <text class="radio__dot" />不是，其他银行
+          </view>
+        </view>
+        <view class="field__hint">是否我行卡由工行审核使用；填错会被驳回，所以请你本人确认。</view>
       </view>
-      <view class="field">
-        <text class="field__label">开户支行</text>
-        <input v-model="form.bankBranch" class="input" placeholder="例如：北京分行营业部（选填）" />
-      </view>
-      <button class="btn btn--primary" :loading="submitting" @click="onSubmit">
-        提交并去工行页面绑卡
-      </button>
+      <button class="btn btn--primary" :loading="submitting" @click="onSubmit">提交变更</button>
       <view v-if="error" class="error">{{ error }}</view>
       <view v-if="result" class="result">
         <view class="result__status">{{ result.statusName }}</view>
-        <view class="result__note">{{ result.scopeNote }}</view>
+        <view class="result__note">{{ result.scopeNote || result.message }}</view>
       </view>
     </view>
   </view>
@@ -45,7 +51,6 @@
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { requestBankCardChange, SellerBankCardChange } from '@/api/seller'
-import { onboardingFormUrl } from '@/api/public'
 import { useSellerAuthStore } from '@/store/auth'
 
 defineOptions({ name: 'SellerBankCard' })
@@ -56,26 +61,20 @@ const naturalPersonId = computed(() => auth.subject?.naturalPersonId || 0)
 const tenantId = ref(0)
 const enterpriseName = ref('')
 const cardTail = ref('')
-const webViewUrl = ref('')
 const submitting = ref(false)
 const error = ref('')
 const result = ref<SellerBankCardChange | null>(null)
-const form = reactive({ bankCardNo: '', bankName: '', bankBranch: '' })
+/** 是否本人我行卡：1-我行用户（默认），0-非我行用户 */
+const form = reactive({ bankCardNo: '', accountCode: '1' })
+
+/** 工行收方账号：16-19 位数字（与现场端、后台同一条规则） */
+const BANK_CARD_RE = /^\d{16,19}$/
 
 onLoad((query) => {
   tenantId.value = Number(query?.tenantId || 0)
   enterpriseName.value = decodeURIComponent(String(query?.enterpriseName || ''))
   cardTail.value = String(query?.cardTail || '')
 })
-
-function trxChannel(): string {
-  // #ifdef MP-WEIXIN
-  return '05'
-  // #endif
-  // #ifndef MP-WEIXIN
-  return '03'
-  // #endif
-}
 
 async function onSubmit() {
   error.value = ''
@@ -92,36 +91,25 @@ async function onSubmit() {
     error.value = '请填写新银行卡号'
     return
   }
+  if (!BANK_CARD_RE.test(cardNo)) {
+    error.value = '银行卡号应为 16-19 位数字，请核对后重填'
+    return
+  }
   submitting.value = true
   try {
-    const change = await requestBankCardChange({
+    // 后端直接走工行的收方修改数据接口提交（#89）：这里不再拿一次性令牌去开页面
+    result.value = await requestBankCardChange({
       naturalPersonId: naturalPersonId.value,
       tenantId: tenantId.value,
       bankCardNo: cardNo,
-      bankName: form.bankName || undefined,
-      bankBranch: form.bankBranch || undefined
+      accountCode: form.accountCode
     })
-    result.value = change
-    uni.showToast({ title: change.statusName || '已提交银行审核', icon: 'none' })
-    if (change.token) {
-      openIcbcForm(change.token)
-    }
+    uni.showToast({ title: result.value.statusName || '已提交银行审核', icon: 'none' })
   } catch (e) {
     error.value = (e as Error).message
   } finally {
     submitting.value = false
   }
-}
-
-/** 用 ONBOARDING 一次性令牌打开后端输出的工行收方入驻表单（与首次建档同一套机制） */
-function openIcbcForm(token: string) {
-  const url = onboardingFormUrl(token, trxChannel())
-  // #ifdef H5
-  window.open(url, '_blank')
-  // #endif
-  // #ifndef H5
-  webViewUrl.value = url
-  // #endif
 }
 </script>
 
@@ -147,7 +135,6 @@ function openIcbcForm(token: string) {
   display: flex;
   justify-content: space-between;
   gap: 24rpx;
-  padding: 10rpx 0;
 
   &__k {
     color: $seller-text-secondary;
@@ -155,26 +142,66 @@ function openIcbcForm(token: string) {
 }
 
 .field {
-  margin-bottom: 20rpx;
+  margin-bottom: 24rpx;
 
   &__label {
     display: block;
-    margin-bottom: 8rpx;
+    margin-bottom: 12rpx;
     color: $seller-text-secondary;
+    font-size: 26rpx;
+  }
+
+  &__hint {
+    margin-top: 10rpx;
+    color: $seller-text-secondary;
+    font-size: 24rpx;
+    line-height: 1.6;
   }
 }
 
 .input {
-  width: 100%;
   height: 80rpx;
   padding: 0 20rpx;
-  background-color: #f7f8fa;
+  background-color: #f5f6f8;
   border-radius: 12rpx;
+}
+
+.radios {
+  display: flex;
+  gap: 16rpx;
+}
+
+.radio {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 18rpx 20rpx;
+  background-color: #f5f6f8;
+  border: 1rpx solid transparent;
+  border-radius: 12rpx;
+
+  &--on {
+    background-color: #eef4ff;
+    border-color: $seller-primary;
+    color: $seller-primary;
+  }
+
+  &__dot {
+    width: 20rpx;
+    height: 20rpx;
+    border-radius: 50%;
+    background-color: #c9d2dc;
+  }
+
+  &--on &__dot {
+    background-color: $seller-primary;
+  }
 }
 
 .btn {
   width: 100%;
-  margin-top: 12rpx;
+  margin-top: 8rpx;
 
   &--primary {
     color: #ffffff;
@@ -189,35 +216,28 @@ function openIcbcForm(token: string) {
   line-height: 1.7;
 
   &--strong {
-    color: #cf1322;
+    color: $seller-text;
   }
 }
 
 .result {
   margin-top: 20rpx;
-  padding-top: 16rpx;
-  border-top: 1rpx solid #eef0f3;
 
   &__status {
-    margin-bottom: 8rpx;
+    color: #b26a00;
     font-weight: 600;
-    color: $seller-primary;
   }
 
   &__note {
+    margin-top: 8rpx;
     color: $seller-text-secondary;
-    font-size: 24rpx;
-    line-height: 1.7;
+    font-size: 26rpx;
+    line-height: 1.6;
   }
 }
 
 .error {
   margin-top: 16rpx;
   color: #cf1322;
-}
-
-.webview {
-  width: 100%;
-  height: 100vh;
 }
 </style>

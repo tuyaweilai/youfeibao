@@ -52,12 +52,19 @@ public interface SellerPortalService {
     SellerProfileRespVO getProfile(Long naturalPersonId);
 
     /**
-     * 发起变更收款账户（换银行卡，#37）：卡号由他本人填，随后走工行收方入驻 H5 完成新卡绑定与审核。
+     * 发起变更收款账户（换银行卡，#37 / #89）：卡号与「是否本人我行卡」由他本人填，
+     * 后端直接走工行的**收方修改数据接口**提交（不再拿一次性令牌去开页面）。
      *
-     * <p>返回一枚 {@code ONBOARDING} 一次性令牌，自然人端用它打开后端输出的工行自动提交表单。
-     * 只允许换本人在**指定回收企业**登记的那一个收款账户；不允许多张卡（ADR 0010）。
+     * <p>只允许换本人在**指定回收企业**登记的那一个收款账户；不允许多张卡（ADR 0010）。
+     * 审核期间该企业新交易的付款会挂起，原卡在审核通过前仍然有效。
      */
     SellerBankCardChangeRespVO requestBankCardChange(SellerBankCardChangeReqVO reqVO, String ip);
+
+    /**
+     * 取实名认证入口（#89）：签发一枚 {@code ONBOARDING} 一次性令牌，本人在自己微信里打开工行
+     * 实人认证页面。实名是本人动作，入驻由平台在实名通过后自动发起（ADR 0035）。
+     */
+    SellerRealNameLinkRespVO mintRealNameLink(SellerRealNameLinkReqVO reqVO);
 
     /**
      * 「我收到了」：自然人自行确认，不改动银行状态。

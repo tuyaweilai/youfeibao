@@ -24,6 +24,9 @@ public class SellerProfileRespVO {
     @Schema(description = "脱敏身份证号", example = "110101********1234")
     private String idCardMasked;
 
+    @Schema(description = "实人认证状态值（0 未认证 / 1 认证中 / 2 认证通过 / 3 认证未通过）", example = "2")
+    private Integer realNameStatus;
+
     @Schema(description = "实人认证状态名", example = "已实名")
     private String realNameStatusName;
 

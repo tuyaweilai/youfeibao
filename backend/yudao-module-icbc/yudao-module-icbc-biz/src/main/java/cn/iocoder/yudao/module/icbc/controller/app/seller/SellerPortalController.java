@@ -92,10 +92,17 @@ public class SellerPortalController {
 
     @PostMapping("/bank-card/change")
     @Operation(summary = "变更收款账户（换银行卡）",
-            description = "卡号由本人填；返回一次性 ONBOARDING 令牌，前端用它打开工行收方入驻表单。审核期间新交易的付款挂起。")
+            description = "只收卡号与「是否本人我行卡」；后端直接走工行收方修改数据接口提交。审核期间新交易的付款挂起。")
     public CommonResult<SellerBankCardChangeRespVO> requestBankCardChange(
             @Valid @RequestBody SellerBankCardChangeReqVO reqVO) {
         return success(sellerPortalService.requestBankCardChange(reqVO, getClientIP()));
+    }
+
+    @PostMapping("/real-name/link")
+    @Operation(summary = "取实名认证入口", description = "签发一次性令牌，本人在自己微信里完成人脸；入驻由平台自动发起")
+    public CommonResult<SellerRealNameLinkRespVO> realNameLink(
+            @Valid @RequestBody SellerRealNameLinkReqVO reqVO) {
+        return success(sellerPortalService.mintRealNameLink(reqVO));
     }
 
     @PostMapping("/payments/received")

@@ -1,11 +1,13 @@
 package cn.iocoder.yudao.module.icbc.service.sellerportal.impl;
 
 import cn.hutool.core.util.StrUtil;
+import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceFileRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeBankCardChangeSaveReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.SellerOnboardingSubmitReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenCreateReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.settlement.vo.SettlementRespVO;
@@ -30,6 +32,7 @@ import cn.iocoder.yudao.module.icbc.enums.*;
 import cn.iocoder.yudao.module.icbc.service.download.InvoiceDownloadService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
+import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
 import cn.iocoder.yudao.module.icbc.service.sellerportal.SellerPortalService;
 import cn.iocoder.yudao.module.icbc.service.settlement.SettlementService;
 import cn.iocoder.yudao.module.icbc.service.station.StationService;
@@ -114,6 +117,8 @@ public class SellerPortalServiceImpl implements SellerPortalService {
     private StationService stationService;
     @Resource
     private PublicTokenService publicTokenService;
+    @Resource
+    private SellerOnboardingService sellerOnboardingService;
 
     // ==================== 首页 ====================
 
@@ -333,6 +338,7 @@ public class SellerPortalServiceImpl implements SellerPortalService {
         resp.setMobileMasked(MaskUtils.maskMobile(person.getMobile()));
         resp.setIdCardMasked(MaskUtils.maskIdCard(person.getIdCardNo()));
         PayeeRealNameStatusEnum realName = PayeeRealNameStatusEnum.of(person.getRealNameStatus());
+        resp.setRealNameStatus(person.getRealNameStatus());
         resp.setRealNameStatusName(realName == null ? null : realName.getName());
         resp.setServiceMobile(serviceMobile);
         resp.setLogoutNote("注销账号不等于删除交易记录：交易记录是税务凭证，会永久保留");
@@ -398,11 +404,20 @@ public class SellerPortalServiceImpl implements SellerPortalService {
         saveReqVO.setRequestIp(ip);
         IcbcPayeeBankCardChangeDO change = TenantUtils.execute(tenantId,
                 () -> payeeBankCardChangeService.requestChange(saveReqVO));
-        // 一次性的 ONBOARDING 令牌：用它打开后端输出的工行收方入驻表单，与首次建档同一套机制
-        PublicTokenCreateReqVO tokenReqVO = new PublicTokenCreateReqVO();
-        tokenReqVO.setPurpose(PublicTokenPurposeEnum.ONBOARDING.getCode());
-        tokenReqVO.setPayeeId(payee.getId());
-        PublicTokenRespVO token = TenantUtils.execute(tenantId, () -> publicTokenService.mint(tokenReqVO));
+        // 直接提交给工行的**收方修改数据接口**（#89）：不再把一次性令牌交给本人去开页面
+        try {
+            SellerOnboardingSubmitReqVO submitReqVO = new SellerOnboardingSubmitReqVO();
+            submitReqVO.setPayeeId(payee.getId());
+            // 用 Runnable 重载：Callable 那支会把 ServiceException 包成 RuntimeException，下面接不住
+            TenantUtils.execute(tenantId, () -> {
+                sellerOnboardingService.submitOnboarding(submitReqVO);
+            });
+        } catch (ServiceException e) {
+            // 工行没受理：把在途变更取消掉，否则该企业新交易的付款会一直挂起，而本人又无从重试
+            TenantUtils.execute(tenantId, () -> payeeBankCardChangeService.cancelChange(
+                    change.getId(), "工行受理失败，自动取消"));
+            throw e;
+        }
 
         SellerBankCardChangeRespVO resp = new SellerBankCardChangeRespVO();
         resp.setChangeNo(change.getChangeNo());
@@ -410,10 +425,28 @@ public class SellerPortalServiceImpl implements SellerPortalService {
         resp.setStatusName(PayeeBankCardChangeStatusEnum.nameOf(change.getStatus()));
         resp.setOldCardTail(change.getOldCardTail());
         resp.setNewCardTail(MaskUtils.cardTail(change.getNewBankCardNo()));
+        resp.setMessage("银行已受理，审核结果以银行为准。");
+        resp.setScopeNote("新卡审核通过前，原卡仍然有效；审核期间该企业新交易的付款会挂起，不会打到废卡。");
+        return resp;
+    }
+
+    @Override
+    public SellerRealNameLinkRespVO mintRealNameLink(SellerRealNameLinkReqVO reqVO) {
+        assertBound(reqVO.getNaturalPersonId());
+        // 本人可能在多家企业都有档案；实名是平台级的，任取其一（这里由调用方给，且必须是他的）
+        PayeeInfoDO payee = payeesOf(reqVO.getNaturalPersonId()).stream()
+                .filter(item -> Objects.equals(item.getId(), reqVO.getPayeeId()))
+                .findFirst()
+                .orElseThrow(() -> exception(SELLER_RECORD_NOT_FOUND));
+        PublicTokenCreateReqVO tokenReqVO = new PublicTokenCreateReqVO();
+        tokenReqVO.setPurpose(PublicTokenPurposeEnum.ONBOARDING.getCode());
+        tokenReqVO.setPayeeId(payee.getId());
+        // 令牌要落到该档案所属租户下，公开端点才能把请求放回正确的企业
+        PublicTokenRespVO token = TenantUtils.execute(payee.getTenantId(), () -> publicTokenService.mint(tokenReqVO));
+        SellerRealNameLinkRespVO resp = new SellerRealNameLinkRespVO();
         resp.setToken(token.getToken());
         resp.setExpiresTime(token.getExpiresTime());
-        resp.setMessage("请到工行页面绑定你的新银行卡；审核结果以银行为准。");
-        resp.setScopeNote("新卡审核通过前，原卡仍然有效；审核期间该企业新交易的付款会挂起，不会打到废卡。");
+        resp.setMessage("实名由你本人在微信里完成；完成后收方入驻由平台自动办理，你不需要再操作。");
         return resp;
     }
 

@@ -61,7 +61,6 @@ export interface SellerOnboardingSubmitReq {
   payeeId: number
   idSignDate?: string
   idValidityPeriod?: string
-  trxChannel?: string
   bankName?: string
   bankBranch?: string
 }

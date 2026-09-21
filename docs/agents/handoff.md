@@ -1892,3 +1892,43 @@ canvas + `toDataURL` 渲染器已打包；自然人端 `pnpm ts:check` 零错误
 这次是同一个坑。
 
 **frontier**：#87 已解。只剩 **#89（自然人端重做）** 与 **#90（司机端实名枚举值）**；#80 的子票收完即可收父票。
+
+## #89 自然人端：实名入口与结算确认页的提醒（已落地）
+
+自然人端的三处调整，把「实名是本人动作、入驻是平台动作」在界面上说清。
+
+1. **tab 改名**：`pages/index/index.vue` 的「实名与入驻」→「实名认证」，页头标题同步；入驻状态仍**只读展示**，
+   本人端没有任何「发起入驻」按钮（入驻由平台在实名通过后自动发起）。
+2. **换卡表单对齐**：`pages/bankCard/index.vue` 只收**新银行卡号 + 是否本人我行卡**（单选），
+   卡号按 16–19 位数字校验。后端 `SellerPortalServiceImpl.requestBankCardChange` 在落变更单后
+   **直接调工行收方修改数据接口提交**（不再返回一次性令牌、不再开页面）；工行没受理时**自动取消**在途变更
+   （否则该企业新交易的付款会一直挂起，而本人又无从重试）。`SellerBankCardChangeRespVO` 删掉
+   `token` / `expiresTime`。
+3. **结算确认页加实名提醒**（`pages/settlement/detail.vue`）：`getProfile` 拿 `realNameStatus`，
+   未通过（≠2）时显示「这笔货款打不到你的银行卡」+「去实名（用微信打开）」。**确认按钮照常可点**——
+   确认表达的是认可重量与钱，与身份是两件事，不互相绑架。去实名 = 调新增的
+   `POST /icbc/seller/portal/real-name/link` 取 ONBOARDING 令牌 → 回自然人端实名 tab（那边按环境决定怎么走）。
+4. **非微信降级加二维码**：`pages/index/index.vue` 的非微信提示里加了二维码（本页链接），微信扫一下就能做脸；
+   复制链接仍在。为此自然人端加了 `qrcode` 依赖（+ `dijkstrajs` 显式依赖、`optimizeDeps.include`、本地 `qrcode.d.ts`，
+   与现场端 #88 同一套做法）；**import 用 `// #ifdef H5` 包住**，否则小程序包会带上 canvas 版渲染器。
+5. **顺带清掉的死字段**：`onboardingFormUrl(token, trxChannel)` 的 `trxChannel`（实名页接口根本不要它，
+   是 #84 记下的遗留）与 `field-shared` 的 `SellerOnboardingSubmitReq.trxChannel` 一并删除。
+
+**后端新增/改动**：`SellerProfileRespVO` 加 `realNameStatus`（结算页据此判断，不拿状态名比字符串）；
+`SellerPortalService.mintRealNameLink` + `SellerPortalController POST /real-name/link`；
+`requestBankCardChange` 改为提交 + 失败自动取消。
+
+**验收实测**：ICBC 模块 **728 个测试全绿**（#87 的 725 + 本票 3：换卡提交并生效卡不动、
+工行拒绝时自动取消且付款不再挂起、实名入口令牌与「别人的档案被拒」）；全量 `compile` 通过；
+自然人端 `ts:check` 零错误 + `build:h5` / `build:mp-weixin` 都通过（mp 包里**没有** canvas 渲染器）；
+现场端 / 司机端 `ts:check` 零错误。本地起服后实测：公开端点
+`GET /icbc/public/onboarding/page?token=…` 对未实名的人回 `step=REAL_NAME` 与 form（AC「二维码 / 链接进入、
+不用注册就能实名」这条路径通），`POST /app-api/icbc/seller/portal/{real-name/link,bank-card/change}` 未带
+member 令牌回 `code=401 账号未登录`。
+
+**这一票踩到的坑**：`TenantUtils.execute(tenantId, Callable)` 会把**任何**异常（含 `ServiceException`）
+包成 `RuntimeException`，`catch (ServiceException)` 接不住；要用 `TenantUtils.execute(tenantId, Runnable)`
+（块体 lambda，不返回值那支）。「提交失败自动取消换卡单」就栽在这上面。
+
+**frontier**：#89 已解。EPIC #80 的子票（#82/#83/#84/#85/#86/#87/#88/#89）**全部完成**，可以收父票 #80；
+剩下 #90（司机端实名枚举值的小 bug）与 #81（建档向导，无 spec，需先盘问）。

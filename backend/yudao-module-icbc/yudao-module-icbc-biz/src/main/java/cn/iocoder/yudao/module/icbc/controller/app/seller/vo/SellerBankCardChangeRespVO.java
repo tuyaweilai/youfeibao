@@ -3,13 +3,10 @@ package cn.iocoder.yudao.module.icbc.controller.app.seller.vo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-import java.time.LocalDateTime;
-
 /**
- * 自然人端 - 发起变更收款账户的返回。
+ * 自然人端 - 发起变更收款账户的返回（#37 / #89）。
  *
- * <p>返回一枚 {@code ONBOARDING} 一次性令牌：自然人端用它打开**后端输出的工行收方入驻自动提交表单**
- * （{@code /icbc/public/onboarding/form?token=...}），与首次建档走的是同一套机制（ADR 0010）。
+ * <p>换卡走工行的**收方修改数据接口**（后端直接提交，ADR 0035），本人端不再拿一次性令牌去开页面。
  * 状态文案只说可核验的事：工行的审核结果拿到之前是「银行审核中」，不是「已换卡」。
  */
 @Schema(description = "自然人端 - 变更收款账户返回")
@@ -30,12 +27,6 @@ public class SellerBankCardChangeRespVO {
 
     @Schema(description = "待变更的新卡尾号", example = "5678")
     private String newCardTail;
-
-    @Schema(description = "工行收方入驻一次性令牌（用途 ONBOARDING）")
-    private String token;
-
-    @Schema(description = "令牌过期时间")
-    private LocalDateTime expiresTime;
 
     @Schema(description = "给自然人看的一句话说明")
     private String message;

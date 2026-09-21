@@ -49,10 +49,10 @@
         <view v-else class="error">{{ error }}</view>
       </view>
 
-      <!-- 实名与收方入驻 -->
+      <!-- 实名认证（入驻由平台自动做，不在本人端发起） -->
       <view v-if="activeTab === 'onboarding'" class="card">
         <view v-if="onboarding" class="quota">
-          <view class="quota__name">实名与收方入驻</view>
+          <view class="quota__name">实名认证</view>
           <view class="quota__message">{{ onboarding.message }}</view>
           <!-- 从工行实名结果页跳回来的落点（#82）：不用再点「查询结果」，打开就是最新状态 -->
           <view v-if="faceReturn === 'face-success'" class="face-return face-return--ok">
@@ -73,7 +73,10 @@
           <view v-if="notInWechat && onboarding.step !== 'DONE'" class="wechat-guide">
             <view class="wechat-guide__title">请用微信打开才能做人脸</view>
             <view class="wechat-guide__desc">
-              工行实人认证只在微信里能唤起。把本页链接发到微信里打开（或在微信里扫现场的二维码），再完成人脸。
+              工行实人认证只在微信里能唤起。用微信扫下面的码，或把本页链接发到微信里打开，再完成人脸。
+            </view>
+            <view v-if="qrDataUrl" class="wechat-guide__qr">
+              <image class="wechat-guide__qr-img" :src="qrDataUrl" mode="aspectFit" />
             </view>
             <button class="btn btn--ghost" @click="copyCurrentUrl">复制本页链接</button>
           </view>
@@ -166,6 +169,9 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+// #ifdef H5
+import QRCode from 'qrcode'
+// #endif
 import { queryQuota, queryNotice, querySettlement, submitContactLead, syncOnboarding, onboardingFormUrl, QuotaVO, SettlementVO, OnboardingStatusVO, PublicNoticeVO } from '@/api/public'
 import { resolveEntryParams, resolveFaceReturn, resolveStationCode, setPurpose, setToken } from '@/utils/token'
 import { getSubject, getToken } from '@/utils/auth'
@@ -185,7 +191,7 @@ const PURPOSE_SECTION: Record<string, string> = {
 
 const ALL_TABS = [
   { key: 'notice', label: '待办提醒' },
-  { key: 'onboarding', label: '实名与入驻' },
+  { key: 'onboarding', label: '实名认证' },
   { key: 'quota', label: '我的额度' },
   { key: 'invoice', label: '我的发票' },
   { key: 'settlement', label: '汇算清缴' },
@@ -205,6 +211,7 @@ const settlement = ref<SettlementVO | null>(null)
 const onboarding = ref<OnboardingStatusVO | null>(null)
 const webViewUrl = ref('')
 const notInWechat = ref(false)
+const qrDataUrl = ref('')
 const faceReturn = ref('')
 const contact = reactive({ name: '', mobile: '', remark: '' })
 
@@ -236,6 +243,12 @@ onLoad(() => {
     setToken(params.token)
     setPurpose(params.purpose)
     activeTab.value = PURPOSE_SECTION[params.purpose] || 'quota'
+    // 非微信环境给一个可扫的二维码（#89）：码就是本页链接，用微信扫开就能做脸
+    // #ifdef H5
+    if (notInWechat.value) {
+      renderQr()
+    }
+    // #endif
     loadActive()
     return
   }
@@ -313,17 +326,21 @@ function copyCurrentUrl() {
   })
 }
 
-function trxChannel(): string {
-  // #ifdef MP-WEIXIN
-  return '05'
-  // #endif
-  // #ifndef MP-WEIXIN
-  return '03'
+/** 非微信环境下的二维码：把当前页链接（含令牌）编成码，微信扫一下就能做脸 */
+async function renderQr() {
+  // #ifdef H5
+  try {
+    qrDataUrl.value = await QRCode.toDataURL(window.location.href,
+      { width: 240, margin: 1, errorCorrectionLevel: 'M' })
+  } catch {
+    qrDataUrl.value = ''
+  }
   // #endif
 }
 
 function openOnboardingForm() {
-  const url = onboardingFormUrl(token.value, trxChannel())
+  // 实名页是工行的页面接口，不需要交易渠道参数（#84 清掉的那个同名字段是另一套字典）
+  const url = onboardingFormUrl(token.value)
   // #ifdef H5
   window.open(url, '_blank')
   // #endif
@@ -619,6 +636,19 @@ async function onSubmitContact() {
     color: #b26a00;
     font-size: 26rpx;
     line-height: 1.6;
+  }
+
+  &__qr {
+    display: flex;
+    justify-content: center;
+    padding: 16rpx 0 8rpx;
+  }
+
+  &__qr-img {
+    width: 300rpx;
+    height: 300rpx;
+    background-color: #ffffff;
+    border-radius: 8rpx;
   }
 }
 

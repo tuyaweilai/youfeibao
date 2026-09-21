@@ -14,6 +14,8 @@ export interface SellerSubject {
   name?: string
   mobile?: string
   idCardNo?: string
+  /** 实名状态值（0 未认证 / 1 认证中 / 2 认证通过 / 3 认证未通过） */
+  realNameStatus?: number
   realNameStatusName?: string
 }
 
@@ -157,6 +159,8 @@ export interface SellerProfile {
   name?: string
   mobileMasked?: string
   idCardMasked?: string
+  /** 实名状态值（0 未认证 / 1 认证中 / 2 认证通过 / 3 认证未通过） */
+  realNameStatus?: number
   realNameStatusName?: string
   serviceMobile?: string
   logoutNote?: string
@@ -186,29 +190,45 @@ export const getProfile = (naturalPersonId: number) =>
 
 // ==================== 变更收款账户（换银行卡，#37） ====================
 
-/** 变更返回：携带一枚 ONBOARDING 一次性令牌，用它打开工行收方入驻表单 */
+/** 变更返回：工行收方修改数据接口已受理后的状态（#89 后不再返回一次性令牌） */
 export interface SellerBankCardChange {
   changeNo?: string
   status?: number
   statusName?: string
   oldCardTail?: string
   newCardTail?: string
-  token?: string
-  expiresTime?: string
   message?: string
   scopeNote?: string
 }
 
 /**
- * 发起变更收款账户。换卡要重走工行收方入驻（ADR 0010）：卡号由本人填，审核期间新交易的付款会挂起。
+ * 发起变更收款账户（换银行卡）。后端直接走工行收方修改数据接口提交：卡号由本人填，
+ * 审核期间新交易的付款会挂起，原卡在审核通过前仍然有效。
  */
 export const requestBankCardChange = (data: {
   naturalPersonId: number
   tenantId: number
   bankCardNo: string
+  /** 是否本人我行卡：0-非我行用户，1-我行用户 */
+  accountCode?: string
   bankName?: string
   bankBranch?: string
 }) => appPost<SellerBankCardChange>('/icbc/seller/portal/bank-card/change', data)
+
+// ==================== 实名认证入口（#89） ====================
+
+export interface SellerRealNameLink {
+  token?: string
+  expiresTime?: string
+  message?: string
+}
+
+/**
+ * 取实名认证入口：签发一枚 ONBOARDING 一次性令牌，本人用它在自己微信里完成人脸。
+ * 入驻由平台在实名通过后自动发起，本人不需要再点任何东西。
+ */
+export const mintRealNameLink = (naturalPersonId: number, payeeId: number) =>
+  appPost<SellerRealNameLink>('/icbc/seller/portal/real-name/link', { naturalPersonId, payeeId })
 
 export const confirmReceived = (naturalPersonId: number, paymentOrderId: number) =>
   appPost<boolean>('/icbc/seller/portal/payments/received', { naturalPersonId, paymentOrderId })

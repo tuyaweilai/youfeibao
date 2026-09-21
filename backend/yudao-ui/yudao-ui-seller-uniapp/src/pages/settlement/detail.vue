@@ -19,6 +19,15 @@
         <view v-if="settlement.deadlineTime" class="deadline">确认截止 {{ formatTime(settlement.deadlineTime) }}</view>
       </view>
 
+      <view v-if="!realNamePassed" class="card realname">
+        <view class="realname__title">你还未完成实名，这笔货款打不到你的银行卡</view>
+        <view class="realname__desc">
+          实名由你本人在微信里完成（人脸核验）；完成后收方入驻由平台自动办理。
+          这不影响你先确认下面的重量与金额。
+        </view>
+        <button class="btn btn--primary" :loading="linking" @click="goRealName">去实名（用微信打开）</button>
+      </view>
+
       <view v-if="settlement.enterpriseReplyNote || settlement.enterpriseNotReplied" class="card reply">
         <view v-if="settlement.enterpriseReplyNote" class="reply__line">
           企业回复：{{ settlement.enterpriseReplyNote }}
@@ -74,7 +83,9 @@ import { onLoad } from '@dcloudio/uni-app'
 import {
   confirmSettlement,
   disputeSettlement,
+  getProfile,
   getSettlement,
+  mintRealNameLink,
   Settlement
 } from '@/api/seller'
 import { useSellerAuthStore } from '@/store/auth'
@@ -90,6 +101,9 @@ const error = ref('')
 const agreed = ref(false)
 const submitting = ref(false)
 const settlementId = ref(0)
+/** 实名是否已通过（默认 true：进度没拿到之前不吓人）。实名与确认是两件事，不阻断确认 */
+const realNamePassed = ref(true)
+const linking = ref(false)
 
 const confirmed = computed(() => [1, 4].includes(settlement.value?.confirmStatus ?? -1))
 const actionable = computed(() => [0, 2, 3].includes(settlement.value?.confirmStatus ?? -1))
@@ -113,10 +127,38 @@ async function load() {
   error.value = ''
   try {
     settlement.value = await getSettlement(naturalPersonId.value, settlementId.value)
+    // 实名是平台级的、记在自然人主体上：拿它决定要不要显示提醒（不改确认动作）
+    const profile = await getProfile(naturalPersonId.value)
+    realNamePassed.value = profile.realNameStatus === 2
   } catch (e) {
     error.value = (e as Error).message
   } finally {
     loading.value = false
+  }
+}
+
+/**
+ * 去实名：取一枚 ONBOARDING 一次性令牌，回到自然人端的实名入口。
+ * 人脸只在微信环境能唤起，那边会按环境给出「用微信打开」的二维码指引（不在这里静默失败）。
+ */
+async function goRealName() {
+  if (!settlement.value?.payeeId) {
+    uni.showToast({ title: '缺少收方档案，请联系客服', icon: 'none' })
+    return
+  }
+  linking.value = true
+  try {
+    const link = await mintRealNameLink(naturalPersonId.value, settlement.value.payeeId)
+    if (!link.token) {
+      throw new Error('未取到实名入口，请稍后重试')
+    }
+    uni.navigateTo({
+      url: `/pages/index/index?token=${encodeURIComponent(link.token)}&purpose=ONBOARDING`
+    })
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message, icon: 'none' })
+  } finally {
+    linking.value = false
   }
 }
 
@@ -247,6 +289,23 @@ function formatTime(time?: string) {
       margin-top: 8rpx;
       color: #b26a00;
     }
+  }
+}
+
+.realname {
+  background-color: #fff7e6;
+  border: 1rpx solid #f0d9a8;
+
+  &__title {
+    font-weight: 600;
+    color: #b26a00;
+  }
+
+  &__desc {
+    margin: 12rpx 0 20rpx;
+    color: #8a6a1f;
+    font-size: 26rpx;
+    line-height: 1.7;
   }
 }
 
