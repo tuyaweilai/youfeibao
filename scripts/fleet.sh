@@ -349,11 +349,12 @@ cmd_integrate() {
   fi
 
   local merged_sha; merged_sha=$(git -C "$ROOT" rev-parse --short HEAD)
-  local files; files=$(git -C "$ROOT" diff --name-only "HEAD^1..HEAD" | wc -l | tr -d ' ')
+  local files; files=$(git -C "$ROOT" diff --name-only "${merged_sha}^1..${merged_sha}" | wc -l | tr -d ' ')
   local summary; summary=$(test_summary "$FLEET/logs/$n.tests.log" 2>/dev/null)
 
-  # 日志路径按 state 里记的来：收养的票日志在仓库外（/tmp），写死 $FLEET/logs/$n.log 会找不到
+  # 日志路径按 state 里记的来（收养的票在仓库外，如 /tmp）；记的路径不存在就退回默认位置。
   local log; log=$(state_field "$n" 8)
+  [ -n "$log" ] && [ -f "$log" ] || log="$FLEET/logs/$n.log"
   local review_note=""
   if [ -f "$FLEET/gates/$n.review.md" ]; then
     review_note="
@@ -384,6 +385,7 @@ cmd_integrate() {
   }
 
   local log; log=$(state_field "$n" 8)
+  [ -n "$log" ] && [ -f "$log" ] || log="$FLEET/logs/$n.log"
   local tail_report; tail_report=$(sed -n '/验收清单/,$p' "$log" 2>/dev/null | head -20)
   gh issue comment "$n" --body "自动舰队已合并到 main：
 - 合并提交 \`$merged_sha\`（$commits 个提交，$files 个文件）
