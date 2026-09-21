@@ -2395,3 +2395,52 @@ member 令牌回 `code=401 账号未登录`。
 - 分支 `i95-` → `a78cb1f8`：59 个文件、3 个提交
 - 独立评审：PASS（报告 `.fleet/gates/95.review.md`）
 - 闸门：全量 icbc `[WARNING] Tests run: 892, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/95.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/95.log`（`.fleet/` 与收养票的仓库外日志不入库）
+
+---
+
+## 自然人建档向导整条链（#91–#95）已全部合并
+
+`#81` 拆出的五张票用 `scripts/fleet.sh` 编排跑完并合入 main，全部 CLOSED。
+每张票的段位、复审报告与运行日志见 `.fleet/`（不入库）；票面上的证据评论在议题里。
+
+| 票 | 合并提交 | 全量 icbc | 独立评审 |
+|---|---|---|---|
+| #91 建档向导（现场端壳） | `3b7fd0b8` | 778 | BLOCK×2 → PASS |
+| #92 电子签章端口与租户开通 | `ce816d6f` | 761 | BLOCK×1 → PASS |
+| #93 腾讯云卡证识别接入 | `db29c06f` | 831 | BLOCK×1 → PASS |
+| #94 免注册链接壳 | `91be1bb3` | 859 | BLOCK×2 → PASS |
+| #95 合同组电子签署 | `a78cb1f8` | 892 | BLOCK×2 → PASS |
+
+最终 `main` 全量 **892 通过 / 0 失败 / 2 skip**（`BUILD SUCCESS`）。
+
+**独立评审拦下的、单测与「验收逐条核」都看不见的东西**（这是这次最值得记的）：
+
+1. 证件有效期没落自然人主体（与 `CONTEXT.md` 的模型相抵）——作者自己记为缺口，评审判 BLOCK 才补。
+2. **证件影像进了平台访问日志**——三枚识别接口的请求体就是影像 base64，而 `ApiAccessLogFilter`
+   默认记录所有 `/admin-api` 请求体、`SANITIZE_KEYS` 只脱敏 password/token，且
+   `access-log.enable: false` **只在 local profile** 有。等于每次识别约 8KB 影像进 `infra_api_access_log`。
+3. **回调地址没登记 `yudao.tenant.ignore-urls`**——`TenantSecurityWebFilter` 会在 Controller 之前 400，
+   19 个单测照不见它。
+4. **腾讯云字段名读错**：电子卡截图读 `CardType` 而非 `CardCategory`；`BankCardOCR` 没有 `AdvancedInfo`
+   （告警在顶层 `WarningCode`、质量分在 `QualityValue`，且要带四个 `Enable*` 开关）；
+   身份证告警在 `AdvancedInfo.WarnInfos` 的码表里。**单测喂的正是厂商不会返回的形状**，
+   于是「全绿」与「真机上什么都不做」同时成立。
+5. **跨租户越权**：`PublicTokenServiceImpl.revoke` 不比对租户，而那张表在 `ignore-tables` 里 →
+   任一租户的收货员/开票员拿到别家令牌串就能作废别家的链接。
+6. **免登录改写生效中的卡号**：自填壳对已入驻档案无条件写卡，绕开 #37 换卡状态机（不进工行、不复审）。
+7. 「点去签署」在任何一个客户端上都不存在（#95 与 #94 互相以为对方会做），且现场端文案与页面事实相反。
+
+**另有两处只在合并台上才暴露的问题**：
+- `PublicOnboardingWizardServiceImplTest` 在 #95 合并后 15 个用例全 `BeanCreation`——
+  #95 让向导协议落库走到电子签章的租户配置链（要 `TenantApi`），#94 那条链原先不需要。
+  **两票各自的分支上都是绿的**。补 `@MockBean TenantApi` 后恢复。
+- 两票各自给同一个「去重后的租户助手」起了名（`PublicTenantCall` / `TenantCalls`），合并时收成一个。
+
+**另开了三张后续票**（评审发现、当时未修）：
+- `#97` `icbc_payee_info` 的唯一键不含 `tenant_id` → 跨企业建档在生产库上会撞唯一键（测试建表却是含 tenant_id 的）。
+- `#98` 平台访问日志默认把 `/admin-api` 请求体写库，PII 请求体需要面级收口。
+- `#91` 的 `submit` 非幂等：弱网重提会撞「本企业已有档案」，不是向导内闭环（记在 #91 的收尾评论里）。
+
+**跑法**：`scripts/fleet.sh plan` 先看波次，`run` 才会动东西（`REVIEW=1 PUSH=1 MAX_PARALLEL=2`）。
+它不做的事写在脚本头：不解合并冲突（撞了就 abort + 标 `ready-for-human`）、不自动重试失败票、
+不替代人工验收（真机相机 / 第三方联调）。

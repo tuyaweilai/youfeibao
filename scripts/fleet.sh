@@ -170,7 +170,13 @@ cmd_launch() {
 
   lock alloc
   local ec menu; ec=$(next_ec_segment); menu=$(next_menu_segment)
-  local slug; slug=$(gh issue view "$n" --json title -q .title | tr -c 'A-Za-z0-9' '-' | sed 's/-\{2,\}/-/g;s/^-//;s/-$//' | cut -c1-28)
+  # 标题纯中文时 tr 会把整串变成连字符、洗成空串，于是分支名成了 `i93-`。
+  # 空 slug 就退回 `ticket`；真要好看就在 brief 里写 `<!-- slug: xxx -->`。
+  local slug; slug=$(sed -n 's/^<!-- *slug: *\(.*\) *-->$/\1/p' "$BRIEFS/$n.md" | head -1)
+  if [ -z "$slug" ]; then
+    slug=$(gh issue view "$n" --json title -q .title | tr -c 'A-Za-z0-9' '-' | sed 's/-\{2,\}/-/g;s/^-//;s/-$//' | cut -c1-28)
+  fi
+  [ -z "$slug" ] && slug=ticket
   local branch="i$n-$slug" wt="$PARENT/youfeibao-$n" log="$FLEET/logs/$n.log"
   unlock alloc
 
