@@ -41,9 +41,10 @@ public class PayerInfoServiceImpl implements PayerInfoService {
         createReqVO.setCreditCode(normalizePayerKey(createReqVO.getCreditCode()));
         createReqVO.setTaxNo(normalizePayerKey(createReqVO.getTaxNo()));
 
-        // 2. 校验唯一性：先本租户（读得到就直说），再跨租户（不点名别家）
+        // 2. 校验唯一性：先本租户（读得到就直说），再跨租户（不点名别家），最后软删行
         validatePayerInfoUnique(null, createReqVO.getCreditCode(), createReqVO.getTaxNo());
         validatePayerNotRegisteredByOtherTenant(null, createReqVO.getCreditCode(), createReqVO.getTaxNo());
+        validatePayerKeyNotHeldByDeletedRow(null, createReqVO.getCreditCode(), createReqVO.getTaxNo());
 
         // 3. 生成合作方付方编号
         if (createReqVO.getPartnerPayerId() == null) {
@@ -63,9 +64,10 @@ public class PayerInfoServiceImpl implements PayerInfoService {
         // 2. 归一信用代码 / 税号
         updateReqVO.setCreditCode(normalizePayerKey(updateReqVO.getCreditCode()));
         updateReqVO.setTaxNo(normalizePayerKey(updateReqVO.getTaxNo()));
-        // 3. 校验唯一性：本租户 + 跨租户
+        // 3. 校验唯一性：本租户 + 跨租户 + 软删行
         validatePayerInfoUnique(updateReqVO.getId(), updateReqVO.getCreditCode(), updateReqVO.getTaxNo());
         validatePayerNotRegisteredByOtherTenant(updateReqVO.getId(), updateReqVO.getCreditCode(), updateReqVO.getTaxNo());
+        validatePayerKeyNotHeldByDeletedRow(updateReqVO.getId(), updateReqVO.getCreditCode(), updateReqVO.getTaxNo());
 
         // 4. 更新（唯一键兜底并发）
         PayerInfoDO updateObj = PayerInfoConvert.INSTANCE.convert(updateReqVO);
@@ -130,6 +132,35 @@ public class PayerInfoServiceImpl implements PayerInfoService {
     }
 
     /**
+     * 软删行的预检：唯一键 {@code uk_credit_code} / {@code uk_tax_no} **不含 {@code deleted}**
+     * （生产建表脚本 `icbc_payer_info.sql`），软删行会**永久占住**那个值；而 {@code @TableLogic}
+     * 让普通查询无条件追加 {@code AND deleted = 0}，前两道预检都看不到软删行
+     * （{@code TenantUtils.executeIgnore} 只关租户过滤、不关逻辑删除过滤）。
+     *
+     * <p>不纳入这一步的话，「建 → 软删 → 再建同一个值」会在预检处被判「可用」，然后直接撞唯一键；
+     * 兜底回读也仍然说「可用」，最终落成裸 {@code DuplicateKeyException}（500）——预检与唯一键
+     * 对「这一行算不算存在」必须说同一句话。
+     *
+     * <p>文案与 {@link #validatePayerNotRegisteredByOtherTenant} 区分开：那条是「另一家企业占着」，
+     * 这条是「曾经登记过、已删除」，可执行动作是找平台运营恢复。两条都不点名是哪一家企业、
+     * 不回租户名 / 租户编号。
+     */
+    private void validatePayerKeyNotHeldByDeletedRow(Long id, String creditCode, String taxNo) {
+        PayerInfoDO byCreditCode = TenantUtils.executeIgnore(
+                () -> payerInfoMapper.selectByCreditCodeIncludeDeleted(creditCode));
+        if (byCreditCode != null && !byCreditCode.getId().equals(id)
+                && Boolean.TRUE.equals(byCreditCode.getDeleted())) {
+            throw exception(PAYER_CREDIT_CODE_ALREADY_REGISTERED_AND_DELETED);
+        }
+        PayerInfoDO byTaxNo = TenantUtils.executeIgnore(
+                () -> payerInfoMapper.selectByTaxNoIncludeDeleted(taxNo));
+        if (byTaxNo != null && !byTaxNo.getId().equals(id)
+                && Boolean.TRUE.equals(byTaxNo.getDeleted())) {
+            throw exception(PAYER_TAX_NO_ALREADY_REGISTERED_AND_DELETED);
+        }
+    }
+
+    /**
      * 归一信用代码 / 税号：去首尾空白 + 转大写。
      *
      * <p>生产库的排序规则是 {@code utf8mb4_unicode_ci}（大小写不敏感），同一个代码的大小写差异本来
@@ -172,6 +203,7 @@ public class PayerInfoServiceImpl implements PayerInfoService {
                                                       String creditCode, String taxNo) {
         validatePayerInfoUnique(id, creditCode, taxNo);
         validatePayerNotRegisteredByOtherTenant(id, creditCode, taxNo);
+        validatePayerKeyNotHeldByDeletedRow(id, creditCode, taxNo);
         throw cause;
     }
 
@@ -288,6 +320,7 @@ public class PayerInfoServiceImpl implements PayerInfoService {
     private void validateCreditCodeAndTaxNo(String creditCode, String taxNo) {
         validatePayerInfoUnique(null, creditCode, taxNo);
         validatePayerNotRegisteredByOtherTenant(null, creditCode, taxNo);
+        validatePayerKeyNotHeldByDeletedRow(null, creditCode, taxNo);
     }
 
     /**

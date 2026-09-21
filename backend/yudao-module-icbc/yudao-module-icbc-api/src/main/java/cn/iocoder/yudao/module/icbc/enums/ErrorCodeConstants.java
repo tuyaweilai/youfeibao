@@ -591,4 +591,14 @@ public interface ErrorCodeConstants {
             "该统一社会信用代码已被另一家企业登记为付方，如需处理请联系平台运营");
     ErrorCode PAYER_TAX_NO_REGISTERED_ELSEWHERE = new ErrorCode(1_030_049_001,
             "该纳税人识别号已被另一家企业登记为付方，如需处理请联系平台运营");
+
+    // uk_credit_code / uk_tax_no **不含 deleted**，软删行永久占着这个值（ADR 0005 边界）。
+    // 预检必须覆盖软删行，否则「建 → 软删 → 再建同一个值」会绕过预检、直接撞唯一键，
+    // 而兜底回读仍说「可用」，最终落成裸 DuplicateKeyException（500）。
+    // 文案与「另一家企业占用」区分开：这条是「曾经登记过、已删除」，可执行动作是找平台运营恢复；
+    // 两条都不点名是哪一家企业、不回租户名 / 租户编号。
+    ErrorCode PAYER_CREDIT_CODE_ALREADY_REGISTERED_AND_DELETED = new ErrorCode(1_030_049_002,
+            "该统一社会信用代码曾在本平台登记过付方且已删除，如需恢复请联系平台运营");
+    ErrorCode PAYER_TAX_NO_ALREADY_REGISTERED_AND_DELETED = new ErrorCode(1_030_049_003,
+            "该纳税人识别号曾在本平台登记过付方且已删除，如需恢复请联系平台运营");
 }

@@ -7,6 +7,8 @@ import cn.iocoder.yudao.module.icbc.controller.admin.payer.vo.PayerInfoExportReq
 import cn.iocoder.yudao.module.icbc.controller.admin.payer.vo.PayerInfoPageReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payer.PayerInfoDO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 
@@ -37,6 +39,30 @@ public interface PayerInfoMapper extends BaseMapperX<PayerInfoDO> {
     default PayerInfoDO selectByTaxNo(String taxNo) {
         return selectOne(PayerInfoDO::getTaxNo, taxNo);
     }
+
+    /**
+     * 根据统一社会信用代码查询付方信息，**包含软删行**。
+     *
+     * <p>唯一键 {@code uk_credit_code} 不含 {@code deleted}（生产建表脚本 `icbc_payer_info.sql`），
+     * 软删行仍占着这个值。{@code BaseDO.deleted} 上的 {@code @TableLogic} 会让普通查询无条件追加
+     * {@code AND deleted = 0}，看不到软删行——{@code TenantUtils.executeIgnore} 只关租户过滤、不关逻辑删除。
+     * 这里用裸 SQL 绕过 {@code @TableLogic}，查的正是唯一键实际覆盖的集合；租户过滤仍由租户插件
+     * 加在 SQL 上，需要跨租户时由调用方在 {@code executeIgnore} 里调。
+     *
+     * @param creditCode 统一社会信用代码（已归一）
+     * @return 付方信息（可能已软删）
+     */
+    @Select("SELECT * FROM icbc_payer_info WHERE credit_code = #{creditCode} LIMIT 1")
+    PayerInfoDO selectByCreditCodeIncludeDeleted(@Param("creditCode") String creditCode);
+
+    /**
+     * 根据纳税人识别号查询付方信息，**包含软删行**。同 {@link #selectByCreditCodeIncludeDeleted}。
+     *
+     * @param taxNo 纳税人识别号（已归一）
+     * @return 付方信息（可能已软删）
+     */
+    @Select("SELECT * FROM icbc_payer_info WHERE tax_no = #{taxNo} LIMIT 1")
+    PayerInfoDO selectByTaxNoIncludeDeleted(@Param("taxNo") String taxNo);
 
     /**
      * 根据合作方付方编号查询付方信息

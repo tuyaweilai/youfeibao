@@ -129,6 +129,75 @@ public class PayerInfoTenantUniqueTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testSoftDeletedCreditCodeCannotBeRecreated() {
+        // 建 → 软删 → 用同一个信用代码再建。
+        // uk_credit_code **不含 deleted**（生产建表脚本），软删行仍占着这个值；预检必须按唯一键
+        // 实际覆盖的集合判重，否则 insert 撞键、兜底也回读不到，最终是裸 DuplicateKeyException（500）。
+        Long payerId = TenantUtils.execute(1L, () -> payerInfoService.createPayerInfo(
+                saveReq("北京某某再生资源有限公司", CREDIT_CODE, TAX_NO)));
+        TenantUtils.execute(1L, () -> payerInfoService.deletePayerInfo(payerId));
+        // 软删后普通查询看不到它——这正是旧预检漏掉它的原因……
+        TenantUtils.execute(1L, () -> assertNull(payerInfoMapper.selectByCreditCode(CREDIT_CODE)));
+        // ……但唯一键还占着：再建给的是可读错误，不是 500
+        ServiceException ex = assertThrows(ServiceException.class, () -> TenantUtils.execute(1L, () -> {
+            payerInfoService.createPayerInfo(saveReq("北京某某再生资源有限公司", CREDIT_CODE, TAX_NO));
+        }));
+        assertEquals(PAYER_CREDIT_CODE_ALREADY_REGISTERED_AND_DELETED.getCode(), ex.getCode());
+        assertEquals(PAYER_CREDIT_CODE_ALREADY_REGISTERED_AND_DELETED.getMsg(), ex.getMessage());
+        assertFalse(ex.getMessage().contains("租户"), "软删文案不许暴露租户维度：" + ex.getMessage());
+        assertFalse(ex.getMessage().contains("北京某某再生资源有限公司"),
+                "软删文案不许点名是哪一家企业：" + ex.getMessage());
+    }
+
+    @Test
+    public void testSoftDeletedTaxNoCannotBeRecreated() {
+        // 税号那条键同构：uk_tax_no 也不含 deleted
+        Long payerId = TenantUtils.execute(1L, () -> payerInfoService.createPayerInfo(
+                saveReq("北京某某再生资源有限公司", CREDIT_CODE, TAX_NO)));
+        TenantUtils.execute(1L, () -> payerInfoService.deletePayerInfo(payerId));
+        ServiceException ex = assertThrows(ServiceException.class, () -> TenantUtils.execute(1L, () -> {
+            payerInfoService.createPayerInfo(
+                    saveReq("北京某某再生资源有限公司", "91110105MA01R2279N", TAX_NO));
+        }));
+        assertEquals(PAYER_TAX_NO_ALREADY_REGISTERED_AND_DELETED.getCode(), ex.getCode());
+        assertEquals(PAYER_TAX_NO_ALREADY_REGISTERED_AND_DELETED.getMsg(), ex.getMessage());
+    }
+
+    @Test
+    public void testSoftDeletedCreditCodeInAnotherTenantGivesDeletedMessage() {
+        // 软删行在别的租户：预检仍要看到（唯一键全局），且必须与「另一家企业占着」区分开
+        Long payerId = TenantUtils.execute(1L, () -> payerInfoService.createPayerInfo(
+                saveReq("北京某某再生资源有限公司", CREDIT_CODE, TAX_NO)));
+        TenantUtils.execute(1L, () -> payerInfoService.deletePayerInfo(payerId));
+
+        ServiceException ex = assertThrows(ServiceException.class, () -> TenantUtils.execute(2L, () -> {
+            payerInfoService.createPayerInfo(
+                    saveReq("某某再生资源（第二家）", CREDIT_CODE, "91110105MA01R2278X"));
+        }));
+        assertEquals(PAYER_CREDIT_CODE_ALREADY_REGISTERED_AND_DELETED.getCode(), ex.getCode());
+        assertNotEquals(PAYER_CREDIT_CODE_REGISTERED_ELSEWHERE.getCode(), ex.getCode(),
+                "软删与「另一家企业占用」必须是两条能区分的文案");
+        assertFalse(ex.getMessage().contains("租户"), "软删文案不许暴露租户维度：" + ex.getMessage());
+    }
+
+    @Test
+    public void testUpdateToSoftDeletedCreditCodeIsRejected() {
+        // update 路径同构：把自己付方改成一条已软删行的信用代码，同样是可读错误
+        Long deletedId = TenantUtils.execute(1L, () -> payerInfoService.createPayerInfo(
+                saveReq("北京某某再生资源有限公司", CREDIT_CODE, TAX_NO)));
+        TenantUtils.execute(1L, () -> payerInfoService.deletePayerInfo(deletedId));
+        Long ownPayerId = TenantUtils.execute(2L, () -> payerInfoService.createPayerInfo(
+                saveReq("天津某某再生资源有限公司", "91120101MA01R2279P", "91120101MA01R2279P")));
+
+        PayerInfoSaveReqVO updateReq = saveReq("天津某某再生资源有限公司", CREDIT_CODE, "91120101MA01R2279P");
+        updateReq.setId(ownPayerId);
+        ServiceException ex = assertThrows(ServiceException.class, () -> TenantUtils.execute(2L, () ->
+                payerInfoService.updatePayerInfo(updateReq)));
+        assertEquals(PAYER_CREDIT_CODE_ALREADY_REGISTERED_AND_DELETED.getCode(), ex.getCode());
+        assertFalse(ex.getMessage().contains("租户"), "软删文案不许暴露租户维度：" + ex.getMessage());
+    }
+
+    @Test
     public void testCreditCodeCaseAndWhitespaceDoNotBypassTheGlobalKey() {
         // 信用代码规格上是大写字母数字；大小写 / 首尾空白的差异不能让同一个代码绕过预检又不撞键
         TenantUtils.execute(1L, () -> payerInfoService.createPayerInfo(

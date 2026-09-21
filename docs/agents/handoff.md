@@ -2518,7 +2518,7 @@ cardNumber / drawerCardNumber / payerAcctNum / taxPayerAccountNo / address / sel
 2. `PayeeInfoServiceImplTest#testGetPayeeInfoPage`：`cloneIgnoreId` 会把原行的 `partner_payee_id` / `payee_no` 一起复制，5 条克隆撞全局键；逐个换成不同编号。
 3. `NaturalPersonQuotaServiceImplTest#insertPayee`、`TaxDeclarationServiceImplTest#insertPayee`：同样由手机号派生编号，同一自然人跨租户撞键；改成每个档案各自生成。
 
-**明确没动**：`icbc_payer_info` 的四个全局键（`uk_payer_no` / `uk_partner_payer_id` / `uk_credit_code` / `uk_tax_no`）属 #100 的领域决定，比对测试用 `KEY_DECISION_PENDING` 把这张表整体排除（自清理：若哪天两侧一致，测试会要求删掉这条排除）。
+**明确没动**：`icbc_payer_info` 的四个全局键（`uk_payer_no` / `uk_partner_payer_id` / `uk_credit_code` / `uk_tax_no`）属 #100 的领域决定，比对测试用 `KEY_DECISION_PENDING` 把这张表整体排除（自清理：若哪天两侧一致，测试会要求删掉这条排除）。**（已过期：#100 修票已删掉这条排除并补齐测试建表，见文末「#100 修票」。）**
 
 `icbc_payment_order` 那处方向相反（测试更严 → 放开）：全量 896 条跑完没有任何用例依赖「全局唯一」，确认无回归。
 
@@ -2559,3 +2559,41 @@ cardNumber / drawerCardNumber / payerAcctNum / taxPayerAccountNo / address / sel
 - 分支 `i101-error-log-pii` → `534e5003`：11 个文件、1 个提交
 - 独立评审：PASS（报告 `.fleet/gates/101.review.md`）
 - 闸门：全量 icbc `[WARNING] Tests run: 898, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/101.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/101.log`（`.fleet/` 与收养票的仓库外日志不入库）
+
+### #100 修票：独立评审 BLOCK 后的软删重建 500（追加一个提交，未改历史）
+
+独立评审 `REVIEW_VERDICT: BLOCK`（报告 `.fleet/gates/100.review.md`）：ADR 0005 新写的
+「撞上唯一键时给可读错误（不是裸 500）」是假的——「建 → 软删 → 再建同一个 `credit_code`」
+仍是裸 `DuplicateKeyException`。根因是**预检与唯一键对「这一行算不算存在」说了两句话**：
+`uk_credit_code` / `uk_tax_no` 不含 `deleted`，而 `BaseDO.deleted` 上的 `@TableLogic` 让普通查询
+无条件追加 `AND deleted = 0`（`TenantUtils.executeIgnore` 只关租户过滤、不关逻辑删除过滤），于是
+预检说「可用」、`insert` 撞键、兜底回读仍说「可用」、最后 `throw cause` 落成裸 500。
+
+**修法（不动 schema，四个键一个都不改）**：
+
+1. `PayerInfoMapper` 加两条裸 SQL（`@Select`，绕过 `@TableLogic`）：
+   `selectByCreditCodeIncludeDeleted` / `selectByTaxNoIncludeDeleted`——查的正是**唯一键实际覆盖的集合**
+   （含软删行）。租户过滤仍由租户插件加在 SQL 上，跨租户时调用方在 `TenantUtils.executeIgnore` 里调。
+2. `PayerInfoServiceImpl` 加 `validatePayerKeyNotHeldByDeletedRow`：命中软删行给新错误码
+   `1_030_049_002` / `1_030_049_003`（「曾在本平台登记过付方且已删除，如需恢复请联系平台运营」），
+   与「另一家企业登记着」（`1_030_049_000` / `001`）区分开；两条都不点名企业 / 租户。
+   create / update / `addPayerToIcbc` / `DuplicateKeyException` 兜底四条路径都接了这一步。
+3. **测试环境的一个根因（评审没看到的那半）**：`src/test/java` 下有两份**影子类**覆盖生产类——
+   `dal/dataobject/payer/PayerInfoDO.java`（`extends BaseDO` 且重声明了一个没有 `@TableLogic` 的
+   `deleted` 字段，于是测试里的 `deleteById` 变成**物理删除**）与 `dal/mysql/payer/PayerInfoMapper.java`
+   （缺新方法）。它们按测试 classpath 先于 `target/classes` 加载，所以「建 → 软删 → 再建」在测试里
+   一直绿、在生产里 500——这正是评审说「不是不可测，是没测」的物理原因。本票**删掉这两份影子**，
+   测试从此跑生产 DO / Mapper（`PayerInfoMapperTest` 里 5 处只为影子类存在的 `setTransMap` 一并去掉）。
+4. ADR 0005 边界段补「软删的后果」，并把「撞上唯一键给可读错误」的范围收准到 `credit_code` / `tax_no`
+   （`payer_no` / `partner_payer_id` 是生成的，撞键不在业务射程内）。`CONTEXT.md` 的「付方 / 收方」
+   条目点一句「付方档案全局唯一」（不新造词）；`handoff.md:2521` 补上「#99 的排除已过期」更正指针。
+
+**红 → 绿证据**：`PayerInfoTenantUniqueTest` 新增 4 条（`testSoftDeletedCreditCodeCannotBeRecreated` /
+`…TaxNo…` / `…InAnotherTenantGivesDeletedMessage` / `testUpdateToSoftDeletedCreditCodeIsRejected`）。
+修之前跑是 `Unexpected exception type thrown ==> expected: ServiceException but was: DuplicateKeyException`
+（裸 500）；修之后 11/11 绿。
+
+> **如实记的 wart**：`uk_credit_code` / `uk_tax_no` 不含 `deleted`，软删会**永久占住**那个信用代码 /
+> 税号——与 `icbc_payee_info`（键是 `(tenant_id, id_card_no, deleted)`，含 `deleted`）风格不一致。
+> 本票约束是「不动 schema」，所以口径是「不允许重新登记 + 可读说明（找运营恢复）」。要允许
+> 「删掉再登记」得给这两个键加 `deleted`，是另一个决定。
