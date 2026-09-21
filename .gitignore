@@ -3,3 +3,6 @@
 # 本地环境变量（含口令，不入库；模板见 .env.example）
 /.env
 /backend/.env
+
+# 舰队的运行时状态与日志（不入库）
+/.fleet/
