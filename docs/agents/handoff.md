@@ -2467,3 +2467,26 @@ member 令牌回 `code=401 账号未登录`。
 - 分支 `i97-payee-unique-key` → `d343e686`：7 个文件、1 个提交
 - 独立评审：PASS（报告 `.fleet/gates/97.review.md`）
 - 闸门：全量 icbc `[WARNING] Tests run: 896, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/97.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/97.log`（`.fleet/` 与收养票的仓库外日志不入库）
+
+### #98 平台访问日志的 PII 面级收口（运维必读）
+
+平台的 `ApiAccessLogFilter` 默认把 `/admin-api` 的 JSON 请求体写进 `infra_api_access_log.request_params`，
+而它的默认脱敏名单此前只有 `password / token / accessToken / refreshToken`——身份证号、银行卡号、手机号、
+住址、证件影像 base64 全都会整段留库（34+ 个接口，不止 icbc）。本票把 PII 字段名加进**默认名单**
+（`idCardNo / idNo / certNo / imageBase64 / mobile / contactMobile / driverMobile / telephone / phone /
+payPhoneno / sellerTelephone / email / bankCardNo / newBankCardNo / bankAccount / receiverAccount /
+cardNumber / drawerCardNumber / payerAcctNum / taxPayerAccountNo / address / sellerAddress`，外加
+`verifiedCode / secretKey / secretId / callbackSignKey / consoleToken` 这类短期凭据），脱敏按**键名递归**做。
+
+**运维影响（以前能做、现在做不到的事）**：访问日志里的这些字段是**整个键被删掉**（不是打码成 `138****`），
+所以再也无法用「某个手机号 / 身份证号 / 银行卡号」去 `request_params` 里捞请求。排障改走 `trace_id` 关联
+业务表（`icbc_payee_info` / `icbc_natural_person` 等）；`request_url` / `request_method` / `result_code` /
+`duration` 这些仍在。**已知残留**：姓名（字段名 `name`）有意不脱敏（商品名 / 企业名 / 菜单名都叫 `name`），
+所以 `sellerName` / `naturalPersonName` 这类姓名仍会进访问日志；响应体只在 `responseEnable = true` 的接口上记录，
+走的也是同一份名单。
+
+**框架本地偏离**：`backend/yudao-framework/yudao-spring-boot-starter-web/.../apilog/core/filter/ApiAccessLogFilter.java`
+自并入仓库以来第一次改动（只改 `SANITIZE_KEYS` 与三个脱敏方法的可见性 `private` → 包级，供单元测试直调）。
+上游默认名单不含 PII 是上游的问题，这条值得给上游提 PR；将来同步上游时注意别把这份名单覆盖回去。
+新的不变式：icbc 侧 `ApiAccessLogPiiCoverageTest`（闸门命令里跑）、框架侧 `ApiAccessLogFilterSanitizeTest`
+（要 `mvn -o -pl yudao-framework/yudao-spring-boot-starter-web test` 才会跑）。
