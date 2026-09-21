@@ -330,14 +330,23 @@ $(echo "$hit" | sed 's/^/    /')" | tee -a "$report" >&2; pass=0
   local tlog="$FLEET/logs/$n.tests.log"
   # 主 reactor 只含 icbc 的 api/biz。若这次改动碰了**别的模块**，那条模块既不会被编译也不会被测——
   # 改动就成了「闸门看不见的改动」，而 icbc 的测试还会从 ~/.m2 读它的**旧 jar**，
-  # 于是「改前红、改完还红」（#98 的框架改动就是这种情况，它的守卫测试不得不改成读源码）。
-  # 能顺带编的就编（框架子模块）；编不了（要用别的 -api）的**明说**，不假装盖全了。
+  # 于是「改前红、改完还红」（#98 的框架改动、#102 的 member 改动都是这种情况）。
+  # 能顺带编的就编（只要是真 Maven 模块），编不了（比如 yudao-server/src）的**明说**，不假装盖全了。
   local changed extra_modules outside
   changed=$(git -C "$wt" diff --name-only main...HEAD)
-  extra_modules=$(echo "$changed" | sed -n 's|^backend/yudao-framework/\([^/]*\)/.*|yudao-framework/\1|p' \
-      | sort -u | paste -sd, -)
-  outside=$(echo "$changed" | grep -E '^backend/(yudao-server|yudao-module-[a-z-]+)/' \
-      | grep -vE '^backend/yudao-module-icbc/' | sort -u | head -3 | tr '\n' ' ')
+  extra_modules=$(echo "$changed" | sed -n 's|^backend/\([^/]*/[^/]*\)/.*|\1|p' | sort -u \
+      | while read -r m; do [ -f "$wt/backend/$m/pom.xml" ] && echo "$m"; done \
+      | grep -vE '^yudao-module-icbc/' | paste -sd, -)
+  # 越界告警只报**真没被编**的：已进 extra_modules 的不算。
+  local skip_re=""
+  [ -n "$extra_modules" ] && skip_re="$(echo "$extra_modules" | tr ',' '\n' | paste -sd'|' -)"
+  if [ -n "$skip_re" ]; then
+    outside=$(echo "$changed" | grep -E '^backend/(yudao-server|yudao-module-[a-z-]+)/' \
+        | grep -vE "^backend/(yudao-module-icbc|${skip_re})/" | sort -u | head -3 | tr '\n' ' ')
+  else
+    outside=$(echo "$changed" | grep -E '^backend/(yudao-server|yudao-module-[a-z-]+)/' \
+        | grep -vE '^backend/yudao-module-icbc/' | sort -u | head -3 | tr '\n' ' ')
+  fi
   [ -n "$outside" ] && info "⚠ #$n 改动碰了闸门 reactor 之外的模块，闸门不会编译它们：$outside"
   info "#$n 跑全量测试（串行，日志 ${tlog}）${extra_modules:+；另编 ${extra_modules}}"
   lock test
