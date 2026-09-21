@@ -42,7 +42,7 @@ public class StubEsignPortTest {
 
     @Test
     public void testCallbackFailsLoudly() {
-        assertThrows(UnsupportedOperationException.class,
+        assertThrows(EsignPort.EsignCallbackRejectedException.class,
                 () -> port.parseCallback("signature", "timestamp", "nonce", "{}"));
     }
 

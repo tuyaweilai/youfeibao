@@ -507,4 +507,30 @@ public interface ErrorCodeConstants {
     // ========== 经营报表与异常表（#57 T19：只读聚合，口径不混） 1_030_039_000 ==========
     ErrorCode REPORT_ANOMALY_TYPE_UNKNOWN = new ErrorCode(1_030_039_000,
             "未知的异常类型：{}（可选值见异常表口径，磅差 / 超采购量 / 超入库量 / 重复关联 / 长期未确认 / 资料缺失）");
+
+    // ========== 电子签章的平台级配置与租户开通（#92，ADR 0036 / 0037） 1_030_041_000 ==========
+    ErrorCode ESIGN_CONFIG_NOT_EXISTS = new ErrorCode(1_030_041_000,
+            "电子签章平台参数尚未配置，请先在平台运营配置环境、应用标识与密钥");
+    ErrorCode ESIGN_CONFIG_INCOMPLETE = new ErrorCode(1_030_041_001,
+            "电子签章平台参数不完整，缺少：{}");
+    ErrorCode ESIGN_TENANT_NOT_ACTIVATED = new ErrorCode(1_030_041_002,
+            "本企业尚未完成电子签章激活（企业认证 + 企业印章），请先点「开通电子签」");
+    ErrorCode ESIGN_CONSOLE_LINK_UNAVAILABLE = new ErrorCode(1_030_041_003,
+            "暂时拿不到开通链接：平台参数未配置或控制台地址缺失");
+    ErrorCode ESIGN_SEAL_NO_REQUIRED = new ErrorCode(1_030_041_004,
+            "企业印章编号不能为空：只有企业认证通过并创建了企业印章，才算「已激活 + 印章就位」");
+    ErrorCode ESIGN_CALLBACK_REJECTED = new ErrorCode(1_030_041_005,
+            "电子签章回调被拒绝：{}");
+    ErrorCode ESIGN_CALLBACK_VERIFY_FAILED = new ErrorCode(1_030_041_006,
+            "电子签章回调验签失败，通知已拒绝（可能是伪造或密钥不匹配）");
+    ErrorCode ESIGN_SUB_CUSTOMER_NOT_RESOLVED = new ErrorCode(1_030_041_007,
+            "回调里的子客编号无法对应到回收企业：{}（不猜、不跨企业乱写）");
+    ErrorCode ESIGN_QUOTA_EXCEEDED = new ErrorCode(1_030_041_008,
+            "本企业电子签章合同额度已用尽（已用 {} / 额度 {}），请在平台运营追加额度");
+    ErrorCode ESIGN_CONSOLE_TOKEN_INVALID = new ErrorCode(1_030_041_009,
+            "开通链接已失效：控制台令牌不匹配（链接可能已被重新生成，或不是本企业签发的）");
+    ErrorCode ESIGN_CONSOLE_TOKEN_EXPIRED = new ErrorCode(1_030_041_010,
+            "开通链接已过期，请重新点「开通电子签」获取新链接");
+    ErrorCode ESIGN_ACTIVATION_STATUS_INVALID = new ErrorCode(1_030_041_011,
+            "当前开通状态不是「认证中」，不能确认激活（当前状态：{}）；请先点「开通电子签」");
 }
