@@ -78,7 +78,10 @@ export interface OnboardingWizardSubmitVO {
   payeeId?: number
   naturalPersonId?: number
   agreementId?: number
-  /** ELECTRONIC-电子签章，PAPER-纸质签署（本票未开通电子签章时恒为 PAPER） */
+  /**
+   * 签署方式：`ELECTRONIC`-电子签章（租户已开通，协议落「待签署」，本人在自己手机上点「去签署」）
+   * / `PAPER`-纸质签署（未开通时降级，当场生效）。不再是「恒为 PAPER」——#95 起两条路都有。
+   */
   signMethod?: string
 }
 

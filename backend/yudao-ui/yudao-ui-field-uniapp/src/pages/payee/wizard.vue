@@ -167,7 +167,7 @@
 
       <view class="divider" />
       <view class="card__title">框架收购协议要素</view>
-      <view class="tip">税总要求的合同流证据，留空按缺省值落库（本票协议走纸质签署）。</view>
+      <view class="tip">税总要求的合同流证据，留空按缺省值落库（电子签 / 纸质签由企业是否开通电子签章决定）。</view>
       <view class="field">
         <text class="field__label">货物名称</text>
         <input v-model="draft.productName" class="input" placeholder="留空按「报废产品」" />
@@ -195,7 +195,7 @@
       </view>
     </view>
 
-    <!-- 第 5 步：签署（本票落 PAPER）+ 二维码 / 可复制链接 -->
+    <!-- 第 5 步：签署（电子签 = 待签署，纸质 = 当场生效）+ 二维码 / 可复制链接 -->
     <view v-if="draft.step === 5" class="card">
       <view class="card__title">5. 签署框架收购协议</view>
 
@@ -206,12 +206,20 @@
         </view>
       </view>
       <view v-else class="notice">
-        <view class="notice__title">协议已按 {{ draft.signMethod || '电子签章' }} 建档</view>
+        <view class="notice__title">协议待签署（电子签章）</view>
+        <view class="notice__desc">
+          签署已发起，协议状态是「待签署」、还没生效。请把下面的二维码或链接交给本人，
+          让他在自己手机上点「去签署」，一次实名、一次签名把框架收购协议与反向发票合规告知函两份一起签完。
+        </view>
       </view>
 
-      <view class="handoff__title">交给本人用微信办理实名</view>
+      <view class="handoff__title">
+        {{ draft.signMethod === 'PAPER' ? '交给本人用微信办理实名' : '交给本人用微信打开去签署' }}
+      </view>
       <view class="tip">
-        建档已完成。实名只能本人做：让他用微信扫下面的码，或把链接发到他微信里打开。
+        {{ draft.signMethod === 'PAPER'
+          ? '建档已完成。实名只能本人做：让他用微信扫下面的码，或把链接发到他微信里打开。'
+          : '签署只能本人做：让他用微信扫下面的码，或把链接发到他微信里打开，进去点「去签署」。' }}
       </view>
       <view v-if="handoff.qr" class="qr">
         <image class="qr__img" :src="handoff.qr" mode="aspectFit" />
@@ -260,7 +268,8 @@ import {
  * - 分步状态**只在本地暂存**（`wizardDraft`），第 4 步确认后一次性落库；
  * - 识别是「上传 + 识别」的无状态调用，图片识别完即弃、不落库、不进文件服务；
  * - 结果只在空缺处回填，人工输入的值优先；确认后以确认后的为准（提交的是确认页的值）；
- * - 本票协议一律落 `PAPER`（电子签章未开通），不做实名、不做电子签署。
+ * - 协议签署方式由后端定：租户开通电子签章则落「待签署」并发起合同组签署（本人在自己手机
+ *   上点「去签署」），未开通则降级纸质当场生效。
  */
 defineOptions({ name: 'FieldPayeeWizard' })
 

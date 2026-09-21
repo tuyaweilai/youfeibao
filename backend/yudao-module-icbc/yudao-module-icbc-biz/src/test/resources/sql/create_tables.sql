@@ -471,6 +471,7 @@ CREATE TABLE IF NOT EXISTS icbc_framework_agreement (
     sign_task_id VARCHAR(64),
     signed_at DATETIME,
     file_url VARCHAR(500),
+    notice_file_url VARCHAR(500),
     status TINYINT NOT NULL DEFAULT 0,
     remark VARCHAR(500),
     tenant_id BIGINT NOT NULL DEFAULT 0,

@@ -452,29 +452,48 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     @Transactional(rollbackFor = Exception.class)
     public Long saveFrameworkAgreement(FrameworkAgreementSaveReqVO reqVO) {
         validatePayeeExists(reqVO.getPayeeId());
-        // 电子签署默认落「待签署」（#95）：没人签过就不该是生效；纸质是当场签、默认生效
-        Integer status = reqVO.getStatus() != null ? reqVO.getStatus()
-                : (FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode().equals(reqVO.getSignMethod())
-                        ? FrameworkAgreementStatusEnum.PENDING.getStatus()
+        IcbcFrameworkAgreementDO existing = reqVO.getId() != null ? validateAgreementExists(reqVO.getId()) : null;
+
+        // 修改只改协议要素：签署方式与状态沿用落库值（签法一经定下就不在这一端点改变）。
+        // 这样手送 status 既不能把电子协议标成生效，也不能把它改成待签署却不发起（#95 评审 SP-4）。
+        if (existing != null) {
+            IcbcFrameworkAgreementDO update = toAgreement(reqVO, existing.getStatus());
+            update.setId(existing.getId());
+            update.setSignMethod(existing.getSignMethod());
+            frameworkAgreementMapper.updateById(update);
+            // 待签署的电子协议若还没有任务号（历史数据 / 上一次发起未落上），补发起一次，
+            // 别让本人点「去签署」必然报 ESIGN_SIGN_TASK_ID_MISSING
+            if (FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode().equals(existing.getSignMethod())
+                    && FrameworkAgreementStatusEnum.PENDING.getStatus().equals(existing.getStatus())
+                    && StrUtil.isBlank(existing.getSignTaskId())) {
+                frameworkAgreementEsignService.initiate(TenantContextHolder.getRequiredTenantId(), existing.getId());
+            }
+            return existing.getId();
+        }
+
+        // 新建：签署方式取入参（缺省纸质）。状态由签署方式决定，**不接受调用方手送**：
+        // 电子协议只能停在「待签署」，生效只能由签署回调推——否则手送 signMethod=ELECTRONIC&status=1
+        // 又会当场盖 signedAt，正是 #81 Problem Statement 点名的那件事（#95 评审 SP-4）。
+        String signMethod = StrUtil.blankToDefault(reqVO.getSignMethod(),
+                FrameworkAgreementSignMethodEnum.PAPER.getCode());
+        boolean electronic = FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode().equals(signMethod);
+        // 只额外放行显式「作废」：作废不涉及「没人签过却有签署时间」，其余一律按签法定状态
+        Integer status = FrameworkAgreementStatusEnum.VOIDED.getStatus().equals(reqVO.getStatus())
+                ? FrameworkAgreementStatusEnum.VOIDED.getStatus()
+                : (electronic ? FrameworkAgreementStatusEnum.PENDING.getStatus()
                         : FrameworkAgreementStatusEnum.EFFECTIVE.getStatus());
         // 一份生效协议：新协议生效时，旧生效协议作废并留痕
         if (FrameworkAgreementStatusEnum.EFFECTIVE.getStatus().equals(status)) {
             IcbcFrameworkAgreementDO current = frameworkAgreementMapper.selectActiveByPayeeId(reqVO.getPayeeId());
-            if (current != null && !current.getId().equals(reqVO.getId())) {
+            if (current != null) {
                 IcbcFrameworkAgreementDO voided = new IcbcFrameworkAgreementDO();
                 voided.setId(current.getId());
                 voided.setStatus(FrameworkAgreementStatusEnum.VOIDED.getStatus());
                 frameworkAgreementMapper.updateById(voided);
             }
         }
-        if (reqVO.getId() != null) {
-            validateAgreementExists(reqVO.getId());
-            IcbcFrameworkAgreementDO update = toAgreement(reqVO, status);
-            update.setId(reqVO.getId());
-            frameworkAgreementMapper.updateById(update);
-            return reqVO.getId();
-        }
         IcbcFrameworkAgreementDO agreement = toAgreement(reqVO, status);
+        agreement.setSignMethod(signMethod);
         if (StrUtil.isBlank(agreement.getAgreementNo())) {
             agreement.setAgreementNo(generateAgreementNo());
         }
@@ -484,8 +503,7 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
         frameworkAgreementMapper.insert(agreement);
         // 待签署的电子协议：立刻发起合同组签署（企业先盖章、自然人后签署），拿合同组任务号。
         // 与插入同一事务：发起失败（拿不到任务号）就整体回滚，不留一份生成不出签署链接的半成品。
-        if (FrameworkAgreementStatusEnum.PENDING.getStatus().equals(status)
-                && FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode().equals(agreement.getSignMethod())) {
+        if (FrameworkAgreementStatusEnum.PENDING.getStatus().equals(status) && electronic) {
             frameworkAgreementEsignService.initiate(TenantContextHolder.getRequiredTenantId(), agreement.getId());
         }
         return agreement.getId();
@@ -660,10 +678,12 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
         return payee;
     }
 
-    private void validateAgreementExists(Long id) {
-        if (frameworkAgreementMapper.selectById(id) == null) {
+    private IcbcFrameworkAgreementDO validateAgreementExists(Long id) {
+        IcbcFrameworkAgreementDO agreement = frameworkAgreementMapper.selectById(id);
+        if (agreement == null) {
             throw exception(FRAMEWORK_AGREEMENT_NOT_EXISTS);
         }
+        return agreement;
     }
 
     private SellerStepRespVO step(Long payeeId, String step, String formHtml) {

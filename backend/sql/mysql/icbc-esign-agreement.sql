@@ -3,7 +3,7 @@
 SET NAMES utf8mb4;
 
 -- ========================================
--- 框架收购协议补「第三方签署任务号」（#95，见 ADR 0036）
+-- 框架收购协议补「第三方签署任务号」与「告知函文件地址」（#95，见 ADR 0036）
 --
 -- 合同组电子签署发起成功后，把第三方的**合同组任务号**写在协议上：
 -- 第三方回调只带子客编号（反查出租户）与任务号，不带我们的协议编号，
@@ -23,4 +23,13 @@ PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 SET @idx := (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE()
              AND TABLE_NAME = 'icbc_framework_agreement' AND INDEX_NAME = 'idx_sign_task_id');
 SET @ddl := IF(@idx = 0, 'ALTER TABLE `icbc_framework_agreement` ADD INDEX `idx_sign_task_id` (`sign_task_id`)', 'SELECT 1');
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 合同组里的**第二份文书**（反向发票合规告知函）单独落址：`file_url` 只放主文书
+-- （框架收购协议），告知函放 `notice_file_url`。两份文书在证据链上分别成条
+-- （ADR 0036 决策 3：两份文书要能分别引用，所以不拼成一个 PDF），同归
+-- FRAMEWORK_AGREEMENT 这一类型 / 合同流，不新增证据类型、不新增第六流。
+SET @col := (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'icbc_framework_agreement' AND COLUMN_NAME = 'notice_file_url');
+SET @ddl := IF(@col = 0, 'ALTER TABLE `icbc_framework_agreement` ADD COLUMN `notice_file_url` varchar(500) DEFAULT NULL COMMENT ''反向发票合规告知函文件地址（合同组第二份文书，与协议分别成条进证据链）'' AFTER `file_url`', 'SELECT 1');
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;

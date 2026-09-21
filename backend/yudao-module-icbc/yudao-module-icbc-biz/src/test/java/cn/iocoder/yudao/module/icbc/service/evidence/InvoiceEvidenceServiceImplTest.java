@@ -108,6 +108,7 @@ public class InvoiceEvidenceServiceImplTest extends BaseDbUnitTest {
                 .recyclePeriod("2026 年 9 月第 1 期").settlementMethod("银行转账")
                 .signMethod("ELECTRONIC").status(1)
                 .fileUrl("https://esign/signed/agreement.pdf")
+                .noticeFileUrl("https://esign/signed/notice.pdf")
                 .build();
         frameworkAgreementMapper.insert(agreement);
 
@@ -120,6 +121,14 @@ public class InvoiceEvidenceServiceImplTest extends BaseDbUnitTest {
         assertTrue(flowSources(chain, "CONTRACT").stream()
                         .anyMatch(source -> "https://esign/signed/agreement.pdf".equals(source.getUrl())),
                 "已签文件地址要带得出来，供查验时下载");
+        // SP-2：告知函单独成条（ADR 0036 决策 3：两份文书要能分别引用），同归 FRAMEWORK_AGREEMENT 类型
+        assertTrue(flowSources(chain, "CONTRACT").stream()
+                        .anyMatch(source -> "反向发票合规告知函".equals(source.getTitle())
+                                && "https://esign/signed/notice.pdf".equals(source.getUrl())),
+                "告知函要以独立条目进合同流，而不是被主文书吞掉");
+        assertEquals(2, flowSources(chain, "CONTRACT").stream()
+                        .filter(source -> "FRAMEWORK_AGREEMENT".equals(source.getSourceType())).count(),
+                "两份文书各自成条，不新增证据类型");
     }
 
     @Test

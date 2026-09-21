@@ -239,6 +239,7 @@ import {
   getPayments,
   getProfile,
   getRecordGroups,
+  mintAgreementSignToken,
   revokeAuthorization,
   SellerAuthorization,
   SellerHome,
@@ -249,6 +250,7 @@ import {
   SellerBankCard,
   PendingItem
 } from '@/api/seller'
+import { createAgreementSignUrl } from '@/api/public'
 import { useSellerAuthStore } from '@/store/auth'
 import { downloadWithAuth, openHtmlWithAuth } from '@/utils/download'
 
@@ -323,7 +325,49 @@ function openPending(item: PendingItem) {
     uni.navigateTo({ url: `/pages/settlement/detail?id=${item.settlementId}` })
     return
   }
+  // 待签电子协议：本人点一下才现取签署链接并跳转（#95）
+  if (item.type === 'AGREEMENT' && item.payeeId) {
+    onSignAgreement(item.payeeId)
+    return
+  }
   uni.showToast({ title: `${item.typeName}：请到现场与收货员办理`, icon: 'none' })
+}
+
+/**
+ * 去签署（#95）：① 用登录态换一枚绑定收方的 ONBOARDING 一次性令牌；
+ * ② 拿令牌调公开端点**现取**第三方签署链接（不缓存、不复用、不发短信）；③ 打开签署页。
+ */
+const signing = ref(false)
+async function onSignAgreement(payeeId: number) {
+  if (signing.value) {
+    return
+  }
+  signing.value = true
+  try {
+    const link = await mintAgreementSignToken(naturalPersonId.value, payeeId)
+    if (!link.token) {
+      throw new Error('未取到签署入口，请稍后重试')
+    }
+    const sign = await createAgreementSignUrl(link.token)
+    if (!sign.signUrl) {
+      throw new Error('未取到签署链接，请稍后重试')
+    }
+    openExternalUrl(sign.signUrl)
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message || '去签署失败，请稍后重试', icon: 'none' })
+  } finally {
+    signing.value = false
+  }
+}
+
+/** H5 直接跳第三方签署页；小程序 / App 用 web-view 承接（外部链接不能直接打开） */
+function openExternalUrl(url: string) {
+  // #ifdef H5
+  window.location.href = url
+  // #endif
+  // #ifndef H5
+  uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` })
+  // #endif
 }
 
 function changeYear(delta: number) {

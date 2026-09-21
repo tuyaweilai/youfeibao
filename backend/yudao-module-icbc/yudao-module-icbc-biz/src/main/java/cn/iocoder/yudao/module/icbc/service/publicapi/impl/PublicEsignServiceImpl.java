@@ -1,6 +1,5 @@
 package cn.iocoder.yudao.module.icbc.service.publicapi.impl;
 
-import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicAgreementSignRespVO;
 import cn.iocoder.yudao.module.icbc.enums.PublicTokenPurposeEnum;
 import cn.iocoder.yudao.module.icbc.service.esign.FrameworkAgreementEsignService;
@@ -11,7 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
 import javax.annotation.Resource;
-import java.util.function.Supplier;
 
 /**
  * 公开端点 - 合同组签署实现（#95）。
@@ -33,25 +31,12 @@ public class PublicEsignServiceImpl implements PublicEsignService {
     public PublicAgreementSignRespVO createSignUrl(String token) {
         PublicTokenPayload payload = publicTokenService.verify(token, PublicTokenPurposeEnum.ONBOARDING);
         Long payeeId = Long.valueOf(payload.getBusinessKey());
-        String signUrl = inTenant(payload.getTenantId(),
+        String signUrl = TenantCalls.execute(payload.getTenantId(),
                 () -> frameworkAgreementEsignService.createSignUrl(payeeId));
         publicTokenService.consume(payload);
         PublicAgreementSignRespVO resp = new PublicAgreementSignRespVO();
         resp.setSignUrl(signUrl);
         return resp;
-    }
-
-    private <T> T inTenant(Long tenantId, Supplier<T> supplier) {
-        Long oldTenantId = TenantContextHolder.getTenantId();
-        Boolean oldIgnore = TenantContextHolder.isIgnore();
-        TenantContextHolder.setTenantId(tenantId);
-        TenantContextHolder.setIgnore(false);
-        try {
-            return supplier.get();
-        } finally {
-            TenantContextHolder.setTenantId(oldTenantId);
-            TenantContextHolder.setIgnore(oldIgnore);
-        }
     }
 
 }

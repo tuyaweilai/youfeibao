@@ -2195,16 +2195,29 @@ member 令牌回 `code=401 账号未登录`。
 
 1. **一个合同组、两份文书**：`FrameworkAgreementEsignServiceImpl#initiate` 只发一次 `EsignPort#initiate`，请求里带**框架收购协议 + 反向发票合规告知函**两份文书（模板号取平台配置 `icbc_esign_config`，租户只填变量），签署方只有自然人本人——回收企业是发起方、用租户级企业印章，**不在签署方列表里**（ADR 0036 决策 5）。
 2. **发起 ≠ 签完**：`SellerOnboardingServiceImpl#saveFrameworkAgreement` 改为 `@Transactional`，电子签署方式默认落 `status = 0`（待签署）并在**同一事务里**发起；拿不到合同组任务号就整体回滚，不留「拿不到签署链接」的半成品。纸质仍当场生效、盖 `signedAt`（#81 Problem Statement 点名的那处已消除：建档不再替人盖签署时间）。
-3. **状态机收敛在回调**：`EsignCallbackController` 验签后调 `FrameworkAgreementEsignService#applyFinishedCallback`。**整体签完**才把协议推到 `status = 1` 并盖 `signedAt`、把协议文件地址写到 `fileUrl`；旧生效协议转 `status = 2` 留痕。**幂等靠状态机自检**（已是生效直接返回）：重复通知不再作废 / 不再盖时间 / 不再查文件（照 `CallbackNotifyServiceImpl` 的做法）。未签完（放弃 / 过期 / 撤销）不改协议状态。
-4. **签署链接现生成现用**：自然人在自己页面点「去签署」→ `POST /admin-api/icbc/public/agreement/sign-url?token=`（`PublicEsignServiceImpl`，令牌解析出租户与收方、成功后占用令牌次数）；每次点击都向第三方新要一枚链接，不落库、不复用、不发短信。后台侧 `GET /icbc/seller-onboarding/agreement/signed-documents` 查已签文书（现查端口，托管在第三方）。
+3. **状态机收敛在回调**：`EsignCallbackController` 验签后调 `FrameworkAgreementEsignService#applyFinishedCallback`。**整体签完**才把协议推到 `status = 1` 并盖 `signedAt`、把两份文书地址分别写到 `fileUrl`（主文书）/ `noticeFileUrl`（告知函）；旧生效协议转 `status = 2` 留痕。**幂等 = 状态自检 + 条件更新兜底**：已是生效直接返回；推进用「`status = 0` 条件更新」的原子写，同一通知并发两次只有一个改得动（照 `CallbackNotifyServiceImpl`「自检 + 唯一键兜底」的思路）。未签完（放弃 / 过期 / 撤销）不改协议状态。
+4. **签署链接现生成现用**：自然人在自己页面点「去签署」→ 先用登录态换一枚 `ONBOARDING` 一次性令牌（`POST /app-api/icbc/seller/portal/agreement/sign-token`），再调 `POST /admin-api/icbc/public/agreement/sign-url?token=`（`PublicEsignServiceImpl`，令牌解析出租户与收方、成功后占用令牌次数）；每次点击都向第三方新要一枚链接，不落库、不复用、不发短信。自然人端首页「待签框架收购协议」条目可点，现场端第 5 步给二维码 / 可复制链接（本人身份的事不在现场端做）。后台侧 `GET /icbc/seller-onboarding/agreement/signed-documents` 查已签文书（现查端口，托管在第三方）。
 5. **门禁不改**：生效协议查询仍按 `status = 1` 过滤，待签署天然不满足；门禁原因仍是「未签署生效的框架收购协议」。`contractUsed` 的 `+1` 归本票：发起成功时 `EsignTenantService#consumeContract()` 原子自增（额度是否够用仍只在 `EsignPort#isAvailable` 一处判）。
-6. **证据链**：`InvoiceEvidenceServiceImpl` 把出售者**生效中**的框架收购协议作为合同流来源挂进一票一档（不新增证据类型、不新增第六流）。
-7. **落库**：`icbc_framework_agreement` 加 `sign_task_id`（第三方合同组任务号，回调据此定位协议）+ 索引；增量 `sql/mysql/icbc-esign-agreement.sql`（幂等）+ README 导入顺序；测试建表同步。错误码段 `1_030_044_xxx`（#95）；**未加菜单**（无 PC 新页面，53xx 段未占用）。
-8. **测试**：新增 `FrameworkAgreementEsignServiceImplTest`（10）/ `PublicEsignServiceImplTest`（2）/ `PublicEsignAccessLogAnnotationTest`（1），向导 +2、证据链 +1。全量 icbc **794 通过 / 0 失败 / 1 skip**（基线 778）。
+6. **证据链**：`InvoiceEvidenceServiceImpl` 把出售者**生效中**的框架收购协议挂进一票一档的合同流，**两份文书分别成条**——主文书「框架收购协议」取 `fileUrl`、告知函取 `noticeFileUrl`，同归 `FRAMEWORK_AGREEMENT` 这一类型 / 合同流，不新增证据类型、不新增第六流（ADR 0036 决策 3：两份文书要能分别引用，所以不拼成一个 PDF）。
+7. **落库**：`icbc_framework_agreement` 加 `sign_task_id`（第三方合同组任务号，回调据此定位协议）+ 索引，以及 `notice_file_url`（合同组第二份文书地址）；增量 `sql/mysql/icbc-esign-agreement.sql`（幂等）+ README 导入顺序；测试建表同步。错误码段 `1_030_044_xxx`（#95）；**未加菜单**（无 PC 新页面，53xx 段未占用）。
+8. **测试**：新增 `FrameworkAgreementEsignServiceImplTest`（10）/ `PublicEsignServiceImplTest`（2）/ `PublicEsignAccessLogAnnotationTest`（1），向导 +2、证据链 +1、租户额度 `EsignTenantServiceTest#consumeContract` +1。全量 icbc **795 通过 / 0 失败 / 1 skip**（基线 778）。
 
 > **本票没做 / 压到后面的（如实记，别当成能用）**：
 > - **真实腾讯电子签 SDK**（`initiate` / `createSignUrl` / `listSignedDocuments` / `parseCallback` 的腾讯实现）仍是 stub：拿到账号后的真实联调与联调期的「企业先盖章」时序验证属后续。业务层已只依赖端口，换 `icbc.esign.mode=remote` 顶上即可。
-> - **PC / 自然人端 UI**：只交付后端接口（公开「去签署」取链接、后台查已签文书），前端按钮与页面留给 #94（免注册链接壳）/ 现场端后续票。
-> - **告知函在证据链里的独立条目**：合同流目前只带 `fileUrl`（主文书 = 框架收购协议）；告知函通过与协议同属一个合同组、并经已签文书接口可查，未单独在链上成条。
+> - **PC 管理后台**：没有「去签署」按钮（那是本人身份的事），只能看协议状态与查已签文书。签署页承载在**自然人出售者端**（首页待办点一下 → 现取链接 → 跳转 / web-view），现场端只给二维码与可复制链接。
 > - **`ESIGN_QUOTA_EXCEEDED` 仍未被业务层抛出**：额度是否耗尽由真实端口的 `isAvailable` 判，业务层只 +1（端口契约「判断入口只有 isAvailable」）。
-> - **后台 `agreement/create` 的重签**：已随 service 的事务原子落待签署并发起；但没有「对一份已存在的待签署协议单独重发」的入口（重新提交同一协议会重发）。
+> - **后台 `agreement/create` 的修改与重签**：修改只改协议要素，签署方式与状态沿用落库值（不接受手写 `status`）；没有「对一份已存在的待签署协议单独重发」的入口（要重签就新建一份，旧的自动作废）。
+
+### #95 修票（独立评审 BLOCK 后追加，报告见 `.fleet/logs/95.review.log`）
+
+上一个提交把状态机、门禁、事务边界做对了，但两条 AC 只有后端、没有客户端在交付，另有一处证据链口径冲突。这个提交逐条收口：
+
+1. **「点去签署 → 生成链接并跳转」现在至少有一个客户端真的走完（SP-1）**：
+   - **谁是签署页的承接方**：签署是**本人身份**的事，所以承载在**自然人出售者端**（`yudao-ui-seller-uniapp`）：首页「待办」里的「待签框架收购协议」条目可点 → `mintAgreementSignToken`（登录态换一枚绑定收方的 `ONBOARDING` 令牌）→ 公开端点 `/icbc/public/agreement/sign-url` **现取**第三方链接 → H5 直接跳转 / 小程序用新页 `pages/webview/index` 的 `<web-view>` 打开。
+   - **现场端只给转达入口**：第 5 步 `ELECTRONIC` 分支改渲染「协议待签署（电子签章）」，不再显示裸枚举，并复用 #91 的 `useHandoffLink`（二维码 / 可复制链接）把本人引到自然人端；现场端拿不到、也不该拿本人签署链接。
+   - 新增 `POST /app-api/icbc/seller/portal/agreement/sign-token`（`SellerAgreementSignTokenReqVO/RespVO`），没有待签电子协议时不签发无用令牌；`SellerPendingItemVO` 加 `action = SIGN_AGREEMENT`。
+2. **告知函单独进证据链（SP-2）**：`icbc_framework_agreement` 加 `notice_file_url`；回调把两份文书分别落址（`fileUrl` = 主文书「框架收购协议」，`noticeFileUrl` = 「反向发票合规告知函」）；`InvoiceEvidenceServiceImpl` 按 `FRAMEWORK_AGREEMENT` 类型各挂一条（同归合同流，不新增证据类型 / 第六流）。主文书选定口径写在 `FrameworkAgreementEsignServiceImpl#pickDocumentUrl` 的注释里。
+3. **SP-4 闸门关上**：`saveFrameworkAgreement` 不再接受调用方手送 `status`——新建时由签署方式定（电子 = 待签署、纸质 = 当场生效，只额外放行显式「作废」）；修改只改协议要素，签署方式与状态沿用落库值；待签署电子协议缺任务号时补发起。
+4. **SP-5 幂等与文件地址解耦**：推进生效改用 `status = 0` 条件更新（同一通知并发两次只有一个改得动），旧协议作废只在那一次做；已生效但 `fileUrl` 为空时重放补取（两份都齐则不再触网）。
+5. **其它评审项**：S-2 补了 `listSignedDocuments` 的负例（纸协议 / 空任务号 / 无生效协议都不触网）；S-3 本文档数字改对并补全用例清单；S-4 删掉 `initiate` 里多余的 `signMethod` 回写；S-5 用 `PublicTokenServiceImplTest` 同款方式断言成功 consume / 失败不 consume；S-1 两份逐字相同的 `inTenant` 收敛为 `TenantCalls`（不用 `TenantUtils.execute(Callable)`：它会把 `ServiceException` 包成 `RuntimeException`、丢错误码，公开端点内部大量抛业务错误）。
+6. **测试**：全量 icbc **804 通过 / 0 失败 / 1 skip**（本提交 +9：`FrameworkAgreementEsignServiceImplTest` +2、`PublicEsignServiceImplTest` +2、`SellerOnboardingServiceImplTest` +2、`SellerPortalServiceTest` +3）。现场端 `pnpm ts:check` / `build:h5`、自然人端 `ts:check` / `build:h5` 均通过。

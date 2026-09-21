@@ -100,7 +100,8 @@ public class FrameworkAgreementEsignServiceImpl implements FrameworkAgreementEsi
         IcbcFrameworkAgreementDO update = new IcbcFrameworkAgreementDO();
         update.setId(agreement.getId());
         update.setSignTaskId(task.getSignTaskId());
-        update.setSignMethod(FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode());
+        // 不回写 signMethod：调用方（saveFrameworkAgreement / 向导）落库时就写了 ELECTRONIC，
+        // 且本方法只接受 status=0 的待签署协议（上面已校验），这里重复写没有信息量（#95 评审 S-4）。
         frameworkAgreementMapper.updateById(update);
         // 发起成功才消耗一份合同额度
         esignTenantService.consumeContract();
@@ -156,8 +157,10 @@ public class FrameworkAgreementEsignServiceImpl implements FrameworkAgreementEsi
             throw exception(ESIGN_AGREEMENT_NOT_FOUND, callback.getSignTaskId());
         }
         if (FrameworkAgreementStatusEnum.EFFECTIVE.getStatus().equals(agreement.getStatus())) {
-            // 幂等：同一条通知重放不再作废 / 不再盖时间 / 不再查文件
-            log.info("[applyFinished][协议已生效，重复回调跳过] agreementId={} signTaskId={}",
+            // 幂等：已生效不再作废 / 不再盖时间；但若上次回调早于文件可查、fileUrl 为空，
+            // 这里补一次取址（只补空，不改状态 / 不改时间），否则重放永远不会再取，证据链永久缺 URL（#95 评审 SP-5）
+            fillMissingDocumentUrls(agreement, callback.getTenantId(), callback.getSignTaskId());
+            log.info("[applyFinished][协议已生效，重复回调只补缺失的文件地址] agreementId={} signTaskId={}",
                     agreement.getId(), callback.getSignTaskId());
             return;
         }
@@ -168,23 +171,59 @@ public class FrameworkAgreementEsignServiceImpl implements FrameworkAgreementEsi
             return;
         }
 
-        // 新协议生效时旧生效协议作废并留痕（ADR 0036 决策 18）
-        IcbcFrameworkAgreementDO current = frameworkAgreementMapper.selectActiveByPayeeId(agreement.getPayeeId());
-        if (current != null && !current.getId().equals(agreement.getId())) {
+        List<EsignPort.SignedDocument> documents =
+                esignPort.listSignedDocuments(callback.getTenantId(), callback.getSignTaskId());
+        String fileUrl = pickDocumentUrl(documents, DOC_FRAMEWORK_AGREEMENT, true);
+        String noticeFileUrl = pickDocumentUrl(documents, DOC_REVERSE_INVOICE_NOTICE, false);
+        LocalDateTime signedAt = callback.getSignedAt() != null ? callback.getSignedAt() : LocalDateTime.now();
+
+        // 先取「当前生效中的旧协议」：此刻本协议还是待签署，这个查询拿到的才是旧的那一份。
+        // 必须赶在下面把它推进生效之前取，否则查到的会是自己。
+        IcbcFrameworkAgreementDO previousActive = frameworkAgreementMapper.selectActiveByPayeeId(agreement.getPayeeId());
+
+        // 条件更新兜并发：同一通知并发两次时只有一个线程改得动，另一个受影响 0 行、按重放处理（SP-5）
+        int affected = frameworkAgreementMapper.promoteToEffectiveIfPending(
+                agreement.getId(), signedAt, fileUrl, noticeFileUrl);
+        if (affected == 0) {
+            log.info("[applyFinished][协议已被并发回调推进，跳过后续副作用] agreementId={} signTaskId={}",
+                    agreement.getId(), callback.getSignTaskId());
+            return;
+        }
+
+        // 新协议生效时旧生效协议作废并留痕（ADR 0036 决策 18）。只在真正推进成功的那一次做，
+        // 避免并发重放把同一份旧协议重复作废。
+        if (previousActive != null && !previousActive.getId().equals(agreement.getId())) {
             IcbcFrameworkAgreementDO voided = new IcbcFrameworkAgreementDO();
-            voided.setId(current.getId());
+            voided.setId(previousActive.getId());
             voided.setStatus(FrameworkAgreementStatusEnum.VOIDED.getStatus());
             frameworkAgreementMapper.updateById(voided);
         }
+    }
 
-        List<EsignPort.SignedDocument> documents =
-                esignPort.listSignedDocuments(callback.getTenantId(), callback.getSignTaskId());
-        IcbcFrameworkAgreementDO update = new IcbcFrameworkAgreementDO();
-        update.setId(agreement.getId());
-        update.setStatus(FrameworkAgreementStatusEnum.EFFECTIVE.getStatus());
-        update.setSignedAt(callback.getSignedAt() != null ? callback.getSignedAt() : LocalDateTime.now());
-        update.setFileUrl(pickPrimaryDocumentUrl(documents));
-        frameworkAgreementMapper.updateById(update);
+    /**
+     * 协议已生效但文件地址缺失时补取：回调可能早于第三方文件可查（SP-5）。
+     *
+     * <p>只在**有缺**时才查询第三方；两份都齐了就不再触网，保证重复回调没有第二次外部调用。
+     */
+    private void fillMissingDocumentUrls(IcbcFrameworkAgreementDO agreement, Long tenantId, String signTaskId) {
+        boolean fileMissing = StrUtil.isBlank(agreement.getFileUrl());
+        boolean noticeMissing = StrUtil.isBlank(agreement.getNoticeFileUrl());
+        if (!fileMissing && !noticeMissing) {
+            return;
+        }
+        List<EsignPort.SignedDocument> documents = esignPort.listSignedDocuments(tenantId, signTaskId);
+        if (fileMissing) {
+            String fileUrl = pickDocumentUrl(documents, DOC_FRAMEWORK_AGREEMENT, true);
+            if (StrUtil.isNotBlank(fileUrl)) {
+                frameworkAgreementMapper.fillFileUrlIfBlank(agreement.getId(), fileUrl);
+            }
+        }
+        if (noticeMissing) {
+            String noticeFileUrl = pickDocumentUrl(documents, DOC_REVERSE_INVOICE_NOTICE, false);
+            if (StrUtil.isNotBlank(noticeFileUrl)) {
+                frameworkAgreementMapper.fillNoticeFileUrlIfBlank(agreement.getId(), noticeFileUrl);
+            }
+        }
     }
 
     @Override
@@ -237,22 +276,36 @@ public class FrameworkAgreementEsignServiceImpl implements FrameworkAgreementEsi
     }
 
     /**
-     * 协议文件地址取框架收购协议那一份（主文书）；第三方没按名回时退而取第一份。
+     * 从已签文书里取某一份的地址。
+     *
+     * <p><b>主文书选定口径</b>：{@code file_url} 只放**框架收购协议**（合同组里的主文书），
+     * 它是后台协议列表下载、以及一票一档「框架收购协议」条目的地址；告知函单独落
+     * {@code notice_file_url}，在证据链上另成一条。
+     *
+     * <p>第三方没按名回时：主文书退而取第一份非空地址（宁可挂一份也比整条缺地址强）；
+     * 告知函**不兜底**——兜底会把主文书再挂一遍，制造两条指向同一文件的假证据。
+     *
+     * @param allowFirstFallback 找不到指定名字时是否退用第一份地址
      */
-    private String pickPrimaryDocumentUrl(List<EsignPort.SignedDocument> documents) {
+    private String pickDocumentUrl(List<EsignPort.SignedDocument> documents, String documentName,
+                                   boolean allowFirstFallback) {
         if (documents == null || documents.isEmpty()) {
             return null;
         }
-        return documents.stream()
-                .filter(doc -> DOC_FRAMEWORK_AGREEMENT.equals(doc.getName()))
+        String named = documents.stream()
+                .filter(doc -> documentName.equals(doc.getName()))
                 .map(EsignPort.SignedDocument::getFileUrl)
                 .filter(StrUtil::isNotBlank)
                 .findFirst()
-                .orElseGet(() -> documents.stream()
-                        .map(EsignPort.SignedDocument::getFileUrl)
-                        .filter(StrUtil::isNotBlank)
-                        .findFirst()
-                        .orElse(null));
+                .orElse(null);
+        if (named != null || !allowFirstFallback) {
+            return named;
+        }
+        return documents.stream()
+                .map(EsignPort.SignedDocument::getFileUrl)
+                .filter(StrUtil::isNotBlank)
+                .findFirst()
+                .orElse(null);
     }
 
     private String latestStatusLabel(Long payeeId) {

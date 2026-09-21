@@ -6,6 +6,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.publicapi.vo.PublicAgreemen
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenCreateReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.token.IcbcPublicTokenMapper;
 import cn.iocoder.yudao.module.icbc.service.publicapi.impl.PublicEsignServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenCodec;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenService;
@@ -50,6 +51,8 @@ public class PublicEsignServiceImplTest extends BaseDbUnitTest {
     private PublicTokenService publicTokenService;
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
+    @Resource
+    private IcbcPublicTokenMapper publicTokenMapper;
 
     @MockBean
     private FrameworkAgreementEsignService frameworkAgreementEsignService;
@@ -89,7 +92,37 @@ public class PublicEsignServiceImplTest extends BaseDbUnitTest {
         assertServiceException(() -> publicEsignService.createSignUrl(quotaToken), PUBLIC_TOKEN_PURPOSE_MISMATCH);
     }
 
+    @Test
+    public void testCreateSignUrl_successConsumesOneUse() {
+        // S-5：「链接生成成功后才占用令牌次数」是个承诺，这里把它钉死——成功必 consume 一次
+        PayeeInfoDO payee = insertPayee("王五", "110101199003033456");
+        String token = mint("ONBOARDING", payee.getId());
+        assertEquals(0, usedCount(), "签发时不占用");
+        when(frameworkAgreementEsignService.createSignUrl(anyLong())).thenReturn("https://esign/sign?one-time");
+
+        publicEsignService.createSignUrl(token);
+
+        assertEquals(1, usedCount(), "成功拿到链接后才占用一次");
+    }
+
+    @Test
+    public void testCreateSignUrl_failureDoesNotConsumeUse() {
+        // S-5：一次失败的去签署不该烧掉机会——第三方报错时不能 consume
+        PayeeInfoDO payee = insertPayee("赵六", "110101199004044567");
+        String token = mint("ONBOARDING", payee.getId());
+        when(frameworkAgreementEsignService.createSignUrl(anyLong()))
+                .thenThrow(new IllegalStateException("第三方超时"));
+
+        assertThrows(IllegalStateException.class, () -> publicEsignService.createSignUrl(token));
+
+        assertEquals(0, usedCount(), "失败路径没有占用令牌次数");
+    }
+
     // ==================== 助手 ====================
+
+    private Integer usedCount() {
+        return publicTokenMapper.selectList().get(0).getUsedCount();
+    }
 
     private String mint(String purpose, Long payeeId) {
         PublicTokenCreateReqVO reqVO = new PublicTokenCreateReqVO();

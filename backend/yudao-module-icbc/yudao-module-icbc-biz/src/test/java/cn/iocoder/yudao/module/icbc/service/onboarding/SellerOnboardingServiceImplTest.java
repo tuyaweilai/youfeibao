@@ -577,6 +577,47 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         assertNotNull(frameworkAgreementMapper.selectById(id).getAgreementNo());
     }
 
+    @Test
+    public void testSaveFrameworkAgreement_electronicCannotBeSelfMarkedEffective() {
+        // SP-4：手送 signMethod=ELECTRONIC&status=1 不能再当场盖 signedAt（#81 Problem Statement 点名的那件事）
+        PayeeInfoDO payee = insertPayee("USER_AGREE_E", "110101199001010031", "13800000031");
+        FrameworkAgreementSaveReqVO reqVO = agreementReq(payee.getId(), "废钢");
+        reqVO.setSignMethod("ELECTRONIC");
+        reqVO.setStatus(1);
+
+        Long id = sellerOnboardingService.saveFrameworkAgreement(reqVO);
+
+        IcbcFrameworkAgreementDO stored = frameworkAgreementMapper.selectById(id);
+        assertEquals(0, stored.getStatus(), "电子协议只能停在待签署：生效只能由签署回调推");
+        assertNull(stored.getSignedAt(), "没人签过就不该有签署时间");
+        verify(frameworkAgreementEsignService).initiate(eq(1L), eq(id));
+    }
+
+    @Test
+    public void testSaveFrameworkAgreement_updateKeepsSignatureStateAndInitiatesWhenTaskMissing() {
+        // SP-4：更新不得把待签署改成生效，也不能改成待签署却不发起（否则「去签署」必然报任务号缺失）
+        PayeeInfoDO payee = insertPayee("USER_AGREE_U", "110101199001010032", "13800000032");
+        IcbcFrameworkAgreementDO existing = IcbcFrameworkAgreementDO.builder()
+                .payeeId(payee.getId()).agreementNo("FW_UPDATE_1").productName("废钢").quantity("5 吨")
+                .specification("重型").recyclePeriod("2026 年 9 月第 1 期").settlementMethod("银行转账")
+                .signMethod("ELECTRONIC").status(0).build();
+        frameworkAgreementMapper.insert(existing);
+
+        FrameworkAgreementSaveReqVO reqVO = agreementReq(payee.getId(), "废纸");
+        reqVO.setId(existing.getId());
+        reqVO.setSignMethod("ELECTRONIC");
+        reqVO.setStatus(1);
+
+        Long id = sellerOnboardingService.saveFrameworkAgreement(reqVO);
+
+        assertEquals(existing.getId(), id);
+        IcbcFrameworkAgreementDO stored = frameworkAgreementMapper.selectById(id);
+        assertEquals(0, stored.getStatus(), "更新不得把待签署手改成生效");
+        assertNull(stored.getSignedAt());
+        assertEquals("废纸", stored.getProductName(), "协议要素照常更新");
+        verify(frameworkAgreementEsignService).initiate(eq(1L), eq(existing.getId()));
+    }
+
     // ==================== 首次授权 ====================
 
     @Test

@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
@@ -195,6 +196,8 @@ public class FrameworkAgreementEsignServiceImplTest extends BaseDbUnitTest {
         assertEquals(signedAt, promoted.getSignedAt(), "回调把签署时间盖到协议上");
         assertEquals("https://esign/doc-agreement", promoted.getFileUrl(),
                 "协议文件取框架收购协议那一份（主文书）");
+        assertEquals("https://esign/doc-notice", promoted.getNoticeFileUrl(),
+                "告知函单独落址：两份文书在证据链上分别成条，不拼成一个 PDF");
         // 新协议生效时旧生效协议作废、历史可查
         assertEquals(FrameworkAgreementStatusEnum.VOIDED.getStatus(),
                 frameworkAgreementMapper.selectById(oldEffective.getId()).getStatus());
@@ -211,9 +214,11 @@ public class FrameworkAgreementEsignServiceImplTest extends BaseDbUnitTest {
         pending.setSignTaskId("TASK-4");
         frameworkAgreementMapper.updateById(pending);
         LocalDateTime signedAt = LocalDateTime.of(2026, 9, 21, 11, 0);
-        when(esignPort.listSignedDocuments(TENANT_ID, "TASK-4")).thenReturn(List.of(
+        when(esignPort.listSignedDocuments(TENANT_ID, "TASK-4")).thenReturn(Arrays.asList(
                 EsignPort.SignedDocument.builder().name("框架收购协议")
-                        .fileUrl("https://esign/doc").signedAt(signedAt).build()));
+                        .fileUrl("https://esign/doc").signedAt(signedAt).build(),
+                EsignPort.SignedDocument.builder().name("反向发票合规告知函")
+                        .fileUrl("https://esign/doc-notice").signedAt(signedAt).build()));
 
         frameworkAgreementEsignService.applyFinishedCallback(callback("TASK-4", true, signedAt));
         // 同一条通知再来一遍
@@ -251,6 +256,38 @@ public class FrameworkAgreementEsignServiceImplTest extends BaseDbUnitTest {
                 ESIGN_AGREEMENT_NOT_FOUND, "TASK-UNKNOWN");
     }
 
+    @Test
+    public void testApplyFinishedCallback_replayFillsFileUrlWhenThirdPartyFilesWereNotReadyYet() {
+        // 回调早于第三方文件可查：本次拿不到文件地址，但协议已生效。
+        // 重放时必须补取，否则幂等短路会让证据链永久缺 URL（#95 评审 SP-5）。
+        PayeeInfoDO payee = insertPayee("冯十二", "13800000012");
+        IcbcFrameworkAgreementDO pending = insertAgreement(payee.getId(), "废钢",
+                FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode(), FrameworkAgreementStatusEnum.PENDING.getStatus());
+        pending.setSignTaskId("TASK-7");
+        frameworkAgreementMapper.updateById(pending);
+        LocalDateTime signedAt = LocalDateTime.of(2026, 9, 21, 12, 0);
+        // 第一次通知：第三方还没生成文件
+        when(esignPort.listSignedDocuments(TENANT_ID, "TASK-7"))
+                .thenReturn(Collections.emptyList(), Arrays.asList(
+                        EsignPort.SignedDocument.builder().name("框架收购协议")
+                                .fileUrl("https://esign/doc-late").signedAt(signedAt).build(),
+                        EsignPort.SignedDocument.builder().name("反向发票合规告知函")
+                                .fileUrl("https://esign/doc-notice-late").signedAt(signedAt).build()));
+
+        frameworkAgreementEsignService.applyFinishedCallback(callback("TASK-7", true, signedAt));
+        IcbcFrameworkAgreementDO afterFirst = frameworkAgreementMapper.selectById(pending.getId());
+        assertEquals(FrameworkAgreementStatusEnum.EFFECTIVE.getStatus(), afterFirst.getStatus());
+        assertNull(afterFirst.getFileUrl(), "文件还没可查，先如实留空");
+
+        // 重放：已生效，但文件地址缺，补取一次（不改状态 / 不重盖时间）
+        frameworkAgreementEsignService.applyFinishedCallback(callback("TASK-7", true, signedAt));
+        IcbcFrameworkAgreementDO afterReplay = frameworkAgreementMapper.selectById(pending.getId());
+        assertEquals("https://esign/doc-late", afterReplay.getFileUrl(), "重放要把缺的主文书地址补回来");
+        assertEquals("https://esign/doc-notice-late", afterReplay.getNoticeFileUrl());
+        assertEquals(signedAt, afterReplay.getSignedAt(), "补地址不得改签署时间");
+        verify(esignPort, times(2)).listSignedDocuments(TENANT_ID, "TASK-7");
+    }
+
     // ==================== 已签文书查询 ====================
 
     @Test
@@ -268,6 +305,29 @@ public class FrameworkAgreementEsignServiceImplTest extends BaseDbUnitTest {
 
         assertEquals(1, documents.size());
         assertEquals("https://esign/doc", documents.get(0).getFileUrl());
+    }
+
+    @Test
+    public void testListSignedDocuments_emptyForPaperOrMissingTaskIdOrNoEffective() {
+        // S-2：名字里的 `only` 不能只验正例——纸协议 / 空任务号 / 没有生效协议都必须回空且不触第三方
+        PayeeInfoDO paperPayee = insertPayee("陈十三", "13800000013");
+        insertAgreement(paperPayee.getId(), "废纸",
+                FrameworkAgreementSignMethodEnum.PAPER.getCode(), FrameworkAgreementStatusEnum.EFFECTIVE.getStatus());
+        assertTrue(frameworkAgreementEsignService.listSignedDocuments(paperPayee.getId()).isEmpty(),
+                "纸协议已签完，不归电子签署文书接口管");
+
+        PayeeInfoDO noTaskPayee = insertPayee("褚十四", "13800000014");
+        insertAgreement(noTaskPayee.getId(), "废铁",
+                FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode(), FrameworkAgreementStatusEnum.EFFECTIVE.getStatus());
+        assertTrue(frameworkAgreementEsignService.listSignedDocuments(noTaskPayee.getId()).isEmpty(),
+                "没有任务号就查不到文书，别拿空任务号去问第三方");
+
+        PayeeInfoDO noAgreementPayee = insertPayee("卫十五", "13800000015");
+        assertTrue(frameworkAgreementEsignService.listSignedDocuments(noAgreementPayee.getId()).isEmpty(),
+                "没有生效协议就是空列表");
+
+        // 三条短路都不应该触网
+        verify(esignPort, never()).listSignedDocuments(anyLong(), anyString());
     }
 
     // ==================== 助手 ====================

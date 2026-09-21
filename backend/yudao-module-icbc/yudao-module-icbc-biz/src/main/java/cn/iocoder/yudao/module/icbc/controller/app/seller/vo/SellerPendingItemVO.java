@@ -18,6 +18,10 @@ public class SellerPendingItemVO {
     @Schema(description = "类型：AGREEMENT-待签框架协议，SETTLEMENT-待确认结算单", example = "SETTLEMENT")
     private String type;
 
+    @Schema(description = "点击动作：SIGN_AGREEMENT-去签署（待签电子协议，点一下现取签署链接并跳转）；无动作时为空",
+            example = "SIGN_AGREEMENT")
+    private String action;
+
     @Schema(description = "类型名", example = "待确认结算单")
     private String typeName;
 
