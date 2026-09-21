@@ -2461,3 +2461,9 @@ member 令牌回 `code=401 账号未登录`。
 - **`icbc_payer_info` 的 `uk_credit_code` / `uk_tax_no` 不含 `tenant_id`**：`icbc_payer_info` 的四个唯一键都是全局的（`payer_no` / `partner_payer_id` / `credit_code` / `tax_no`）。付方是回收企业自己的法人档案，一个法人正常只在一家回收企业下；只有「演示租户 + 客户真租户」共用同一个信用代码才会撞。**本票不动**：先确认有没有同一法人跨租户的合法场景，再谈改法与迁移。
 - **`deleted` 进唯一键的既有毛病**：同一租户同一个人「软删 → 重建 → 再软删」时第二次软删会撞键（两条 `deleted=1`）。改前改后完全一样，另一件事。
 - 31 个「租户级表 + 不含 tenant_id 的唯一键」绝大多数是合理的全局键（我们生成的 `acquisition_no` / `station_code` / `payee_no`、工行的 `msg_id` / `notify_id`、`jti` 等），比对测试用「只比含 `tenant_id` 的键」把它们排除掉了，不靠人肉白名单。
+
+### 合并记录：#97（自动舰队）
+
+- 分支 `i97-payee-unique-key` → `d343e686`：7 个文件、1 个提交
+- 独立评审：PASS（报告 `.fleet/gates/97.review.md`）
+- 闸门：全量 icbc `[WARNING] Tests run: 896, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/97.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/97.log`（`.fleet/` 与收养票的仓库外日志不入库）
