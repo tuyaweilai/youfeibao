@@ -78,6 +78,73 @@ export async function pathToDataUrl(tempPath: string): Promise<string> {
   // #endif
 }
 
+/** 估算 dataURL 里 base64 部分的长度（不含 `data:...;base64,` 前缀） */
+function base64Length(dataUrl: string): number {
+  const index = dataUrl.indexOf(',')
+  return index >= 0 ? dataUrl.length - index - 1 : dataUrl.length
+}
+
+/**
+ * 把图片压到 base64 不超过 `maxBase64Length`（腾讯 OCR 单张上限 10M，#93）。
+ *
+ * 现场手机原图常超限：`chooseImage` 的 compressed 只是一种压缩，兜不住大图。H5 用 canvas
+ * 先按需降 JPEG 质量、再降分辨率；非 H5 交回原图，由调用方做上限拦截。压到不能再压仍超限时
+ * 返回最小结果，让调用方给出可读提示——不静默把一张必被厂商拒绝的图传上去。
+ */
+export async function compressDataUrl(dataUrl: string, maxBase64Length: number): Promise<string> {
+  // 本来就没超限就原样返回：避免无谓的二次编码损失
+  if (base64Length(dataUrl) <= maxBase64Length) {
+    return dataUrl
+  }
+  // #ifdef H5
+  const image = await loadImage(dataUrl)
+  let width = image.naturalWidth || image.width
+  let height = image.naturalHeight || image.height
+  let quality = 0.8
+  let result = renderJpeg(image, width, height, quality)
+  for (let attempt = 0; attempt < 24 && base64Length(result) > maxBase64Length; attempt++) {
+    if (quality > 0.4) {
+      quality = Math.max(0.4, Number((quality - 0.1).toFixed(2)))
+    } else {
+      width = Math.max(1, Math.round(width * 0.8))
+      height = Math.max(1, Math.round(height * 0.8))
+      quality = 0.7
+      if (width <= 320 || height <= 320) {
+        break
+      }
+    }
+    result = renderJpeg(image, width, height, quality)
+  }
+  return result
+  // #endif
+  // #ifndef H5
+  return dataUrl
+  // #endif
+}
+
+// #ifdef H5
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('读取照片失败'))
+    image.src = src
+  })
+}
+
+function renderJpeg(image: HTMLImageElement, width: number, height: number, quality: number): string {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d')
+  if (!context) {
+    return image.src
+  }
+  context.drawImage(image, 0, 0, width, height)
+  return canvas.toDataURL('image/jpeg', quality)
+}
+// #endif
+
 /** 把 base64 dataURL 还原成上传接口可用的本地路径 */
 export function dataUrlToUploadPath(dataUrl: string): string {
   // #ifdef H5

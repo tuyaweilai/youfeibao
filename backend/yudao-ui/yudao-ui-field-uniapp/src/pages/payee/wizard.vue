@@ -36,6 +36,13 @@
         <view v-for="(word, i) in draft.idFrontBlockReasons" :key="i">· {{ word }}</view>
         <view>人像面这张不能用，请重拍或换一张。</view>
       </view>
+      <view
+        v-if="idFrontQuality"
+        class="alerts"
+        :class="idFrontQuality.low ? 'alerts--warn' : 'alerts--info'"
+      >
+        {{ idFrontQuality.text }}
+      </view>
 
       <view class="shot" @click="shootIdBack">
         <image v-if="draft.idBackImage" class="shot__img" :src="draft.idBackImage" mode="aspectFit" />
@@ -48,6 +55,13 @@
       <view v-if="draft.idBackBlockReasons.length" class="alerts alerts--block">
         <view v-for="(word, i) in draft.idBackBlockReasons" :key="i">· {{ word }}</view>
         <view>国徽面这张不能用，请重拍或换一张。</view>
+      </view>
+      <view
+        v-if="idBackQuality"
+        class="alerts"
+        :class="idBackQuality.low ? 'alerts--warn' : 'alerts--info'"
+      >
+        {{ idBackQuality.text }}
       </view>
 
       <view class="actions">
@@ -94,6 +108,20 @@
       <view v-if="idBlocked" class="alerts alerts--block">
         <view v-for="(word, i) in idBlockReasons" :key="i">· {{ word }}</view>
         <view>证件这张不能用，请回上一步重拍或换一张。</view>
+      </view>
+      <view
+        v-if="idFrontQuality"
+        class="alerts"
+        :class="idFrontQuality.low ? 'alerts--warn' : 'alerts--info'"
+      >
+        人像面：{{ idFrontQuality.text }}
+      </view>
+      <view
+        v-if="idBackQuality"
+        class="alerts"
+        :class="idBackQuality.low ? 'alerts--warn' : 'alerts--info'"
+      >
+        国徽面：{{ idBackQuality.text }}
       </view>
 
       <view class="actions">
@@ -162,6 +190,13 @@
         </view>
         <view v-else-if="!draft.accountCode" class="tip">
           识别不到、本人也没选时，将按缺省「是工行卡」建档。
+        </view>
+        <view
+          v-if="bankQuality"
+          class="alerts"
+          :class="bankQuality.low ? 'alerts--warn' : 'alerts--info'"
+        >
+          {{ bankQuality.text }}
         </view>
       </view>
 
@@ -245,7 +280,7 @@ import {
   OnboardingWizardSubmitReq
 } from '@/api/wizard'
 import { useHandoffLink } from '@youfeibao/field-shared'
-import { chooseImage, pathToDataUrl } from '@/utils/upload'
+import { chooseImage, compressDataUrl, pathToDataUrl } from '@/utils/upload'
 import {
   clearWizardDraft,
   emptyWizardDraft,
@@ -271,8 +306,10 @@ const BANK_CARD_RE = /^\d{16,19}$/
 const ID_CARD_RE = /^[1-9]\d{5}(18|19|20)\d{2}((0[1-9])|(1[0-2]))(([0-2][1-9])|10|20|30|31)\d{3}[0-9Xx]$/
 const ADDRESS_MIN_CHINESE = 4
 const ADDRESS_MIN_CHARS = 7
-/** 腾讯要求 base64 后单张不超过 10M；现场原图常超，拍完先在这里拦一道 */
+/** 腾讯要求 base64 后单张不超过 10M；现场原图常超，拍完先压缩再在这里拦一道 */
 const MAX_BASE64_LENGTH = 10 * 1024 * 1024
+/** 质量分低于它就在确认页提示重拍，但**不硬拦**（#93 验收）。 */
+const QUALITY_WARN_THRESHOLD = 60
 
 const draft = reactive<OnboardingWizardDraft>(emptyWizardDraft())
 const submitting = ref(false)
@@ -321,6 +358,24 @@ const canStep1Next = computed(
 )
 const canStep3Next = computed(() => !!draft.bankImage && draft.bankBlockReasons.length === 0)
 
+/** 质量分提示：低分提示重拍，高分只报数；都没有就不显示。 */
+interface QualityInfo {
+  text: string
+  low: boolean
+}
+
+function qualityInfo(score?: number): QualityInfo | null {
+  if (score === undefined || score === null) {
+    return null
+  }
+  const low = score < QUALITY_WARN_THRESHOLD
+  return { text: low ? `图片质量分 ${score}（偏低，建议重拍）` : `图片质量分 ${score}`, low }
+}
+
+const idFrontQuality = computed(() => qualityInfo(draft.idFrontQualityScore))
+const idBackQuality = computed(() => qualityInfo(draft.idBackQualityScore))
+const bankQuality = computed(() => qualityInfo(draft.bankQualityScore))
+
 function tips(message: string) {
   uni.showToast({ title: message, icon: 'none', duration: 2600 })
 }
@@ -350,10 +405,12 @@ async function pickImage(): Promise<string> {
     throw new Error('未选择照片')
   }
   const dataUrl = await pathToDataUrl(paths[0])
-  if (toBase64(dataUrl).length > MAX_BASE64_LENGTH) {
+  // 前端必须先压缩：腾讯要求 base64 后单张不超过 10M，手机原图常超（#93 验收）
+  const compressed = await compressDataUrl(dataUrl, MAX_BASE64_LENGTH)
+  if (toBase64(compressed).length > MAX_BASE64_LENGTH) {
     throw new Error('照片太大（识别要求单张不超过 10M），请重拍或换一张')
   }
-  return dataUrl
+  return compressed
 }
 
 /** 去掉 dataURL 前缀：识别接口要的是纯 base64（图片随请求进来、识别完即弃） */
@@ -379,6 +436,7 @@ async function shootIdFront() {
     draft.idFrontImage = image
     draft.idFrontWarnings = []
     draft.idFrontBlockReasons = []
+    draft.idFrontQualityScore = undefined
     persist()
     try {
       const resp = await recognizeIdCardFront({
@@ -393,6 +451,7 @@ async function shootIdFront() {
       // 正反面各留各的：同一对字段会被后拍的那张覆盖，硬拦就能被绕过（#91 评审 SP-3）
       draft.idFrontWarnings = resp.warnings || []
       draft.idFrontBlockReasons = resp.blockReasons || []
+      draft.idFrontQualityScore = resp.qualityScore
       persist()
     } catch (e) {
       tips((e as Error).message || '识别失败，照片已保留，可继续手工录入')
@@ -419,6 +478,7 @@ async function shootIdBack() {
     draft.idBackImage = image
     draft.idBackWarnings = []
     draft.idBackBlockReasons = []
+    draft.idBackQualityScore = undefined
     persist()
     try {
       const resp = await recognizeIdCardBack({
@@ -430,6 +490,7 @@ async function shootIdBack() {
       draft.idValidityPeriod = resp.idValidityPeriod || ''
       draft.idBackWarnings = resp.warnings || []
       draft.idBackBlockReasons = resp.blockReasons || []
+      draft.idBackQualityScore = resp.qualityScore
       persist()
     } catch (e) {
       tips((e as Error).message || '识别失败，照片已保留，可继续手工录入')
@@ -456,6 +517,7 @@ async function shootBankCard() {
     draft.bankImage = image
     draft.bankWarnings = []
     draft.bankBlockReasons = []
+    draft.bankQualityScore = undefined
     persist()
     try {
       const resp = await recognizeBankCard({
@@ -473,6 +535,7 @@ async function shootBankCard() {
       }
       draft.bankWarnings = resp.warnings || []
       draft.bankBlockReasons = resp.blockReasons || []
+      draft.bankQualityScore = resp.qualityScore
       persist()
     } catch (e) {
       tips((e as Error).message || '识别失败，照片已保留，可继续手工录入')
@@ -829,6 +892,11 @@ function finish() {
   &--block {
     color: #cf1322;
     background-color: #fff1f0;
+  }
+
+  &--info {
+    color: $field-text-secondary;
+    background-color: #f5f6f8;
   }
 }
 

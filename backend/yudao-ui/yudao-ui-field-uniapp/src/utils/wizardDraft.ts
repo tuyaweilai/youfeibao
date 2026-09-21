@@ -38,6 +38,10 @@ export interface OnboardingWizardDraft {
   idBackBlockReasons: string[]
   bankWarnings: string[]
   bankBlockReasons: string[]
+  /** 图片质量分（0-100，厂商返回）：低于阈值在确认页提示重拍，但不硬拦（#93） */
+  idFrontQualityScore?: number
+  idBackQualityScore?: number
+  bankQualityScore?: number
   // 协议要素（税总 5 号公告第十七条），留空由后端给缺省
   productName: string
   quantity: string
@@ -90,6 +94,9 @@ export function emptyWizardDraft(): OnboardingWizardDraft {
     idBackBlockReasons: [],
     bankWarnings: [],
     bankBlockReasons: [],
+    idFrontQualityScore: undefined,
+    idBackQualityScore: undefined,
+    bankQualityScore: undefined,
     productName: '',
     quantity: '',
     specification: '',
