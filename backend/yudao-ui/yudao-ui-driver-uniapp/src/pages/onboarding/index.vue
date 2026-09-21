@@ -2,7 +2,7 @@
   <view class="page">
     <template v-if="!payeeId">
       <view class="card">
-        <view class="card__title">为出售者建档</view>
+        <view class="card__title">建档</view>
         <view class="card__tip">
           先认出人：填身份证号或手机号带出已有档案；没有档案就新建。建档后依次完成准入四步。
         </view>

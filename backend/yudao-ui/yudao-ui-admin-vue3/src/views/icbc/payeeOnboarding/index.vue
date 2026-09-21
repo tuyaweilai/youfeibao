@@ -47,7 +47,7 @@
   </ContentWrap>
 
   <!-- 建档向导 -->
-  <el-drawer v-model="drawerVisible" :title="`出售者建档 - ${overview.name || ''}`" size="720px">
+  <el-drawer v-model="drawerVisible" :title="`建档 - ${overview.name || ''}`" size="720px">
     <div v-loading="drawerLoading">
       <!-- 状态卡 -->
       <el-alert

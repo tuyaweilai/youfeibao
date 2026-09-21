@@ -10,7 +10,7 @@
         </view>
         <button class="btn btn--ghost" :loading="looking" @click="onLookup">带出档案</button>
         <view v-if="lookedUp && !foundSeller" class="hint hint--warn">
-          没查到档案，请在下方为新出售者建档。
+          没查到档案，请在下方建档。
         </view>
         <view v-if="foundSeller" class="seller">
           <view class="seller__name">{{ foundSeller.name }}</view>
@@ -22,7 +22,7 @@
       </view>
 
       <view class="card">
-        <view class="card__title">新出售者建档</view>
+        <view class="card__title">建档</view>
         <view class="field">
           <text class="field__label">姓名</text>
           <input v-model="newSeller.name" class="input" placeholder="与身份证一致" />

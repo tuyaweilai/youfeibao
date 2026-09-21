@@ -320,7 +320,7 @@
       <el-form-item label="关联申报单编号">
         <el-input-number v-model="supplementForm.declarationId" :controls="false" class="!w-200px" />
       </el-form-item>
-      <el-form-item label="出售者档案编号">
+      <el-form-item label="收方档案编号">
         <el-input-number v-model="supplementForm.payeeId" :controls="false" class="!w-200px" />
       </el-form-item>
       <el-form-item label="补缴原因">

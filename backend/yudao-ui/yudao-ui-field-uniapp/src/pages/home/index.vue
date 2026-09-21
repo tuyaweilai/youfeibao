@@ -117,7 +117,7 @@ function icon(paths: string) {
 }
 const menus = [
   { title: '交接批次', desc: '车辆交接 · 磅次管理', url: '/pages/handover/index', icon: icon('<path d="M3 7h11v11H3zM14 11h4l3 4v3h-7M6 7V4h5"/><circle cx="7" cy="19" r="2"/><circle cx="18" cy="19" r="2"/>') },
-  { title: '自然人建档', desc: '实名入驻 · 协议授权', url: '/pages/payee/index', icon: icon('<circle cx="9" cy="8" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2M20 7v6M17 10h6"/>') },
+  { title: '建档', desc: '实名入驻 · 协议授权', url: '/pages/payee/index', icon: icon('<circle cx="9" cy="8" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2M20 7v6M17 10h6"/>') },
   { title: '结算与确认', desc: '结束收货 · 转达确认', url: '/pages/settlement/index', icon: icon('<path d="M14 3H5v18h14V8zM14 3v5h5M8 14l3 3 5-6"/>') },
   { title: '我的收购单', desc: '查看记录 · 跟进进度', url: '/pages/my-acquisitions/index', icon: icon('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>') }
 ]

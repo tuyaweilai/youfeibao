@@ -737,7 +737,7 @@ function formatArrival(value?: number) {
 }
 
 function validate(): string | null {
-  if (!form.payeeId) return '请先带出售者档案'
+  if (!form.payeeId) return '请先带收方档案'
   if (!form.goodsConfigId) return '请选择品类'
   if (!(toNum(form.quantity)! > 0)) return '请填写数量'
   if (!(toNum(form.amount)! > 0)) return '金额需大于 0（结算重量 × 单价 + 调整项）'

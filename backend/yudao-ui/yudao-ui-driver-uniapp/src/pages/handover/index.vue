@@ -240,7 +240,7 @@ function onGapChange(event: { detail: { value: number } }) {
 
 async function onSubmit() {
   if (!payeeId.value) {
-    uni.showToast({ title: '先带出或新建出售者档案', icon: 'none' })
+    uni.showToast({ title: '先带出或新建收方档案', icon: 'none' })
     return
   }
   if (!selectedCategory.value) {

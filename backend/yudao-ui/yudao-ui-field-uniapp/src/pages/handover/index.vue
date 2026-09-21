@@ -272,7 +272,7 @@ function toNum(value: string): number | null {
 
 async function onCreateBatch() {
   if (!seller.value?.id) {
-    uni.showToast({ title: '请先带出售者档案', icon: 'none' })
+    uni.showToast({ title: '请先带收方档案', icon: 'none' })
     return
   }
   if (!form.plateNo.trim()) {

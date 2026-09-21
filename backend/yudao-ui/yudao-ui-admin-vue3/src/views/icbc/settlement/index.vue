@@ -93,7 +93,7 @@
     <el-alert type="warning" :closable="false" class="mb-10px"
       title="生成后不得再往这张结算单里加收购单，要加只能新建。系统的时间窗只作建议，现场动作才是批次边界。" />
     <el-form :model="generateForm" label-width="110px">
-      <el-form-item label="出售者档案编号">
+      <el-form-item label="收方档案编号">
         <el-input v-model.number="generateForm.payeeId" placeholder="收方档案 id" />
       </el-form-item>
       <el-form-item label="离线批次键">
@@ -332,7 +332,7 @@ const openGenerate = () => {
 }
 const submitGenerate = async () => {
   if (!generateForm.payeeId) {
-    message.warning('请填写出售者档案编号')
+    message.warning('请填写收方档案编号')
     return
   }
   await SettlementApi.generate({

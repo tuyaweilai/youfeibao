@@ -132,7 +132,7 @@
         </el-select>
       </el-form-item>
       <el-form-item v-if="formData.counterpartyType === CONTRACT_NATURAL_COUNTERPARTY_TYPE" label="自然人出售者" prop="payeeId">
-        <el-select v-model="formData.payeeId" filterable placeholder="从出售者档案中选择" class="!w-360px">
+        <el-select v-model="formData.payeeId" filterable placeholder="从收方档案中选择" class="!w-360px">
           <el-option
             v-for="item in payeeOptions"
             :key="item.id"

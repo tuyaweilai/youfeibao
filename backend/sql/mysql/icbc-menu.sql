@@ -61,7 +61,7 @@ UPDATE `system_menu` SET `status` = 1, `updater` = 'admin', `update_time` = NOW(
 -- 清掉所有 icbc 自有菜单（含历史增量 SQL 用自增 id 落下的、如 icbc_invoice_tables.sql / icbc-invoice-application.sql
 -- 里的行），再按固定 id 重建，避免重复。父级目录没有 permission，用 component 前缀兜底。
 -- 图标：目录与页面菜单（type 1 / 2）一律给 icon，取 Element Plus 图标集（`ep:*`，名称对应
--- @iconify/json 的 ep.json，前端用 @purge-icons 渲染）；按钮权限行（type 3）不显图标，保持 NULL。
+-- @iconify/json 的 ep.json，前端用 @purge-icons 渲染）；按钮权限行（type 3）不显图标，icon 留空串。
 -- 新页面菜单的 icon 要与同目录下的兄弟菜单不重，且必须是 ep.json 里真实存在的名字，否则界面上会空一块。
 DELETE FROM `system_role_menu` WHERE `menu_id` IN (SELECT `id` FROM `system_menu` WHERE `permission` LIKE 'icbc:%' OR `component` LIKE 'icbc/%');
 DELETE FROM `system_menu` WHERE `permission` LIKE 'icbc:%' OR `component` LIKE 'icbc/%';
@@ -81,7 +81,7 @@ VALUES
 (5206, '结算管理', '', 1, 80, 0, '/settlement', 'ep:money', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5207, '财务票务', '', 1, 90, 0, '/finance', 'ep:tickets', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5208, '业务追溯', '', 1, 100, 0, '/trace', 'ep:connection', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5209, '经营报表', '', 2, 110, 0, '/report', 'ep:data-analysis', 'icbc/report/index', 'IcbcReport', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5209, '经营报表', '', 2, 110, 0, '/report', 'ep:trend-charts', 'icbc/report/index', 'IcbcReport', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 -- 平台运营：系统租户专有，不属回收企业套餐
 (5140, '平台运营', '', 1, 120, 0, '/platform', 'ep:data-analysis', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
@@ -105,12 +105,12 @@ VALUES
 (5109, '付方删除', 'icbc:payer-info:delete', 3, 3, 5106, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 
 -- ===== 交易对方 =====
-(5101, '出售者档案', 'icbc:payee-info:query', 2, 1, 5202, 'payee', 'ep:avatar', 'icbc/payee/index', 'IcbcPayee', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5101, '收方档案', 'icbc:payee-info:query', 2, 1, 5202, 'payee', 'ep:avatar', 'icbc/payee/index', 'IcbcPayee', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5102, '出售者新增', 'icbc:payee-info:create', 3, 1, 5101, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5103, '出售者修改', 'icbc:payee-info:update', 3, 2, 5101, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5104, '出售者删除', 'icbc:payee-info:delete', 3, 3, 5101, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5105, '出售者导出', 'icbc:payee-info:export', 3, 4, 5101, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
-(5133, '出售者建档', 'icbc:seller-onboarding:execute', 2, 2, 5202, 'payee-onboarding', 'ep:user-filled', 'icbc/payeeOnboarding/index', 'IcbcPayeeOnboarding', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5133, '建档', 'icbc:seller-onboarding:execute', 2, 2, 5202, 'payee-onboarding', 'ep:user-filled', 'icbc/payeeOnboarding/index', 'IcbcPayeeOnboarding', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5134, '框架收购协议', 'icbc:seller-agreement:manage', 3, 1, 5133, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5135, '首次授权', 'icbc:seller-authorization:manage', 3, 2, 5133, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
 (5130, '企业授权', 'icbc:enterprise-auth:query', 2, 3, 5202, 'enterprise-auth', 'ep:key', 'icbc/enterpriseAuth/index', 'IcbcEnterpriseAuth', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),

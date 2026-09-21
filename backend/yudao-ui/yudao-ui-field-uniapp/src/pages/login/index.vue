@@ -2,7 +2,7 @@
   <view class="login">
     <view class="login__shell">
       <view class="hero">
-        <view class="brand" aria-label="反向发票合规平台收货现场">
+        <view class="brand" aria-label="反向发票合规平台回收企业工作台">
           <view class="brand__mark" aria-hidden="true">
             <view class="brand__box brand__box--back" />
             <view class="brand__box brand__box--front" />
@@ -14,7 +14,7 @@
           </view>
         </view>
 
-        <view class="hero__title">收购企业工作台</view>
+        <view class="hero__title">回收企业工作台</view>
         <view class="hero__desc">登录账号，开始今日收货工作</view>
       </view>
 

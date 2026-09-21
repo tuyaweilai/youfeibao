@@ -203,12 +203,12 @@
       </view>
 
       <view class="card card--handoff">
-        <view class="card__title">现场为出售者建档</view>
+        <view class="card__title">现场建档</view>
         <view class="tip">
           现场没有收货员时（司机上门），准入四步在这一端完成：实名 → 收方入驻 → 框架协议 → 首次授权。
           **确认一律由出售者本人做**，这里只把链接交给他。
         </view>
-        <button class="btn btn--ghost" @click="goOnboarding">为出售者建档</button>
+        <button class="btn btn--ghost" @click="goOnboarding">建档</button>
       </view>
 
       <view v-if="task.status === 4" class="tip tip--bottom">

@@ -75,7 +75,7 @@
           filterable
           remote
           :remote-method="searchPayee"
-          placeholder="按姓名搜索出售者档案"
+          placeholder="按姓名搜索收方档案"
           class="!w-100%"
         >
           <el-option v-for="item in payeeOptions" :key="item.id" :label="`${item.name}（${item.mobile || item.idCardNo}）`" :value="item.id!" />

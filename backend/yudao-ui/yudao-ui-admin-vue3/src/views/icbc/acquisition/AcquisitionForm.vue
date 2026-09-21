@@ -3,7 +3,7 @@
     <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px" v-loading="formLoading">
       <template v-if="formType === 'create'">
         <el-form-item label="出售者" prop="payeeId">
-          <el-select v-model="formData.payeeId" placeholder="从既有出售者档案选择" filterable class="w-full">
+          <el-select v-model="formData.payeeId" placeholder="从既有收方档案选择" filterable class="w-full">
             <el-option
               v-for="item in payees"
               :key="item.id"

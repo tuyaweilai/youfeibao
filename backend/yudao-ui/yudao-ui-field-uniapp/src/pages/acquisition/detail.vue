@@ -276,7 +276,7 @@ function onPrint() {
 /** 结束本次收货：把这位出售者尚未归组的收购单聚合成一张结算单，然后转达确认链接 */
 async function onEndBatch() {
   if (!acquisition.value?.payeeId) {
-    uni.showToast({ title: '该收购单缺少出售者档案', icon: 'none' })
+    uni.showToast({ title: '该收购单缺少收方档案', icon: 'none' })
     return
   }
   generating.value = true

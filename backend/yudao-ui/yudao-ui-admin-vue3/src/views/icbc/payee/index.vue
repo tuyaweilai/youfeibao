@@ -234,7 +234,7 @@ const handleExport = async () => {
     await message.exportConfirm()
     exportLoading.value = true
     const data = await PayeeApi.exportPayee(queryParams)
-    download.excel(data, '出售者档案.xls')
+    download.excel(data, '收方档案.xls')
   } catch {
   } finally {
     exportLoading.value = false

@@ -1,5 +1,5 @@
 {
-  "name": "收货现场",
+  "name": "回收企业工作台",
   "appid": "",
   "description": "收货员现场端（一期 H5）",
   "versionName": "1.0.0",
@@ -19,7 +19,7 @@
     "usingComponents": true
   },
   "h5": {
-    "title": "收货现场",
+    "title": "回收企业工作台",
     "router": {
       "mode": "hash",
       "base": "/"

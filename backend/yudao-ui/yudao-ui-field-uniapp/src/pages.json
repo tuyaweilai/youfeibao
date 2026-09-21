@@ -3,7 +3,7 @@
     {
       "path": "pages/home/index",
       "style": {
-        "navigationBarTitleText": "收购企业工作台"
+        "navigationBarTitleText": "回收企业工作台"
       }
     },
     {
@@ -28,7 +28,7 @@
     {
       "path": "pages/payee/index",
       "style": {
-        "navigationBarTitleText": "自然人建档"
+        "navigationBarTitleText": "建档"
       }
     },
     {
@@ -64,7 +64,7 @@
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "收货现场",
+    "navigationBarTitleText": "回收企业工作台",
     "navigationBarBackgroundColor": "#ffffff",
     "backgroundColor": "#f5f6f8"
   }
