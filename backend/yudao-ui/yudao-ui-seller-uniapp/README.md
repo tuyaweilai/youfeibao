@@ -2,7 +2,7 @@
 
 给卖废品的自然人用的终端。两条进入路径：
 
-1. **一次性令牌**（回收企业签发）：免登录只读，发票下载、额度查询、汇算清缴对账单、留联系方式、工行实名 / 收方入驻。
+1. **一次性令牌**（回收企业签发）：免登录只读，发票下载、额度查询、汇算清缴对账单、留联系方式、工行实名 / 收方入驻、本人自填建档。
 2. **场站二维码**（#34，印在磅房 / 墙上）：码内**不带任何令牌**，只编码场站码；扫码先看公开信息，再用手机号验证查看「我的待确认」与记录。
 
 形态与终端矩阵见 `docs/adr/0011`；对外口径见 `docs/adr/0021`（金额只讲「本平台累计」、不出现「已到账」、付款 / 开票 / 税费三条状态线分别显示）。
@@ -11,7 +11,7 @@
 
 ### #28 / #29 令牌路径（保留，未收紧）
 
-- `pages/index`：从启动参数 / URL 取 `token` 与 `purpose`；按用途只放行对应功能（`QUOTA_QUERY` / `INVOICE_DOWNLOAD` / `SETTLEMENT_STATEMENT` / `CONTACT_LEAD` / `ONBOARDING`）。
+- `pages/index`：从启动参数 / URL 取 `token` 与 `purpose`；按用途只放行对应功能（`QUOTA_QUERY` / `INVOICE_DOWNLOAD` / `SETTLEMENT_STATEMENT` / `CONTACT_LEAD` / `ONBOARDING` / `ONBOARDING_WIZARD`）。
 - 我的额度：`GET /icbc/public/quota`；我的发票：`GET /icbc/public/invoice/download`；汇算清缴：`GET /icbc/public/settlement`；留联系方式：`POST /icbc/public/contact-lead`；工行实名 / 入驻：`GET /icbc/public/onboarding/form`（后端生成自动提交表单，小程序 `web-view`、H5 新窗口）。
 
 ### #34 场站扫码路径（本次）

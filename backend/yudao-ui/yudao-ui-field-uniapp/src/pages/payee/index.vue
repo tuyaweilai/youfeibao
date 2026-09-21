@@ -98,9 +98,39 @@
         </button>
         <view v-if="handoff.expiresText" class="tip">{{ handoff.expiresText }}</view>
       </view>
-
-      <button class="btn btn--ghost" @click="backToSeller">换一位出售者</button>
     </template>
+
+    <!-- 本人自填建档（#94 AC1 / 父票 #81 故事 14）：待建档与已建档都能给这枚免注册链接。
+         已建档（带 payeeId）时链接绑定收方 ID、只认这一个人；待建档才绑定链接本身（#94 修票 ST-1） -->
+    <view class="card">
+      <view class="card__title">本人自填建档</view>
+      <view class="tip">
+        想让本人自己拍证件与银行卡：把这枚免注册链接（二维码或文本）交给他，他在自己手机上走完
+        同一套向导。待建档的人会新建档案；已建档的人会更新既有那一份，不会新建第二份。
+        已建档时链接锁在这位本人身上，别人拿着也改不了其他人的档案。链接 24 小时内有效，也可随时作废。
+      </view>
+      <view v-if="invite.qr" class="qr">
+        <image class="qr__img" :src="invite.qr" mode="aspectFit" />
+      </view>
+      <view class="link-box">
+        <view class="link-box__url">{{ invite.link || invite.token || '（尚未生成）' }}</view>
+        <button v-if="invite.link || invite.token" class="link" @click="copyInvite">
+          复制{{ invite.link ? '链接' : '令牌' }}
+        </button>
+      </view>
+      <view v-if="!invite.link && invite.token" class="hint hint--warn">
+        未配置自然人端地址（VITE_APP_SELLER_URL），只能把上面的令牌交给本人。
+      </view>
+      <button class="btn btn--primary" :loading="inviteIssuing" @click="issueInvite">
+        {{ invite.link ? '重新生成链接' : '生成本人自填链接' }}
+      </button>
+      <button v-if="invite.token" class="btn btn--ghost" :loading="inviteRevoking" @click="revokeInvite">
+        作废这枚链接
+      </button>
+      <view v-if="invite.expiresText" class="tip">{{ invite.expiresText }}</view>
+    </view>
+
+    <button v-if="payeeId" class="btn btn--ghost" @click="backToSeller">换一位出售者</button>
   </view>
 </template>
 
@@ -109,7 +139,7 @@ import { computed, reactive, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import QRCode from 'qrcode'
 import { findReturningCustomer, PayeeVO } from '@/api/payee'
-import { isRealNamePassed, useHandoffLink, useSellerOnboarding } from '@youfeibao/field-shared'
+import { isRealNamePassed, useHandoffLink, useSellerOnboarding, useWizardInviteLink } from '@youfeibao/field-shared'
 import { clearWizardDraft } from '@/utils/wizardDraft'
 
 /**
@@ -140,6 +170,18 @@ const { issuing, handoff, issueLink, copyLink, resetHandoff } = useHandoffLink(
   renderQr,
   tips
 )
+
+// 本人自填建档链接（#94）：免注册、可作废（同一条公开令牌机制）。
+// 已建档（payeeId 有值）时把收方 ID 带上，让链接锁到这个人身上（#94 修票 ST-1 结构根因）
+const {
+  issuing: inviteIssuing,
+  revoking: inviteRevoking,
+  handoff: invite,
+  issueLink: issueInvite,
+  revokeLink: revokeInvite,
+  copyLink: copyInvite,
+  resetHandoff: resetInvite
+} = useWizardInviteLink(() => payeeId.value, renderQr, tips)
 
 /** 实名未通过（含未认证 / 认证中 / 未通过）就算「待本人实名」；进度未加载完不下结论 */
 const awaitingRealName = computed(() => !!overview.value && !isRealNamePassed(overview.value.realNameStatus))
@@ -219,6 +261,7 @@ function backToSeller() {
   foundSeller.value = null
   lookedUp.value = false
   resetHandoff()
+  resetInvite()
   lookup.idCardNo = ''
   lookup.mobile = ''
 }

@@ -243,6 +243,11 @@ onLoad(() => {
   if (params.token) {
     setToken(params.token)
     setPurpose(params.purpose)
+    // 本人自填建档（#94）：五步向导有自己的页面，直接跳过去（不在本页开标签）
+    if (params.purpose === 'ONBOARDING_WIZARD') {
+      uni.redirectTo({ url: `/pages/onboarding-wizard/index?token=${encodeURIComponent(params.token)}` })
+      return
+    }
     activeTab.value = PURPOSE_SECTION[params.purpose] || 'quota'
     // 非微信环境给一个可扫的二维码（#89）：码就是本页链接，用微信扫开就能做脸
     // #ifdef H5

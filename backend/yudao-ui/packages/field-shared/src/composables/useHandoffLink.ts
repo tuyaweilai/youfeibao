@@ -10,7 +10,7 @@
  * （`field-shared` 没有 `node_modules`，裸依赖解析会落到宿主工程，见 README 的坑）。
  */
 import { reactive, ref } from 'vue'
-import { createPublicToken } from '../api/publicToken'
+import { createPublicToken, revokePublicToken } from '../api/publicToken'
 import { SELLER_APP_URL } from '@/config/env'
 
 export interface HandoffState {
@@ -18,6 +18,15 @@ export interface HandoffState {
   link: string
   qr: string
   expiresText: string
+}
+
+/** 令牌 / 链接 / 二维码 / 有效期是一组，重置与清空都用同一份，不能只清一半。 */
+function emptyHandoff(): HandoffState {
+  return { token: '', link: '', qr: '', expiresText: '' }
+}
+
+function resetHandoffState(handoff: HandoffState) {
+  Object.assign(handoff, emptyHandoff())
 }
 
 /** 拼本人要打开的链接：自然人端地址 + 一次性令牌 + 用途；地址或令牌为空时返回空串（只出示令牌）。 */
@@ -46,7 +55,7 @@ export function useHandoffLink(
   tips: (message: string) => void
 ) {
   const issuing = ref(false)
-  const handoff = reactive<HandoffState>({ token: '', link: '', qr: '', expiresText: '' })
+  const handoff = reactive<HandoffState>(emptyHandoff())
 
   /** 签发 ONBOARDING 一次性令牌，拼出本人要打开的执行链接（令牌 24 小时内有效）。 */
   async function issueLink() {
@@ -78,11 +87,78 @@ export function useHandoffLink(
 
   /** 换人 / 重新开始时清干净：令牌、链接、二维码、有效期是一组，不能只清一半。 */
   function resetHandoff() {
-    handoff.token = ''
-    handoff.link = ''
-    handoff.qr = ''
-    handoff.expiresText = ''
+    resetHandoffState(handoff)
   }
 
   return { issuing, handoff, issueLink, copyLink, resetHandoff }
+}
+
+/**
+ * 本人自填建档链接（#94）：收货员把链接交给自然人本人，他在自己手机上走完同一套五步向导。
+ *
+ * 与 {@link useHandoffLink} 同一套一次性令牌机制，差别只有两点：
+ * <ul>
+ *   <li>用途是 {@code ONBOARDING_WIZARD}：<b>已建档</b>（传了 `payeeId`）时链接锁到那个人身上，
+ *       <b>待建档</b>时才绑链接本身（#94 修票 ST-1 结构根因）；</li>
+ *   <li>链接可**作废**：本人中途放弃、或换一枚新的时，收货员点一下就把旧的废掉。</li>
+ * </ul>
+ * 二维码渲染仍由宿主传入（`field-shared` 不引 `qrcode`，见 README）。
+ *
+ * @param payeeId 当前收方档案编号；有值 = 已建档（链接锁到人），无值 = 待建档（绑定链接本身）
+ */
+export function useWizardInviteLink(
+  payeeId: () => number | undefined,
+  renderQr: (text: string) => Promise<string>,
+  tips: (message: string) => void
+) {
+  const issuing = ref(false)
+  const revoking = ref(false)
+  const handoff = reactive<HandoffState>(emptyHandoff())
+
+  async function issueLink() {
+    issuing.value = true
+    try {
+      const id = payeeId()
+      const resp = await createPublicToken({ purpose: 'ONBOARDING_WIZARD', payeeId: id || undefined })
+      handoff.token = resp.token || ''
+      handoff.link = buildSellerHandoffLink(SELLER_APP_URL, handoff.token, 'ONBOARDING_WIZARD')
+      handoff.expiresText = handoffExpiresText(resp.expiresTime)
+      handoff.qr = await renderQr(handoff.link)
+    } catch (e) {
+      tips((e as Error).message || '生成链接失败')
+    } finally {
+      issuing.value = false
+    }
+  }
+
+  /** 作废当前链接：链接立刻失效，收货员可重新生成一枚。 */
+  async function revokeLink() {
+    if (!handoff.token) {
+      return
+    }
+    revoking.value = true
+    try {
+      await revokePublicToken(handoff.token)
+      resetHandoffState(handoff)
+      tips('链接已作废，可重新生成')
+    } catch (e) {
+      tips((e as Error).message || '作废链接失败')
+    } finally {
+      revoking.value = false
+    }
+  }
+
+  function copyLink() {
+    const text = handoff.link || handoff.token
+    if (!text) {
+      return
+    }
+    uni.setClipboardData({ data: text, success: () => tips('已复制，请交给本人打开') })
+  }
+
+  function resetHandoff() {
+    resetHandoffState(handoff)
+  }
+
+  return { issuing, revoking, handoff, issueLink, revokeLink, copyLink, resetHandoff }
 }

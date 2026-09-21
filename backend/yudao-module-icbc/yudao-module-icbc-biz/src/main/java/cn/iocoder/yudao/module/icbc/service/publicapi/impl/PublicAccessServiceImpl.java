@@ -1,7 +1,6 @@
 package cn.iocoder.yudao.module.icbc.service.publicapi.impl;
 
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
-import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceFileRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.SellerOnboardingRespVO;
@@ -28,6 +27,7 @@ import cn.iocoder.yudao.module.icbc.service.quota.NaturalPersonQuotaService;
 import cn.iocoder.yudao.module.icbc.service.tax.AnnualSettlementService;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenPayload;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenService;
+import cn.iocoder.yudao.module.icbc.util.PublicTenantCall;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -35,17 +35,15 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.function.Supplier;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
-import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 
 /**
  * 公开端点 Service 实现。
  *
  * <p>入口在安全与租户白名单里（{@code /icbc/public/**}），没有租户上下文；每个方法先用
- * 令牌校验并占用次数，再显式 {@link #inTenant} 切到令牌解析出的租户下执行，等于把多租户
+ * 令牌校验并占用次数，再用 {@link PublicTenantCall} 切到令牌解析出的租户下执行，等于把多租户
  * 隔离补回来，而不是绕过它。
  */
 @Service
@@ -79,7 +77,7 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     @Override
     public void downloadInvoicePdf(String token, HttpServletResponse response) {
         PublicTokenPayload payload = publicTokenService.verify(token, PublicTokenPurposeEnum.INVOICE_DOWNLOAD);
-        inTenant(payload.getTenantId(), () -> {
+        PublicTenantCall.run(payload.getTenantId(), () -> {
             InvoiceDownloadRespVO record = invoiceDownloadService.getDownloadRecord(payload.getBusinessKey());
             InvoiceFileRespVO pdf = (record.getFiles() == null
                     ? Collections.<InvoiceFileRespVO>emptyList() : record.getFiles()).stream()
@@ -95,7 +93,7 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     @Override
     public void submitContactLead(PublicContactLeadReqVO reqVO) {
         PublicTokenPayload payload = publicTokenService.redeem(reqVO.getToken(), PublicTokenPurposeEnum.CONTACT_LEAD);
-        inTenant(payload.getTenantId(), () -> contactLeadMapper.insert(IcbcContactLeadDO.builder()
+        PublicTenantCall.run(payload.getTenantId(), () -> contactLeadMapper.insert(IcbcContactLeadDO.builder()
                 .payeeId(Long.valueOf(payload.getBusinessKey()))
                 .name(reqVO.getName())
                 .mobile(reqVO.getMobile())
@@ -106,7 +104,7 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     @Override
     public PublicQuotaRespVO queryQuota(String token) {
         PublicTokenPayload payload = publicTokenService.redeem(token, PublicTokenPurposeEnum.QUOTA_QUERY);
-        return inTenant(payload.getTenantId(), () -> {
+        return PublicTenantCall.execute(payload.getTenantId(), () -> {
             // 额度是自然人的：这里跨租户合并了他在本平台其它租户的开票额
             SellerQuotaRespVO quota = naturalPersonQuotaService.getQuota(Long.valueOf(payload.getBusinessKey()));
             return BeanUtils.toBean(quota, PublicQuotaRespVO.class);
@@ -116,7 +114,7 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     @Override
     public PublicSettlementStatementRespVO querySettlement(String token) {
         PublicTokenPayload payload = publicTokenService.redeem(token, PublicTokenPurposeEnum.SETTLEMENT_STATEMENT);
-        return inTenant(payload.getTenantId(), () -> {
+        return PublicTenantCall.execute(payload.getTenantId(), () -> {
             SellerSettlementStatementRespVO statement = annualSettlementService.getStatement(
                     Long.valueOf(payload.getBusinessKey()), null);
             return toPublicStatement(statement);
@@ -126,7 +124,7 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     @Override
     public PublicNoticeRespVO queryNotice(String token) {
         PublicTokenPayload payload = publicTokenService.redeem(token, PublicTokenPurposeEnum.SELLER_NOTICE);
-        return inTenant(payload.getTenantId(), () ->
+        return PublicTenantCall.execute(payload.getTenantId(), () ->
                 sellerNotifyService.getNoticeForPayee(Long.valueOf(payload.getBusinessKey())));
     }
 
@@ -144,7 +142,7 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     public PublicOnboardingPageRespVO getOnboardingPage(String token) {
         PublicTokenPayload payload = publicTokenService.redeem(token, PublicTokenPurposeEnum.ONBOARDING);
         Long payeeId = Long.valueOf(payload.getBusinessKey());
-        return inTenant(payload.getTenantId(), () -> buildOnboardingPage(payeeId));
+        return PublicTenantCall.execute(payload.getTenantId(), () -> buildOnboardingPage(payeeId));
     }
 
     private PublicOnboardingPageRespVO buildOnboardingPage(Long payeeId) {
@@ -172,7 +170,7 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     public PublicOnboardingStatusRespVO syncOnboarding(String token) {
         PublicTokenPayload payload = publicTokenService.redeem(token, PublicTokenPurposeEnum.ONBOARDING);
         Long payeeId = Long.valueOf(payload.getBusinessKey());
-        return inTenant(payload.getTenantId(), () -> {
+        return PublicTenantCall.execute(payload.getTenantId(), () -> {
             SellerOnboardingRespVO current = sellerOnboardingService.getOnboarding(payeeId);
             // 按当前步骤主动向工行查一次，把状态收敛回来
             if (!REAL_NAME_PASSED.equals(current.getRealNameStatus())) {
@@ -190,7 +188,7 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     public void writeOnboardingForm(String token, HttpServletResponse response) {
         PublicTokenPayload payload = publicTokenService.redeem(token, PublicTokenPurposeEnum.ONBOARDING);
         Long payeeId = Long.valueOf(payload.getBusinessKey());
-        String formHtml = inTenant(payload.getTenantId(),
+        String formHtml = PublicTenantCall.execute(payload.getTenantId(),
                 () -> buildOnboardingPage(payeeId).getFormHtml());
         if (formHtml == null || formHtml.isBlank()) {
             formHtml = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
@@ -233,26 +231,6 @@ public class PublicAccessServiceImpl implements PublicAccessService {
 
     private String currentStep(SellerOnboardingRespVO overview) {
         return REAL_NAME_PASSED.equals(overview.getRealNameStatus()) ? STEP_DONE : STEP_REAL_NAME;
-    }
-
-    private void inTenant(Long tenantId, Runnable runnable) {
-        inTenant(tenantId, () -> {
-            runnable.run();
-            return null;
-        });
-    }
-
-    private <T> T inTenant(Long tenantId, Supplier<T> supplier) {
-        Long oldTenantId = TenantContextHolder.getTenantId();
-        Boolean oldIgnore = TenantContextHolder.isIgnore();
-        TenantContextHolder.setTenantId(tenantId);
-        TenantContextHolder.setIgnore(false);
-        try {
-            return supplier.get();
-        } finally {
-            TenantContextHolder.setTenantId(oldTenantId);
-            TenantContextHolder.setIgnore(oldIgnore);
-        }
     }
 
 }

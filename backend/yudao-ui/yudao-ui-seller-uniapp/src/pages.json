@@ -7,6 +7,12 @@
       }
     },
     {
+      "path": "pages/onboarding-wizard/index",
+      "style": {
+        "navigationBarTitleText": "本人自填建档"
+      }
+    },
+    {
       "path": "pages/station/index",
       "style": {
         "navigationBarTitleText": "场站"

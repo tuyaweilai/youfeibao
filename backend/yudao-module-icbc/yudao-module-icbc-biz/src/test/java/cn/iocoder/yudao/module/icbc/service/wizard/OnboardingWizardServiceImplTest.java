@@ -4,6 +4,9 @@ import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
+import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.FrameworkAgreementSaveReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeBankCardChangeSaveReqVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeInfoPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeInfoSaveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.wizard.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
@@ -12,9 +15,12 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.agreement.IcbcFrameworkAgreementMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementSignMethodEnum;
+import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOutcomeEnum;
 import cn.iocoder.yudao.module.icbc.service.cardrecognition.CardRecognitionPort;
 import cn.iocoder.yudao.module.icbc.service.esign.EsignPort;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
+import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
 import cn.iocoder.yudao.module.icbc.service.wizard.impl.OnboardingWizardServiceImpl;
 import cn.iocoder.yudao.test.icbc.IcbcTenantTestConfiguration;
@@ -68,6 +74,10 @@ public class OnboardingWizardServiceImplTest extends BaseDbUnitTest {
     private NaturalPersonService naturalPersonService;
     @Resource
     private PayeeInfoService payeeInfoService;
+    @Resource
+    private SellerOnboardingService sellerOnboardingService;
+    @Resource
+    private PayeeBankCardChangeService payeeBankCardChangeService;
 
     @MockBean
     private CardRecognitionPort cardRecognitionPort;
@@ -314,16 +324,132 @@ public class OnboardingWizardServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testSubmit_sameTenantSecondArchiveRejectedWithReadableReason() {
+    public void testSubmit_sameTenantSecondSubmitUpdatesExistingArchive_andVoidsOldAgreement() {
         when(esignPort.isAvailable(anyLong())).thenReturn(false);
         String idCardNo = "110101199001010106";
         String mobile = "13800000106";
-        Long payeeId = payeeInfoService.createPayeeInfo(payeeReq(idCardNo, mobile, "2020-01-01", "2030-01-01"));
-        assertNotNull(payeeId);
+        Long payeeId = payeeInfoService.createPayeeInfo(payeeReq(idCardNo, mobile, "2010-01-01", "2020-01-01"));
+        // 既有生效协议：重签要作废它、历史仍可查
+        FrameworkAgreementSaveReqVO oldAgreement = new FrameworkAgreementSaveReqVO();
+        oldAgreement.setPayeeId(payeeId);
+        oldAgreement.setProductName("报废产品");
+        oldAgreement.setQuantity("以实际交货为准");
+        oldAgreement.setSpecification("以实际交货为准");
+        oldAgreement.setRecyclePeriod("长期");
+        oldAgreement.setSettlementMethod("银行转账");
+        Long oldAgreementId = sellerOnboardingService.saveFrameworkAgreement(oldAgreement);
 
-        // 同一租户里同一个人只能有一份收方档案：向导要给出可读的提示，而不是一句错码（#91 评审 SP-5）
-        assertServiceException(() -> onboardingWizardService.submit(fullReq(idCardNo, mobile)),
-                WIZARD_PAYEE_ALREADY_ARCHIVED);
+        // 已建档但**还没有卡**（建档未完成 → 补首卡）：本次确认过的字段要更新上去，不新建第二份。
+        // 首卡是本入口唯一可写卡的形状；已有生效卡的边界见下面三条用例（#94 复审 ST-1）。
+        OnboardingWizardSubmitReqVO reqVO = fullReq(idCardNo, mobile);
+        reqVO.setAddress("新住址");
+        reqVO.setIdSignDate("2021-01-01");
+        reqVO.setIdValidityPeriod("2031-01-01");
+        reqVO.setBankCardNo("6222029999999999999");
+        reqVO.setBankName("招商银行");
+        reqVO.setAccountCode("0");
+
+        OnboardingWizardSubmitRespVO resp = onboardingWizardService.submit(reqVO);
+
+        assertEquals(payeeId, resp.getPayeeId(), "已有档案时返回既有那一份，不新建");
+        PayeeInfoPageReqVO page = new PayeeInfoPageReqVO();
+        page.setIdCardNo(idCardNo);
+        assertEquals(1, payeeInfoMapper.selectList(page).size(), "同一租户一张身份证只有一份档案（幂等）");
+
+        PayeeInfoDO payee = payeeInfoMapper.selectById(payeeId);
+        assertEquals("新住址", payee.getAddress());
+        assertEquals("2021-01-01", payee.getIdSignDate());
+        assertEquals("2031-01-01", payee.getIdValidityPeriod());
+        assertEquals("6222029999999999999", payee.getBankCardNo());
+        assertEquals("招商银行", payee.getBankName());
+        assertEquals("0", payee.getAccountCode());
+        // 姓名 / 手机号是身份字段，不动
+        assertEquals("张三", payee.getName());
+        assertEquals(mobile, payee.getMobile());
+        // 自然人主体按既有「复用不覆盖」规则，不由向导再写一次（#91 SP-1）
+        IcbcNaturalPersonDO person = naturalPersonService.getNaturalPerson(payee.getNaturalPersonId());
+        assertEquals("2010-01-01", person.getIdSignDate());
+        assertEquals("2020-01-01", person.getIdValidityPeriod());
+        // 新协议生效、旧协议作废（saveFrameworkAgreement 既有留痕规则）
+        assertEquals(1, frameworkAgreementMapper.selectById(resp.getAgreementId()).getStatus());
+        assertEquals(2, frameworkAgreementMapper.selectById(oldAgreementId).getStatus(), "旧生效协议被新协议作废");
+    }
+
+    @Test
+    public void testSubmit_notYetOnboardedWithCard_mayCorrectCard() {
+        when(esignPort.isAvailable(anyLong())).thenReturn(false);
+        String idCardNo = "110101199001010110";
+        String mobile = "13800000110";
+        // 卡已在档案上、但还没送到工行（入驻未受理）：允许本人修正拍到一半的卡
+        Long payeeId = createPayeeWithCard(idCardNo, mobile, "6222021111111111111");
+
+        OnboardingWizardSubmitReqVO reqVO = fullReq(idCardNo, mobile);
+        reqVO.setBankCardNo("6222022222222222222");
+        OnboardingWizardSubmitRespVO resp = onboardingWizardService.submit(reqVO);
+
+        assertEquals(payeeId, resp.getPayeeId());
+        assertEquals("6222022222222222222", payeeInfoMapper.selectById(payeeId).getBankCardNo(),
+                "卡还没送到工行审过，本路径可以修正");
+    }
+
+    @Test
+    public void testSubmit_secondSubmitOnboardedWithCard_keepsCardAndUpdatesOtherFields() {
+        when(esignPort.isAvailable(anyLong())).thenReturn(false);
+        String idCardNo = "110101199001010107";
+        String mobile = "13800000107";
+        String effectiveCard = "6222021234567890123"; // 与 fullReq 同一张
+        Long payeeId = createOnboardedPayee(idCardNo, mobile, effectiveCard);
+
+        OnboardingWizardSubmitReqVO reqVO = fullReq(idCardNo, mobile);
+        reqVO.setAddress("换了个住址");
+        reqVO.setIdSignDate("2021-01-01");
+
+        OnboardingWizardSubmitRespVO resp = onboardingWizardService.submit(reqVO);
+
+        assertEquals(payeeId, resp.getPayeeId());
+        PayeeInfoDO payee = payeeInfoMapper.selectById(payeeId);
+        assertEquals(effectiveCard, payee.getBankCardNo(), "生效中的卡不许由本路径改写");
+        assertEquals("中国工商银行", payee.getBankName());
+        assertEquals("1", payee.getAccountCode());
+        assertEquals("换了个住址", payee.getAddress(), "非卡字段照常更新");
+        assertEquals("2021-01-01", payee.getIdSignDate());
+    }
+
+    @Test
+    public void testSubmit_secondSubmitOnboardedWithDifferentCard_rejected() {
+        when(esignPort.isAvailable(anyLong())).thenReturn(false);
+        String idCardNo = "110101199001010108";
+        String mobile = "13800000108";
+        String effectiveCard = "6222021111111111111";
+        Long payeeId = createOnboardedPayee(idCardNo, mobile, effectiveCard);
+
+        // 已入驻的人拍了一张新卡：本路径只办首卡，必须走换卡单（#37），不能静默写成与工行不一致的卡
+        OnboardingWizardSubmitReqVO reqVO = fullReq(idCardNo, mobile);
+        reqVO.setBankCardNo("6222022222222222222");
+
+        assertServiceException(() -> onboardingWizardService.submit(reqVO), WIZARD_CARD_CHANGE_REQUIRES_CHANGE_ORDER);
+
+        PayeeInfoDO payee = payeeInfoMapper.selectById(payeeId);
+        assertEquals(effectiveCard, payee.getBankCardNo());
+        assertEquals("中国工商银行", payee.getBankName());
+        assertEquals("1", payee.getAccountCode());
+    }
+
+    @Test
+    public void testSubmit_secondSubmitWithPendingCardChange_rejected() {
+        when(esignPort.isAvailable(anyLong())).thenReturn(false);
+        String idCardNo = "110101199001010109";
+        String mobile = "13800000109";
+        Long payeeId = createOnboardedPayee(idCardNo, mobile, "6222021111111111111");
+        PayeeBankCardChangeSaveReqVO change = new PayeeBankCardChangeSaveReqVO();
+        change.setPayeeId(payeeId);
+        change.setNewBankCardNo("6222023333333333333");
+        payeeBankCardChangeService.requestChange(change);
+
+        OnboardingWizardSubmitReqVO reqVO = fullReq(idCardNo, mobile);
+        reqVO.setBankCardNo("6222024444444444444");
+
+        assertServiceException(() -> onboardingWizardService.submit(reqVO), WIZARD_CARD_CHANGE_IN_PROGRESS);
     }
 
     @Test
@@ -349,6 +475,25 @@ public class OnboardingWizardServiceImplTest extends BaseDbUnitTest {
         reqVO.setBankName("中国工商银行");
         reqVO.setAccountCode("1");
         return reqVO;
+    }
+
+    /** 建一个「已有卡、入驻未受理」的档案（卡但未送工行）。 */
+    private Long createPayeeWithCard(String idCardNo, String mobile, String bankCardNo) {
+        PayeeInfoSaveReqVO reqVO = payeeReq(idCardNo, mobile, "2020-01-01", "2030-01-01");
+        reqVO.setBankCardNo(bankCardNo);
+        reqVO.setBankName("中国工商银行");
+        reqVO.setAccountCode("1");
+        return payeeInfoService.createPayeeInfo(reqVO);
+    }
+
+    /** 建一个「已入驻 READY + 已有生效卡」的档案（换卡边界用例的起点）。 */
+    private Long createOnboardedPayee(String idCardNo, String mobile, String bankCardNo) {
+        Long payeeId = createPayeeWithCard(idCardNo, mobile, bankCardNo);
+        PayeeInfoDO update = new PayeeInfoDO();
+        update.setId(payeeId);
+        update.setOnboardingState(PayeeOnboardingOutcomeEnum.READY.getCode());
+        payeeInfoMapper.updateById(update);
+        return payeeId;
     }
 
     /** 别的回收企业给同一个人建档用的入参（跨租户复用测试）。 */

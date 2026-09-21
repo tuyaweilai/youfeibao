@@ -28,6 +28,14 @@ public class PublicTokenPayload {
     /** 绑定业务键：订单号或收方 ID */
     private String businessKey;
 
+    /**
+     * 业务键类型（{@code PublicTokenPurposeEnum.BusinessKeyType} 名）。
+     *
+     * <p>用途本身通常就决定了业务键类型，但 {@code ONBOARDING_WIZARD} 例外：待建档时绑定链接本身、
+     * 已建档时绑定收方 ID（#94 修票 ST-1）。免登录端点据此才知道这枚链接有没有锁到某个人身上。
+     */
+    private String businessKeyType;
+
     /** 过期时间（epoch 秒） */
     private Long expiresAt;
 

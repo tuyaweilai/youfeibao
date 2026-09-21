@@ -29,4 +29,15 @@ public class OnboardingWizardSubmitRespVO {
     @Schema(description = "框架收购协议签署方式：ELECTRONIC-电子签章，PAPER-纸质签署", example = "PAPER")
     private String signMethod;
 
+    /**
+     * 本人自填壳专用：建档完成后换一枚 ONBOARDING 令牌，让本人接着在自己手机上做实名
+     * （ADR 0007 补充：自填壳覆盖「拍摄、确认与实名」）。代录壳不填（为 null）——实名链接由
+     * 收货员现场另行交给本人。
+     */
+    @Schema(description = "本人自填壳换发的实名令牌（ONBOARDING）；代录壳为空")
+    private String onboardingToken;
+
+    @Schema(description = "实名令牌有效期至")
+    private java.time.LocalDateTime onboardingExpiresTime;
+
 }
