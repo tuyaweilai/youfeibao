@@ -37,7 +37,10 @@ import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
  * <p>回调不带我们的登录态、也不带租户请求头，因此本接口 {@link PermitAll} 免登录，租户由子客编号反查。
  */
 @Tag(name = "管理后台 - 电子签章签署状态通知入口")
-@RestController
+// 显式 bean 名：企业模块里有一个同名类 `enterprise.controller.admin.callback.EsignCallbackController`
+// （`/enterprise/esign/callback`），Spring 默认按类名生成 bean 名，两个都在 yudao-server 的扫描路径上 →
+// 启动即 `ConflictingBeanDefinitionException`。两个控制器都是真在用的（路径不同），所以靠显式命名区分。
+@RestController("icbcEsignCallbackController")
 @RequestMapping("/icbc/esign/callback")
 @Validated
 @Slf4j
