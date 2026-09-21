@@ -45,8 +45,10 @@ CREATE TABLE `icbc_payee_info` (
   UNIQUE KEY `uk_payee_no` (`payee_no`),
   UNIQUE KEY `uk_partner_payee_id` (`partner_payee_id`),
   KEY `idx_payee_natural_person` (`natural_person_id`),
-  UNIQUE KEY `uk_id_card_no` (`id_card_no`, `deleted`),
-  UNIQUE KEY `uk_mobile` (`mobile`, `deleted`),
+  -- 收方档案是「自然人 × 回收企业」这一层：同一自然人在两家回收企业各有一份档案（ADR 0017），
+  -- 所以这两个键必须含 tenant_id。不含 tenant_id 的旧键会让第二家企业建档直接撞键（#97）。
+  UNIQUE KEY `uk_id_card_no` (`tenant_id`, `id_card_no`, `deleted`),
+  UNIQUE KEY `uk_mobile` (`tenant_id`, `mobile`, `deleted`),
   KEY `idx_status` (`status`),
   KEY `idx_tenant_id` (`tenant_id`),
   KEY `idx_create_time` (`create_time`)

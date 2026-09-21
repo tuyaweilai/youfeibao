@@ -70,6 +70,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
+import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.PAYEE_ID_CARD_EXISTS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -220,6 +222,36 @@ public class IcbcTenantIsolationTest extends BaseDbUnitTest {
         assertEquals(personId1, payee1.getNaturalPersonId());
         // 收方档案是租户级的：别家企业的档案在本租户看不到
         TenantUtils.execute(2L, () -> assertNull(payeeInfoMapper.selectById(payeeId1)));
+    }
+
+    @Test
+    public void testSameIdCardNoAllowedAcrossTenantsButRejectedWithinOne() {
+        // #97 的放开口径：收方档案是「自然人 × 回收企业」这一层（ADR 0017），
+        // 同一身份证在两家企业各建一份都成功；但同一租户内「一张身份证一份档案」这条规则不能丢。
+        String idCardNo = "110101199001011241";
+        String mobile = "13800000061";
+        Long payeeId1 = TenantUtils.execute(1L, () -> payeeInfoService.createPayeeInfo(
+                payeeSaveReq("钱八", idCardNo, mobile)));
+        Long payeeId2 = TenantUtils.execute(2L, () -> payeeInfoService.createPayeeInfo(
+                payeeSaveReq("钱八", idCardNo, mobile)));
+        assertNotEquals(payeeId1, payeeId2);
+
+        // 两边各自只看到自己那份：Service 层按租户校验（同一套租户插件），别家的行查不到
+        TenantUtils.execute(1L, () -> {
+            assertNotNull(payeeInfoMapper.selectById(payeeId1));
+            assertNull(payeeInfoMapper.selectById(payeeId2));
+            assertEquals(payeeId1, payeeInfoMapper.selectByIdCardNo(idCardNo).getId());
+        });
+        TenantUtils.execute(2L, () -> {
+            assertNotNull(payeeInfoMapper.selectById(payeeId2));
+            assertNull(payeeInfoMapper.selectById(payeeId1));
+            assertEquals(payeeId2, payeeInfoMapper.selectByIdCardNo(idCardNo).getId());
+        });
+
+        // 放宽的是「跨企业」：同一租户内再建一张同身份证的档案仍然被拒（业务规则没被放宽掉）
+        TenantUtils.execute(1L, () -> assertServiceException(
+                () -> payeeInfoService.createPayeeInfo(payeeSaveReq("钱八", idCardNo, "13800000063")),
+                PAYEE_ID_CARD_EXISTS));
     }
 
     private cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeInfoSaveReqVO payeeSaveReq(
