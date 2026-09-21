@@ -55,7 +55,7 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
     @Override
     public CardRecognitionConfigRespVO getConfig() {
         IcbcCardRecognitionConfigDO db = cardRecognitionConfigMapper.selectConfig();
-        CardRecognitionEffectiveConfig effective = resolveEffectiveConfig();
+        CardRecognitionEffectiveConfig effective = resolve(db);
 
         CardRecognitionConfigRespVO resp = new CardRecognitionConfigRespVO();
         resp.setProvider(effective.getProvider());
@@ -144,7 +144,13 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
 
     @Override
     public CardRecognitionEffectiveConfig resolveEffectiveConfig() {
-        IcbcCardRecognitionConfigDO db = cardRecognitionConfigMapper.selectConfig();
+        return resolve(cardRecognitionConfigMapper.selectConfig());
+    }
+
+    /**
+     * 把一行 DB 配置与 yaml / env 回落层合成一套生效参数（DB 有值用 DB、DB 为空回落配置文件）。
+     */
+    private CardRecognitionEffectiveConfig resolve(IcbcCardRecognitionConfigDO db) {
         String provider = firstNonBlank(db == null ? null : db.getProvider(), properties.getProvider());
         // 非 tencent 一律当 stub：安静降级是 ADR 0037 的决策，一个拼错的供应商不该让现场报错
         if (!CardRecognitionProviderEnum.TENCENT.getCode().equals(provider)) {
