@@ -8,9 +8,11 @@ import cn.iocoder.yudao.module.icbc.controller.admin.wizard.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementSignMethodEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcAccountCodeEnum;
+import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOutcomeEnum;
 import cn.iocoder.yudao.module.icbc.service.cardrecognition.CardRecognitionPort;
 import cn.iocoder.yudao.module.icbc.service.esign.EsignPort;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
 import cn.iocoder.yudao.module.icbc.service.wizard.OnboardingWizardService;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +58,8 @@ public class OnboardingWizardServiceImpl implements OnboardingWizardService {
     private EsignPort esignPort;
     @Resource
     private PayeeInfoService payeeInfoService;
+    @Resource
+    private PayeeBankCardChangeService payeeBankCardChangeService;
     @Resource
     private SellerOnboardingService sellerOnboardingService;
 
@@ -113,6 +117,7 @@ public class OnboardingWizardServiceImpl implements OnboardingWizardService {
         // 同一租户内一张身份证只能有一份收方档案（#91）。已有档案不再拒绝（#94 修票 / 父票 #81 故事 14）：
         // 「本人当时没签，回头还能再给一次链接」——本人自填壳会拿着一枚新链接再走一遍。
         // 这时该做的是**更新那一份**：把本次本人确认过的字段写上去，幂等地返回既有档案，不新建第二份。
+        // 卡是例外：首卡才由本路径写，生效中的卡走 #37 的换卡状态机（见 updateArchive，修票 ST-1）。
         PayeeInfoDO existing = payeeInfoService.getPayeeInfoByIdCardNo(reqVO.getIdCardNo());
         Long payeeId = existing != null ? updateArchive(existing, reqVO) : createArchive(reqVO);
         PayeeInfoDO payee = payeeInfoService.getPayeeInfo(payeeId);
@@ -151,11 +156,17 @@ public class OnboardingWizardServiceImpl implements OnboardingWizardService {
     }
 
     /**
-     * 已有档案时的更新（#94 修票）：只写本次本人确认过的字段——证件有效期 / 卡号 / 开户行 / 住址 / 是否我行卡。
+     * 已有档案时的更新（#94 修票）：只写本次本人确认过的字段——证件有效期 / 住址，以及**首卡**。
      *
      * <p>姓名 / 证件号 / 手机号是身份字段，**不动**：这是本人再次确认，不是换人；证件号原样带上，
      * {@code updatePayeeInfo} 才会保留原有自然人主体（不重新登记、不覆盖主体上的证件有效期，见 #91 SP-1）。
-     * 「是否我行卡」只在本次真的选过时改写，留空不拿缺省值把旧值盖掉。
+     *
+     * <p><b>首卡与换卡分开（#94 复审 ST-1）</b>：收方档案里的 {@code bankCardNo} 是**唯一生效中的卡**
+     * （{@code PayeeBankCardChangeService} 类注释、CONTEXT「收款账户变更」），新卡要进工行收方修改、
+     * 复审通过才搬过去。所以本路径只负责**还没有送到工行去的卡**（入驻未受理 / 未通过）：
+     * 入驻一旦 PENDING（已送工行审）或 READY（已生效），卡号 / 开户行 / 支行 / 是否我行卡
+     * 一个都不许由这里改写；确有换卡需求就走换卡单，不在本路径各写一套判断。
+     * 若本人拍的是**另一张卡**，直接给可读拒绝（而不是静默忽略），否则他会以为新卡已登记。
      */
     private Long updateArchive(PayeeInfoDO existing, OnboardingWizardSubmitReqVO reqVO) {
         PayeeInfoSaveReqVO updateReqVO = new PayeeInfoSaveReqVO();
@@ -168,12 +179,44 @@ public class OnboardingWizardServiceImpl implements OnboardingWizardService {
         updateReqVO.setAddress(reqVO.getAddress());
         updateReqVO.setIdSignDate(reqVO.getIdSignDate());
         updateReqVO.setIdValidityPeriod(reqVO.getIdValidityPeriod());
-        updateReqVO.setBankCardNo(reqVO.getBankCardNo());
-        updateReqVO.setBankName(reqVO.getBankName());
-        updateReqVO.setBankBranch(reqVO.getBankBranch());
-        updateReqVO.setAccountCode(StrUtil.trimToNull(reqVO.getAccountCode()));
+        if (cardNotYetInEffect(existing)) {
+            // 首卡 / 上门前修正：卡还没送到工行审过，本次确认的卡信息才写得进去
+            updateReqVO.setBankCardNo(reqVO.getBankCardNo());
+            updateReqVO.setBankName(reqVO.getBankName());
+            updateReqVO.setBankBranch(reqVO.getBankBranch());
+            updateReqVO.setAccountCode(StrUtil.trimToNull(reqVO.getAccountCode()));
+        } else {
+            rejectCardRewrite(existing, reqVO);
+        }
         payeeInfoService.updatePayeeInfo(updateReqVO);
         return existing.getId();
+    }
+
+    /**
+     * 卡是否「尚未生效」：还没有送到工行审过（入驻未受理 / 已拒绝）时，本路径才允许写卡。
+     *
+     * <p>判据是**入驻状态**而不是「档案里有没有卡」：向导建完档到本人做实名、发入驻之间，档案里
+     * 已经有卡但卡还没送到工行；这一段时间本人发现卡拍错了要改，是允许的（改的是还没生效的卡）。
+     * 入驻一旦 PENDING（已送工行审）或 READY（已生效），收方档案里的卡就不许再由本路径动。
+     */
+    private boolean cardNotYetInEffect(PayeeInfoDO existing) {
+        PayeeOnboardingOutcomeEnum state = PayeeOnboardingOutcomeEnum.ofCode(existing.getOnboardingState());
+        return state != PayeeOnboardingOutcomeEnum.PENDING && state != PayeeOnboardingOutcomeEnum.READY;
+    }
+
+    /**
+     * 已有生效中的卡时，本路径只能「不拍卡变更」：确认的是同一张卡就忽略卡字段，拍的是另一张卡就明确拒绝。
+     */
+    private void rejectCardRewrite(PayeeInfoDO existing, OnboardingWizardSubmitReqVO reqVO) {
+        // 同一张卡（本人重拍 / 重新确认）：没有换卡意图，卡字段原样保留，其余字段照写
+        if (StrUtil.equals(StrUtil.trim(existing.getBankCardNo()), StrUtil.trim(reqVO.getBankCardNo()))) {
+            return;
+        }
+        // 有在途换卡：把话说清楚，别让他以为改用这枚链接就能换
+        if (payeeBankCardChangeService.hasPending(existing.getId())) {
+            throw exception(WIZARD_CARD_CHANGE_IN_PROGRESS);
+        }
+        throw exception(WIZARD_CARD_CHANGE_REQUIRES_CHANGE_ORDER);
     }
 
     /**

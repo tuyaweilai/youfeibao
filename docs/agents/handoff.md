@@ -2275,3 +2275,54 @@ member 令牌回 `code=401 账号未登录`。
 > **测试数字**：ICBC 模块 **794 passed / 0 fail / 1 skipped**（上一轮 792，+2 跨租户作废 / 用途收口）。
 > 自然人端 `ts:check` 零错误、`build:h5` 与 `build:mp-weixin` 通过；现场端 / 司机端 `ts:check` 零错误、
 > 现场端 `build:h5` 通过。PC 后台本票无改动。
+
+## #94 修票（第二轮）：复审 BLOCK 后的 ST-1 收口与 ST-2~ST-7（追加一个提交，未改历史）
+
+独立评审 `REVIEW_VERDICT: BLOCK`（报告 `.fleet/gates/94.review.md`，主因 ST-1：已建档路径无条件改「生效中的卡号」，
+绕开 #37 换卡状态机，且免登录可达；SP-1 指出「READY + 有卡」这一支零测试覆盖）。本轮逐条对账：
+
+1. **ST-1（阻断项）已修——首卡与换卡分开**：`OnboardingWizardServiceImpl#updateArchive` 只在卡的**入驻状态**
+   还是「未受理 / 未通过」（`cardNotYetInEffect`：非 PENDING、非 READY）时才写
+   `bankCardNo / bankName / bankBranch / accountCode`。一旦 PENDING（已送工行审）或 READY（已生效），
+   这些字段一个都不由本路径改写；本人拍的是**另一张卡**时明确拒绝
+   （`WIZARD_CARD_CHANGE_REQUIRES_CHANGE_ORDER`），有在途换卡时给 `WIZARD_CARD_CHANGE_IN_PROGRESS`，
+   不是静默忽略。判据用入驻状态而不是「档案里有没有卡」：向导建完档到发入驻之间卡已在档案上但还没送工行，
+   那一段允许修正（`testSubmit_notYetOnboardedWithCard_mayCorrectCard`）。测试覆盖了上一轮漏掉的
+   `READY + 有卡` 两支（同卡只更新非卡字段 / 异卡拒绝且卡不变），公开壳与代录壳各一份。
+2. **ST-1 结构根因已修——链接锁到人**：`PublicTokenPurposeEnum.ONBOARDING_WIZARD` 现在两种绑定形态：
+   生成时给了 `payeeId`（已建档）绑 `PAYEE`（业务键 = 收方 ID），没给（待建档）才绑链接本身；
+   `PublicTokenPayload` 自带 `businessKeyType`，让免登录端知道是哪一种。`PublicOnboardingWizardServiceImpl#submit`
+   据此校验：绑了人的只能改那个人（`WIZARD_INVITE_PAYEE_MISMATCH`），没绑人的只能新建
+   （`WIZARD_INVITE_PERSON_ALREADY_ARCHIVED`）——「持链接者改本租户任意已知身份证档案」这个面不存在了。
+   现场端 `useWizardInviteLink` 加 `payeeId` 参数，`pages/payee/index.vue` 已建档时把收方 ID 带上。
+3. **ST-2 已收一处**：`PublicAccessServiceImpl#inTenant` 与 `PublicOnboardingWizardServiceImpl#inTenant` 合并为
+   `util/PublicTenantCall`（`run` / `execute`），内部复用 `TenantUtils` 的上下文切换，只把被包成
+   `RuntimeException` 的 `ServiceException` 原样抛回去（框架的 `Callable` 版本会把业务码吃掉变 500）。
+4. **ST-3 已处理**：`WIZARD_PAYEE_ALREADY_ARCHIVED` 全仓零引用，已删除（码位 `1_030_040_005` 留空不复用；
+   这**推翻**上面 #94 修票第 2 条里「码位保留」的说法）；`PublicTokenServiceImpl#revoke` 的注释改成与实现一致
+   ——作废是幂等的（已过期 / 已作废再点一次直接成功返回）。
+5. **ST-4 已用起来**：`PublicOnboardingWizardContextRespVO` 删掉没人用的 `purpose/purposeName`，只留 `expiresTime`；
+   自填壳把链接有效期显示在顶部 banner，第 5 步显示实名令牌有效期（`onboardingExpiresTime` 存进本地草稿）。
+   `WizardContextVO` 同步收窄。
+6. **ST-5 已改对**：`PUBLIC_TOKEN_NOT_FOUND` 正文改成收货员视角（不再是「请让收货员……」）；
+   新增 `PUBLIC_TOKEN_REVOKED`，作废时在令牌行 `remark` 写 `REVOKED` 标记，`verify` 先认作废再认过期
+   ——本人打开被作废的链接看到「已被作废」，不再是「已过期」。
+7. **ST-6 已改文档**：上面 #94 修票第 3 条「现场端 `pages/payee/index.vue` 第二步（已带 `payeeId`）补上卡片」
+   是漂移——卡片在两个 `template` **之外**，待建档分支也显示；代码比文档更符合 AC1，以本节为准。
+8. **ST-7 已对齐**：自填壳第 2 步补回 `idFrontWarnings / idBackWarnings`，与现场端壳同形。
+
+> **「本人自己拍一张新卡」怎么处置（如实标缺口）**：它在 PENDING / READY 档案上会拿到
+> `WIZARD_CARD_CHANGE_REQUIRES_CHANGE_ORDER`，提示走「收款账户变更」。但**公开免登录端不代发起换卡单**：
+> `PayeeBankCardChangeService#requestChange` 要求 READY、要带企业侧身份与留痕，且换卡审核期间付款挂起，
+> 不是一条该由本人链接触发的动作。**接通公开端发起换卡留给后续票**（或由收货员在收方档案里发起）。
+
+> **仍未做，如实记**：① 弱网重提不再是「读 `USED_UP`」——待建档链接重提现在读
+> `WIZARD_INVITE_PERSON_ALREADY_ARCHIVED`（本人已有档案），仍然停在步骤 4、仍不产生第二份档案；
+> 要向导内闭环需幂等键或「用链接找回 payeeId」，不在本票。② 真机项（相机、微信开链接、弱网本地暂存）仍未验。
+> ③ 与本票相邻的两处 `#95` 会改的文件：`OnboardingWizardServiceImpl` 第 5 步协议状态、
+> `OnboardingWizardSubmitRespVO`；本轮只动了 `OnboardingWizardServiceImpl` 的 `submit` 注释与
+> `updateArchive` / 新增两个私有方法，集成时按意图解。
+
+> **测试数字**：ICBC 模块 **806 passed / 0 fail / 1 skipped**（上一轮 794，+12：首卡/换卡边界 4、
+> 链接锁人 3、作废语义 2、上下文收窄 1、公开壳其余 2）。自然人端 `ts:check` 零错误、`build:h5` 通过；
+> 现场端 / 司机端 `ts:check` 零错误、现场端 `build:h5` 通过。PC 后台本票无改动。

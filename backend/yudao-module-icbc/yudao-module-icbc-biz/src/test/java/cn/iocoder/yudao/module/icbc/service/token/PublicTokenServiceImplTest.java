@@ -165,7 +165,7 @@ public class PublicTokenServiceImplTest extends BaseDbUnitTest {
 
     @Test
     public void testMint_onboardingWizardInvite_needsNoExistingPayee() {
-        // 自填建档：链接生成时这个人可能还没有收方档案，绑定链接本身即可（#94）
+        // 待建档：链接生成时这个人还没有收方档案，绑定链接本身，业务键类型是 ONBOARDING_INVITE（#94）
         PublicTokenRespVO respVO = publicTokenService.mint(createReq("ONBOARDING_WIZARD", null, null));
 
         assertNotNull(respVO.getToken());
@@ -173,6 +173,26 @@ public class PublicTokenServiceImplTest extends BaseDbUnitTest {
         assertEquals(1, respVO.getMaxUses(), "一枚链接只建一份档案：成功落库占唯一一次");
         PublicTokenPayload payload = publicTokenService.verify(respVO.getToken(), PublicTokenPurposeEnum.ONBOARDING_WIZARD);
         assertEquals(TENANT_ID, payload.getTenantId());
+        assertEquals(PublicTokenPurposeEnum.BusinessKeyType.ONBOARDING_INVITE.name(), payload.getBusinessKeyType(),
+                "待建档链接绑的是链接本身");
+    }
+
+    @Test
+    public void testMint_onboardingWizardWithPayee_bindsPayeeId() {
+        // 已建档：收货员给了 payeeId，链接锁到那个人身上（#94 修票 ST-1 结构根因）
+        PayeeInfoDO payee = insertPayee();
+
+        PublicTokenRespVO respVO = publicTokenService.mint(createReq("ONBOARDING_WIZARD", null, payee.getId()));
+
+        assertEquals(payee.getId().toString(), respVO.getBusinessKey(), "业务键就是收方 ID");
+        PublicTokenPayload payload = publicTokenService.verify(respVO.getToken(), PublicTokenPurposeEnum.ONBOARDING_WIZARD);
+        assertEquals(PublicTokenPurposeEnum.BusinessKeyType.PAYEE.name(), payload.getBusinessKeyType());
+    }
+
+    @Test
+    public void testMint_onboardingWizardWithMissingPayee_rejected() {
+        assertServiceException(() -> publicTokenService.mint(createReq("ONBOARDING_WIZARD", null, 999L)),
+                PAYEE_NOT_EXISTS);
     }
 
     @Test
@@ -181,8 +201,20 @@ public class PublicTokenServiceImplTest extends BaseDbUnitTest {
 
         publicTokenService.revoke(respVO.getToken());
 
+        // 被作废的链接本人打开：提示「已被作废」，不是「已过期」（#94 复审 ST-5）
         assertServiceException(() -> publicTokenService.verify(respVO.getToken(), PublicTokenPurposeEnum.ONBOARDING_WIZARD),
-                PUBLIC_TOKEN_EXPIRED);
+                PUBLIC_TOKEN_REVOKED);
+    }
+
+    @Test
+    public void testRevoke_isIdempotent() {
+        PublicTokenRespVO respVO = publicTokenService.mint(createReq("ONBOARDING_WIZARD", null, null));
+
+        publicTokenService.revoke(respVO.getToken());
+        // 再点一次不该报错（已不可用，没什么可作废的）
+        assertDoesNotThrow(() -> publicTokenService.revoke(respVO.getToken()));
+        assertServiceException(() -> publicTokenService.verify(respVO.getToken(), PublicTokenPurposeEnum.ONBOARDING_WIZARD),
+                PUBLIC_TOKEN_REVOKED);
     }
 
     @Test

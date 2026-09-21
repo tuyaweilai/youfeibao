@@ -101,13 +101,13 @@
     </template>
 
     <!-- 本人自填建档（#94 AC1 / 父票 #81 故事 14）：待建档与已建档都能给这枚免注册链接。
-         链接不绑收方 ID，落库时新建或更新**既有那一份**档案，不新建第二份 -->
+         已建档（带 payeeId）时链接绑定收方 ID、只认这一个人；待建档才绑定链接本身（#94 修票 ST-1） -->
     <view class="card">
       <view class="card__title">本人自填建档</view>
       <view class="tip">
         想让本人自己拍证件与银行卡：把这枚免注册链接（二维码或文本）交给他，他在自己手机上走完
         同一套向导。待建档的人会新建档案；已建档的人会更新既有那一份，不会新建第二份。
-        链接 24 小时内有效，也可随时作废。
+        已建档时链接锁在这位本人身上，别人拿着也改不了其他人的档案。链接 24 小时内有效，也可随时作废。
       </view>
       <view v-if="invite.qr" class="qr">
         <image class="qr__img" :src="invite.qr" mode="aspectFit" />
@@ -171,7 +171,8 @@ const { issuing, handoff, issueLink, copyLink, resetHandoff } = useHandoffLink(
   tips
 )
 
-// 本人自填建档链接（#94）：免注册、绑定链接本身、可作废（同一条公开令牌机制）
+// 本人自填建档链接（#94）：免注册、可作废（同一条公开令牌机制）。
+// 已建档（payeeId 有值）时把收方 ID 带上，让链接锁到这个人身上（#94 修票 ST-1 结构根因）
 const {
   issuing: inviteIssuing,
   revoking: inviteRevoking,
@@ -180,7 +181,7 @@ const {
   revokeLink: revokeInvite,
   copyLink: copyInvite,
   resetHandoff: resetInvite
-} = useWizardInviteLink(renderQr, tips)
+} = useWizardInviteLink(() => payeeId.value, renderQr, tips)
 
 /** 实名未通过（含未认证 / 认证中 / 未通过）就算「待本人实名」；进度未加载完不下结论 */
 const awaitingRealName = computed(() => !!overview.value && !isRealNamePassed(overview.value.realNameStatus))

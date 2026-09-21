@@ -6,6 +6,7 @@ import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenCreateReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeBankCardChangeSaveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeInfoPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeInfoSaveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.wizard.vo.*;
@@ -15,10 +16,12 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.agreement.IcbcFrameworkAgreementMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementSignMethodEnum;
+import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOutcomeEnum;
 import cn.iocoder.yudao.module.icbc.enums.PublicTokenPurposeEnum;
 import cn.iocoder.yudao.module.icbc.service.cardrecognition.CardRecognitionPort;
 import cn.iocoder.yudao.module.icbc.service.esign.EsignPort;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenService;
 import cn.iocoder.yudao.module.icbc.service.token.PublicTokenPayload;
@@ -84,6 +87,8 @@ public class PublicOnboardingWizardServiceImplTest extends BaseDbUnitTest {
     private NaturalPersonService naturalPersonService;
     @Resource
     private PayeeInfoService payeeInfoService;
+    @Resource
+    private PayeeBankCardChangeService payeeBankCardChangeService;
 
     @MockBean
     private CardRecognitionPort cardRecognitionPort;
@@ -113,23 +118,23 @@ public class PublicOnboardingWizardServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testContext_returnsPurposeAndExpiry() {
+    public void testContext_returnsExpiry() {
         PublicTokenRespVO minted = mintInvite();
 
         PublicOnboardingWizardContextRespVO context = publicOnboardingWizardService.context(minted.getToken());
 
-        assertEquals(PublicTokenPurposeEnum.ONBOARDING_WIZARD.getCode(), context.getPurpose());
-        assertEquals(PublicTokenPurposeEnum.ONBOARDING_WIZARD.getName(), context.getPurposeName());
+        // 页面要把链接有效期显示给本人（#94 复审 ST-4）：只回有效期，不再回没人用的用途字段
         assertNotNull(context.getExpiresTime());
     }
 
     @Test
-    public void testContext_expiredOrRevokedGivesReadableError() {
+    public void testContext_revokedLinkSaysRevokedNotExpired() {
         PublicTokenRespVO minted = mintInvite();
         publicTokenService.revoke(minted.getToken());
 
+        // 本人被收货员作废的链接打开：要看到「已被作废」，而不是「已过期」（#94 复审 ST-5）
         assertServiceException(() -> publicOnboardingWizardService.context(minted.getToken()),
-                PUBLIC_TOKEN_EXPIRED);
+                PUBLIC_TOKEN_REVOKED);
     }
 
     // ==================== 识别：走同一个向导 Service ====================
@@ -191,16 +196,16 @@ public class PublicOnboardingWizardServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testSubmit_weakNetworkRetry_sameTokenReadsLinkUsedUp_andLeavesOneArchive() {
+    public void testSubmit_weakNetworkRetry_rejected_andLeavesOneArchive() {
         String token = mintInvite().getToken();
         String idCardNo = "110101199001010208";
         publicOnboardingWizardService.submit(token, fullReq(idCardNo, "13800000208"));
 
-        // 弱网下服务端已落库、客户端超时后用**同一枚链接**重提：链接已用尽（recognize 与重开不占次数，
-        // 但成功落库那一次已经占掉）；重提里的档案更新在同一事务里回滚，不会留下第二份档案，
-        // 也不会把第一次那份改坏
+        // 弱网下服务端已落库、客户端超时后用**同一枚链接**重提：这个人现在已有档案，
+        // 待建档链接不能再去改它（#94 修票 ST-1）——重提在同一事务里回滚，不会留下第二份档案，
+        // 也不会把第一次那份改坏。
         assertServiceException(() -> publicOnboardingWizardService.submit(token, fullReq(idCardNo, "13800000208")),
-                PUBLIC_TOKEN_USED_UP);
+                WIZARD_INVITE_PERSON_ALREADY_ARCHIVED);
         assertEquals(1, countByIdCardNo(idCardNo), "同一枚链接重复提交不产生第二份档案");
     }
 
@@ -229,15 +234,106 @@ public class PublicOnboardingWizardServiceImplTest extends BaseDbUnitTest {
         String idCardNo = "110101199001010204";
         String mobile = "13800000204";
         Long existingPayeeId = payeeInfoService.createPayeeInfo(payeeReq(idCardNo, mobile));
-        String token = mintInvite().getToken();
+        // 已建档：链接绑 PAYEE，锁到这个人身上（#94 修票 ST-1 结构根因）
+        String token = mintInvite(existingPayeeId).getToken();
 
-        // AC1 的「已建档」分支（#94 修票）：本人拿到一枚新链接也能走完，落在**既有那份档案**上，
+        // AC1 的「已建档」分支：本人拿到一枚新链接也能走完，落在**既有那份档案**上，
         // 不新建、也不以「本企业已有档案」拒掉
         OnboardingWizardSubmitRespVO resp = publicOnboardingWizardService.submit(token, fullReq(idCardNo, mobile));
 
         assertEquals(existingPayeeId, resp.getPayeeId(), "已建档的人走自填向导要更新既有档案");
         assertEquals(1, countByIdCardNo(idCardNo), "幂等：同一张身份证仍只有一份档案");
         assertLandedShape(resp, idCardNo);
+    }
+
+    @Test
+    public void testSubmit_inviteTokenCannotWriteAnExistingArchive() {
+        String idCardNo = "110101199001010209";
+        String mobile = "13800000209";
+        Long existingPayeeId = payeeInfoService.createPayeeInfo(payeeReq(idCardNo, mobile));
+        // 待建档链接（没绑人）：持链接者不能拿它改本租户里任何已有档案
+        String token = mintInvite().getToken();
+
+        assertServiceException(() -> publicOnboardingWizardService.submit(token, fullReq(idCardNo, mobile)),
+                WIZARD_INVITE_PERSON_ALREADY_ARCHIVED);
+
+        assertEquals(1, countByIdCardNo(idCardNo), "不新建第二份");
+        assertNull(payeeInfoMapper.selectById(existingPayeeId).getBankCardNo(), "既有档案一个字都不能被改");
+    }
+
+    @Test
+    public void testSubmit_payeeBoundTokenCannotWriteAnotherPerson() {
+        Long payeeId = payeeInfoService.createPayeeInfo(payeeReq("110101199001010210", "13800000210"));
+        // 链接锁在 110101199001010210 身上
+        String token = mintInvite(payeeId).getToken();
+
+        // 持链接者改另一个已知身份证的档案：拒绝，且不为那个人建档
+        assertServiceException(() -> publicOnboardingWizardService.submit(
+                token, fullReq("110101199001010211", "13800000211")), WIZARD_INVITE_PAYEE_MISMATCH);
+
+        assertNull(payeeInfoMapper.selectByIdCardNo("110101199001010211"));
+    }
+
+    @Test
+    public void testSubmit_onboardedArchiveWithCard_cannotRewriteCard() {
+        String idCardNo = "110101199001010212";
+        String mobile = "13800000212";
+        String effectiveCard = "6222021111111111111";
+        Long payeeId = payeeInfoService.createPayeeInfo(payeeReqWithCard(idCardNo, mobile, effectiveCard));
+        markOnboardedReady(payeeId);
+        String token = mintInvite(payeeId).getToken();
+
+        // 本人自己拍了一张新卡：本入口只办首卡，不替工行改卡，明确拒绝并指向换卡
+        OnboardingWizardSubmitReqVO reqVO = fullReq(idCardNo, mobile);
+        reqVO.setBankCardNo("6222022222222222222");
+        reqVO.setBankName("招商银行");
+        reqVO.setAccountCode("0");
+
+        assertServiceException(() -> publicOnboardingWizardService.submit(token, reqVO),
+                WIZARD_CARD_CHANGE_REQUIRES_CHANGE_ORDER);
+
+        PayeeInfoDO after = payeeInfoMapper.selectById(payeeId);
+        assertEquals(effectiveCard, after.getBankCardNo(), "生效中的卡一个字段都不许由本入口改写");
+        assertEquals("中国工商银行", after.getBankName());
+        assertEquals("1", after.getAccountCode());
+    }
+
+    @Test
+    public void testSubmit_onboardedArchiveSameCard_updatesOtherFieldsButKeepsCard() {
+        String idCardNo = "110101199001010213";
+        String mobile = "13800000213";
+        String effectiveCard = "6222021234567890123"; // 与 fullReq 同一张
+        Long payeeId = payeeInfoService.createPayeeInfo(payeeReqWithCard(idCardNo, mobile, effectiveCard));
+        markOnboardedReady(payeeId);
+        String token = mintInvite(payeeId).getToken();
+
+        OnboardingWizardSubmitReqVO reqVO = fullReq(idCardNo, mobile);
+        reqVO.setAddress("换了个住址");
+        OnboardingWizardSubmitRespVO resp = publicOnboardingWizardService.submit(token, reqVO);
+
+        assertEquals(payeeId, resp.getPayeeId());
+        PayeeInfoDO after = payeeInfoMapper.selectById(payeeId);
+        assertEquals(effectiveCard, after.getBankCardNo(), "确认的是同一张卡：卡字段原样保留");
+        assertEquals("换了个住址", after.getAddress(), "同一枚链接仍可更新非卡字段");
+    }
+
+    @Test
+    public void testSubmit_onboardedArchiveWithPendingCardChange_givesReadableError() {
+        String idCardNo = "110101199001010214";
+        String mobile = "13800000214";
+        Long payeeId = payeeInfoService.createPayeeInfo(payeeReqWithCard(idCardNo, mobile, "6222021111111111111"));
+        markOnboardedReady(payeeId);
+        // 已有一笔在途换卡：换卡审核中，不能从本入口再改一次
+        PayeeBankCardChangeSaveReqVO change = new PayeeBankCardChangeSaveReqVO();
+        change.setPayeeId(payeeId);
+        change.setNewBankCardNo("6222023333333333333");
+        payeeBankCardChangeService.requestChange(change);
+        String token = mintInvite(payeeId).getToken();
+
+        OnboardingWizardSubmitReqVO reqVO = fullReq(idCardNo, mobile);
+        reqVO.setBankCardNo("6222024444444444444");
+        assertServiceException(() -> publicOnboardingWizardService.submit(token, reqVO),
+                WIZARD_CARD_CHANGE_IN_PROGRESS);
     }
 
     @Test
@@ -259,9 +355,16 @@ public class PublicOnboardingWizardServiceImplTest extends BaseDbUnitTest {
 
     // ==================== 助手 ====================
 
+    /** 待建档链接：不绑人（这个人还没有收方档案）。 */
     private PublicTokenRespVO mintInvite() {
+        return mintInvite(null);
+    }
+
+    /** 已建档链接：绑到某个收方身上（#94 修票 ST-1 结构根因）。 */
+    private PublicTokenRespVO mintInvite(Long payeeId) {
         PublicTokenCreateReqVO reqVO = new PublicTokenCreateReqVO();
         reqVO.setPurpose(PublicTokenPurposeEnum.ONBOARDING_WIZARD.getCode());
+        reqVO.setPayeeId(payeeId);
         return publicTokenService.mint(reqVO);
     }
 
@@ -275,6 +378,22 @@ public class PublicOnboardingWizardServiceImplTest extends BaseDbUnitTest {
         reqVO.setIdSignDate("2020-01-01");
         reqVO.setIdValidityPeriod("2030-01-01");
         return reqVO;
+    }
+
+    /** 已入驻且已有生效卡的档案（换卡边界用例的起点）。 */
+    private PayeeInfoSaveReqVO payeeReqWithCard(String idCardNo, String mobile, String bankCardNo) {
+        PayeeInfoSaveReqVO reqVO = payeeReq(idCardNo, mobile);
+        reqVO.setBankCardNo(bankCardNo);
+        reqVO.setBankName("中国工商银行");
+        reqVO.setAccountCode("1");
+        return reqVO;
+    }
+
+    private void markOnboardedReady(Long payeeId) {
+        PayeeInfoDO update = new PayeeInfoDO();
+        update.setId(payeeId);
+        update.setOnboardingState(PayeeOnboardingOutcomeEnum.READY.getCode());
+        payeeInfoMapper.updateById(update);
     }
 
     /** 某张身份证在本租户有几份收方档案：幂等断言用。 */

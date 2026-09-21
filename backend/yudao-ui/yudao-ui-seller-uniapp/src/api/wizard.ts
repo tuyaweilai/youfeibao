@@ -30,10 +30,8 @@ export type {
 
 const withToken = (path: string, token: string) => `${path}?token=${encodeURIComponent(token)}`
 
-/** 打开链接先验一次令牌：有效返回用途与有效期，失效给可读错误 */
+/** 打开链接先验一次令牌：有效返回有效期，失效给可读错误。用途由入口 URL 决定，后端不再回传 */
 export interface WizardContextVO {
-  purpose?: string
-  purposeName?: string
   expiresTime?: string
 }
 

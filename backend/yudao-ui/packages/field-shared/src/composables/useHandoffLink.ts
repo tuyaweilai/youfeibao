@@ -98,12 +98,16 @@ export function useHandoffLink(
  *
  * 与 {@link useHandoffLink} 同一套一次性令牌机制，差别只有两点：
  * <ul>
- *   <li>用途是 {@code ONBOARDING_WIZARD}，绑定的是**链接本身**（这个人可能还没建档，没有收方 ID 可绑）；</li>
+ *   <li>用途是 {@code ONBOARDING_WIZARD}：<b>已建档</b>（传了 `payeeId`）时链接锁到那个人身上，
+ *       <b>待建档</b>时才绑链接本身（#94 修票 ST-1 结构根因）；</li>
  *   <li>链接可**作废**：本人中途放弃、或换一枚新的时，收货员点一下就把旧的废掉。</li>
  * </ul>
  * 二维码渲染仍由宿主传入（`field-shared` 不引 `qrcode`，见 README）。
+ *
+ * @param payeeId 当前收方档案编号；有值 = 已建档（链接锁到人），无值 = 待建档（绑定链接本身）
  */
 export function useWizardInviteLink(
+  payeeId: () => number | undefined,
   renderQr: (text: string) => Promise<string>,
   tips: (message: string) => void
 ) {
@@ -114,7 +118,8 @@ export function useWizardInviteLink(
   async function issueLink() {
     issuing.value = true
     try {
-      const resp = await createPublicToken({ purpose: 'ONBOARDING_WIZARD' })
+      const id = payeeId()
+      const resp = await createPublicToken({ purpose: 'ONBOARDING_WIZARD', payeeId: id || undefined })
       handoff.token = resp.token || ''
       handoff.link = buildSellerHandoffLink(SELLER_APP_URL, handoff.token, 'ONBOARDING_WIZARD')
       handoff.expiresText = handoffExpiresText(resp.expiresTime)

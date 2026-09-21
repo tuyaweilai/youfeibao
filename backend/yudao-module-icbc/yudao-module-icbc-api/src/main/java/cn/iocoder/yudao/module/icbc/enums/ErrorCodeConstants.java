@@ -519,10 +519,8 @@ public interface ErrorCodeConstants {
             "手机号不能为空：本人实名要靠它");
     ErrorCode WIZARD_BANK_CARD_NO_REQUIRED = new ErrorCode(1_030_040_004,
             "银行卡号不能为空：收方入驻要打到本人卡上");
-    ErrorCode WIZARD_PAYEE_ALREADY_ARCHIVED = new ErrorCode(1_030_040_005,
-            "此人在本企业已有收方档案（一张身份证在本企业只能建一份）：请到「收方档案」里找到他修改，或换一位出售者");
-    // 说明：#94 修票后 submit 遇到「本租户已有同身份证档案」不再拒绝，而是更新既有档案（父票 #81 故事 14）。
-    // 上面这枚错误码**不再由向导抛出**，但保留码位：错误码只追加、不重排，存量前端 / 日志仍可能引用这个码。
+    // 040_005 曾是 WIZARD_PAYEE_ALREADY_ARCHIVED（本企业已有档案即拒）。#94 修票后 submit 改为更新既有档案，
+    // 它全仓零引用，已按 #94 复审 ST-3 删除；码位留空不复用。
 
     // ========== 电子签章的平台级配置与租户开通（#92，ADR 0036 / 0037） 1_030_041_000 ==========
     ErrorCode ESIGN_CONFIG_NOT_EXISTS = new ErrorCode(1_030_041_000,
@@ -552,6 +550,25 @@ public interface ErrorCodeConstants {
 
     // ========== 免注册链接壳：本人自填建档（#94，ADR 0007 补充） 1_030_043_000 ==========
     // 取 043 段（跳过了 042）：042 留给并行票 #93（腾讯云卡证识别接入）的错误码段，两边不撞。
+    // 收货员点「作废」被拒时看到的就是这一条（不是站在本人立场写的），所以正文按收货员视角措辞。
     ErrorCode PUBLIC_TOKEN_NOT_FOUND = new ErrorCode(1_030_043_000,
-            "链接不存在或已被清理，请让收货员重新生成一枚");
+            "链接不存在或已被清理；请确认它是不是本企业刚签发的那一枚");
+    // 被收货员作废的链接：本人打开时要看到「已被作废」，而不是「已过期」——两件事对本人不一样（#94 复审 ST-5）。
+    // 只描述状态，不重复页面已经写死的「请让收货员重新生成一枚」。
+    ErrorCode PUBLIC_TOKEN_REVOKED = new ErrorCode(1_030_043_001,
+            "链接已被收货员作废");
+
+    // 建档向导「首卡 vs 换卡」的边界（#37 / CONTEXT「收款账户变更」；#94 修票 ST-1）
+    ErrorCode WIZARD_CARD_CHANGE_REQUIRES_CHANGE_ORDER = new ErrorCode(1_030_043_002,
+            "该收方已有生效中的银行卡：本入口只办首卡，改卡请走「收款账户变更」（换卡单 + 工行复审）");
+    ErrorCode WIZARD_CARD_CHANGE_IN_PROGRESS = new ErrorCode(1_030_043_003,
+            "该收方正在办理收款账户变更（换卡审核中）：不能通过本入口改卡，请等审核结果或到「收方档案」处理");
+
+    // 链接锁到人（#94 修票 ST-1 结构根因）：已建档的链接绑定收方 ID，待建档的才绑定链接本身。
+    ErrorCode WIZARD_INVITE_PAYEE_MISMATCH = new ErrorCode(1_030_043_004,
+            "这枚链接是给另一位本人办的，不能用来改这个身份证的档案");
+    ErrorCode WIZARD_INVITE_PERSON_ALREADY_ARCHIVED = new ErrorCode(1_030_043_005,
+            "此人已有收方档案：请让收货员从「已建档」入口生成链接（链接会锁到本人名下）");
+    ErrorCode WIZARD_INVITE_PAYEE_NOT_FOUND = new ErrorCode(1_030_043_006,
+            "这枚链接绑定的收方档案不存在，请让收货员重新生成一枚");
 }

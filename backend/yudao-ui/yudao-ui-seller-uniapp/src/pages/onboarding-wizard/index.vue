@@ -13,6 +13,7 @@
         <view class="banner__desc">
           用你自己的手机拍身份证与银行卡；照片只用于识别，平台不留存。中途退出不产生任何档案。
         </view>
+        <view v-if="linkExpiresText" class="banner__expires">{{ linkExpiresText }}</view>
       </view>
 
       <!-- 五步的进度条自己画：分步状态只在本页 / 本地草稿里，不落后端 -->
@@ -98,6 +99,14 @@
         <view class="field">
           <text class="field__label">手机号（本人实名要用）</text>
           <input v-model="draft.mobile" class="input" type="number" placeholder="手机号" />
+        </view>
+
+        <!-- 与现场端壳第 2 步对称：告警也在这里再看一次（#94 复审 ST-7） -->
+        <view v-if="draft.idFrontWarnings.length" class="alerts alerts--warn">
+          <view v-for="(word, i) in draft.idFrontWarnings" :key="`f${i}`">· {{ word }}</view>
+        </view>
+        <view v-if="draft.idBackWarnings.length" class="alerts alerts--warn">
+          <view v-for="(word, i) in draft.idBackWarnings" :key="`b${i}`">· {{ word }}</view>
         </view>
 
         <view v-if="idBlocked" class="alerts alerts--block">
@@ -218,6 +227,7 @@
         </view>
 
         <view class="tip">还差最后一步实名：只有本人能做，做完企业才能给你付款与开票。</view>
+        <view v-if="onboardingExpiresText" class="tip">{{ onboardingExpiresText }}</view>
         <button class="btn btn--primary" @click="goRealName">去实名</button>
       </view>
     </template>
@@ -269,6 +279,8 @@ const draft = reactive<OnboardingWizardDraft>(emptyWizardDraft())
 const submitting = ref(false)
 const recognizing = ref(false)
 const linkError = ref('')
+/** 链接有效期（后端 context 返回；页面直接展示给本人，别让它成为没人用的字段，ST-4） */
+const linkExpires = ref('')
 const resumed = ref(false)
 /** 建档完成后跳走时不再回写草稿，否则清掉的草稿会被 onUnload 又存回来 */
 let finished = false
@@ -290,10 +302,15 @@ onLoad((query) => {
   if (saved?.step === 5 && saved.onboardingToken) {
     return
   }
-  // 打开链接先验一次：过期 / 被收货员作废时立刻给可读提示，而不是拍到一半才失败
-  getWizardContext(token.value).catch((e) => {
-    linkError.value = (e as Error).message || '链接不可用'
-  })
+  // 打开链接先验一次：过期 / 被收货员作废时立刻给可读提示，而不是拍到一半才失败；
+  // 有效就把链接有效期显示给本人（#94 复审 ST-4）
+  getWizardContext(token.value)
+    .then((ctx) => {
+      linkExpires.value = ctx?.expiresTime || ''
+    })
+    .catch((e) => {
+      linkError.value = (e as Error).message || '链接不可用'
+    })
 })
 
 // 切走（接电话、切后台）就把当前进度写回本地
@@ -310,6 +327,18 @@ const idBlockReasons = computed(() => [...draft.idFrontBlockReasons, ...draft.id
 const idBlocked = computed(() => idBlockReasons.value.length > 0)
 const canStep1Next = computed(() => !!draft.idFrontImage && !!draft.idBackImage && !idBlocked.value)
 const canStep3Next = computed(() => !!draft.bankImage && draft.bankBlockReasons.length === 0)
+/** "2026-09-22T19:49:00" → "2026-09-22 19:49"（不经过 Date：微信 / iOS 对连字符时间串的解析不一致） */
+function readableTime(value?: string) {
+  return value ? value.slice(0, 16).replace('T', ' ') : ''
+}
+const linkExpiresText = computed(() =>
+  linkExpires.value ? `链接有效期至 ${readableTime(linkExpires.value)}` : ''
+)
+const onboardingExpiresText = computed(() =>
+  draft.onboardingExpiresTime
+    ? `实名链接有效期至 ${readableTime(draft.onboardingExpiresTime)}，过期请让收货员重新生成。`
+    : ''
+)
 
 function tips(message: string) {
   uni.showToast({ title: message, icon: 'none', duration: 2600 })
@@ -511,11 +540,12 @@ async function onSubmit() {
     draft.payeeId = resp.payeeId
     draft.signMethod = resp.signMethod || 'PAPER'
     draft.onboardingToken = resp.onboardingToken || ''
+    draft.onboardingExpiresTime = resp.onboardingExpiresTime || ''
     draft.step = 5
     persist()
   } catch (e) {
-    // 落库失败（校验不过 / 链接已用尽）：留在第 4 步，已填内容不丢。
-    // 已建档不再是一类失败：后端会更新既有档案（#94 修票）。
+    // 落库失败（校验不过 / 链接已用尽 / 已建档的卡变更被拒）：留在第 4 步，已填内容不丢。
+    // 已建档的人拿**绑到自己身上**的链接再走一遍会被受理；换卡不走本入口（#94 复审 ST-1）。
     tips((e as Error).message || '建档失败')
   } finally {
     submitting.value = false
@@ -556,6 +586,12 @@ function goRealName() {
     color: $seller-text-secondary;
     font-size: 26rpx;
     line-height: 1.6;
+  }
+
+  &__expires {
+    margin-top: 12rpx;
+    color: #b26a00;
+    font-size: 24rpx;
   }
 }
 

@@ -30,10 +30,14 @@ public enum PublicTokenPurposeEnum {
      * 本人自填建档（#94，ADR 0007 补充）：收货员把链接交给本人，让他在自己手机上走完
      * 同一套五步向导（拍证件 / 银行卡 → 确认 → 落库）。
      *
-     * <p>它绑定的是**这枚免注册链接本身**，不是某个收方档案：链接生成时这个人可能还没有档案，
-     * 收方档案要等向导落库时才建（这样中途退出不会留下半成品档案），已建档的人也能再走一次、
-     * 更新既有那一份（#94 修票）。有效期 24 小时；识别、重开页面与失败重试**不占次数**，
-     * 只有成功落库那一次才占，所以限次就是 1——一枚链接只建一份档案。
+     * <p><b>两种绑定形态，按生成时这个人有没有档案来选</b>（#94 修票 ST-1 结构根因）：
+     * <ul>
+     *   <li><b>待建档</b>（{@code payeeId} 为空）：业务键类型是 {@link BusinessKeyType#ONBOARDING_INVITE}，
+     *       绑定**这枚链接本身**——链接生成时还没有收方档案，绑 PAYEE 会强迫先建一个 stub（半成品）；</li>
+     *   <li><b>已建档</b>（{@code payeeId} 非空）：业务键类型是 {@link BusinessKeyType#PAYEE}，
+     *       把链接**锁到那个人身上**——持链接者就不能拿去改本租户里别的已知身份证的档案。</li>
+     * </ul>
+     * 有效期 24 小时；识别、重开页面与失败重试**不占次数**，只有成功落库那一次才占，所以限次就是 1。
      */
     ONBOARDING_WIZARD("ONBOARDING_WIZARD", "本人自填建档", BusinessKeyType.ONBOARDING_INVITE, 1, true);
 
@@ -48,6 +52,7 @@ public enum PublicTokenPurposeEnum {
         /**
          * 业务键是**自填建档链接本身**（尚未建档，没有收方 ID 可绑）。
          * 见 {@link #ONBOARDING_WIZARD}：链接生成时不校验收方是否存在，落库时才建档案。
+         * 这个人已建档时改用 {@link #PAYEE}，不再走这一形态。
          */
         ONBOARDING_INVITE
     }

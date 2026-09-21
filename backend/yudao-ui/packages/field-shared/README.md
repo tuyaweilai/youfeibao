@@ -18,7 +18,7 @@
 | `src/utils/realName.ts` | 实人认证状态的判定：**1 是「认证中」，只有 2 是「认证通过」**（#90） |
 | `src/utils/onboarding.ts` | 收方入驻状态的判定：只有 `READY` 是「入驻完成」（#90 顺带修的同类问题） |
 | `src/composables/useSellerOnboarding.ts` | **四步的业务逻辑与状态**：接口编排、校验、工行表单承载、提示文案 |
-| `src/composables/useHandoffLink.ts` | **「交给出售者本人」的转达入口**：一次性令牌、链接、二维码与有效期文案（#91 复审 ST-B 收口，两端同一份）；#94 加了 `useWizardInviteLink`（绑定链接本身的本人自填建档链接，可作废） |
+| `src/composables/useHandoffLink.ts` | **「交给出售者本人」的转达入口**：一次性令牌、链接、二维码与有效期文案（#91 复审 ST-B 收口，两端同一份）；#94 加了 `useWizardInviteLink`（本人自填建档链接，可作废；已建档时传 `payeeId` 把链接锁到人，待建档才绑链接本身） |
 
 ## 宿主怎么用
 
