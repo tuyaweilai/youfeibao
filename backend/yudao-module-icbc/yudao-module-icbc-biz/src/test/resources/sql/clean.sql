@@ -54,3 +54,5 @@ DELETE FROM icbc_stock_move;
 DELETE FROM icbc_stock_check_item;
 DELETE FROM icbc_stock_check;
 DELETE FROM icbc_stock_opening;
+DELETE FROM icbc_esign_tenant;
+DELETE FROM icbc_esign_config;

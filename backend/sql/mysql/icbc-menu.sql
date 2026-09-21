@@ -290,7 +290,15 @@ VALUES
 -- ===== 经营报表（#57 T19）=====
 -- 经营报表页（5209）的查询权限行。四张表（采购履约 / 收购台账 / 库存 / 结算付款）与异常表同属一个页面，
 -- 共用一个查询权限；所有指标都能下钻到来源明细，下钻到别的模块时仍走各模块自己的权限。
-(5322, '经营报表查询', 'icbc:report:query', 3, 1, 5209, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
+(5322, '经营报表查询', 'icbc:report:query', 3, 1, 5209, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+-- ===== 电子签章（#92，ADR 0036）=====
+-- 租户侧「基础资料 / 电子签章」：管理员在本租户开通（企业认证 + 企业印章）并看激活状态与合同额度；
+-- 平台侧「平台运营 / 电子签章」：平台级参数（密钥只落后端、界面不回显明文）与各租户状态总览。
+-- 平台运营不进回收企业套餐（ADR 0026）：5140 不在套餐的种子集合里。
+(5282, '电子签章', 'icbc:esign:query', 2, 8, 5201, 'esign', 'ep:stamp', 'icbc/esign/index', 'IcbcEsign', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5283, '开通电子签', 'icbc:esign:manage', 3, 1, 5282, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5280, '电子签章', 'icbc:platform:esign:query', 2, 7, 5140, 'esign', 'ep:setting', 'icbc/platformEsign/index', 'IcbcPlatformEsign', 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0'),
+(5281, '保存平台配置', 'icbc:platform:esign:manage', 3, 1, 5280, '', '', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), 'admin', NOW(), b'0');
 
 -- =====================================================================
 -- 3. 回收企业租户套餐

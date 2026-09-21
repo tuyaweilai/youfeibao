@@ -293,4 +293,14 @@ public interface RecyclingPermission {
     /** 查看采购履约 / 收购台账 / 库存 / 结算付款四张经营报表与异常表（所有指标可下钻到来源明细） */
     String REPORT_QUERY = "icbc:report:query";
 
+    // ========== 电子签章：租户开通与平台级配置（#92，ADR 0036 / 0037） ==========
+
+    /** 查看本租户的电子签章激活状态、企业印章与合同额度 */
+    String ESIGN_QUERY = "icbc:esign:query";
+    /** 开通电子签（拿一次性控制台链接）、确认已激活与印章就位 */
+    String ESIGN_MANAGE = "icbc:esign:manage";
+    /** 平台运营：配置电子签章平台参数（环境 / endpoint / 应用标识 / 密钥 / 回调与验签 / 签署链接渠道 / 平台模板） */
+    String PLATFORM_ESIGN_QUERY = "icbc:platform:esign:query";
+    String PLATFORM_ESIGN_MANAGE = "icbc:platform:esign:manage";
+
 }

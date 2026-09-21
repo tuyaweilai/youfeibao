@@ -1613,3 +1613,50 @@ CREATE TABLE IF NOT EXISTS icbc_stock_opening (
 
 CREATE INDEX IF NOT EXISTS idx_stock_opening_dimension
     ON icbc_stock_opening(tenant_id, goods_config_id, warehouse_id, location_id, batch_id);
+
+-- icbc_esign_config table（电子签章平台级参数，#92；全局表，登记进 ignore-tables）
+CREATE TABLE IF NOT EXISTS icbc_esign_config (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    environment VARCHAR(16),
+    api_endpoint VARCHAR(255),
+    console_endpoint VARCHAR(255),
+    app_id VARCHAR(64),
+    secret_id VARCHAR(128),
+    secret_key VARCHAR(255),
+    callback_url VARCHAR(255),
+    callback_sign_key VARCHAR(255),
+    sign_link_channel VARCHAR(32),
+    agreement_template_id VARCHAR(64),
+    notice_template_id VARCHAR(64),
+    remark VARCHAR(255),
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id)
+);
+
+-- icbc_esign_tenant table（租户级电子签章配置，#92；租户表）
+CREATE TABLE IF NOT EXISTS icbc_esign_tenant (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    sub_customer_no VARCHAR(64) NOT NULL,
+    activation_status TINYINT NOT NULL DEFAULT 0,
+    operator_no VARCHAR(64),
+    seal_no VARCHAR(64),
+    contract_quota INT NOT NULL DEFAULT 0,
+    contract_used INT NOT NULL DEFAULT 0,
+    console_token VARCHAR(64),
+    console_token_expire_time DATETIME,
+    activated_time DATETIME,
+    remark VARCHAR(255),
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    creator VARCHAR(64) DEFAULT '',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_esign_tenant_sub_customer_no UNIQUE (sub_customer_no),
+    CONSTRAINT uk_esign_tenant_tenant UNIQUE (tenant_id)
+);

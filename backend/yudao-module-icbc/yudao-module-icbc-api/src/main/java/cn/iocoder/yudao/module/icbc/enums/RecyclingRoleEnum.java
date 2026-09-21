@@ -84,7 +84,9 @@ public enum RecyclingRoleEnum {
             // 关联单据查询（#55）：管理员全量，含未脱敏查看与导出
             RecyclingPermission.TRACE_QUERY, RecyclingPermission.TRACE_SENSITIVE_VIEW,
             RecyclingPermission.TRACE_EXPORT,
-            RecyclingPermission.REPORT_QUERY)),
+            RecyclingPermission.REPORT_QUERY,
+            // 电子签章（#92）：管理员开通本企业的电子签并确认印章就位
+            RecyclingPermission.ESIGN_QUERY, RecyclingPermission.ESIGN_MANAGE)),
 
     /**
      * 收货员：收购现场登记，维护出售者档案与收购单。
@@ -211,7 +213,9 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.SETTLEMENT_QUERY,
             RecyclingPermission.SETTLEMENT_CONFIRM_QUERY,
             RecyclingPermission.PLATFORM_NATURAL_PERSON_QUERY,
-            RecyclingPermission.PLATFORM_NATURAL_PERSON_MANAGE));
+            RecyclingPermission.PLATFORM_NATURAL_PERSON_MANAGE,
+            // 电子签章平台级参数（#92）：跨租户配置与查看各租户激活状态 / 合同额度
+            RecyclingPermission.PLATFORM_ESIGN_QUERY, RecyclingPermission.PLATFORM_ESIGN_MANAGE));
 
     private final String code;
     private final String name;

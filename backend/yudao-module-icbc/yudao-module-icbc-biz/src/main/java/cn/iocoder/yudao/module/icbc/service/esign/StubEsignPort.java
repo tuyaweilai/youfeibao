@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.icbc.service.esign;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -15,11 +16,13 @@ import java.util.List;
  * <p>{@link #parseCallback} 是唯一的例外：签章不可用时不会有真实回调，走到这里说明配置或调用链
  * 有问题，明确失败比静默返回空更容易被发现；伪造的通知也不该被当成「什么都没发生」。
  *
- * <p>接入真实服务时替换本 Bean（#92）；替换时注意两个 Bean 不能同时在场，参考
- * {@code IcbcSdkGateway} / {@code FakeIcbcGateway} 用 {@code @ConditionalOnProperty}
- * 二选一的做法。
+ * <p>接入真实服务时替换本 Bean（#92）；替换时注意两个 Bean 不能同时在场：本类与真实实现都用
+ * {@code @ConditionalOnProperty} 按 {@code icbc.esign.mode} 二选一（照
+ * {@code IcbcSdkGateway} / {@code FakeIcbcGateway} 的做法）。本类带 {@code matchIfMissing = true}，
+ * 所以**未配置时生效的仍是它**、{@link #isAvailable} 仍然答 {@code false}。
  */
 @Component
+@ConditionalOnProperty(prefix = "icbc.esign", name = "mode", havingValue = "stub", matchIfMissing = true)
 public class StubEsignPort implements EsignPort {
 
     @Override

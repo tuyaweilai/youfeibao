@@ -1983,3 +1983,41 @@ member 令牌回 `code=401 账号未登录`。
 **frontier**：`#91`（建档向导现场端壳）、`#92`（电子签章端口与租户开通）可立即开工；`#93`（腾讯卡证识别）、`#94`（免注册链接壳）挂 #91，`#95`（合同组电子签署）挂 #91 + #92。外部依赖仍是 #30/#36/#37。
 
 ⚠️ 工作区里 `icbc-menu.sql` / `logistics-menu.sql` / 现场端 `pages.json`、`home`、`login` 的未提交改动**与本票无关**，是会话开始前就存在的。
+
+## #92 电子签章端口与租户开通（已落地，提交见本次）
+
+把 `#81` 的电子签章**缝后面的东西**立起来：平台级配置、租户级开通、一次性控制台链接、回调入口。
+端口本身（`service/esign/EsignPort` + `StubEsignPort`）在 `db4c09f` 已落，本票不重建。
+
+1. **平台级参数**（`icbc_esign_config`，**全局表**，已进 `ignore-tables` 与测试 `IcbcTenantTestConfiguration`）：
+   环境、两套 endpoint（服务端接口 + 控制台）、应用标识、密钥、回调地址与验签密钥、签署链接渠道、平台模板。
+   **密钥只写不读**：保存时留空表示不改动，查询响应只回「已配置」与否。齐备判据只有一处
+   （`EsignConfigService#isPlatformConfigured`），`missingFields` 一次列出缺什么。
+2. **租户级配置**（`icbc_esign_tenant`，租户表）：子客编号、激活状态、经办人编号、企业印章编号、合同额度。
+   **子客编号是我们生成的确定性编号**（`ES + 租户编号左补零到 10 位`），落库后只读不写——唯一性与幂等不依赖重试；
+   唯一键 `uk_esign_tenant_sub_customer_no` 兜底。它是第三方回执里唯一的租户锚点。
+3. **开通入口**：`POST /icbc/esign/open` 拿一枚**一次性控制台链接**（拼在平台 `consoleEndpoint` 上，带 appId +
+   子客编号 + 每次换新的 token，30 分钟有效；再次开通换新、旧链接作废），状态推到「认证中」。
+   完成企业认证与制章后 `POST /icbc/esign/activate` 落「已激活 + 印章就位」（**印章编号必填**——只激活没印章发起不了签署）。
+   本票没有腾讯账号，**这一步是人工确认**；真实账号联调与第三方回推激活状态属后续（见下）。
+4. **回调入口**：`POST /icbc/esign/callback/notify`（`@PermitAll`，不带登录态与租户头）走 `EsignPort#parseCallback`：
+   **验签失败必须明确失败**（`ESIGN_CALLBACK_REJECTED` / `ESIGN_CALLBACK_VERIFY_FAILED`），端口返回 null、
+   子客编号反查不到租户也各自抛错，绝不静默吞掉。归一化后回带 `tenantId`（由端口从子客编号反查），供 `#95` 路由。
+   `EsignTenantService#resolveTenantIdBySubCustomerNo` 就是给端口实现复用的反查点（本票已测）。
+5. **端口二选一**：`StubEsignPort` 加了 `@ConditionalOnProperty(prefix="icbc.esign", name="mode", havingValue="stub", matchIfMissing=true)`，
+   真实实现用 `havingValue="remote"` 即可顶上；**未配置时生效的仍是 stub，`isAvailable` 仍答 `false`**。
+6. **后台可见**：租户页 `views/icbc/esign`（状态 / 印章 / 额度 + 开通 + 确认激活）；平台页 `views/icbc/platformEsign`
+   （平台参数表单 + 各租户激活状态与额度总览 + 调整额度）。菜单 5280–5289（租户页挂基础资料，平台页挂平台运营，**平台页不进回收企业套餐**）。
+7. **落地**：`sql/mysql/icbc-esign.sql`（幂等，临时库验过两次导入）；测试建表与 `clean.sql` 同步；`README.md` 导入顺序追加一行。
+   错误码段 `1_030_041_xxx`（`#91` 占 `1_030_040_xxx`）。
+8. **测试**：新增 `EsignConfigServiceTest`（4）/ `EsignTenantServiceTest`（8，真开租户拦截器）/ `EsignCallbackServiceTest`（4）；
+   icbc 全量 **750 测试全绿**（1 skip 是 live 测试）。PC `build:local` 通过；新增前端文件 `vue-tsc` 零错误。
+
+> **本票没做 / 压到后面的**：
+> - **「向导未激活时落 PAPER」**要等 `#91` 的向导在，本票只交付判据这一侧：`EsignPort#isAvailable`（stub）答 `false`，
+>   由 `StubEsignPortTest#testNotAvailable` 守住；`EsignTenantService#isTenantActivated` 提供租户侧输入。
+> - **真实腾讯电子签 SDK**（发起签署 / 生成签署链接 / 查已签文件 / 真实验签解析）不在本票：端口实现仍是 stub。
+>   接的时候用 `icbc.esign.mode=remote` 顶上，`isAvailable` 组合「平台参数齐备 + 租户已激活且印章就位 + 额度未耗尽」。
+> - `#95` 消费的接口线索：`EsignCallbackService#handle` 返回的 `EsignCallback`（带 `tenantId`），
+>   以及 `EsignTenantService#resolveTenantIdBySubCustomerNo`。
+> - `contractUsed` 只落库与展示，**谁在何时 +1 属 `#95`**（发起签署成功时）。
