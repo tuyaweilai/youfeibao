@@ -101,19 +101,29 @@ export async function compressDataUrl(dataUrl: string, maxBase64Length: number):
   let width = image.naturalWidth || image.width
   let height = image.naturalHeight || image.height
   let quality = 0.8
-  let result = renderJpeg(image, width, height, quality)
+  const first = renderJpeg(image, width, height, quality)
+  if (!first) {
+    // 拿不到 2d context：压不了，交回原图由调用方拦截（不静默传一张必被厂商拒的图）
+    return dataUrl
+  }
+  let result = first
   for (let attempt = 0; attempt < 24 && base64Length(result) > maxBase64Length; attempt++) {
     if (quality > 0.4) {
       quality = Math.max(0.4, Number((quality - 0.1).toFixed(2)))
     } else {
+      if (width <= 320 || height <= 320) {
+        // 已经降到下限仍超限：停，别拿巨大字符串反复空转
+        break
+      }
       width = Math.max(1, Math.round(width * 0.8))
       height = Math.max(1, Math.round(height * 0.8))
       quality = 0.7
-      if (width <= 320 || height <= 320) {
-        break
-      }
     }
-    result = renderJpeg(image, width, height, quality)
+    const next = renderJpeg(image, width, height, quality)
+    if (!next) {
+      break
+    }
+    result = next
   }
   return result
   // #endif
@@ -132,13 +142,19 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-function renderJpeg(image: HTMLImageElement, width: number, height: number, quality: number): string {
+/** 渲染 JPEG；拿不到 2d context 时返回 null，由调用方决定降级（不再把原图当压缩结果）。 */
+function renderJpeg(
+  image: HTMLImageElement,
+  width: number,
+  height: number,
+  quality: number
+): string | null {
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
   const context = canvas.getContext('2d')
   if (!context) {
-    return image.src
+    return null
   }
   context.drawImage(image, 0, 0, width, height)
   return canvas.toDataURL('image/jpeg', quality)

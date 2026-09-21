@@ -30,23 +30,32 @@ import java.util.function.Function;
 @ConditionalOnProperty(prefix = "icbc.card-recognition", name = "mode", havingValue = "tencent")
 public class TencentCardRecognition implements CardRecognitionPort {
 
-    /** 身份证识别：启用告警与质量分，才会在 AdvancedInfo 里回这些字段（{@code Config} 是文档参数）。 */
+    /**
+     * 身份证识别：启用告警与质量分，才会在 {@code AdvancedInfo} 里回这些字段（{@code Config} 是文档参数）。
+     *
+     * <p>两个容易漏的开关（独立评审 SP-4）：
+     * <ul>
+     *   <li>{@code ReflectWarn}：不开则反光检测不生效（{@code EnableReflectDetail} 也以它为前提），
+     *       AC5 的「反光」在真机上永不出现。</li>
+     *   <li>{@code InvalidDateWarn}：「有效期不合法」告警，是 AC6 的一条腿。</li>
+     * </ul>
+     */
     private static final String ID_CARD_CONFIG =
             "{\"CopyWarn\":true,\"BorderCheckWarn\":true,\"ReshootWarn\":true,"
-                    + "\"DetectPsWarn\":true,\"TempIdWarn\":true,\"Quality\":true}";
+                    + "\"DetectPsWarn\":true,\"TempIdWarn\":true,\"ReflectWarn\":true,"
+                    + "\"InvalidDateWarn\":true,\"Quality\":true}";
 
     private final TencentCardRecognitionProperties properties;
     private final TencentOcrClient client;
     /** 未配置密钥只提示一次，避免每次拍照都刷日志 */
     private final AtomicBoolean missingConfigLogged = new AtomicBoolean();
 
+    /**
+     * 构造注入（#93 独立评审 ST-2）：HTTP 客户端是 Spring Bean，测试可换成假的，
+     * 「厂商报错也走同一条降级路径」因此能被钉住。
+     */
     @Autowired
-    public TencentCardRecognition(TencentCardRecognitionProperties properties) {
-        this(properties, new TencentOcrClient(properties));
-    }
-
-    /** 测试用：注入一个假的客户端，不触网。 */
-    TencentCardRecognition(TencentCardRecognitionProperties properties, TencentOcrClient client) {
+    public TencentCardRecognition(TencentCardRecognitionProperties properties, TencentOcrClient client) {
         this.properties = properties;
         this.client = client;
     }
@@ -73,9 +82,12 @@ public class TencentCardRecognition implements CardRecognitionPort {
     public BankCard recognizeBankCard(String imageBase64) {
         JSONObject payload = new JSONObject();
         payload.put("ImageBase64", plainBase64(imageBase64));
-        // 不送 Config：BankCardOCR 默认就回 CardNo / BankInfo / CardType / Quality，
-        // 而 Config 是否是它接受的参数没有离线可验证的依据（#93 报告里如实记）——
-        // 宁可少要一项质量分，也不能送一个不确定的参数把整次识别打挂。
+        // BankCardOCR 没有 Config 参数，但告警与质量分是四个独立的 bool 开关，且官方默认全 false：
+        // 不带开关则 WarningCode / QualityValue 什么都不回（独立评审 SP-2）。四个都是官方文档字段。
+        payload.put("EnableCopyCheck", true);
+        payload.put("EnableReshootCheck", true);
+        payload.put("EnableBorderCheck", true);
+        payload.put("EnableQualityValue", true);
         return mapOrEmpty("BankCardOCR", payload, TencentOcrResultMapper::toBankCard, BankCard.empty());
     }
 

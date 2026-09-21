@@ -36,7 +36,7 @@ public class TencentCardRecognitionLiveTest {
         if (region != null && !region.trim().isEmpty()) {
             properties.setRegion(region);
         }
-        TencentOcrClient client = new TencentOcrClient(properties);
+        TencentOcrClient client = new TencentOcrClient(properties, new HutoolTencentOcrTransport());
 
         JSONObject payload = JSON.parseObject("{\"ImageBase64\":\"" + TINY_PNG_BASE64
                 + "\",\"CardSide\":\"FRONT\"}");

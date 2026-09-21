@@ -1,29 +1,41 @@
 package cn.iocoder.yudao.module.icbc.service.cardrecognition.tencent;
 
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.http.HttpRequest;
-import cn.hutool.http.HttpResponse;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
- * 腾讯云 OCR 的 HTTP 客户端（#93）：签名、发请求、把厂商错误收成 {@code null}。
+ * 腾讯云 OCR 的客户端（#93）：拼请求、签名、把厂商响应里的 {@code Response} 节点交出去。
+ *
+ * <p>HTTP 走构造注入的 {@link TencentOcrTransport}（Spring 里是 {@link HutoolTencentOcrTransport}），
+ * 所以「厂商报错」这条降级判据能被测试直接钉住，而不是只能靠断言（独立评审 ST-2）。
  *
  * <p><b>不记请求体、不记响应体</b>：请求体是证件 / 银行卡影像的 base64（ADR 0037 要求识别完即弃），
  * 响应体是姓名 / 身份证号 / 住址 / 银行卡号。日志里只留厂商错误码与 {@code RequestId}，
  * 这两样都不带 PII，却是排查额度耗尽与联调问题的关键。
  *
- * <p>返回 {@code null} 的两种情况（网络 / 非 2xx / 厂商报错）在调用方走同一条降级路径：
+ * <p>返回 {@code null} 的情况（网络 / 非 2xx / 厂商报错 / 响应不可解析）在调用方走同一条降级路径：
  * 向导退化为手工录入（ADR 0037）。
  */
 @Slf4j
+@Component
+@ConditionalOnProperty(prefix = "icbc.card-recognition", name = "mode", havingValue = "tencent")
 public class TencentOcrClient {
 
     private final TencentCardRecognitionProperties properties;
+    private final TencentOcrTransport transport;
 
-    public TencentOcrClient(TencentCardRecognitionProperties properties) {
+    @Autowired
+    public TencentOcrClient(TencentCardRecognitionProperties properties, TencentOcrTransport transport) {
         this.properties = properties;
+        this.transport = transport;
     }
 
     /**
@@ -58,22 +70,22 @@ public class TencentOcrClient {
         String authorization = TencentOcrSigner.buildAuthorization(
                 properties.getSecretId(), properties.getSecretKey(), properties.getEndpoint(),
                 properties.getService(), body, timestamp);
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("Content-Type", "application/json; charset=utf-8");
+        headers.put("Authorization", authorization);
+        headers.put("X-TC-Action", action);
+        headers.put("X-TC-Timestamp", String.valueOf(timestamp));
+        headers.put("X-TC-Version", properties.getVersion());
+        headers.put("X-TC-Region", properties.getRegion());
+        TencentOcrTransport.Request request = new TencentOcrTransport.Request(
+                "https://" + properties.getEndpoint(), headers, body, properties.getTimeout());
         try {
-            HttpResponse response = HttpRequest.post("https://" + properties.getEndpoint())
-                    .header("Content-Type", "application/json; charset=utf-8")
-                    .header("Authorization", authorization)
-                    .header("X-TC-Action", action)
-                    .header("X-TC-Timestamp", String.valueOf(timestamp))
-                    .header("X-TC-Version", properties.getVersion())
-                    .header("X-TC-Region", properties.getRegion())
-                    .body(body)
-                    .timeout(properties.getTimeout())
-                    .execute();
-            if (response.getStatus() < 200 || response.getStatus() >= 300) {
-                log.warn("[callRaw][腾讯云 OCR 返回非 2xx：action={}, status={}]", action, response.getStatus());
+            TencentOcrTransport.Result result = transport.post(request);
+            if (result.status() < 200 || result.status() >= 300) {
+                log.warn("[callRaw][腾讯云 OCR 返回非 2xx：action={}, status={}]", action, result.status());
                 return null;
             }
-            return parseResponse(action, response.body());
+            return parseResponse(action, result.body());
         } catch (RuntimeException e) {
             // 弱网 / 超时 / DNS：识别失败不阻断建档，但要把原因留在日志里
             log.warn("[callRaw][腾讯云 OCR 调用异常：action={}, error={}]", action, e.getMessage());

@@ -72,7 +72,10 @@ public class TencentCardRecognitionTest {
         assertEquals("IDCardOCR", client.action);
         assertEquals("FRONT", client.payload.getString("CardSide"));
         assertEquals("QUJD", client.payload.getString("ImageBase64"), "dataURL 前缀要剥掉再发厂商");
-        assertTrue(client.payload.getString("Config").contains("TempIdWarn"), "身份证要开告警与质量分");
+        String config = client.payload.getString("Config");
+        assertTrue(config.contains("TempIdWarn"), "身份证要开告警与质量分");
+        assertTrue(config.contains("ReflectWarn"), "反光检测开关没开，AC5 的反光在真机上永不出现（SP-4）");
+        assertTrue(config.contains("InvalidDateWarn"), "有效期不合法告警开关没开，AC6 少一条腿（SP-4）");
     }
 
     @Test
@@ -94,7 +97,9 @@ public class TencentCardRecognitionTest {
         TencentCardRecognitionProperties properties = configuredProperties();
         RecordingClient client = new RecordingClient(properties);
         client.result = JSON.parseObject("{\"CardNo\":\"6222021234567890123\","
-                + "\"BankInfo\":\"中国工商银行(03080000)\"}");
+                + "\"BankInfo\":\"中国工商银行(03080000)\","
+                + "\"CardCategory\":\"标准实体银行卡\","
+                + "\"WarningCode\":[-9113],\"QualityValue\":88}");
         TencentCardRecognition port = new TencentCardRecognition(properties, client);
 
         CardRecognitionPort.BankCard result = port.recognizeBankCard("QUJD");
@@ -102,9 +107,16 @@ public class TencentCardRecognitionTest {
         assertEquals("6222021234567890123", result.getBankCardNo());
         assertEquals("中国工商银行", result.getBankName());
         assertEquals("1", result.getAccountCode());
+        assertEquals(88, result.getQualityScore());
+        assertTrue(result.getWarnings().contains("银行卡复印件"));
         assertEquals("BankCardOCR", client.action);
         assertNull(client.payload.getString("CardSide"), "银行卡识别不带 CardSide");
-        assertNull(client.payload.getString("Config"), "银行卡识别不送未经验证的 Config（#93）");
+        assertNull(client.payload.getString("Config"), "BankCardOCR 没有 Config 参数");
+        // 四个开关是官方文档字段，默认全 false：不带就什么都不回（SP-2）
+        assertEquals(Boolean.TRUE, client.payload.getBoolean("EnableCopyCheck"));
+        assertEquals(Boolean.TRUE, client.payload.getBoolean("EnableReshootCheck"));
+        assertEquals(Boolean.TRUE, client.payload.getBoolean("EnableBorderCheck"));
+        assertEquals(Boolean.TRUE, client.payload.getBoolean("EnableQualityValue"));
     }
 
     @Test
@@ -143,7 +155,7 @@ public class TencentCardRecognitionTest {
         int calls;
 
         RecordingClient(TencentCardRecognitionProperties properties) {
-            super(properties);
+            super(properties, new HutoolTencentOcrTransport());
         }
 
         @Override
@@ -157,7 +169,7 @@ public class TencentCardRecognitionTest {
 
     private static class NullClient extends TencentOcrClient {
         NullClient(TencentCardRecognitionProperties properties) {
-            super(properties);
+            super(properties, new HutoolTencentOcrTransport());
         }
 
         @Override
@@ -168,7 +180,7 @@ public class TencentCardRecognitionTest {
 
     private static class ThrowingClient extends TencentOcrClient {
         ThrowingClient(TencentCardRecognitionProperties properties) {
-            super(properties);
+            super(properties, new HutoolTencentOcrTransport());
         }
 
         @Override

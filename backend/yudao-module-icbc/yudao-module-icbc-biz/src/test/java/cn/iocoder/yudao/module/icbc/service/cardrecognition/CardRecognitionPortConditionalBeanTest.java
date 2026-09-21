@@ -1,7 +1,9 @@
 package cn.iocoder.yudao.module.icbc.service.cardrecognition;
 
+import cn.iocoder.yudao.module.icbc.service.cardrecognition.tencent.HutoolTencentOcrTransport;
 import cn.iocoder.yudao.module.icbc.service.cardrecognition.tencent.TencentCardRecognition;
 import cn.iocoder.yudao.module.icbc.service.cardrecognition.tencent.TencentCardRecognitionProperties;
+import cn.iocoder.yudao.module.icbc.service.cardrecognition.tencent.TencentOcrClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -19,7 +21,8 @@ public class CardRecognitionPortConditionalBeanTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(StubCardRecognition.class, TencentCardRecognition.class,
-                    TencentCardRecognitionProperties.class);
+                    TencentCardRecognitionProperties.class, TencentOcrClient.class,
+                    HutoolTencentOcrTransport.class);
 
     @Test
     public void testDefaultMode_onlyStub() {
