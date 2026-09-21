@@ -4,8 +4,10 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.resource.ResourceUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.iocoder.yudao.framework.apilog.core.annotation.ApiAccessLog;
 import cn.iocoder.yudao.framework.common.util.servlet.ServletUtils;
 import cn.iocoder.yudao.framework.common.util.spring.SpringUtils;
+import cn.iocoder.yudao.framework.web.core.util.WebFrameworkUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StopWatch;
 import org.springframework.web.method.HandlerMethod;
@@ -39,6 +41,10 @@ public class ApiAccessLogInterceptor implements HandlerInterceptor {
         HandlerMethod handlerMethod = handler instanceof HandlerMethod ? (HandlerMethod) handler : null;
         if (handlerMethod != null) {
             request.setAttribute(ATTRIBUTE_HANDLER_METHOD, handlerMethod);
+            // 解析 @ApiAccessLog 的请求记录开关（requestEnable / sanitizeKeys），存到 web 包的
+            // WebFrameworkUtils，供 GlobalExceptionHandler 的异常日志复用（#101）——异常日志不走
+            // @ApiAccessLog 的 Filter 路径，但必须尊重同一枚注解（否则异常路径就是开关的后门）。
+            applyRequestLogConfig(request, handlerMethod);
         }
 
         // 打印 request 日志
@@ -69,6 +75,18 @@ public class ApiAccessLogInterceptor implements HandlerInterceptor {
             stopWatch.stop();
             log.info("[afterCompletion][完成请求 URL({}) 耗时({} ms)]",
                     request.getRequestURI(), stopWatch.getTotalTimeMillis());
+        }
+    }
+
+    /**
+     * 把 {@link ApiAccessLog} 的请求记录开关解析到请求属性（包级可见，便于单测）。
+     * 未标注解时不写任何属性，{@link WebFrameworkUtils#isRequestLogEnabled} 默认返回 true。
+     */
+    static void applyRequestLogConfig(HttpServletRequest request, HandlerMethod handlerMethod) {
+        ApiAccessLog annotation = handlerMethod.getMethodAnnotation(ApiAccessLog.class);
+        if (annotation != null) {
+            WebFrameworkUtils.setRequestLogEnabled(request, annotation.requestEnable());
+            WebFrameworkUtils.setRequestLogSanitizeKeys(request, annotation.sanitizeKeys());
         }
     }
 

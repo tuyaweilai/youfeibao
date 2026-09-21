@@ -26,6 +26,16 @@ public class WebFrameworkUtils {
 
     private static final String REQUEST_ATTRIBUTE_COMMON_RESULT = "common_result";
 
+    // ========== 请求日志（请求参数记录）的开关与脱敏名单 ==========
+    // 由 ApiAccessLogInterceptor 在 preHandle 时按 @ApiAccessLog 解析后写入请求属性，
+    // 供 ApiAccessLogFilter 与 GlobalExceptionHandler 复用。放在 web 包（而不是 apilog 包）的原因：
+    // web 是最底层，apilog 已经依赖 web（ApiAccessLogFilter extends ApiRequestFilter），
+    // 反向让 web 引用 apilog 的注解会形成包级循环。见 #101。
+
+    private static final String REQUEST_ATTRIBUTE_REQUEST_LOG_ENABLE = "request_log_enable";
+
+    private static final String REQUEST_ATTRIBUTE_REQUEST_LOG_SANITIZE_KEYS = "request_log_sanitize_keys";
+
     public static final String HEADER_TENANT_ID = "tenant-id";
 
     /**
@@ -132,6 +142,42 @@ public class WebFrameworkUtils {
 
     public static CommonResult<?> getCommonResult(ServletRequest request) {
         return (CommonResult<?>) request.getAttribute(REQUEST_ATTRIBUTE_COMMON_RESULT);
+    }
+
+    /**
+     * 设置「是否记录请求参数」的开关（来自 {@code @ApiAccessLog(requestEnable = ...)}）
+     */
+    public static void setRequestLogEnabled(ServletRequest request, boolean enabled) {
+        request.setAttribute(REQUEST_ATTRIBUTE_REQUEST_LOG_ENABLE, enabled);
+    }
+
+    /**
+     * 是否记录请求参数。请求属性未设置时默认记录（与 {@code @ApiAccessLog.requestEnable} 的默认值一致）。
+     */
+    public static boolean isRequestLogEnabled(HttpServletRequest request) {
+        if (request == null) {
+            return true;
+        }
+        Object value = request.getAttribute(REQUEST_ATTRIBUTE_REQUEST_LOG_ENABLE);
+        return !(value instanceof Boolean) || (Boolean) value;
+    }
+
+    /**
+     * 设置方法级额外的脱敏字段（来自 {@code @ApiAccessLog(sanitizeKeys = ...)}）
+     */
+    public static void setRequestLogSanitizeKeys(ServletRequest request, String[] sanitizeKeys) {
+        request.setAttribute(REQUEST_ATTRIBUTE_REQUEST_LOG_SANITIZE_KEYS, sanitizeKeys);
+    }
+
+    /**
+     * 方法级额外的脱敏字段，未设置时返回 {@code null}（表示只走默认名单）
+     */
+    public static String[] getRequestLogSanitizeKeys(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Object value = request.getAttribute(REQUEST_ATTRIBUTE_REQUEST_LOG_SANITIZE_KEYS);
+        return value instanceof String[] ? (String[]) value : null;
     }
 
     public static HttpServletRequest getRequest() {

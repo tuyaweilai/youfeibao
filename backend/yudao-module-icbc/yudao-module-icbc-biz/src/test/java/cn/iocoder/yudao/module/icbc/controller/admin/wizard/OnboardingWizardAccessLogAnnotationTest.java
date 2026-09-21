@@ -27,7 +27,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * {@code application-local.yaml} 里配过，dev / 生产默认开启——不锁就会把影像片段与 PII
  * 落进后台可查、可导出的运维日志表。
  *
- * <p>#98 之后平台的默认脱敏名单（{@code ApiAccessLogFilter.SANITIZE_KEYS}）已经覆盖
+ * <p>#98 之后平台的默认脱敏名单（{@code ApiLogSanitizer.SANITIZE_KEYS}，#101 从 {@code ApiAccessLogFilter}
+ * 抽到 web 包与异常日志共用）已经覆盖
  * {@code imageBase64} / {@code idCardNo} / {@code mobile} / {@code bankCardNo} / {@code address}
  * 这类**字段名**，但这条注解**不撤**：两个机制管的不是一件事——默认名单治「记了也不出 PII」，
  * 注解治「整段别记」（影像按 10M 上限进来，本身就值得连解析都不做；且姓名 {@code name}

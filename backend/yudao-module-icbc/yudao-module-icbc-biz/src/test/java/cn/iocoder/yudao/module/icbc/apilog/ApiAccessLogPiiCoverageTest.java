@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link #WATCHED_SENSITIVE_FIELDS} 的字段名时，必须满足二者之一——
  *
  * <ol>
- *     <li>该字段名在平台的默认脱敏名单里（{@code ApiAccessLogFilter.SANITIZE_KEYS}）；或</li>
+ *     <li>该字段名在平台的默认脱敏名单里（{@code ApiLogSanitizer.SANITIZE_KEYS}）；或</li>
  *     <li>该方法 {@code @ApiAccessLog(requestEnable = false)}，整段请求不记。</li>
  * </ol>
  *
@@ -88,10 +88,10 @@ public class ApiAccessLogPiiCoverageTest {
             // 短期凭据 / 密钥
             "verifiedCode", "secretKey", "secretId", "callbackSignKey", "consoleToken"));
 
-    /** 默认名单所在的框架源码：{@code ApiAccessLogFilter.SANITIZE_KEYS}。 */
+    /** 默认名单所在的框架源码：{@code ApiLogSanitizer.SANITIZE_KEYS}（#101 从 ApiAccessLogFilter 抽出来）。 */
     private static final String SANITIZE_KEYS_SOURCE = String.join("/",
             "yudao-framework", "yudao-spring-boot-starter-web", "src", "main", "java",
-            "cn/iocoder/yudao/framework/apilog/core/filter/ApiAccessLogFilter.java");
+            "cn/iocoder/yudao/framework/web/core/util/ApiLogSanitizer.java");
 
     private static final Pattern SANITIZE_KEYS_PATTERN =
             Pattern.compile("SANITIZE_KEYS\\s*=\\s*new\\s+String\\[\\]\\s*\\{([^}]*)\\}", Pattern.DOTALL);
@@ -124,7 +124,7 @@ public class ApiAccessLogPiiCoverageTest {
         }
         assertEquals(new ArrayList<>(), offenders, () -> "以下接口的请求体带敏感字段，但既不在默认脱敏名单里、"
                 + "也没关掉请求记录（#98）：\n  " + String.join("\n  ", offenders)
-                + "\n修法二选一：①把字段名加进 ApiAccessLogFilter.SANITIZE_KEYS（首选，全平台生效）；"
+                + "\n修法二选一：①把字段名加进 ApiLogSanitizer.SANITIZE_KEYS（首选，全平台生效）；"
                 + "②把该字段名加进本测试的 WATCHED_SENSITIVE_FIELDS，并给接口加 @ApiAccessLog(requestEnable = false)。");
     }
 
