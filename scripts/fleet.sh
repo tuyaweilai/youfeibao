@@ -328,13 +328,18 @@ cmd_integrate() {
   local n=$1 branch; branch=$(state_field "$n" 3)
   local wt; wt=$(state_field "$n" 4)
   local title; title=$(gh issue view "$n" --json title -q .title)
+  local merged_sha="" commits=0
 
   if ! git -C "$ROOT" diff --quiet || ! git -C "$ROOT" diff --cached --quiet; then
     die "main 工作树不干净，先处理：$ROOT"
   fi
   git -C "$ROOT" checkout -q main
-  if git -C "$ROOT" merge --no-ff "$branch" -q -m "merge(#$n): $title" 2>"$FLEET/logs/$n.merge.log"; then
-    ok "#$n 已合并（$commits 个提交）"
+  git -C "$ROOT" merge --no-ff "$branch" -q -m "merge(#$n): $title" 2>"$FLEET/logs/$n.merge.log"
+  if [ $? = 0 ]; then
+    # 人工解完冲突再跑一次时，分支已经合过了，`main..branch` 会数成 0——改从合并提交自身数。
+    merged_sha=$(git -C "$ROOT" rev-parse --short HEAD)
+    commits=$(git -C "$ROOT" rev-list --count "${merged_sha}^1..${merged_sha}^2" 2>/dev/null || echo 0)
+    ok "#$n 已合并（${commits} 个提交）"
   else
     git -C "$ROOT" merge --abort 2>/dev/null
     state_set "$n" conflict "$branch" "$wt" "" "$(state_field "$n" 6)" "$(state_field "$n" 7)" "$(state_field "$n" 8)"
@@ -343,11 +348,9 @@ cmd_integrate() {
     die "#$n 合并冲突，已 abort 并标 ready-for-human（分支保留）"
   fi
 
-  # 人工解完冲突再跑一次时，分支已经合过了，`main..branch` 会数成 0——改从合并提交自身数。
   local merged_sha; merged_sha=$(git -C "$ROOT" rev-parse --short HEAD)
-  local commits; commits=$(git -C "$ROOT" rev-list --count "${merged_sha}^1..${merged_sha}^2" 2>/dev/null || echo 0)
-  local summary; summary=$(test_summary "$FLEET/logs/$n.tests.log" 2>/dev/null)
   local files; files=$(git -C "$ROOT" diff --name-only "HEAD^1..HEAD" | wc -l | tr -d ' ')
+  local summary; summary=$(test_summary "$FLEET/logs/$n.tests.log" 2>/dev/null)
 
   # 日志路径按 state 里记的来：收养的票日志在仓库外（/tmp），写死 $FLEET/logs/$n.log 会找不到
   local log; log=$(state_field "$n" 8)
