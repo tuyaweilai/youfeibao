@@ -2668,21 +2668,49 @@ cardNumber / drawerCardNumber / payerAcctNum / taxPayerAccountNo / address / sel
 租户生效，**已经开出来的回收企业租户仍然看得见这两个页面**（本地实测：套餐 200 的租户 `162` 的
 `system_role_menu` 里 8 个 id 一条不少）。补救：先重导 `icbc-menu.sql`（让套餐本身不含这 8 个 id），再跑
 `backend/sql/mysql/icbc-api-log-menu-revoke.sql`（幂等、**必须带库名**、只删套餐 200 租户的这 8 个
-`system_role_menu` 行，系统租户与其它套餐的租户不动），然后让租户 admin **退出重新登录**（菜单树缓在
-localStorage）。走「后台改套餐触发 `updateTenantRoleMenu`」也行，但它要求套餐菜单**确实发生变化**
-（原样保存不触发重算），不如脚本可复现。
+`system_role_menu` 行，系统租户与其它套餐的租户不动）。
 
-**套餐实测**（本地库）：重导 `icbc-menu.sql` 前套餐 200 的 `menu_ids` 有 391 项、8 个 id 全在；重导后
-320 项、`JSON_CONTAINS` 8 个 id 全 0，相邻的 `2`（基础设施根）与 `1087`（定时任务 / 任务查询）仍在（没误伤）；
-按导入顺序补 `logistics-menu.sql` 后 327 项、8 个 id 仍为 0。
+**但删表不等于接口就收了口（这是本脚本的实际边界，别读成「退出重新登录即可」）**：判权还读两层 Redis 缓存——
+`menu_role_ids:<tenantId>:<menuId>`（租户维度，`menu_role_ids` 不在 `application.yaml` 的 `ignore-caches` 里）
+与 `permission_menu_ids:<permission>`（全局，在 `ignore-caches` 里），TTL 是 `application.yaml` 的 `1h`。脚本
+**不 evict 这两层**，所以删完表后的**最坏 1 小时**内：页面（前端 `roleRouters`）退出重登后没了，但租户 admin
+**仍能直接调 `/admin-api/infra/api-error-log/page`**（后端判权还过）。跑完脚本后必须二选一地收接口：
 
-**`@Valid` 那条分支（C-4）对账**：`@Valid` 失败的**返回文案**走 `getDefaultMessage()`，不含
-`rejectedValue`，是安全的；但 `methodArgumentNotValidExceptionExceptionHandler` / `bindExceptionHandler` 做
-`log.warn(..., ex)`，而 Spring 那条异常的消息里带 `rejected value [<原值>]`——**控制台 / 文件日志会带值**，
-本票**不治**（不在落库三字段的射程内，且 icbc / member 的 VO 目前没有把 PII 字段挂上校验注解，现实风险低）。
-将来给身份证 / 手机号 / 银行卡字段挂 `@Valid` 前，先回头处理这条。
+- 手工清缓存（可核对）：`redis-cli --scan --pattern 'menu_role_ids:*'` 与
+  `redis-cli --scan --pattern 'permission_menu_ids:*'` 先看条数，再 `... | xargs -r redis-cli DEL`；本地是
+  `redis-cli -p 16382`（docker-compose 映射），生产按实际端口 / 库号（`REDIS_DATABASE`）。清完 `KEYS` 应为空。
+  或者等 TTL（≤1h）自然过期——**重启应用不清 Redis**，别把重启当清缓存。
+- 或者改走后台：编辑套餐 200 / 编辑租户管理员角色菜单并保存，触发 `PermissionServiceImpl.assignRoleMenu`
+  （带 `@CacheEvict(allEntries = true)`），两层缓存一次性清掉。注意 `updateTenantPackage` 只在套餐菜单
+  **确实变化**时才触发 `updateTenantRoleMenu`（原样保存不算），所以要么先不改套餐、在 UI 里真的取消勾选
+  「API 日志」，要么直接编辑角色菜单。
 
-**已知残留（本票不解决，如实列）**：值里含转义单引号时只吃掉一半（姓名类会漏尾，数字型 PII 不含单引号、
-不受影响）；类型不匹配的参数值会回给响应（`methodArgumentTypeMismatchExceptionHandler` 用 `ex.getMessage()`
-拼返回文案）；第三方 SDK 报文与自定义 `exception(CODE, 拼值)` 里未改的文案按设计不覆盖（icbc / member /
-system 全仓 grep 后只剩已改的 `member.USER_MOBILE_USED`）。
+页面侧在接口清完后让租户 admin **退出重新登录**（菜单树另缓在 localStorage 的 `roleRouters`）。
+
+**权限收口的实测证据（只认这一条硬的）**：本地库重导 `icbc-menu.sql` 后，套餐 200 的 `menu_ids` 对那 8 个
+id 的 `JSON_CONTAINS` **全为 0**；相邻的 `2`（基础设施根）与 `1087`（定时任务 / 任务查询）仍在（没误伤）。
+`menu_ids` 总项数**不是本票的证据**：重导前后 391→320 里那 71 项差额主要来自 `icbc-menu.sql` 自身的清场
+（禁用模块 / 演示菜单），本票只排了这 8 个 id；按导入顺序补 `logistics-menu.sql` 后项数再变（327），但 8 个 id
+仍全 0。
+
+**`@Valid` 那条分支（C-4）对账（修票纠正：原结论的前提是假的）**：`@Valid` 失败的**返回文案**走
+`getDefaultMessage()`，不含 `rejectedValue`，是安全的；但 `methodArgumentNotValidExceptionExceptionHandler` /
+`bindExceptionHandler` 做 `log.warn(..., ex)`，而 Spring 那条异常的消息里带 `rejected value [<原值>]`——会写进
+**控制台 + 保留 30 天的 FILE appender（`logback-spring.xml` `maxHistory=30`）+ SkyWalking GRPC 日志中心**。
+而且挂校验注解、能对**非空值**失败的 PII 字段**不止一处**，至少：`OnboardingWizardSubmitReqVO`（身份证 /
+手机号 / 银行卡号 `@Pattern`）、`SellerSmsLoginReqVO` / `SellerSmsSendReqVO`（**免登录**手机号 `@Pattern`）、
+`SellerBankCardChangeReqVO`（银行卡号 `@NotBlank`/`@Size`）、`PayeeInfoSaveReqVO` / `PayeeAddReqVO` /
+`PayerInfoSaveReqVO` / `PayerAddReqVO`（手机号 / 卡号）、`SellerContactFallbackReqVO`（手机号）、
+`InvoicePreOrderReqVO`（收方地址 / 电话 `@Size`），以及 member app 的登录 / 改手机号（`@Mobile`）、system 的
+admin 登录 / 用户保存（`@Mobile`）。**本票不治这条**，真实理由只有一个：本票射程是「落库那三个字段」，而
+`@Valid` 失败**根本不写 `infra_api_error_log`**，走的是文件 / 控制台 / 日志中心——**它是留给下游票的泄漏点**，
+别读成「现实风险低」。（验证方式：`grep -rn '@Pattern\|@Size\|@Mobile\|@Length' --include=*ReqVO.java` 再对 PII 字段名）
+
+**已知残留（本票不解决，如实列）**：值里含单引号（MySQL 转义成 `\'`）时**整段不匹配、整段留着**（不是「只
+吃掉一半」，姓名类整段漏出；数字型 PII 不含单引号、不受影响）；类型不匹配的参数值会回给响应
+（`methodArgumentTypeMismatchExceptionHandler` 用 `ex.getMessage()` 拼返回文案）；`@Valid` / `BindException`
+失败的原值写进控制台 / 文件日志 / 日志中心（见上一段，留给下游票）；第三方 SDK 报文与自定义
+`exception(CODE, 拼值)` 里未改的文案按设计不覆盖——按字段名 grep 只命中已改的 `member.USER_MOBILE_USED`，
+但**自然人姓名**这类会被漏掉，例如 `AcquisitionServiceImpl:373` 把 `order.getCounterpartyName()` 拼进
+`ACQUISITION_PURCHASE_ORDER_COUNTERPARTY_MISMATCH`（走 HTTP 时由 `serviceExceptionHandler` 处理，值只回在
+响应体、不进落库三字段；要治得逐个改文案）。

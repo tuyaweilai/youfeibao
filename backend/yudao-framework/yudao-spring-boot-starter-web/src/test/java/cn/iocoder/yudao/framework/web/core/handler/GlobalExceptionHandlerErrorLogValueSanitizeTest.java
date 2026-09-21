@@ -5,12 +5,16 @@ import cn.iocoder.yudao.framework.web.core.util.ApiErrorLogExceptionSanitizer;
 import cn.iocoder.yudao.framework.web.core.util.WebFrameworkUtils;
 import cn.iocoder.yudao.module.infra.api.logger.ApiErrorLogApi;
 import cn.iocoder.yudao.module.infra.api.logger.dto.ApiErrorLogCreateReqDTO;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
@@ -18,6 +22,7 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.sql.SQLIntegrityConstraintViolationException;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -143,6 +148,35 @@ public class GlobalExceptionHandlerErrorLogValueSanitizeTest {
         // 会把 Caused by 段截掉（生产里异常在抛出处创建，栈短，caused by 通常会进前 3000 字符）。
         assertTrue(errorLog.getExceptionRootCauseMessage().contains("uk_id_card_no"),
                 () -> "root cause 里丢了约束名：" + errorLog.getExceptionRootCauseMessage());
+    }
+
+    /**
+     * S5（#102 修票）：{@code defaultExceptionHandler} 对 DB 约束异常的**控制台 / 文件 / SkyWalking 日志分支**
+     * （{@code log.error(...sanitize(stacktraceToString(ex)))}）以前没有任何断言，这里用 logback 的
+     * {@link ListAppender} 钉住它：日志里的值被换成 {@code ***}，约束名保留。
+     */
+    @Test
+    public void testConsoleLogForDbConstraintValueIsMasked() {
+        Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            DuplicateKeyException duplicateKey = new DuplicateKeyException(
+                    "### Error updating database.  Cause: java.sql.SQLIntegrityConstraintViolationException: "
+                            + "Duplicate entry '1-" + ID_CARD_NO + "-0' for key 'uk_id_card_no'");
+
+            MockHttpServletRequest request = new MockHttpServletRequest("POST", "/admin-api/icbc/payee/create");
+            new GlobalExceptionHandler("test-app", apiErrorLogApi).defaultExceptionHandler(request, duplicateKey);
+
+            String logged = appender.list.stream().map(ILoggingEvent::getFormattedMessage)
+                    .collect(Collectors.joining("\n"));
+            assertFalse(logged.contains(ID_CARD_NO), () -> "控制台日志里还留着身份证号：" + logged);
+            assertTrue(logged.contains("uk_id_card_no"), () -> "控制台日志里丢了约束名，定位不了：" + logged);
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     // ========== 辅助 ==========

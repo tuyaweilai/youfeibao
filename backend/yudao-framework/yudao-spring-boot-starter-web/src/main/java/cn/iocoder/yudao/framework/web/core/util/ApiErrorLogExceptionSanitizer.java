@@ -33,20 +33,36 @@ import java.util.regex.Pattern;
  *
  * <p><b>还剩哪些值会漏（#102 如实列，别护着自己）</b>：
  * <ul>
- *   <li><b>含转义单引号的值只吃掉一半</b>：{@code Duplicate entry 'O\'Brien' for key 'x'} 里
- *       {@code [^']*} 在 {@code \'} 处停下，姓名类会漏出尾部；数字型 PII（身份证 / 手机号 / 卡号）
- *       不含单引号，不受影响。要治得把转义也写进正则，代价是正则更脆。</li>
+ *   <li><b>含单引号（MySQL 转义成 {@code \'}）的值整段不匹配、整段留着</b>：
+ *       {@code Duplicate entry 'O\'Brien' for key 'x'} 里 {@code [^']*} 过不去第一个 {@code \'}，
+ *       紧接着又要求 {@code ' for key}，于是**整条不匹配、这个值一个字都没被替换**（不是
+ *       「只吃掉一半 / 漏出尾部」——原注释方向写反了，本票纠正）。姓名类会整段漏出；数字型 PII
+ *       （身份证 / 手机号 / 卡号）不含单引号，不受影响。要治得把转义也写进正则，代价是正则更脆。</li>
  *   <li><b>类型不匹配的路径 / 查询参数回给响应</b>：{@code methodArgumentTypeMismatchExceptionHandler}
  *       用 {@code ex.getMessage()} 拼返回文案，里面的原值（{@code failed to convert value of type ...}）
  *       会到调用方；本类只治落库的三个文本字段，管不到这里。</li>
- *   <li><b>{@code @Valid} 校验失败的文件日志</b>：{@code methodArgumentNotValidExceptionExceptionHandler} /
- *       {@code bindExceptionHandler} 做 {@code log.warn(..., ex)}，而 Spring 那条异常的消息里带
- *       {@code rejected value [<原值>]}——返回给用户的文案走 {@code getDefaultMessage()}、不含值，
- *       但控制台 / 文件日志会带（#102 的 C-4，结论：本票不治，原因见提交与 handoff）。</li>
+ *   <li><b>{@code @Valid} / {@code BindException} 失败会把原值写进日志（现实可达，不是「低风险」）</b>：
+ *       这两个 handler 做 {@code log.warn(..., ex)}，而 Spring 的 {@code MethodArgumentNotValidException}
+ *       消息里带 {@code rejected value [<原值>]}，经 logback 写进**控制台 + 保留 30 天的 FILE appender
+ *       （{@code logback-spring.xml} {@code maxHistory=30}）+ SkyWalking GRPC 日志中心**。挂校验注解、
+ *       且能对**非空值**失败（{@code @Pattern} / {@code @Size} / {@code @Mobile} / {@code @Length}）的
+ *       PII 字段至少有：{@code OnboardingWizardSubmitReqVO}（身份证 / 手机号 / 银行卡号 {@code @Pattern}）、
+ *       {@code SellerSmsLoginReqVO} / {@code SellerSmsSendReqVO}（**免登录**手机号 {@code @Pattern}）、
+ *       {@code SellerBankCardChangeReqVO}（银行卡号 {@code @NotBlank}/{@code @Size}）、{@code PayeeInfoSaveReqVO} /
+ *       {@code PayeeAddReqVO} / {@code PayerInfoSaveReqVO} / {@code PayerAddReqVO}（手机号 / 卡号）、
+ *       {@code SellerContactFallbackReqVO}（手机号）、{@code InvoicePreOrderReqVO}（收方地址 / 电话 {@code @Size}），
+ *       以及 member app 的登录 / 改手机号（{@code @Mobile}）、system 的 admin 登录 / 用户保存（{@code @Mobile}）。
+ *       返回给用户的文案走 {@code getDefaultMessage()}、不含值；这条**根本不写 {@code infra_api_error_log}**，
+ *       走的是文件 / 控制台 / 日志中心——不在本票（只治落库三字段）的射程内，是**留给下游票的泄漏点**。</li>
  *   <li><b>非 DB 约束来源的值</b>：第三方 SDK 报文、我们自己 {@code exception(CODE, 拼值)} 且未改的文案、
  *       非 JDBC 的异常——按设计不覆盖（{@link #isDbConstraintViolation(Throwable)} 不命中就不调用），
- *       要在各自的发生位置治。icbc / member / system 全仓 grep 后只剩已改的
- *       {@code member.USER_MOBILE_USED} 一处（见该票）。</li>
+ *       要在各自的发生位置治。按字段名 grep：手机号 / 身份证 / 银行卡 / 住址只命中已改的
+ *       {@code member.USER_MOBILE_USED}；但**自然人姓名**这类不含固定字段名的值会漏掉 grep，例如
+ *       {@code AcquisitionServiceImpl:373} 把 {@code order.getCounterpartyName()} 拼进
+ *       {@code ACQUISITION_PURCHASE_ORDER_COUNTERPARTY_MISMATCH}（ADR 0027 下对手方可以是自然人出售者）。
+ *       走 HTTP 控制器时它是 {@code ServiceException}，由 {@code serviceExceptionHandler} 处理——只 warn
+ *       第一层栈帧、**不写** {@code infra_api_error_log}，值回在**响应体** {@code CommonResult.msg} 里，
+ *       **不进那三个字段**（这条路径本票不覆盖；要治得逐个改文案）。</li>
  * </ul>
  */
 public class ApiErrorLogExceptionSanitizer {

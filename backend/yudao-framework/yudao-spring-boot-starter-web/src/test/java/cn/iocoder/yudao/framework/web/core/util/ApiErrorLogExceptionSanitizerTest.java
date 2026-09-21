@@ -65,4 +65,15 @@ public class ApiErrorLogExceptionSanitizerTest {
         assertEquals(raw, ApiErrorLogExceptionSanitizer.sanitize(raw));
     }
 
+    /**
+     * #102 修票纠正：MySQL 会把值里的单引号转义成 {@code \'}，而 {@code (Duplicate entry ')[^']*(' for key)}
+     * 的 {@code [^']*} 过不去那个 {@code \'}、后面又要求紧跟 {@code ' for key}，于是**整条不匹配**——
+     * 这个值一个字都没被替换（不是「只吃掉一半 / 漏出尾部」）。把这条实际边界钉住，别被读成低风险。
+     */
+    @Test
+    public void testEscapedSingleQuoteValueIsLeftUntouched() {
+        String raw = "Duplicate entry 'O\\'Brien' for key 'uk_name'";
+        assertEquals(raw, ApiErrorLogExceptionSanitizer.sanitize(raw));
+    }
+
 }
