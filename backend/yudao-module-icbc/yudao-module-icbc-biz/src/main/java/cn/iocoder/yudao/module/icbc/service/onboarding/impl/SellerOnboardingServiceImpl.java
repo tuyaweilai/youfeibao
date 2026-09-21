@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.icbc.service.onboarding.impl;
 
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.*;
@@ -73,6 +74,12 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
      * 银行卡 OCR 显式上送 0。猜错的代价是工行驳回入驻，而不是默默写错一笔钱。
      */
     private static final String DEFAULT_ACCOUNT_CODE = "1";
+
+    /**
+     * 自动发起入驻失败时写进「审核信息」的前缀（#85）。带前缀是为了与旧审核回调写入的 auditMsg 区分，
+     * 只有自动发起的失败才会被摆到不可开票原因里。
+     */
+    private static final String AUTO_SUBMIT_FAIL_PREFIX = "自动发起收方入驻失败：";
 
     @Resource
     private PayeeInfoMapper payeeInfoMapper;
@@ -153,6 +160,10 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
         }
         naturalPersonService.applyRealNameResult(person.getId(), result.getData().isPassed(),
                 result.getData().getFailReason());
+        // 实名通过即自动发起入驻（#85）：不等人回头点「发起收方入驻」
+        if (result.getData().isPassed()) {
+            autoSubmitOnboarding(payeeId);
+        }
         return payeeInfoMapper.selectById(payeeId);
     }
 
@@ -392,6 +403,10 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
         }
         PayeeOnboardingOutcomeEnum outcome = PayeeOnboardingOutcomeEnum.ofCode(payee.getOnboardingState());
         if (outcome == null || !outcome.isInvoiceEligible()) {
+            // 自动发起失败时把原因摆到台面上（状态仍为「未发起」，人工可重试）
+            if (outcome == null && StrUtil.startWith(payee.getAuditMsg(), AUTO_SUBMIT_FAIL_PREFIX)) {
+                return payee.getAuditMsg();
+            }
             return outcome != null ? outcome.getName() : "收方入驻未完成";
         }
         if (agreement == null) {
@@ -483,6 +498,10 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
             return;
         }
         naturalPersonService.applyRealNameResult(person.getId(), passed, failReason);
+        // 实名通过即自动发起入驻（#85）：通知那条路也不等人点
+        if (passed) {
+            autoSubmitOnboardingForAllTenants(person);
+        }
     }
 
     @Override
@@ -511,6 +530,51 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     }
 
     // ==================== 内部方法 ====================
+
+    /**
+     * 实名通过后自动发起入驻（#85）。
+     *
+     * <p>实名是平台级的、入驻是「自然人 × 回收企业」级的：同一个自然人可能在多家回收企业都有收方
+     * 档案，回调（无租户上下文）要跨租户找出全部档案，再逐租户发起。
+     */
+    private void autoSubmitOnboardingForAllTenants(IcbcNaturalPersonDO person) {
+        List<PayeeInfoDO> payees = TenantUtils.executeIgnore(
+                () -> payeeInfoMapper.selectListByNaturalPersonId(person.getId()));
+        for (PayeeInfoDO payee : payees) {
+            TenantUtils.execute(payee.getTenantId(), () -> autoSubmitOnboarding(payee.getId()));
+        }
+    }
+
+    /**
+     * 对一个收方档案自动发起入驻。
+     *
+     * <p>幂等：已有入驻状态（审核中 / 通过 / 拒绝）就直接返回——「通知与查询都到」只会打一次工行。
+     * 发起失败不吞掉也不回滚实名，把原因写进审核信息、状态停在「未发起」，留人工在后台重试。
+     */
+    private void autoSubmitOnboarding(Long payeeId) {
+        PayeeInfoDO payee = payeeInfoMapper.selectById(payeeId);
+        if (payee == null) {
+            return;
+        }
+        if (PayeeOnboardingOutcomeEnum.ofCode(payee.getOnboardingState()) != null) {
+            return;
+        }
+        SellerOnboardingSubmitReqVO reqVO = new SellerOnboardingSubmitReqVO();
+        reqVO.setPayeeId(payeeId);
+        reqVO.setIdSignDate(payee.getIdSignDate());
+        reqVO.setIdValidityPeriod(payee.getIdValidityPeriod());
+        reqVO.setBankName(payee.getBankName());
+        reqVO.setBankBranch(payee.getBankBranch());
+        try {
+            submitOnboarding(reqVO);
+        } catch (ServiceException e) {
+            log.warn("[autoSubmitOnboarding][自动发起入驻失败] payeeId={} reason={}", payeeId, e.getMessage());
+            PayeeInfoDO failed = new PayeeInfoDO();
+            failed.setId(payeeId);
+            failed.setAuditMsg(AUTO_SUBMIT_FAIL_PREFIX + e.getMessage());
+            payeeInfoMapper.updateById(failed);
+        }
+    }
 
     /**
      * 本租户的子商户编号 = 付方档案的合作方付方编号（工行 {@code outVendorId} / {@code appIdSub}）。

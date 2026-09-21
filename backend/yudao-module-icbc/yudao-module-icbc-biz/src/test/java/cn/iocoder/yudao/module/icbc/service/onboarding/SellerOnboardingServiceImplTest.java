@@ -174,6 +174,117 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
                 payeeInfoMapper.selectById(payee.getId()).getRealNameStatus());
     }
 
+    // ==================== 实名通过即自动入驻（#85） ====================
+
+    @Test
+    public void testSyncRealName_passedAutoSubmitsOnboardingAndBecomesPending() {
+        PayeeInfoDO payee = insertPayee("USER_AUTO_Q", "110101199001010061", "13800000061");
+        IcbcNaturalPersonDO person = personOf(payee);
+        insertPayer(OUT_VENDOR_ID);
+        when(icbcGateway.queryFaceVerification(eq(person.getOutUserId()))).thenReturn(IcbcGatewayResult.success(
+                FaceVerifyStatus.builder().outUserId(person.getOutUserId()).authResult("02").passed(true).build(),
+                0, "成功"));
+        when(icbcGateway.submitPayeeOnboarding(any())).thenReturn(IcbcGatewayResult.success(
+                PayeeOnboardingReceipt.builder().outUserId(person.getOutUserId()).build(), 0, "受理成功"));
+
+        PayeeInfoDO result = sellerOnboardingService.syncRealName(payee.getId());
+
+        // 查一次实名，入驻就自动发起：全程不需要任何人再点「发起收方入驻」
+        assertEquals(PayeeOnboardingOutcomeEnum.PENDING.getCode(), result.getOnboardingState());
+        ArgumentCaptor<PayeeOnboardingReq> captor = ArgumentCaptor.forClass(PayeeOnboardingReq.class);
+        verify(icbcGateway).submitPayeeOnboarding(captor.capture());
+        assertEquals(person.getOutUserId(), captor.getValue().getOutUserId());
+        assertEquals(OUT_VENDOR_ID, captor.getValue().getOutVendorId());
+    }
+
+    @Test
+    public void testHandleFaceVerifyNotify_passedAutoSubmitsOnboarding() {
+        PayeeInfoDO payee = insertPayee("USER_AUTO_N", "110101199001010062", "13800000062");
+        IcbcNaturalPersonDO person = personOf(payee);
+        insertPayer(OUT_VENDOR_ID);
+        when(icbcGateway.submitPayeeOnboarding(any())).thenReturn(IcbcGatewayResult.success(
+                PayeeOnboardingReceipt.builder().build(), 0, "受理成功"));
+
+        sellerOnboardingService.handleFaceVerifyNotify(person.getOutUserId(), true, null);
+
+        // 异步通知那条路也自动发起，不需要现场再点一次
+        verify(icbcGateway, times(1)).submitPayeeOnboarding(any());
+        assertEquals(PayeeOnboardingOutcomeEnum.PENDING.getCode(),
+                payeeInfoMapper.selectById(payee.getId()).getOnboardingState());
+    }
+
+    @Test
+    public void testAutoSubmit_isIdempotentAcrossNotifyAndQuery() {
+        PayeeInfoDO payee = insertPayee("USER_AUTO_IDEM", "110101199001010063", "13800000063");
+        IcbcNaturalPersonDO person = personOf(payee);
+        insertPayer(OUT_VENDOR_ID);
+        when(icbcGateway.queryFaceVerification(eq(person.getOutUserId()))).thenReturn(IcbcGatewayResult.success(
+                FaceVerifyStatus.builder().outUserId(person.getOutUserId()).authResult("02").passed(true).build(),
+                0, "成功"));
+        when(icbcGateway.submitPayeeOnboarding(any())).thenReturn(IcbcGatewayResult.success(
+                PayeeOnboardingReceipt.builder().build(), 0, "受理成功"));
+
+        // 通知与查询都到、查询还被点了多次：只向工行发起一次
+        sellerOnboardingService.handleFaceVerifyNotify(person.getOutUserId(), true, null);
+        sellerOnboardingService.syncRealName(payee.getId());
+        sellerOnboardingService.syncRealName(payee.getId());
+
+        verify(icbcGateway, times(1)).submitPayeeOnboarding(any());
+    }
+
+    @Test
+    public void testAutoSubmit_notTriggeredWhenRealNameFailed() {
+        PayeeInfoDO payee = insertPayee("USER_AUTO_FAIL", "110101199001010064", "13800000064");
+        IcbcNaturalPersonDO person = personOf(payee);
+        insertPayer(OUT_VENDOR_ID);
+
+        sellerOnboardingService.handleFaceVerifyNotify(person.getOutUserId(), false, "人脸比对不通过");
+
+        verify(icbcGateway, never()).submitPayeeOnboarding(any());
+    }
+
+    @Test
+    public void testAutoSubmit_skippedWhenAlreadyRejected() {
+        PayeeInfoDO payee = insertPayee("USER_AUTO_REJ", "110101199001010065", "13800000065");
+        markRealNamePassed(payee);
+        insertPayer(OUT_VENDOR_ID);
+        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "reject", "资料不符");
+
+        // 又收到一次实名通过通知，也不能把已被拒的入驻又重新发起一次（拒绝后由人工决定是否重试）
+        sellerOnboardingService.handleFaceVerifyNotify(personOf(payee).getOutUserId(), true, null);
+
+        verify(icbcGateway, never()).submitPayeeOnboarding(any());
+    }
+
+    @Test
+    public void testAutoSubmit_failureVisibleAndRetryable() {
+        PayeeInfoDO payee = insertPayee("USER_AUTO_ERR", "110101199001010066", "13800000066");
+        IcbcNaturalPersonDO person = personOf(payee);
+        insertPayer(OUT_VENDOR_ID);
+        when(icbcGateway.queryFaceVerification(eq(person.getOutUserId()))).thenReturn(IcbcGatewayResult.success(
+                FaceVerifyStatus.builder().outUserId(person.getOutUserId()).authResult("02").passed(true).build(),
+                0, "成功"));
+        when(icbcGateway.submitPayeeOnboarding(any())).thenReturn(
+                IcbcGatewayResult.businessFailed(500, "工行拒绝了"));
+
+        // 自动发起失败不回滚实名、也不静默：状态停在「未发起」，原因可见
+        PayeeInfoDO result = sellerOnboardingService.syncRealName(payee.getId());
+        assertNull(result.getOnboardingState());
+        assertNotNull(result.getAuditMsg());
+        assertTrue(sellerOnboardingService.getOnboarding(payee.getId()).getInvoiceBlockReason()
+                .contains("工行接口调用失败"));
+        assertEquals(PayeeRealNameStatusEnum.PASSED.getStatus(),
+                naturalPersonService.getNaturalPerson(person.getId()).getRealNameStatus());
+
+        // 人工把数据补齐后可重试（现有 submitOnboarding 入口）
+        when(icbcGateway.submitPayeeOnboarding(any())).thenReturn(IcbcGatewayResult.success(
+                PayeeOnboardingReceipt.builder().build(), 0, "受理成功"));
+        SellerOnboardingSubmitReqVO reqVO = new SellerOnboardingSubmitReqVO();
+        reqVO.setPayeeId(payee.getId());
+        assertEquals(PayeeOnboardingOutcomeEnum.PENDING.getCode(),
+                sellerOnboardingService.submitOnboarding(reqVO).getOnboardingState());
+    }
+
     // ==================== 收方入驻前置 ====================
 
     @Test
