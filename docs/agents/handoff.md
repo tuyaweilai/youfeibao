@@ -2180,3 +2180,9 @@ member 令牌回 `code=401 账号未登录`。
 > **测试数字**：ICBC 模块 **751 passed / 0 fail / 1 skipped**（上一轮 749；本票新增
 > `OnboardingWizardAccessLogAnnotationTest` 1 例 + `PayeeInfoSaveReqVOValidationTest` 1 例）。
 > 现场端 `ts:check` 零错误、`build:h5` 通过；司机端 `ts:check` 零错误、`build:h5` 通过。
+
+### 合并记录：#91（自动舰队）
+
+- 分支 `i91-field-wizard` → `c97bebcc`：1 个文件、0 个提交
+- 独立评审：PASS（报告 `.fleet/gates/91.review.md`）
+- 闸门：全量 icbc `[WARNING] Tests run: 778, Failures: 0, Errors: 0, Skipped: 1`；报告 `.fleet/gates/91.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/91.log`（`.fleet/` 与收养票的仓库外日志不入库）
