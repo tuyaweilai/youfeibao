@@ -2044,3 +2044,12 @@ member 令牌回 `code=401 账号未登录`。
   `#resolveTenantIdBySubCustomerNo`、`ErrorCodeConstants.ESIGN_QUOTA_EXCEEDED` 是留给 `#95` / 真实端口的；
   真实验签（`parseCallback` 的腾讯实现）与 `contractUsed` 的 `+1` 也不在本票（属 `#95`）。
 - 全量 icbc 测试 **761 通过 / 0 失败 / 1 skip**（live 测试）。
+
+## #92 电子签章端口与租户开通（已合并）
+
+- 分支 `i92-esign-config`，合并提交 `ce816d6f`，46 个文件，2 个提交
+- 全量测试：[WARNING] Tests run: 761, Failures: 0, Errors: 0, Skipped: 1
+- 闸门报告：`/Users/zzh2/Documents/work/youfeibao/.fleet/gates/92.md`，派工书：`/Users/zzh2/Documents/work/youfeibao/.fleet/prompts/92.md`，运行日志：`/Users/zzh2/Documents/work/youfeibao/.fleet/logs/92.log`
+
+```
+```
