@@ -2553,3 +2553,9 @@ cardNumber / drawerCardNumber / payerAcctNum / taxPayerAccountNo / address / sel
 
 **已知残留（字段名粒度的天生上限，本票不解决）**：`name`（姓名）与 `code`（短信验证码）这类太通用的字段名
 进不了名单，仍会进访问日志与异常日志。要根治得按值/上下文识别，不在本票范围。
+
+### 合并记录：#101（自动舰队）
+
+- 分支 `i101-error-log-pii` → `534e5003`：11 个文件、1 个提交
+- 独立评审：PASS（报告 `.fleet/gates/101.review.md`）
+- 闸门：全量 icbc `[WARNING] Tests run: 898, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/101.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/101.log`（`.fleet/` 与收养票的仓库外日志不入库）
