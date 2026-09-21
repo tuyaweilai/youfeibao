@@ -28,13 +28,16 @@
       <view class="card">
         <view class="card__head">
           <text class="card__title">1. 实人认证</text>
-          <text :class="['tag', overview?.realNameStatus === 1 ? 'tag--ok' : 'tag--todo']">
+          <text :class="['tag', isRealNamePassed(overview?.realNameStatus) ? 'tag--ok' : 'tag--todo']">
             {{ overview?.realNameStatusName || '未认证' }}
           </text>
         </view>
         <view v-if="overview?.realNameMsg" class="card__msg">{{ overview.realNameMsg }}</view>
         <view class="card__tip">人脸必须由出售者本人做（工行活体，我们无法替代）。失败可多试几次，或留联系方式走人工。</view>
-        <button v-if="overview?.realNameStatus !== 1" class="btn" :loading="busy" @click="startRealNameStep">发起实名认证</button>
+        <!-- 未通过（未认证 / 认证中 / 未通过）都给发起入口：认证中也要能重新发起（#90） -->
+        <button v-if="!isRealNamePassed(overview?.realNameStatus)" class="btn" :loading="busy" @click="startRealNameStep">
+          {{ overview?.realNameStatus === REAL_NAME_STATUS.NOT_STARTED ? '发起实名认证' : '重新发起实名认证' }}
+        </button>
         <button class="btn btn--ghost" :loading="busy" @click="syncRealNameStep">我已认证完，查一下结果</button>
       </view>
 
@@ -42,7 +45,7 @@
       <view class="card">
         <view class="card__head">
           <text class="card__title">2. 收方入驻（绑定本人银行卡）</text>
-          <text :class="['tag', overview?.onboardingState === 'SUCCESS' ? 'tag--ok' : 'tag--todo']">
+          <text :class="['tag', isOnboardingReady(overview?.onboardingState) ? 'tag--ok' : 'tag--todo']">
             {{ overview?.onboardingStateName || overview?.onboardingState || '未入驻' }}
           </text>
         </view>
@@ -109,10 +112,13 @@
 import { reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import {
+  REAL_NAME_STATUS,
   PayeeVO,
   createPayee,
   createPublicToken,
   findReturningCustomer,
+  isOnboardingReady,
+  isRealNamePassed,
   useSellerOnboarding
 } from '@youfeibao/field-shared'
 import { SELLER_APP_URL } from '@/config/env'

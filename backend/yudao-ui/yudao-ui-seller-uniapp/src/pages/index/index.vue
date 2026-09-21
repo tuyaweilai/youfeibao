@@ -176,6 +176,7 @@ import { queryQuota, queryNotice, querySettlement, submitContactLead, syncOnboar
 import { resolveEntryParams, resolveFaceReturn, resolveStationCode, setPurpose, setToken } from '@/utils/token'
 import { getSubject, getToken } from '@/utils/auth'
 import { setTenantId } from '@/config/env'
+import { REAL_NAME_STATUS } from '@/api/seller'
 import { downloadInvoicePdf } from '@/utils/download'
 
 defineOptions({ name: 'SellerIndex' })
@@ -222,7 +223,7 @@ const visibleTabs = computed(() => {
 })
 
 /** 实名未通过（PayeeRealNameStatusEnum.FAILED = 3）：落点页要说清原因并给重试入口 */
-const realNameFailed = computed(() => onboarding.value?.realNameStatus === 3)
+const realNameFailed = computed(() => onboarding.value?.realNameStatus === REAL_NAME_STATUS.FAILED)
 
 onLoad(() => {
   // 非微信环境（H5）：实名页在这里唤不起来，别让本人点了没反应（#88）

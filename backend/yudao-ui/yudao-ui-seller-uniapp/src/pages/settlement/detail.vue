@@ -81,6 +81,7 @@
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import {
+  REAL_NAME_STATUS,
   confirmSettlement,
   disputeSettlement,
   getProfile,
@@ -129,7 +130,7 @@ async function load() {
     settlement.value = await getSettlement(naturalPersonId.value, settlementId.value)
     // 实名是平台级的、记在自然人主体上：拿它决定要不要显示提醒（不改确认动作）
     const profile = await getProfile(naturalPersonId.value)
-    realNamePassed.value = profile.realNameStatus === 2
+    realNamePassed.value = profile.realNameStatus === REAL_NAME_STATUS.PASSED
   } catch (e) {
     error.value = (e as Error).message
   } finally {

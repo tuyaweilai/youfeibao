@@ -13,6 +13,8 @@
 | `src/api/payee.ts` | 自然人档案：带档（身份证号 / 手机号）、建档 |
 | `src/api/publicToken.ts` | 签发一次性令牌（把建档链接交给出售者本人） |
 | `src/utils/icbcForm.ts` | 工行 UI 页面接口的自动提交表单：新窗口承载（ADR 0016） |
+| `src/utils/realName.ts` | 实人认证状态的判定：**1 是「认证中」，只有 2 是「认证通过」**（#90） |
+| `src/utils/onboarding.ts` | 收方入驻状态的判定：只有 `READY` 是「入驻完成」（#90 顺带修的同类问题） |
 | `src/composables/useSellerOnboarding.ts` | **四步的业务逻辑与状态**：接口编排、校验、工行表单承载、提示文案 |
 
 ## 宿主怎么用

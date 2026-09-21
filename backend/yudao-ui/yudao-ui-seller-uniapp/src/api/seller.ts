@@ -9,6 +9,17 @@ export interface SellerLoginResp {
   subjects: SellerSubject[]
 }
 
+/**
+ * 实人认证状态（与后端 `PayeeRealNameStatusEnum` 一致）：0 未认证 / 1 认证中 / 2 认证通过 / 3 认证未通过。
+ * **1 是「认证中」，不是「已认证」**——判定只从这里取，别再写魔数（#90）。
+ */
+export const REAL_NAME_STATUS = {
+  NOT_STARTED: 0,
+  PENDING: 1,
+  PASSED: 2,
+  FAILED: 3
+} as const
+
 export interface SellerSubject {
   naturalPersonId: number
   name?: string

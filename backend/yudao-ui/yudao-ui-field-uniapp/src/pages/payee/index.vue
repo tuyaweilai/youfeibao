@@ -130,7 +130,7 @@ import { onShow } from '@dcloudio/uni-app'
 import QRCode from 'qrcode'
 import { createPayee, findReturningCustomer, PayeeVO } from '@/api/payee'
 import { createPublicToken } from '@/api/publicToken'
-import { useSellerOnboarding } from '@youfeibao/field-shared'
+import { isRealNamePassed, useSellerOnboarding } from '@youfeibao/field-shared'
 import { SELLER_APP_URL } from '@/config/env'
 
 /**
@@ -167,9 +167,8 @@ const ADDRESS_MIN_CHARS = 7
 // 只读准入进度：composable 在 payeeId 变化时自动拉取（watch immediate）
 const { overview, load, tips } = useSellerOnboarding(() => payeeId.value)
 
-/** 实名通过的枚举值是 2（PayeeRealNameStatusEnum.PASSED）；其余都算「待本人实名」。进度未加载完不下结论 */
-const REAL_NAME_PASSED = 2
-const awaitingRealName = computed(() => !!overview.value && overview.value.realNameStatus !== REAL_NAME_PASSED)
+/** 实名未通过（含未认证 / 认证中 / 未通过）就算「待本人实名」；进度未加载完不下结论 */
+const awaitingRealName = computed(() => !!overview.value && !isRealNamePassed(overview.value.realNameStatus))
 
 onShow(() => {
   // 出售者可能刚在自己手机上做完实名：回到这一页就重新读一次，现场不用点任何按钮

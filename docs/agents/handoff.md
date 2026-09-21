@@ -1932,3 +1932,27 @@ member 令牌回 `code=401 账号未登录`。
 
 **frontier**：#89 已解。EPIC #80 的子票（#82/#83/#84/#85/#86/#87/#88/#89）**全部完成**，可以收父票 #80；
 剩下 #90（司机端实名枚举值的小 bug）与 #81（建档向导，无 spec，需先盘问）。
+
+## #90 司机端实名状态判断用了错误枚举值（已落地）
+
+本会话做 #88 时顺手发现的：司机端 `pages/onboarding/index.vue` 用 `realNameStatus === 1`
+当「已认证」，而枚举里 **1 是「认证中」、2 才是「认证通过」**。表现是「认证中」被标绿、
+「发起实名认证」按钮被藏起来，真正通过时反而显示成待办。
+
+1. **判定收进共享包**：新增 `packages/field-shared/src/utils/realName.ts`（`REAL_NAME_STATUS` +
+   `isRealNamePassed`）与 `utils/onboarding.ts`（`ONBOARDING_STATE` + `isOnboardingReady`），
+   从 `index.ts` 导出。现场端 `pages/payee/index.vue` 的本地 `REAL_NAME_PASSED = 2` 也改成用它。
+2. **司机端**：标签改用 `isRealNamePassed`；发起入口改成「未通过就给」（未认证 / 认证中 / 未通过
+   都显示，认证中与未通过时文案是「重新发起实名认证」）。
+3. **顺带修同类问题**：司机端第 2 步「收方入驻」的标签用 `onboardingState === 'SUCCESS'` 判断入驻完成——
+   `PayeeOnboardingOutcomeEnum` 里根本没有 `SUCCESS`（是 `PENDING`/`READY`/`REJECTED`），
+   标签永远显示待办色。改成 `isOnboardingReady`。
+4. **自然人端**：`settlement/detail.vue` 与 `index/index.vue` 里的 `realNameStatus === 2` / `=== 3`
+   改用 `api/seller.ts` 新导出的 `REAL_NAME_STATUS`（自然人端不消费 `field-shared`：
+   它的请求封装走 `@/utils/request`，两端 API 通道不同）。
+
+**验收实测**：司机端 / 现场端 / 自然人端 `ts:check` 零错误，三者 `build:h5` 都通过。**本票无后端改动**。
+`field-shared/README.md` 的文件表补了这两个 utils。
+
+**frontier**：#90 已解。EPIC #80 的子票全部完成；剩下 #81（建档向导，无 spec，需先 `/grill-with-docs`）
+与外部依赖的 #30/#36/#37。**#80 父票可以收了。**
