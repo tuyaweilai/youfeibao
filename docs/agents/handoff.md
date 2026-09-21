@@ -2332,3 +2332,9 @@ member 令牌回 `code=401 账号未登录`。
 > **测试数字**：ICBC 模块 **806 passed / 0 fail / 1 skipped**（上一轮 794，+12：首卡/换卡边界 4、
 > 链接锁人 3、作废语义 2、上下文收窄 1、公开壳其余 2）。自然人端 `ts:check` 零错误、`build:h5` 通过；
 > 现场端 / 司机端 `ts:check` 零错误、现场端 `build:h5` 通过。PC 后台本票无改动。
+
+### 合并记录：#94（自动舰队）
+
+- 分支 `i94-` → `91be1bb3`：36 个文件、4 个提交
+- 独立评审：PASS（报告 `.fleet/gates/94.review.md`）
+- 闸门：全量 icbc `[WARNING] Tests run: 859, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/94.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/94.log`（`.fleet/` 与收养票的仓库外日志不入库）
