@@ -12,6 +12,7 @@ import cn.iocoder.yudao.framework.common.util.collection.SetUtils;
 import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
 import cn.iocoder.yudao.framework.common.util.monitor.TracerUtils;
 import cn.iocoder.yudao.framework.common.util.servlet.ServletUtils;
+import cn.iocoder.yudao.framework.web.core.util.ApiErrorLogExceptionSanitizer;
 import cn.iocoder.yudao.framework.web.core.util.ApiLogSanitizer;
 import cn.iocoder.yudao.framework.web.core.util.WebFrameworkUtils;
 import cn.iocoder.yudao.module.infra.api.logger.ApiErrorLogApi;
@@ -285,7 +286,14 @@ public class GlobalExceptionHandler {
         }
 
         // 情况二：处理异常
-        log.error("[defaultExceptionHandler]", ex);
+        // 数据库约束报文（如 MySQL 的 Duplicate entry '...' for key '...'）自带键值，直接 log 会把 PII
+        // 写进控制台 / 文件日志；这类异常只打脱敏后的文本（#102）。其余异常保持原样，别丢诊断信息。
+        if (ApiErrorLogExceptionSanitizer.isDbConstraintViolation(ex)) {
+            log.error("[defaultExceptionHandler][数据库约束异常，值已脱敏] {}",
+                    ApiErrorLogExceptionSanitizer.sanitize(ExceptionUtil.stacktraceToString(ex)));
+        } else {
+            log.error("[defaultExceptionHandler]", ex);
+        }
         // 插入异常日志
         createExceptionLog(req, ex);
         // 返回 ERROR CommonResult
@@ -311,9 +319,19 @@ public class GlobalExceptionHandler {
         errorLog.setUserType(WebFrameworkUtils.getLoginUserType(request));
         // 设置异常字段
         errorLog.setExceptionName(e.getClass().getName());
-        errorLog.setExceptionMessage(ExceptionUtil.getMessage(e));
-        errorLog.setExceptionRootCauseMessage(ExceptionUtil.getRootCauseMessage(e));
-        errorLog.setExceptionStackTrace(ExceptionUtil.stacktraceToString(e));
+        // #102：数据库约束报文自带键值，message / root cause / stack 三个字段都带同一段文本；
+        // 命中 DB 约束异常时统一脱敏「值」，保留约束名（定位用），见 ApiErrorLogExceptionSanitizer。
+        String exceptionMessage = ExceptionUtil.getMessage(e);
+        String exceptionRootCauseMessage = ExceptionUtil.getRootCauseMessage(e);
+        String exceptionStackTrace = ExceptionUtil.stacktraceToString(e);
+        if (ApiErrorLogExceptionSanitizer.isDbConstraintViolation(e)) {
+            exceptionMessage = ApiErrorLogExceptionSanitizer.sanitize(exceptionMessage);
+            exceptionRootCauseMessage = ApiErrorLogExceptionSanitizer.sanitize(exceptionRootCauseMessage);
+            exceptionStackTrace = ApiErrorLogExceptionSanitizer.sanitize(exceptionStackTrace);
+        }
+        errorLog.setExceptionMessage(exceptionMessage);
+        errorLog.setExceptionRootCauseMessage(exceptionRootCauseMessage);
+        errorLog.setExceptionStackTrace(exceptionStackTrace);
         StackTraceElement[] stackTraceElements = e.getStackTrace();
         Assert.notEmpty(stackTraceElements, "异常 stackTraceElements 不能为空");
         StackTraceElement stackTraceElement = stackTraceElements[0];

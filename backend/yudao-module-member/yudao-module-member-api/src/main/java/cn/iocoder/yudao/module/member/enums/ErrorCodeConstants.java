@@ -12,7 +12,8 @@ public interface ErrorCodeConstants {
     // ========== 用户相关  1-004-001-000 ============
     ErrorCode USER_NOT_EXISTS = new ErrorCode(1_004_001_000, "用户不存在");
     ErrorCode USER_MOBILE_NOT_EXISTS = new ErrorCode(1_004_001_001, "手机号未注册用户");
-    ErrorCode USER_MOBILE_USED = new ErrorCode(1_004_001_002, "修改手机失败，该手机号({})已经被使用");
+    // #102：不再把手机号拼进 message——它是 PII，而 message 会进 infra_api_error_log 与用户可见的错误响应。
+    ErrorCode USER_MOBILE_USED = new ErrorCode(1_004_001_002, "修改手机失败，该手机号已经被使用");
     ErrorCode USER_POINT_NOT_ENOUGH = new ErrorCode(1_004_001_003, "用户积分余额不足");
 
     // ========== AUTH 模块 1-004-003-000 ==========
