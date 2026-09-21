@@ -16,8 +16,6 @@ export interface PayeeVO {
   auditMsg?: string // 审核信息
   businessType?: string // 业务类型
   icbcReceiverStatus?: string // 工行收方状态
-  icbcMediumId?: string // 工行返回的账户标识
-  icbcOpenacctStatus?: string // 工行侧开户状态
   occupation?: string // 职业
   companyName?: string // 关联企业名称
   createTime?: Date // 创建时间
@@ -39,7 +37,6 @@ export interface PayeeBankCardChangeVO {
   oldCardTail?: string
   newCardTail?: string
   newBankName?: string
-  icbcOpenacctStatus?: string
   auditResult?: string
   rejectReason?: string
   requestSource?: string

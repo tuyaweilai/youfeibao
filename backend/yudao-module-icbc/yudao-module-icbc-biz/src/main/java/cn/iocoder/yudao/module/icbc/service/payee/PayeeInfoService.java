@@ -85,9 +85,8 @@ public interface PayeeInfoService {
      * @param outUserId 外部用户编号
      * @param auditStatus 审核状态
      * @param auditMsg 审核信息
-     * @param icbcMediumId 工行返回的收方账户标识（mediumId）
      */
-    void handlePayeeAuditCallback(String outUserId, String auditStatus, String auditMsg, String icbcMediumId);
+    void handlePayeeAuditCallback(String outUserId, String auditStatus, String auditMsg);
 
     /**
      * 根据合作方收方编号获取收方信息

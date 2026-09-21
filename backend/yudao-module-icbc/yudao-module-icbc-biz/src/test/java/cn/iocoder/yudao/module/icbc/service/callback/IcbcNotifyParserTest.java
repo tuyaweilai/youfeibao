@@ -69,7 +69,7 @@ public class IcbcNotifyParserTest {
 
     @Test
     public void testParse_infersPayeeOnboardingWithoutNotifyType() {
-        String body = "{\"appId\":\"A\",\"outUserId\":\"USER_2\",\"result\":\"pass\",\"openacctStatus\":\"02\"}";
+        String body = "{\"appId\":\"A\",\"outUserId\":\"USER_2\",\"result\":\"pass\"}";
 
         IcbcNotifyMessage message = parser.parse(body);
 

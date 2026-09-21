@@ -89,12 +89,6 @@
         </template>
       </el-table-column>
       <el-table-column
-        label="工行开户状态"
-        align="center"
-        prop="icbcOpenacctStatus"
-        width="120"
-      />
-      <el-table-column
         label="创建时间"
         align="center"
         prop="createTime"

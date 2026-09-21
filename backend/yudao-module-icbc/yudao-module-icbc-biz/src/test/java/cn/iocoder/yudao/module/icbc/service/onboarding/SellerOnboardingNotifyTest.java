@@ -131,7 +131,7 @@ public class SellerOnboardingNotifyTest extends BaseDbUnitTest {
 
         String result = callbackNotifyService.receive(
                 "{\"appId\":\"A\",\"outUserId\":\"" + person.getOutUserId()
-                        + "\",\"result\":\"pass\",\"openacctStatus\":\"02\"}");
+                        + "\",\"result\":\"pass\"}");
 
         assertEquals("FAILURE", result);
         assertNull(payeeInfoMapper.selectById(payee.getId()).getOnboardingState());

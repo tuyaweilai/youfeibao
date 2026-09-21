@@ -111,16 +111,6 @@ public class PayerInfoDO extends BaseDO {
     private String icbcPayerStatus;
 
     /**
-     * 工行介质ID
-     */
-    private String icbcMediumId;
-
-    /**
-     * 工行开户状态
-     */
-    private String icbcOpenacctStatus;
-
-    /**
      * 租户编号
      */
     private Long tenantId;

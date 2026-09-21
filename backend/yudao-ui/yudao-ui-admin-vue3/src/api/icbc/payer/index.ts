@@ -19,8 +19,6 @@ export interface PayerVO {
   status?: number // 0-待审核，1-审核通过，2-审核拒绝
   auditMsg?: string
   icbcPayerStatus?: string
-  icbcMediumId?: string
-  icbcOpenacctStatus?: string
   createTime?: Date
 }
 

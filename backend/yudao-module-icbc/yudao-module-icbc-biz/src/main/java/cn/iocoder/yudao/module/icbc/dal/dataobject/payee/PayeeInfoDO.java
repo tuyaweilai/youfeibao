@@ -108,16 +108,6 @@ public class PayeeInfoDO extends TenantBaseDO {
     private String icbcReceiverStatus;
     
     /**
-     * 工行返回的收方账户标识（mediumId，原样透传）
-     */
-    private String icbcMediumId;
-    
-    /**
-     * 工行侧开户状态（openacctStatus，原样透传）：00-初始，01-开户中，02-开户成功，03-开户失败
-     */
-    private String icbcOpenacctStatus;
-    
-    /**
      * 职业
      */
     private String occupation;

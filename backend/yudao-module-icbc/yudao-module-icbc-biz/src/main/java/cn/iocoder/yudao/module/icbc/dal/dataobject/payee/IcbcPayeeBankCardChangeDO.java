@@ -90,19 +90,9 @@ public class IcbcPayeeBankCardChangeDO extends TenantBaseDO {
     private String idValidityPeriod;
 
     /**
-     * 工行侧开户状态（原样透传，只属于本次变更）
-     */
-    private String icbcOpenacctStatus;
-
-    /**
      * 工行审核结果（原样透传）：pass / reject
      */
     private String auditResult;
-
-    /**
-     * 工行返回的账户标识（mediumId，原样透传）
-     */
-    private String icbcMediumId;
 
     /**
      * 审核拒绝原因 / 取消原因

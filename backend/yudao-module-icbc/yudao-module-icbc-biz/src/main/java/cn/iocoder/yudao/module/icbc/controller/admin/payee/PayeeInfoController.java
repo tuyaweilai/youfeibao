@@ -122,9 +122,8 @@ public class PayeeInfoController {
     @Operation(summary = "工行收方审核回调")
     public CommonResult<Boolean> handlePayeeAuditCallback(@RequestParam("outUserId") String outUserId,
                                                           @RequestParam("auditStatus") String auditStatus,
-                                                          @RequestParam("auditMsg") String auditMsg,
-                                                          @RequestParam("icbcMediumId") String icbcMediumId) {
-        payeeInfoService.handlePayeeAuditCallback(outUserId, auditStatus, auditMsg, icbcMediumId);
+                                                          @RequestParam("auditMsg") String auditMsg) {
+        payeeInfoService.handlePayeeAuditCallback(outUserId, auditStatus, auditMsg);
         return success(true);
     }
 
@@ -186,7 +185,6 @@ public class PayeeInfoController {
         resp.setOldCardTail(change.getOldCardTail());
         resp.setNewCardTail(MaskUtils.cardTail(change.getNewBankCardNo()));
         resp.setNewBankName(change.getNewBankName());
-        resp.setIcbcOpenacctStatus(change.getIcbcOpenacctStatus());
         resp.setAuditResult(change.getAuditResult());
         resp.setRejectReason(change.getRejectReason());
         resp.setRequestSource(change.getRequestSource());

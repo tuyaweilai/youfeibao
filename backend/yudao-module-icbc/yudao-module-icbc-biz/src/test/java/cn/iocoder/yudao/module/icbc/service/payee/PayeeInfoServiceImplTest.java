@@ -244,7 +244,6 @@ public class PayeeInfoServiceImplTest extends BaseDbUnitTest {
         assertEquals(Integer.valueOf(0), payeeInfo.getStatus());
         assertNotNull(payeeInfo.getPayeeNo());
         assertEquals("0", payeeInfo.getIcbcReceiverStatus());
-        assertEquals("01", payeeInfo.getIcbcOpenacctStatus());
     }
 
     @Test
@@ -273,16 +272,14 @@ public class PayeeInfoServiceImplTest extends BaseDbUnitTest {
         PayeeWithPerson fx = insertPayeeWithPerson("USER001", "110101199001011301", "13800138301");
 
         // 调用：outUserId 是平台级外部用户编号，先定位自然人主体再取本租户的收方档案
-        payeeInfoService.handlePayeeAuditCallback(fx.person().getOutUserId(), "1", "审核通过", "ICBC123456");
+        payeeInfoService.handlePayeeAuditCallback(fx.person().getOutUserId(), "1", "审核通过");
         PayeeInfoDO dbPayeeInfo = fx.payee();
 
         // 断言
         PayeeInfoDO updatedPayeeInfo = payeeInfoMapper.selectById(dbPayeeInfo.getId());
         assertEquals(IcbcStatusEnum.AuditStatus.APPROVED.getStatus(), updatedPayeeInfo.getStatus());
         assertEquals("审核通过", updatedPayeeInfo.getAuditMsg());
-        assertEquals("ICBC123456", updatedPayeeInfo.getIcbcMediumId());
         assertEquals("1", updatedPayeeInfo.getIcbcReceiverStatus());
-        assertEquals("02", updatedPayeeInfo.getIcbcOpenacctStatus());
     }
 
     @Test
@@ -290,7 +287,7 @@ public class PayeeInfoServiceImplTest extends BaseDbUnitTest {
         PayeeWithPerson fx = insertPayeeWithPerson("USER001", "110101199001011302", "13800138302");
 
         // 调用
-        payeeInfoService.handlePayeeAuditCallback(fx.person().getOutUserId(), "2", "审核拒绝", null);
+        payeeInfoService.handlePayeeAuditCallback(fx.person().getOutUserId(), "2", "审核拒绝");
         PayeeInfoDO dbPayeeInfo = fx.payee();
 
         // 断言
@@ -298,7 +295,6 @@ public class PayeeInfoServiceImplTest extends BaseDbUnitTest {
         assertEquals(IcbcStatusEnum.AuditStatus.REJECTED.getStatus(), updatedPayeeInfo.getStatus());
         assertEquals("审核拒绝", updatedPayeeInfo.getAuditMsg());
         assertEquals("0", updatedPayeeInfo.getIcbcReceiverStatus());
-        assertEquals("03", updatedPayeeInfo.getIcbcOpenacctStatus());
     }
 
     /** 收方档案 + 它挂着的自然人主体。 */

@@ -24,8 +24,6 @@ CREATE TABLE `icbc_payee_info` (
   `audit_msg` varchar(500) DEFAULT NULL COMMENT '审核信息',
   `business_type` varchar(50) DEFAULT NULL COMMENT '业务类型：RECYCLE-再生资源等',
   `icbc_receiver_status` varchar(1) DEFAULT NULL COMMENT '工行收方状态：0-不可用，1-可用',
-  `icbc_medium_id` varchar(50) DEFAULT NULL COMMENT '工行电子账户账号',
-  `icbc_openacct_status` varchar(2) DEFAULT NULL COMMENT '开户状态：00-初始，01-开户中，02-开户成功，03-开户失败',
   `occupation` varchar(3) DEFAULT NULL COMMENT '职业',
   `company_name` varchar(60) DEFAULT NULL COMMENT '关联企业名称',
   `real_name_status` tinyint unsigned DEFAULT '0' COMMENT '实人认证状态：0-未认证，1-认证中，2-认证通过，3-认证未通过',

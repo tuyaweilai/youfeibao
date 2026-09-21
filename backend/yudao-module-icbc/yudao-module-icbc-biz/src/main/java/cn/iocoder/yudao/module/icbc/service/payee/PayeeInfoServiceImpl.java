@@ -185,7 +185,6 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
             payeeInfo.setPartnerPayeeId(generatePartnerPayeeId());
         }
         payeeInfo.setIcbcReceiverStatus("0"); // 初始状态为不可用
-        payeeInfo.setIcbcOpenacctStatus("01"); // 工行开户状态（openacctStatus）：开户中
         
         // 保存到数据库
         payeeInfoMapper.insert(payeeInfo);
@@ -206,7 +205,7 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
     }
 
     @Override
-    public void handlePayeeAuditCallback(String outUserId, String auditStatus, String auditMsg, String icbcMediumId) {
+    public void handlePayeeAuditCallback(String outUserId, String auditStatus, String auditMsg) {
         // outUserId 是平台级外部用户编号：先找到自然人主体，再取本租户的收方档案
         IcbcNaturalPersonDO person = naturalPersonService.getByOutUserId(outUserId);
         PayeeInfoDO payeeInfo = person == null ? null : payeeInfoMapper.selectByNaturalPersonId(person.getId());
@@ -219,18 +218,15 @@ public class PayeeInfoServiceImpl implements PayeeInfoService {
         PayeeInfoDO updateObj = new PayeeInfoDO();
         updateObj.setId(payeeInfo.getId());
         updateObj.setAuditMsg(auditMsg);
-        updateObj.setIcbcMediumId(icbcMediumId);
         
         if ("1".equals(auditStatus)) {
             // 审核通过
             updateObj.setStatus(IcbcStatusEnum.AuditStatus.APPROVED.getStatus());
             updateObj.setIcbcReceiverStatus("1"); // 可用
-            updateObj.setIcbcOpenacctStatus("02"); // 工行开户状态（openacctStatus）：开户成功
         } else {
             // 审核拒绝
             updateObj.setStatus(IcbcStatusEnum.AuditStatus.REJECTED.getStatus());
             updateObj.setIcbcReceiverStatus("0"); // 不可用
-            updateObj.setIcbcOpenacctStatus("03"); // 工行开户状态（openacctStatus）：开户失败
         }
         
         payeeInfoMapper.updateById(updateObj);

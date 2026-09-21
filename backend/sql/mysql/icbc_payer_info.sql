@@ -22,8 +22,6 @@ CREATE TABLE IF NOT EXISTS `icbc_payer_info` (
   `status` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '状态：0-待审核，1-审核通过，2-审核拒绝',
   `audit_msg` varchar(500) DEFAULT NULL COMMENT '审核消息',
   `icbc_payer_status` varchar(1) DEFAULT NULL COMMENT '工行付方状态：0-不可用，1-可用',
-  `icbc_medium_id` varchar(50) DEFAULT NULL COMMENT '工行介质ID',
-  `icbc_openacct_status` varchar(2) DEFAULT NULL COMMENT '工行开户状态：00-初始，01-开户中，02-开户成功，03-开户失败',
   `tenant_id` bigint unsigned NOT NULL DEFAULT '0' COMMENT '租户ID',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

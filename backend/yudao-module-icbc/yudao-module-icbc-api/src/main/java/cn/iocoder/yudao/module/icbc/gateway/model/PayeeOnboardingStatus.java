@@ -7,7 +7,7 @@ import lombok.Data;
  * 收方入驻结果查询
  *
  * <p>对应工行 `/api/jft/api/user/edpopenacct/query/V1`。收方入驻只绑**一张卡**、只有**一条审核线**
- * （ADR 0035）：没有电子钱包，所以这里不带开户状态与电子账户账号。
+ * （ADR 0035）：只带审核状态与收方 / 冻结状态，不带页面专属的账户标识。
  */
 @Data
 @Builder

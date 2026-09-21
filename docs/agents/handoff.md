@@ -1850,3 +1850,45 @@ canvas + `toDataURL` 渲染器已打包；自然人端 `pnpm ts:check` 零错误
 `handleOnboardingNotify(...)` 都多了最后一个 `operaType` 参数；直接调用它们的测试已全部跟改。
 
 **frontier**：#86 已解 → **#87（钱包概念清除）与 #89（自然人端重做）同时解锁**；另有 #90（司机端实名枚举值）。
+
+## #87 钱包概念彻底清除（已落地）
+
+#83 / #86 让状态机不再产生这些值，本票把「列、页面、词」一并清掉。
+
+1. **三张表的残留列一起删**（AC 点名的两张 + 付方同名死列）：
+   - `icbc_payee_info`：`icbc_medium_id`、`icbc_openacct_status`
+   - `icbc_payee_bank_card_change`：`icbc_medium_id`、`icbc_openacct_status`
+   - `icbc_payer_info`：同上两个 —— 当初（ADR 0010）降级为「原样透传」，之后**再没有任何代码写过它们**
+     （付方回调只带 `payerStatus`），一并清掉，接口里也不再出现「开户状态」。
+   落地：`sql/mysql/icbc-wallet-columns-drop.sql`（**不可逆**，幂等 `DROP COLUMN`，按
+   `information_schema` 判存在）；三个建表脚本与测试 `create_tables.sql` 同步成最终形状；
+   README 导入顺序加了本文件，并注明新库不需要跑它。
+2. **代码侧**：`PayeeInfoDO` / `IcbcPayeeBankCardChangeDO` / `PayerInfoDO`（含 test 树里那份同名 DO）
+   删字段；`PayeeInfoRespVO` / `PayeeBankCardChangeRespVO` / `PayerInfoRespVO` 删字段；
+   `handlePayeeAuditCallback` 去掉 `icbcMediumId` 入参（连带 controller 的 `@RequestParam`）；
+   `IcbcNotifyParser` 推断收方回调**不再靠 `openacctStatus`**（只靠 `result` + `outUserId`）；
+   三处解释性注释改写（`PayeeOnboardingOutcomeEnum` / `PayeeOnboardingReq` / `PayeeOnboardingStatus`）。
+   后台 `views/icbc/payee/index.vue` 删「工行开户状态」列，`api/icbc/{payee,payer}` 类型删字段，
+   `field-shared` 的两个 VO 类型删字段。
+3. **测试**：`PayeeInfoServiceImplTest` / `PayerInfoServiceImplTest` / `IcbcNotifyParserTest` /
+   `SellerOnboardingNotifyTest` 跟改；test 树的 `PayeeInfoMapper.xml` / `PayerInfoMapper.xml`
+   resultMap 里的 `icbc_medium_id` / `icbc_openacct_status` 一并删（留着会在用该 resultMap 时报「没有 getter」）。
+4. **CONTEXT.md** 的「收方入驻」「智慧清分」词条在 #83/ADR 0035 时就已是新口径（`_Avoid_` 里保留
+   被弃用词是刻意的），本票无需再改。
+
+**AC4 实测（在本地已建库上）**：把 `icbc-wallet-columns-drop.sql` 跑在本地 `ruoyi-vue-pro` 上
+（六列都在、值全为 NULL）→ 六列消失、既有行数据完整；重启 `yudao-server` **15 秒启动成功**；
+`/icbc/payee-info/page`、`/icbc/payer-info/page`、`/icbc/payee-info/bank-card-change/list`、
+`/icbc/seller-onboarding/get` 都 200，响应里再无 `icbcMediumId` / `icbcOpenacctStatus`。
+幂等在临时库验过「有列→删」「无列→跳过」两种。
+
+**验收实测**：ICBC 模块 **725 个测试全绿**（数量不变，删的是断言不是用例）；全量 `compile` 通过；
+现场端 / 自然人端 `pnpm ts:check` 零错误 + 现场端 `build:h5` 通过；PC `pnpm build:local` 通过。
+
+**这一票踩到的坑（重要，下一次也要记得）**：本地库此前**没导过 #86 的
+`icbc-bank-card-change-account-code.sql`**，新构建起来后 `/icbc/payee-info/page` 直接 500
+（`Unknown column 'account_code'`）。补跑那条增量后正常。**在本地跑验收前，先把近期
+`backend/sql/mysql/*.sql` 的增量按 README 顺序补齐**——handoff 已经警告过「本地库落后于代码」，
+这次是同一个坑。
+
+**frontier**：#87 已解。只剩 **#89（自然人端重做）** 与 **#90（司机端实名枚举值）**；#80 的子票收完即可收父票。

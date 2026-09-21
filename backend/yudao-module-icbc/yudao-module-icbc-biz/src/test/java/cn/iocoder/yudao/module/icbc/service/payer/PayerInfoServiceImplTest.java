@@ -42,7 +42,7 @@ public class PayerInfoServiceImplTest extends BaseDbUnitTest {
     private PayerInfoMapper payerInfoMapper;
     
     // 要忽略的字段列表，包括deleted字段和其他不需要比较的字段
-    private static final String[] IGNORE_FIELDS = new String[]{"deleted", "id", "createTime", "updateTime", "creator", "updater", "transMap", "payerNo", "partnerPayerId", "status", "auditMsg", "icbcPayerStatus", "icbcMediumId", "icbcOpenacctStatus", "tenantId", "telephone"};
+    private static final String[] IGNORE_FIELDS = new String[]{"deleted", "id", "createTime", "updateTime", "creator", "updater", "transMap", "payerNo", "partnerPayerId", "status", "auditMsg", "icbcPayerStatus", "tenantId", "telephone"};
 
     @Test
     public void testSave_success() {

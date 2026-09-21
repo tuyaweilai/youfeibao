@@ -16,8 +16,6 @@ export interface PayeeVO {
   auditMsg?: string
   businessType?: string
   icbcReceiverStatus?: string
-  icbcMediumId?: string
-  icbcOpenacctStatus?: string
   occupation?: string
   companyName?: string
 }

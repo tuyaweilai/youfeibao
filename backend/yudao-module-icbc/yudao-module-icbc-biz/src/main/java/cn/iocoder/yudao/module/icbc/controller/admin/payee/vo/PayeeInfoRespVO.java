@@ -70,14 +70,6 @@ public class PayeeInfoRespVO {
     @ExcelProperty("工行收方状态")
     private String icbcReceiverStatus;
 
-    @Schema(description = "工行返回的账户标识（mediumId）", example = "ICBC123456")
-    @ExcelProperty("工行账户标识")
-    private String icbcMediumId;
-
-    @Schema(description = "工行侧开户状态（openacctStatus）", example = "02")
-    @ExcelProperty("工行开户状态")
-    private String icbcOpenacctStatus;
-
     @Schema(description = "职业", example = "001")
     @ExcelProperty("职业")
     private String occupation;

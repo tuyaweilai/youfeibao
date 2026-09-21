@@ -64,8 +64,7 @@ public class IcbcNotifyParser {
         if (payload.containsKey("verifyResult")) {
             return CallbackNotifyTypeEnum.FACE_VERIFY;
         }
-        if (payload.containsKey("openacctStatus")
-                || (payload.containsKey("result") && payload.containsKey("outUserId"))) {
+        if (payload.containsKey("result") && payload.containsKey("outUserId")) {
             return CallbackNotifyTypeEnum.PAYEE_ONBOARDING;
         }
         return null;

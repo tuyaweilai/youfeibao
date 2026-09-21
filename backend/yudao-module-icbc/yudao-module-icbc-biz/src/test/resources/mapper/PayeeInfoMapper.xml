@@ -17,8 +17,6 @@
         <result column="status" property="status"/>
         <result column="audit_msg" property="auditMsg"/>
         <result column="icbc_receiver_status" property="icbcReceiverStatus"/>
-        <result column="icbc_medium_id" property="icbcMediumId"/>
-        <result column="icbc_openacct_status" property="icbcOpenacctStatus"/>
         <result column="tenant_id" property="tenantId"/>
         <result column="creator" property="creator"/>
         <result column="create_time" property="createTime"/>

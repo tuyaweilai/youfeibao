@@ -41,9 +41,6 @@ public class PayeeBankCardChangeRespVO {
     @Schema(description = "新卡开户银行", example = "中国工商银行")
     private String newBankName;
 
-    @Schema(description = "工行侧开户状态（原样透传）", example = "02")
-    private String icbcOpenacctStatus;
-
     @Schema(description = "工行审核结果（原样透传）：pass / reject", example = "pass")
     private String auditResult;
 

@@ -50,9 +50,7 @@ export interface SellerOnboardingVO {
   auditResult?: string
   rejectReason?: string
   status?: number
-  icbcOpenacctStatus?: string
   icbcReceiverStatus?: string
-  icbcMediumId?: string
   frameworkAgreement?: FrameworkAgreementVO
   authorization?: SellerAuthorizationVO
   invoiceEligible?: boolean

@@ -7,7 +7,7 @@ import lombok.Data;
  * 收方入驻请求
  *
  * <p>对应工行 `/api/jft/api/user/edpreceive/add/V1`（数据接口）。平台直接发起，**没有任何页面**：
- * 收方入驻与电子钱包无关（ADR 0035），所以这里不带预填信息、CAMS 公钥、交易渠道这些页面专属字段。
+ * 收方入驻走数据接口（ADR 0035），所以这里不带预填信息、CAMS 公钥、交易渠道这些页面专属字段。
  *
  * <p>再生资源场景固定 `businessType=0004`、`accountKind=02`（个人）、`receiverType=03`（自然人）、
  * `idType=0`（身份证），由适配层填充，平台只给业务字段。
