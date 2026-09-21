@@ -468,6 +468,7 @@ CREATE TABLE IF NOT EXISTS icbc_framework_agreement (
     recycle_period VARCHAR(100) NOT NULL,
     settlement_method VARCHAR(200) NOT NULL,
     sign_method VARCHAR(20),
+    sign_task_id VARCHAR(64),
     signed_at DATETIME,
     file_url VARCHAR(500),
     status TINYINT NOT NULL DEFAULT 0,

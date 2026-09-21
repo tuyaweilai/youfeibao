@@ -69,6 +69,14 @@ public class IcbcFrameworkAgreementDO extends TenantBaseDO {
     private String signMethod;
 
     /**
+     * 第三方签署任务号（合同组任务号）。
+     *
+     * <p>电子签署发起成功后写入；回调靠它把「合同组整体签完」的通知路由回本协议
+     * （第三方回调只带子客编号与任务号，不带我们的协议编号）。纸质协议为空。
+     */
+    private String signTaskId;
+
+    /**
      * 签署时间
      */
     private LocalDateTime signedAt;
@@ -79,7 +87,7 @@ public class IcbcFrameworkAgreementDO extends TenantBaseDO {
     private String fileUrl;
 
     /**
-     * 状态：0-待签署，1-生效，2-作废
+     * 状态：0-待签署，1-生效，2-作废，见 {@link cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementStatusEnum}
      */
     private Integer status;
 

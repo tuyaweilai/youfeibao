@@ -4,6 +4,7 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
+import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
 import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
@@ -18,6 +19,8 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.authorization.IcbcSellerAuthorizat
 import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payer.PayerInfoMapper;
+import cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementSignMethodEnum;
+import cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcAccountCodeEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcOccupationEnum;
@@ -36,6 +39,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReceipt;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingStatus;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
+import cn.iocoder.yudao.module.icbc.service.esign.FrameworkAgreementEsignService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
@@ -45,6 +49,7 @@ import cn.iocoder.yudao.module.icbc.util.MaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
 import javax.annotation.Resource;
@@ -101,6 +106,8 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     private IcbcGateway icbcGateway;
     @Resource
     private SellerAppLinkBuilder sellerAppLinkBuilder;
+    @Resource
+    private FrameworkAgreementEsignService frameworkAgreementEsignService;
 
     /**
      * 收方入驻审核结果回调地址。是平台外网可达地址，不是工行地址，故不进适配层配置。
@@ -442,16 +449,21 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
     // ==================== 框架收购协议 ====================
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Long saveFrameworkAgreement(FrameworkAgreementSaveReqVO reqVO) {
         validatePayeeExists(reqVO.getPayeeId());
-        Integer status = reqVO.getStatus() != null ? reqVO.getStatus() : 1; // 默认生效
+        // 电子签署默认落「待签署」（#95）：没人签过就不该是生效；纸质是当场签、默认生效
+        Integer status = reqVO.getStatus() != null ? reqVO.getStatus()
+                : (FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode().equals(reqVO.getSignMethod())
+                        ? FrameworkAgreementStatusEnum.PENDING.getStatus()
+                        : FrameworkAgreementStatusEnum.EFFECTIVE.getStatus());
         // 一份生效协议：新协议生效时，旧生效协议作废并留痕
-        if (Integer.valueOf(1).equals(status)) {
+        if (FrameworkAgreementStatusEnum.EFFECTIVE.getStatus().equals(status)) {
             IcbcFrameworkAgreementDO current = frameworkAgreementMapper.selectActiveByPayeeId(reqVO.getPayeeId());
             if (current != null && !current.getId().equals(reqVO.getId())) {
                 IcbcFrameworkAgreementDO voided = new IcbcFrameworkAgreementDO();
                 voided.setId(current.getId());
-                voided.setStatus(2);
+                voided.setStatus(FrameworkAgreementStatusEnum.VOIDED.getStatus());
                 frameworkAgreementMapper.updateById(voided);
             }
         }
@@ -466,10 +478,16 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
         if (StrUtil.isBlank(agreement.getAgreementNo())) {
             agreement.setAgreementNo(generateAgreementNo());
         }
-        if (agreement.getSignedAt() == null && Integer.valueOf(1).equals(status)) {
+        if (agreement.getSignedAt() == null && FrameworkAgreementStatusEnum.EFFECTIVE.getStatus().equals(status)) {
             agreement.setSignedAt(LocalDateTime.now());
         }
         frameworkAgreementMapper.insert(agreement);
+        // 待签署的电子协议：立刻发起合同组签署（企业先盖章、自然人后签署），拿合同组任务号。
+        // 与插入同一事务：发起失败（拿不到任务号）就整体回滚，不留一份生成不出签署链接的半成品。
+        if (FrameworkAgreementStatusEnum.PENDING.getStatus().equals(status)
+                && FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode().equals(agreement.getSignMethod())) {
+            frameworkAgreementEsignService.initiate(TenantContextHolder.getRequiredTenantId(), agreement.getId());
+        }
         return agreement.getId();
     }
 

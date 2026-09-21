@@ -29,4 +29,11 @@ public class OnboardingWizardSubmitRespVO {
     @Schema(description = "框架收购协议签署方式：ELECTRONIC-电子签章，PAPER-纸质签署", example = "PAPER")
     private String signMethod;
 
+    @Schema(description = "框架收购协议状态：0-待签署，1-生效（电子签发起成功即待签署，签完由回调推到生效）", example = "0")
+    private Integer agreementStatus;
+
+    @Schema(description = "给现场的可读说明（走了哪条签署路径、本人接下来要做什么）",
+            example = "签署已发起：请在本人手机上点「去签署」，一次实名、一次签名把两份文书一起签完。")
+    private String message;
+
 }

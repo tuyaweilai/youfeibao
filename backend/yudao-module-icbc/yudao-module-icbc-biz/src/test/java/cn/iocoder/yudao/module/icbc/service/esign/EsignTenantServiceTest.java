@@ -219,6 +219,21 @@ public class EsignTenantServiceTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testConsumeContract_incrementsUsedAndShrinksRemaining() {
+        TenantContextHolder.setTenantId(TENANT_ID);
+        esignTenantService.getOrCreateCurrent();
+        esignTenantService.updateQuota(quotaReq(TENANT_ID, 2));
+
+        // 发起成功一次记一次（#95）：原子自增，不覆盖别的字段
+        esignTenantService.consumeContract();
+        esignTenantService.consumeContract();
+
+        EsignTenantStatusRespVO status = esignTenantService.getStatus();
+        assertEquals(2, status.getContractUsed());
+        assertEquals(0, status.getRemainingQuota(), "已用不得把剩余算成负数");
+    }
+
+    @Test
     public void testResolveTenantIdBySubCustomerNo() {
         TenantContextHolder.setTenantId(1L);
         esignTenantService.getOrCreateCurrent();

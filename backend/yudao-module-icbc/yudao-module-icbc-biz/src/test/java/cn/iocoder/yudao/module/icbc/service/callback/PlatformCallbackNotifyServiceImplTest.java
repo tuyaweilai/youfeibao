@@ -14,6 +14,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.callback.CallbackNotifyMapper;
 import cn.iocoder.yudao.module.icbc.enums.CallbackNotifyTypeEnum;
 import cn.iocoder.yudao.module.icbc.enums.CallbackProcessStatusEnum;
 import cn.iocoder.yudao.module.icbc.service.callback.impl.CallbackNotifyServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.esign.FrameworkAgreementEsignService;
 import cn.iocoder.yudao.test.icbc.IcbcTenantTestConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,10 @@ public class PlatformCallbackNotifyServiceImplTest extends BaseDbUnitTest {
     /** 库存域只通过 erp-api 的 StockApi 接入（#52）；单元测试不跨模块，用 Mock。 */
     @MockBean
     private StockApi stockApi;
+
+    /** 采购链会经收方建档 service 注入电子签（#95）；本测试不碰出站，置空。 */
+    @MockBean
+    private FrameworkAgreementEsignService frameworkAgreementEsignService;
 
     @Resource
     private CallbackNotifyServiceImpl callbackNotifyService;

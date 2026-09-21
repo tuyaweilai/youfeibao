@@ -33,6 +33,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReceipt;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PayeeOnboardingStatus;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
+import cn.iocoder.yudao.module.icbc.service.esign.FrameworkAgreementEsignService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.impl.SellerOnboardingServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import org.junit.jupiter.api.AfterEach;
@@ -102,6 +103,10 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
 
     @MockBean
     private IcbcGateway icbcGateway;
+
+    /** 电子签发起由 {@code FrameworkAgreementEsignServiceImplTest} 覆盖；本类只测落库与门禁。 */
+    @MockBean
+    private FrameworkAgreementEsignService frameworkAgreementEsignService;
 
     @BeforeEach
     public void setUp() {
@@ -866,7 +871,8 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         reqVO.setSpecification("重型");
         reqVO.setRecyclePeriod("2026 年 9 月第 1 期");
         reqVO.setSettlementMethod("银行转账，过磅后 3 日内结清");
-        reqVO.setSignMethod("ELECTRONIC");
+        // 本类的用例围绕「一份生效协议 + 门禁」：纸签当场生效；电子签的待签署路径另有专门用例（#95）
+        reqVO.setSignMethod("PAPER");
         return reqVO;
     }
 

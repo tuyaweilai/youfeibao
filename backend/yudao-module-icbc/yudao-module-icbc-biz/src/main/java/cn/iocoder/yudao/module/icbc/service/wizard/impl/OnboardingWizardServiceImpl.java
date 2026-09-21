@@ -7,6 +7,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeInfoSaveReqVO
 import cn.iocoder.yudao.module.icbc.controller.admin.wizard.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementSignMethodEnum;
+import cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcAccountCodeEnum;
 import cn.iocoder.yudao.module.icbc.service.cardrecognition.CardRecognitionPort;
 import cn.iocoder.yudao.module.icbc.service.esign.EsignPort;
@@ -35,8 +36,10 @@ import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
  *       自然人主体）与框架收购协议，中间态不落后端草稿表（#81 决策 2）。</li>
  * </ul>
  *
- * <p>「电子签 vs 纸质签」的唯一判据是 {@link EsignPort#isAvailable(Long)}；本票不发起电子签署
- * （合同组签署见 #95），未开通时协议落 {@code PAPER}，向导照常走完（ADR 0036 / 0037）。
+ * <p>「电子签 vs 纸质签」的唯一判据是 {@link EsignPort#isAvailable(Long)}：租户已开通时协议落
+ * {@code ELECTRONIC + 待签署} 并**立刻发起合同组签署**（框架收购协议 + 反向发票合规告知函，
+ * 企业先盖章、自然人后签署，ADR 0036），签完靠回调收敛为生效；未开通时降级为 {@code PAPER}，
+ * 向导照常走完（ADR 0036 / 0037）。
  */
 @Slf4j
 @Service
@@ -134,31 +137,45 @@ public class OnboardingWizardServiceImpl implements OnboardingWizardService {
         Long payeeId = payeeInfoService.createPayeeInfo(saveReqVO);
         PayeeInfoDO payee = payeeInfoService.getPayeeInfo(payeeId);
 
-        // 2. 框架收购协议：电子签章未开通即落 PAPER，本票不发起电子签署（#95）
+        // 2. 框架收购协议：开通电子签章就走合同组电子签署（落待签署），否则纸签当场生效（#95 / ADR 0036）
         String signMethod = resolveSignMethod(TenantContextHolder.getRequiredTenantId());
-        Long agreementId = sellerOnboardingService.saveFrameworkAgreement(toAgreement(reqVO, payeeId, signMethod));
+        FrameworkAgreementSaveReqVO agreementReq = toAgreement(reqVO, payeeId, signMethod);
+        // 电子签：saveFrameworkAgreement 在同一事务里落「待签署」并发起合同组签署（拿不到任务号就回滚）
+        Long agreementId = sellerOnboardingService.saveFrameworkAgreement(agreementReq);
+        Integer agreementStatus = FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode().equals(signMethod)
+                ? FrameworkAgreementStatusEnum.PENDING.getStatus()
+                : FrameworkAgreementStatusEnum.EFFECTIVE.getStatus();
 
         return OnboardingWizardSubmitRespVO.builder()
                 .payeeId(payeeId)
                 .naturalPersonId(payee.getNaturalPersonId())
                 .agreementId(agreementId)
                 .signMethod(signMethod)
+                .agreementStatus(agreementStatus)
+                .message(buildSignMessage(signMethod))
                 .build();
     }
 
     /**
      * 「电子签 vs 纸质签」的唯一判据（ADR 0036 / 0037）。
      *
-     * <p>合同组的电子签署由 #95 落地，本票不调 {@link EsignPort#initiate} /
-     * {@link EsignPort#createSignUrl}：即使端口意外答可用，也按纸质落库并留下告警——
-     * 绝不写一份「没人签过」的电子协议。
+     * <p>租户已开通（平台参数齐备 + 企业认证与印章就位 + 额度未耗尽，由端口回答）就发起电子签署，
+     * 协议落待签署；否则降级纸质。两条路都不阻断建档。
      */
     private String resolveSignMethod(Long tenantId) {
-        if (esignPort.isAvailable(tenantId)) {
-            log.warn("[resolveSignMethod][电子签章可用，但合同组电子签署尚未落地（#95），本次按纸质落库] tenantId={}",
-                    tenantId);
+        return esignPort.isAvailable(tenantId)
+                ? FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode()
+                : FrameworkAgreementSignMethodEnum.PAPER.getCode();
+    }
+
+    /**
+     * 给现场的可读说明：走了哪条路、本人接下来要做什么。
+     */
+    private String buildSignMessage(String signMethod) {
+        if (FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode().equals(signMethod)) {
+            return "签署已发起：请在本人手机上点「去签署」，一次实名、一次签名把框架收购协议与反向发票合规告知函两份一起签完。";
         }
-        return FrameworkAgreementSignMethodEnum.PAPER.getCode();
+        return "本企业尚未开通电子签章，本次框架收购协议按纸质签署落库：请现场打印并与本人签字后留存。";
     }
 
     private FrameworkAgreementSaveReqVO toAgreement(OnboardingWizardSubmitReqVO reqVO, Long payeeId,
@@ -171,8 +188,7 @@ public class OnboardingWizardServiceImpl implements OnboardingWizardService {
         agreement.setRecyclePeriod(StrUtil.blankToDefault(reqVO.getRecyclePeriod(), DEFAULT_RECYCLE_PERIOD));
         agreement.setSettlementMethod(StrUtil.blankToDefault(reqVO.getSettlementMethod(), DEFAULT_SETTLEMENT_METHOD));
         agreement.setSignMethod(signMethod);
-        // 纸质协议当场签署：状态生效、盖签署时间；电子签署时状态该落「待签署」，那是 #95
-        agreement.setStatus(1);
+        // 状态由 service 按签署方式定：电子 = 待签署（签完靠回调推到生效），纸质 = 当场生效
         return agreement;
     }
 

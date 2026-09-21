@@ -8,6 +8,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreem
 import cn.iocoder.yudao.module.icbc.dal.dataobject.authorization.IcbcSellerAuthorizationDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
+import cn.iocoder.yudao.module.icbc.service.esign.FrameworkAgreementEsignService;
 import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -38,6 +39,8 @@ public class SellerOnboardingController {
 
     @Resource
     private SellerOnboardingService sellerOnboardingService;
+    @Resource
+    private FrameworkAgreementEsignService frameworkAgreementEsignService;
 
     @GetMapping("/get")
     @Operation(summary = "获得出售者建档总览")
@@ -107,10 +110,11 @@ public class SellerOnboardingController {
     // ==================== 框架收购协议 ====================
 
     @PostMapping("/agreement/create")
-    @Operation(summary = "签署 / 更新框架收购协议")
+    @Operation(summary = "签署 / 更新框架收购协议（电子签方式会发起合同组签署，落待签署）")
     @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_AGREEMENT_MANAGE + "')")
     public CommonResult<Long> saveFrameworkAgreement(
             @Valid @RequestBody FrameworkAgreementSaveReqVO reqVO) {
+        // 待签署的电子协议由 service 在同一事务里落库并发起合同组签署（#95 / ADR 0036）
         return success(sellerOnboardingService.saveFrameworkAgreement(reqVO));
     }
 
@@ -132,6 +136,23 @@ public class SellerOnboardingController {
             @RequestParam("payeeId") Long payeeId) {
         return success(sellerOnboardingService.getFrameworkAgreements(payeeId).stream()
                 .map(item -> BeanUtils.toBean(item, FrameworkAgreementRespVO.class))
+                .collect(Collectors.toList()));
+    }
+
+    @GetMapping("/agreement/signed-documents")
+    @Operation(summary = "获得已签文书（框架收购协议 + 反向发票合规告知函，托管在第三方）")
+    @Parameter(name = "payeeId", description = "出售者编号", required = true, example = "1024")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.SELLER_AGREEMENT_MANAGE + "')")
+    public CommonResult<List<SignedDocumentRespVO>> getSignedDocuments(
+            @RequestParam("payeeId") Long payeeId) {
+        return success(frameworkAgreementEsignService.listSignedDocuments(payeeId).stream()
+                .map(doc -> {
+                    SignedDocumentRespVO vo = new SignedDocumentRespVO();
+                    vo.setName(doc.getName());
+                    vo.setFileUrl(doc.getFileUrl());
+                    vo.setSignedAt(doc.getSignedAt());
+                    return vo;
+                })
                 .collect(Collectors.toList()));
     }
 

@@ -14,6 +14,7 @@ import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyParser;
 import cn.iocoder.yudao.module.icbc.service.callback.handler.PaymentNotifyHandler;
 import cn.iocoder.yudao.module.icbc.service.callback.impl.CallbackNotifyServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.esign.FrameworkAgreementEsignService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.service.payment.impl.PaymentServiceImpl;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,10 @@ public class PaymentNotifyHandlerTest extends BaseDbUnitTest {
 
     @MockBean
     private InvoiceOrderService invoiceOrderService;
+
+    /** 出站电子签端口不在这里测；置空以免走真实实现（它需要平台租户配置） */
+    @MockBean
+    private FrameworkAgreementEsignService frameworkAgreementEsignService;
 
     @Test
     public void testPaymentNotifySuccessArchivesReceipt() {

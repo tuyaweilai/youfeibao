@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS `icbc_framework_agreement` (
   `recycle_period` varchar(100) NOT NULL COMMENT '回收期次',
   `settlement_method` varchar(200) NOT NULL COMMENT '结算方式',
   `sign_method` varchar(20) DEFAULT NULL COMMENT '签署方式：ELECTRONIC-电子签章，PAPER-纸质签署',
+  `sign_task_id` varchar(64) DEFAULT NULL COMMENT '第三方签署任务号（合同组任务号）：回调据此定位协议；纸质为空',
   `signed_at` datetime DEFAULT NULL COMMENT '签署时间',
   `file_url` varchar(500) DEFAULT NULL COMMENT '协议文件地址',
   `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态：0-待签署，1-生效，2-作废',

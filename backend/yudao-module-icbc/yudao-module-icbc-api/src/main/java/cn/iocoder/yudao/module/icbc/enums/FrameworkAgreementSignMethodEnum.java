@@ -11,9 +11,10 @@ import java.util.Arrays;
  * <p>选值由**电子签章端口的可用性**决定，不靠配置开关、也不由前端写死（ADR 0036 / 0037）：
  * 租户电子签章可用就 {@link #ELECTRONIC}，不可用就降级为 {@link #PAPER}，两条路都不阻断建档。
  *
- * <p><b>#91 起建档向导一律落 {@link #PAPER}</b>：合同组的电子签署（含 {@link #ELECTRONIC} 那条路）
- * 由 #95 落地，届时才让调用方按电子签章端口的可用性选值（#91 复审 ST-D）；本枚举只定义取值，
- * 不承担选值。
+ * <p><b>建档向导（#91）与合同组电子签署（#95）都已落地</b>：调用方按电子签章端口的可用性选值——
+ * 租户电子签章可用就 {@link #ELECTRONIC}（协议落待签署、发起合同组签署），不可用就降级为
+ * {@link #PAPER}（当场生效），两条路都不阻断建档。选值入口在 {@code OnboardingWizardServiceImpl}
+ * 与 {@code SellerOnboardingServiceImpl#saveFrameworkAgreement}（按本枚举判默认状态）；本枚举只定义取值。
  *
  * <p>取值与 {@code IcbcFrameworkAgreementDO#signMethod} 的注释一致；从前这个字段一路为
  * {@code null}（没人签过却被盖上 {@code signedAt}），建档向导（#91）起第一次真正写值。

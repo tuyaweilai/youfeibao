@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.evidence.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.settlement.IcbcSettlementDO;
 import cn.iocoder.yudao.module.icbc.enums.SettlementConfirmStatusEnum;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
@@ -17,6 +18,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.agreement.IcbcFrameworkAgreementMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.evidence.IcbcEvidenceMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
@@ -81,6 +83,8 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
     private IcbcEvidenceMapper evidenceMapper;
     @Resource
     private IcbcAcquisitionMapper acquisitionMapper;
+    @Resource
+    private IcbcFrameworkAgreementMapper frameworkAgreementMapper;
     @Resource
     private IcbcSettlementMapper settlementMapper;
     @Resource
@@ -279,6 +283,19 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
 
             // 合同流：出售者的结算确认记录（含快照哈希、线下签字件）也是签署证据（ADR 0018 / 0024，不新增第六流）
             addSettlementConfirmationSource(flowSources.get(EvidenceFlowEnum.CONTRACT), acquisition);
+        }
+
+        // 合同流：出售者**生效中**的框架收购协议（两份文书一个合同组，已签文件托管在第三方，#95 / ADR 0036）
+        IcbcFrameworkAgreementDO agreement = order.getPayeeId() != null
+                ? ctx.agreementByPayee.get(order.getPayeeId()) : null;
+        if (agreement != null) {
+            EvidenceSourceRespVO source = new EvidenceSourceRespVO();
+            source.setSourceType("FRAMEWORK_AGREEMENT");
+            source.setTitle("框架收购协议");
+            source.setRef(agreement.getAgreementNo());
+            source.setUrl(agreement.getFileUrl());
+            source.setOccurredTime(agreement.getSignedAt());
+            flowSources.get(EvidenceFlowEnum.CONTRACT).add(source);
         }
 
         // 货物流：磅单与车头车尾照片直接从收购登记单取
@@ -508,6 +525,10 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
             for (PayeeInfoDO payee : payeeInfoMapper.selectByIds(payeeIds)) {
                 ctx.payeeById.put(payee.getId(), payee);
             }
+            // 每人的生效协议取最新一条（mapper 已按 id 倒序）
+            for (IcbcFrameworkAgreementDO agreement : frameworkAgreementMapper.selectEffectiveByPayeeIds(payeeIds)) {
+                ctx.agreementByPayee.putIfAbsent(agreement.getPayeeId(), agreement);
+            }
         }
         return ctx;
     }
@@ -608,6 +629,7 @@ public class InvoiceEvidenceServiceImpl implements InvoiceEvidenceService {
         private final Map<Long, List<InvoiceFileDO>> filesByDownload = new HashMap<>();
         private final Map<Long, List<OrderItemDO>> itemsByOrderId = new HashMap<>();
         private final Map<Long, PayeeInfoDO> payeeById = new HashMap<>();
+        private final Map<Long, IcbcFrameworkAgreementDO> agreementByPayee = new HashMap<>();
         private final Map<String, RedInvoiceDO> redByOrder = new HashMap<>();
     }
 

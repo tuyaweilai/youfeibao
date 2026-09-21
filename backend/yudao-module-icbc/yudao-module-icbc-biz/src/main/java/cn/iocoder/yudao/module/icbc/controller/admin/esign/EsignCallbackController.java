@@ -4,6 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.module.icbc.controller.admin.esign.vo.EsignCallbackRespVO;
 import cn.iocoder.yudao.module.icbc.service.esign.EsignCallbackService;
 import cn.iocoder.yudao.module.icbc.service.esign.EsignPort;
+import cn.iocoder.yudao.module.icbc.service.esign.FrameworkAgreementEsignService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,9 @@ import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
  *
  * <p><b>验签失败必须明确失败</b>：伪造的通知不能被静默吞掉，接口返回错误码而不是「成功但什么都没做」。
  *
+ * <p>验签通过后把通知交给 {@link FrameworkAgreementEsignService#applyFinishedCallback} 收敛协议状态：
+ * **合同组整体签完**才推到生效并盖签署时间，重复通知不产生第二次副作用（#95）。
+ *
  * <p>回调不带我们的登录态、也不带租户请求头，因此本接口 {@link PermitAll} 免登录，租户由子客编号反查。
  */
 @Tag(name = "管理后台 - 电子签章签署状态通知入口")
@@ -46,6 +50,8 @@ public class EsignCallbackController {
 
     @Resource
     private EsignCallbackService esignCallbackService;
+    @Resource
+    private FrameworkAgreementEsignService frameworkAgreementEsignService;
 
     @PostMapping("/notify")
     @PermitAll
@@ -61,6 +67,8 @@ public class EsignCallbackController {
         String nonce = firstNonBlank(request.getHeader(HEADER_NONCE), request.getParameter("nonce"));
         log.info("接收电子签章签署状态通知，报文字节数: {}", body == null ? 0 : body.length());
         EsignPort.EsignCallback callback = esignCallbackService.handle(signature, timestamp, nonce, body);
+        // 合同组整体签完 → 协议推到生效、盖签署时间、旧生效协议作废留痕；未签完 / 重复通知不改状态
+        frameworkAgreementEsignService.applyFinishedCallback(callback);
         return success(toRespVO(callback));
     }
 

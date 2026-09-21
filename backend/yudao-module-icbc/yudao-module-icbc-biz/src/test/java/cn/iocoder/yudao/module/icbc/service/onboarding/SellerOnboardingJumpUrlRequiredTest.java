@@ -10,6 +10,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeRealNameStatusEnum;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
+import cn.iocoder.yudao.module.icbc.service.esign.FrameworkAgreementEsignService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.impl.SellerOnboardingServiceImpl;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,10 @@ public class SellerOnboardingJumpUrlRequiredTest extends BaseDbUnitTest {
 
     @MockBean
     private IcbcGateway icbcGateway;
+
+    /** 协议落库会注入电子签（#95）；本测试只测实名入口缺配置时的报错，置空。 */
+    @MockBean
+    private FrameworkAgreementEsignService frameworkAgreementEsignService;
 
     @Test
     public void testStartRealName_failsClearlyWhenNoSellerAppEntryConfigured() {

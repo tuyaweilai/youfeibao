@@ -12,6 +12,8 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceDownloadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
+import cn.iocoder.yudao.module.icbc.dal.mysql.agreement.IcbcFrameworkAgreementMapper;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.OrderItemMapper;
@@ -67,6 +69,8 @@ public class InvoiceEvidenceServiceImplTest extends BaseDbUnitTest {
     private InvoiceFileMapper invoiceFileMapper;
     @Resource
     private IcbcAcquisitionMapper acquisitionMapper;
+    @Resource
+    private IcbcFrameworkAgreementMapper frameworkAgreementMapper;
 
     @Test
     public void testGetEvidenceChain_acquisitionSuppliesContractGoodsAndInfo() {
@@ -90,6 +94,32 @@ public class InvoiceEvidenceServiceImplTest extends BaseDbUnitTest {
                 .anyMatch(source -> "车头照片".equals(source.getTitle())));
         assertTrue(flowSources(chain, "INFO").stream()
                 .anyMatch(source -> "ACQ20261201000001".equals(source.getRef())));
+    }
+
+    @Test
+    public void testGetEvidenceChain_effectiveFrameworkAgreementLandsInContractFlow() {
+        // 出售者有一份**生效中**的框架收购协议：#95 之后它挂进该出售者的合同流（两份文书一个合同组）
+        PayeeInfoDO payee = insertPayee("秦十六", "13300133001", "北京市海淀区");
+        InvoiceOrderDO order = insertOrder("ORDER_FW", "INV_FW", payee.getId(), null);
+        insertItem(order);
+        IcbcFrameworkAgreementDO agreement = IcbcFrameworkAgreementDO.builder()
+                .payeeId(payee.getId()).agreementNo("FW202609210001")
+                .productName("废钢").quantity("5 吨").specification("重型")
+                .recyclePeriod("2026 年 9 月第 1 期").settlementMethod("银行转账")
+                .signMethod("ELECTRONIC").status(1)
+                .fileUrl("https://esign/signed/agreement.pdf")
+                .build();
+        frameworkAgreementMapper.insert(agreement);
+
+        EvidenceChainRespVO chain = invoiceEvidenceService.getEvidenceChain("ORDER_FW");
+
+        assertTrue(flowPresent(chain, "CONTRACT"));
+        assertTrue(flowSources(chain, "CONTRACT").stream()
+                        .anyMatch(source -> "框架收购协议".equals(source.getTitle())),
+                "生效协议要出现在合同流里（挂进该出售者的证据链）");
+        assertTrue(flowSources(chain, "CONTRACT").stream()
+                        .anyMatch(source -> "https://esign/signed/agreement.pdf".equals(source.getUrl())),
+                "已签文件地址要带得出来，供查验时下载");
     }
 
     @Test

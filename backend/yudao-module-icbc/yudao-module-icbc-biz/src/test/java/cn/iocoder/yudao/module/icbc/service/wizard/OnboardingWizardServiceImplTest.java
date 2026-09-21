@@ -14,6 +14,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementSignMethodEnum;
 import cn.iocoder.yudao.module.icbc.service.cardrecognition.CardRecognitionPort;
 import cn.iocoder.yudao.module.icbc.service.esign.EsignPort;
+import cn.iocoder.yudao.module.icbc.service.esign.FrameworkAgreementEsignService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.payee.PayeeInfoService;
 import cn.iocoder.yudao.module.icbc.service.wizard.impl.OnboardingWizardServiceImpl;
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -74,6 +76,10 @@ public class OnboardingWizardServiceImplTest extends BaseDbUnitTest {
 
     @MockBean
     private EsignPort esignPort;
+
+    /** 电子签发起由 {@code FrameworkAgreementEsignServiceImplTest} 单独覆盖，这里只验证向导把协议落成待签署并转交发起 */
+    @MockBean
+    private FrameworkAgreementEsignService frameworkAgreementEsignService;
 
     @BeforeEach
     public void setUp() {
@@ -285,6 +291,43 @@ public class OnboardingWizardServiceImplTest extends BaseDbUnitTest {
         // 本票不发起电子签署：不调 initiate / createSignUrl
         verify(esignPort, never()).initiate(anyLong(), any());
         verify(esignPort, never()).createSignUrl(anyLong(), any(), any());
+    }
+
+    @Test
+    public void testSubmit_whenEsignAvailable_landsPendingAndInitiatesContractGroup() {
+        // 租户已开通电子签：协议落「待签署」（不盖 signedAt），并立刻发起合同组签署
+        when(esignPort.isAvailable(anyLong())).thenReturn(true);
+
+        OnboardingWizardSubmitRespVO resp = onboardingWizardService.submit(
+                fullReq("110101199001010107", "13800000107"));
+
+        assertEquals(FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode(), resp.getSignMethod());
+        assertEquals(0, resp.getAgreementStatus(), "发起 ≠ 签完：协议必须停在待签署");
+        assertTrue(resp.getMessage().contains("去签署"), "要给现场一句可读说明：本人接下来点「去签署」");
+
+        IcbcFrameworkAgreementDO agreement = frameworkAgreementMapper.selectById(resp.getAgreementId());
+        assertEquals(FrameworkAgreementSignMethodEnum.ELECTRONIC.getCode(), agreement.getSignMethod());
+        assertEquals(0, agreement.getStatus());
+        assertNull(agreement.getSignedAt(), "没人签过就不该盖签署时间（#81 Problem Statement）");
+        // 发起交给合同组服务，带上本租户与刚落的协议编号
+        verify(frameworkAgreementEsignService).initiate(eq(1L), eq(resp.getAgreementId()));
+    }
+
+    @Test
+    public void testSubmit_whenEsignUnavailable_landsPaperEffectiveWithReadableMessage() {
+        when(esignPort.isAvailable(anyLong())).thenReturn(false);
+
+        OnboardingWizardSubmitRespVO resp = onboardingWizardService.submit(
+                fullReq("110101199001010108", "13800000108"));
+
+        assertEquals(FrameworkAgreementSignMethodEnum.PAPER.getCode(), resp.getSignMethod());
+        assertEquals(1, resp.getAgreementStatus());
+        assertTrue(resp.getMessage().contains("纸质"), "未开通要给出可读降级说明");
+        IcbcFrameworkAgreementDO agreement = frameworkAgreementMapper.selectById(resp.getAgreementId());
+        assertEquals(1, agreement.getStatus());
+        assertNotNull(agreement.getSignedAt());
+        // 未开通不得发起电子签
+        verify(frameworkAgreementEsignService, never()).initiate(anyLong(), anyLong());
     }
 
     @Test

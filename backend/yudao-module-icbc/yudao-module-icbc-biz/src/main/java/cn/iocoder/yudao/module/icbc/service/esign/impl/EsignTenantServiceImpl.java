@@ -17,6 +17,7 @@ import cn.iocoder.yudao.module.icbc.enums.EsignActivationStatusEnum;
 import cn.iocoder.yudao.module.icbc.service.esign.EsignConfigService;
 import cn.iocoder.yudao.module.icbc.service.esign.EsignTenantService;
 import cn.iocoder.yudao.module.system.api.tenant.TenantApi;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -118,6 +119,15 @@ public class EsignTenantServiceImpl implements EsignTenantService {
         return config != null
                 && EsignActivationStatusEnum.ACTIVATED.getStatus().equals(config.getActivationStatus())
                 && isSealReady(config);
+    }
+
+    @Override
+    public void consumeContract() {
+        IcbcEsignTenantDO config = getOrCreateCurrent();
+        // 原子自增：并发发起时不会丢更新（读-改-写会）
+        esignTenantMapper.update(null, new LambdaUpdateWrapper<IcbcEsignTenantDO>()
+                .eq(IcbcEsignTenantDO::getId, config.getId())
+                .setSql("contract_used = contract_used + 1"));
     }
 
     @Override
