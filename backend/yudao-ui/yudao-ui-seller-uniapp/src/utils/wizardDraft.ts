@@ -41,8 +41,8 @@ export interface OnboardingWizardDraft {
   signMethod?: string
   /** 建档完成后换发的实名令牌（ONBOARDING） */
   onboardingToken?: string
-  /** 实名令牌有效期至（页面要把它显示给本人，别让它成为没人用的字段） */
-  onboardingExpiresTime?: string
+  /** 实名令牌有效期至（epoch 毫秒；页面要把它显示给本人，别让它成为没人用的字段） */
+  onboardingExpiresTime?: number
 }
 
 const DRAFT_KEY_PREFIX = 'seller_onboarding_wizard_draft'
@@ -91,7 +91,7 @@ export function emptyWizardDraft(): OnboardingWizardDraft {
     payeeId: undefined,
     signMethod: '',
     onboardingToken: '',
-    onboardingExpiresTime: ''
+    onboardingExpiresTime: undefined
   }
 }
 

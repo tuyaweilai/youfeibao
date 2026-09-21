@@ -86,5 +86,6 @@ export interface OnboardingWizardSubmitVO {
   signMethod?: string
   /** 建档完成后换发的实名令牌（ONBOARDING），只有本人自填壳有；代录壳为空 */
   onboardingToken?: string
-  onboardingExpiresTime?: string
+  /** 实名令牌有效期（epoch 毫秒：后端 LocalDateTime 走 TimestampLocalDateTimeSerializer） */
+  onboardingExpiresTime?: number
 }

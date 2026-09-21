@@ -279,8 +279,8 @@ const draft = reactive<OnboardingWizardDraft>(emptyWizardDraft())
 const submitting = ref(false)
 const recognizing = ref(false)
 const linkError = ref('')
-/** 链接有效期（后端 context 返回；页面直接展示给本人，别让它成为没人用的字段，ST-4） */
-const linkExpires = ref('')
+/** 链接有效期（后端 context 返回的 epoch 毫秒；页面直接展示给本人，别让它成为没人用的字段，ST-4） */
+const linkExpires = ref<number>()
 const resumed = ref(false)
 /** 建档完成后跳走时不再回写草稿，否则清掉的草稿会被 onUnload 又存回来 */
 let finished = false
@@ -306,7 +306,7 @@ onLoad((query) => {
   // 有效就把链接有效期显示给本人（#94 复审 ST-4）
   getWizardContext(token.value)
     .then((ctx) => {
-      linkExpires.value = ctx?.expiresTime || ''
+      linkExpires.value = ctx?.expiresTime
     })
     .catch((e) => {
       linkError.value = (e as Error).message || '链接不可用'
@@ -327,9 +327,9 @@ const idBlockReasons = computed(() => [...draft.idFrontBlockReasons, ...draft.id
 const idBlocked = computed(() => idBlockReasons.value.length > 0)
 const canStep1Next = computed(() => !!draft.idFrontImage && !!draft.idBackImage && !idBlocked.value)
 const canStep3Next = computed(() => !!draft.bankImage && draft.bankBlockReasons.length === 0)
-/** "2026-09-22T19:49:00" → "2026-09-22 19:49"（不经过 Date：微信 / iOS 对连字符时间串的解析不一致） */
-function readableTime(value?: string) {
-  return value ? value.slice(0, 16).replace('T', ' ') : ''
+/** 后端 LocalDateTime 是 epoch 毫秒（TimestampLocalDateTimeSerializer），按本地时间展示 */
+function readableTime(value?: number) {
+  return value ? new Date(value).toLocaleString() : ''
 }
 const linkExpiresText = computed(() =>
   linkExpires.value ? `链接有效期至 ${readableTime(linkExpires.value)}` : ''
@@ -540,7 +540,7 @@ async function onSubmit() {
     draft.payeeId = resp.payeeId
     draft.signMethod = resp.signMethod || 'PAPER'
     draft.onboardingToken = resp.onboardingToken || ''
-    draft.onboardingExpiresTime = resp.onboardingExpiresTime || ''
+    draft.onboardingExpiresTime = resp.onboardingExpiresTime
     draft.step = 5
     persist()
   } catch (e) {
