@@ -161,21 +161,25 @@ next_ec_segment() {
   printf '1_030_%03d_xxx' $((10#$max + 1))
 }
 next_menu_segment() {
-  # 在 5280–5380 里找第一段连续 10 个没人用的 id
+  # 在 5280–5390 里找第一段连续 10 个没人用的 id。
+  # 步长必须是 1，不能按 10 对齐地跳（5280 / 5290 / 5300…）：一张票通常只用 2–3 个 id，
+  # 前面那些段早就是只剩零头的半空段，按对齐跳会得出「无空闲段」而实际还有大把空位
+  # （#103 就是这么撞上的：5284–5289、5390–5399 都是空的，却报了「无空闲段」）。
+  # 上界取 5390 而不是 5380：`icbc-menu.sql` 重建的是 5100–5399，5390–5399 同样合法。
   local used from_state
   used=$(scan_files "$MENU_FILE" | xargs grep -ohE '\(5[0-9]{3},' 2>/dev/null | tr -d '(,' | sort -n | uniq)
   from_state=$([ -f "$STATE" ] && awk -F'\t' '{print $7}' "$STATE" \
                | sed -n 's/^\([0-9][0-9]*\)-\([0-9][0-9]*\)$/\1 \2/p' | while read -r a b; do seq "$a" "$b"; done)
   local all; all="$(echo "$used"; echo "$from_state")"
   local cand=5280
-  while [ "$cand" -le 5380 ]; do
+  while [ "$cand" -le 5390 ]; do
     local free=1 i=0
     while [ $i -lt 10 ]; do
       if echo "$all" | grep -qx "$((cand+i))"; then free=0; break; fi
       i=$((i+1))
     done
     [ $free = 1 ] && { echo "$cand-$((cand+9))"; return; }
-    cand=$((cand+10))
+    cand=$((cand+1))
   done
   echo "（无空闲段本票不要加菜单）"
 }
