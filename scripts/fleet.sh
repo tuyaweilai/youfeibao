@@ -311,12 +311,29 @@ $(echo "$hit" | sed 's/^/    /')" | tee -a "$report" >&2; pass=0
 
   # 测试：并行票共用一个 ~/.m2 与一份 CPU，串行跑
   local tlog="$FLEET/logs/$n.tests.log"
-  info "#$n 跑全量测试（串行，日志 ${tlog}）…"
+  # 主 reactor 只含 icbc 的 api/biz。若这次改动碰了**别的模块**，那条模块既不会被编译也不会被测——
+  # 改动就成了「闸门看不见的改动」，而 icbc 的测试还会从 ~/.m2 读它的**旧 jar**，
+  # 于是「改前红、改完还红」（#98 的框架改动就是这种情况，它的守卫测试不得不改成读源码）。
+  # 能顺带编的就编（框架子模块）；编不了（要用别的 -api）的**明说**，不假装盖全了。
+  local changed extra_modules outside
+  changed=$(git -C "$wt" diff --name-only main...HEAD)
+  extra_modules=$(echo "$changed" | sed -n 's|^backend/yudao-framework/\([^/]*\)/.*|yudao-framework/\1|p' \
+      | sort -u | paste -sd, -)
+  outside=$(echo "$changed" | grep -E '^backend/(yudao-server|yudao-module-[a-z-]+)/' \
+      | grep -vE '^backend/yudao-module-icbc/' | sort -u | head -3 | tr '\n' ' ')
+  [ -n "$outside" ] && info "⚠ #$n 改动碰了闸门 reactor 之外的模块，闸门不会编译它们：$outside"
+  info "#$n 跑全量测试（串行，日志 ${tlog}）${extra_modules:+；另编 ${extra_modules}}"
   lock test
   ( cd "$wt/backend" && eval "$TEST_CMD" ) > "$tlog" 2>&1
   local rc=$?
+  if [ -n "$extra_modules" ]; then
+    ( cd "$wt/backend" && mvn -o -pl "$extra_modules" test ) >> "$tlog" 2>&1 || rc=1
+  fi
   unlock test
   local summary; summary=$(test_summary "$tlog")
+  # 另编的模块会把各自的结果追加在后面，取最后一条总计（那些模块也各有 Results 段）
+  local extra_summary; extra_summary=$(awk '/^\[INFO\] Results:/{found=1; last=""} found && /Tests run:/{sub(/^\[INFO\] /, ""); last=$0} END{if (last != "") print last}' "$tlog")
+  [ -n "$extra_modules" ] && summary="icbc ${summary}；另编模块 ${extra_summary:-（无测试）}"
   if [ $rc = 0 ] && grep -q 'BUILD SUCCESS' "$tlog"; then
     echo "- ✓ 测试：$summary" >> "$report"
   else
