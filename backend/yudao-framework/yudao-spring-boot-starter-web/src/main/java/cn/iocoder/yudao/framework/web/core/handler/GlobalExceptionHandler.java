@@ -12,6 +12,7 @@ import cn.iocoder.yudao.framework.common.util.collection.SetUtils;
 import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
 import cn.iocoder.yudao.framework.common.util.monitor.TracerUtils;
 import cn.iocoder.yudao.framework.common.util.servlet.ServletUtils;
+import cn.iocoder.yudao.framework.web.core.util.ApiLogSanitizer;
 import cn.iocoder.yudao.framework.web.core.util.WebFrameworkUtils;
 import cn.iocoder.yudao.module.infra.api.logger.ApiErrorLogApi;
 import cn.iocoder.yudao.module.infra.api.logger.dto.ApiErrorLogCreateReqDTO;
@@ -324,10 +325,23 @@ public class GlobalExceptionHandler {
         errorLog.setTraceId(TracerUtils.getTraceId());
         errorLog.setApplicationName(applicationName);
         errorLog.setRequestUrl(request.getRequestURI());
-        Map<String, Object> requestParams = MapUtil.<String, Object>builder()
-                .put("query", ServletUtils.getParamMap(request))
-                .put("body", ServletUtils.getBody(request)).build();
-        errorLog.setRequestParams(JsonUtils.toJsonString(requestParams));
+        // 设置请求参数（#101）：与 ApiAccessLogFilter 用同一份脱敏方法/名单，别只脱敏一半（query + body 都要），
+        // 且尊重 @ApiAccessLog(requestEnable = false)——否则异常路径就是 @ApiAccessLog 开关的后门。
+        // 这里读不到 HandlerMethod（本方法同时供 Filter 经 allExceptionHandler 直接调用，那时没有 handler），
+        // 所以由 ApiAccessLogInterceptor 在 preHandle 把注解解析结果写进请求属性，这里从 WebFrameworkUtils 读；
+        // 属性未设置时默认记录（与 requestEnable 默认值一致）。
+        if (!WebFrameworkUtils.isRequestLogEnabled(request)) {
+            // infra_api_error_log.request_params 是 NOT NULL，写空串表示「按注解有意不记」
+            errorLog.setRequestParams("");
+        } else {
+            String[] sanitizeKeys = WebFrameworkUtils.getRequestLogSanitizeKeys(request);
+            Map<String, String> queryString = ServletUtils.getParamMap(request);
+            ApiLogSanitizer.sanitizeMapInPlace(queryString, sanitizeKeys);
+            Map<String, Object> requestParams = MapUtil.<String, Object>builder()
+                    .put("query", queryString)
+                    .put("body", ApiLogSanitizer.sanitizeJson(ServletUtils.getBody(request), sanitizeKeys)).build();
+            errorLog.setRequestParams(JsonUtils.toJsonString(requestParams));
+        }
         errorLog.setRequestMethod(request.getMethod());
         errorLog.setUserAgent(ServletUtils.getUserAgent(request));
         errorLog.setUserIp(ServletUtils.getClientIP(request));

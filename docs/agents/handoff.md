@@ -2527,3 +2527,29 @@ cardNumber / drawerCardNumber / payerAcctNum / taxPayerAccountNo / address / sel
 - 分支 `i99-schema-parity` → `d58027fe`：7 个文件、1 个提交
 - 独立评审：PASS（报告 `.fleet/gates/99.review.md`）
 - 闸门：全量 icbc `[WARNING] Tests run: 898, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/99.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/99.log`（`.fleet/` 与收养票的仓库外日志不入库）
+
+### #101 异常日志不再整段记 body（框架，运维必读）
+
+`#98` 只收口了正常路径（`infra_api_access_log`）；异常路径的 `infra_api_error_log` 由
+`GlobalExceptionHandler.buildExceptionLog` 自己拼 `query + body`，既不经 `@ApiAccessLog` 开关、也不脱敏，
+于是任何抛异常的请求都会把请求体（含证件影像 base64）整段写库。
+
+**改法（口径 A：抽共用 sanitizer）**：
+
+- 新增 `cn.iocoder.yudao.framework.web.core.util.ApiLogSanitizer`（在 `framework/web` 而非 `framework/apilog`：
+  apilog 已依赖 web 的 `ApiRequestFilter`，反向会成包级循环）。默认名单 `SANITIZE_KEYS` 与递归脱敏逻辑
+  **只此一处**；`ApiAccessLogFilter` 与 `GlobalExceptionHandler` 都调它。守卫测试
+  `ApiAccessLogPiiCoverageTest` 改为从该源码解析名单。
+- `GlobalExceptionHandler` 的异常日志现在**尊重 `@ApiAccessLog(requestEnable = false)`**：那 9 处关掉访问日志
+  是「影像 10MB 不进解析」与「`signUrl` 令牌在查询串里」，异常路径若照记就是绕开开关的后门。开关值的传递：
+  `ApiAccessLogInterceptor.preHandle` 解析注解写入 `WebFrameworkUtils` 的请求属性，异常处理器读属性
+  （`GlobalExceptionHandler` 的 `@ExceptionHandler` 拿不到 `HandlerMethod`，且同一方法还要供 Filter 直调）。
+- **形状保持**：`infra_api_error_log.request_params` 仍是 `{"query":{...},"body":"..."}`（query 是对象，
+  与访问日志把 query 序列化成字符串不同）；query 与 body **两半都脱敏**。`requestEnable = false` 时写空串
+  （该列 `NOT NULL`）。
+- 框架侧测试改名：`ApiAccessLogFilterSanitizeTest` → `ApiLogSanitizerTest`（跟名单一起搬），新增
+  `GlobalExceptionHandlerErrorLogSanitizeTest`（真抛异常 → 断言写库 DTO 无 PII，修复前实测红）与
+  `ApiAccessLogInterceptorRequestLogConfigTest`（注解 → 请求属性的接线）。
+
+**已知残留（字段名粒度的天生上限，本票不解决）**：`name`（姓名）与 `code`（短信验证码）这类太通用的字段名
+进不了名单，仍会进访问日志与异常日志。要根治得按值/上下文识别，不在本票范围。
