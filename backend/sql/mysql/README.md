@@ -158,3 +158,44 @@ curl -X POST "$BASE/logistics/permission/init" -H "tenant-id: 1" -H "Authorizati
 ```
 
 生产上建议把这一步并在部署脚本里，紧跟在导菜单之后。
+
+## 既存租户收回「API 日志」授权（#102）
+
+`icbc-menu.sql` 只重建 `system_tenant_package.id = 200` 的 `menu_ids`，**不重算既存租户的
+`system_role_menu`**。可见性来自 `system_role_menu`（`PermissionServiceImpl` 对非 super_admin 的角色读
+`roleMenuMapper.selectListByRoleId`），所以「新租户拿不到 / 已开租户照样看得到」——已经开出来的回收企业租户
+仍看得见 `infra:api-access-log:*` / `infra:api-error-log:*`。补救脚本 `icbc-api-log-menu-revoke.sql`
+把套餐 200 租户的这 8 个菜单授权收回（只删 `system_role_menu` 行，不动 `system_menu` 与套餐；系统租户
+`package_id = 0` 与其它套餐的租户一行不动）。**必须带库名**跑（守卫按 `DATABASE()`，不带库名会静默不干活，
+已加硬失败守卫）：
+
+```bash
+MYSQL="mysql -h 127.0.0.1 -P 13308 -uroot -p --default-character-set=utf8mb4"
+$MYSQL ruoyi-vue-pro < icbc-api-log-menu-revoke.sql   # 打印「预览 / 实际删除行数 / 复核剩 0 行」，幂等
+```
+
+先重导 `icbc-menu.sql` 再跑，否则下次触发 `updateTenantRoleMenu`（后台改套餐 / 改角色菜单）会按套餐把授权
+重新加回来。新库直接导 `icbc-menu.sql` 即可，不需要本文件。
+
+**跑完脚本不等于接口就收了口（这一步不能漏）**：脚本只删 MySQL 行，判权还读两层 Redis 缓存，TTL `1h`
+（`application.yaml` 的 `spring.cache.redis.time-to-live`）：
+
+- `menu_role_ids:<tenantId>:<menuId>`：租户维度（`menu_role_ids` 不在 `application.yaml` 的 `ignore-caches` 里）。
+- `permission_menu_ids:<permission>`：全局（在 `ignore-caches` 里，无租户后缀）。
+
+所以**跑完脚本后的最坏 1 小时内，页面（前端 `roleRouters`）退了，但租户 admin 仍能直接调
+`/admin-api/infra/api-error-log/page`**。要收接口，二选一：
+
+```bash
+# A. 手工清缓存（本地 docker-compose Redis 是 16382；生产按实际端口 / 库号 REDIS_DATABASE）
+redis-cli -p 16382 --scan --pattern 'menu_role_ids:*'          # 先看条数
+redis-cli -p 16382 --scan --pattern 'menu_role_ids:*' | xargs -r redis-cli -p 16382 DEL
+redis-cli -p 16382 --scan --pattern 'permission_menu_ids:*' | xargs -r redis-cli -p 16382 DEL
+# 两条 --scan 再跑一次应当看不到 key；或等 TTL（≤1h）自然过期。重启应用不清 Redis。
+
+# B. 或改走后台：编辑套餐 200 / 编辑租户管理员角色菜单并保存，触发 assignRoleMenu
+#    （带 @CacheEvict(allEntries = true)），两层缓存一次清掉。注意 updateTenantPackage 只在套餐菜单
+#    确实变化时才触发 updateTenantRoleMenu（原样保存不算）——直接编辑角色菜单最稳。
+```
+
+两步都做完后，让租户 admin **退出重新登录**（菜单树另缓在 localStorage 的 `roleRouters`）。

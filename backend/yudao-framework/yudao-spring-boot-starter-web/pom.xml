@@ -82,6 +82,18 @@
             <artifactId>mockito-inline</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- 测试：#102「真撞一次唯一键 → 异常日志三个字段都不带值」的用例需要内存库与 JdbcTemplate，
+             用它造出真实的 DuplicateKeyException（Spring 会把 H2 的 23505 翻成 DuplicateKeyException）。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>
