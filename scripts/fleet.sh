@@ -10,9 +10,10 @@
 #   scripts/fleet.sh status           看每张票的状态
 #   scripts/fleet.sh adopt <票> <PID> <分支> <工作树> <日志>   收养一个已在跑的任务
 #   scripts/fleet.sh gate <票>        只过闸，不合并
+#   scripts/fleet.sh review <票>      只跑独立评审
 #   scripts/fleet.sh integrate <票>   只合并（闸门过了才调用）
 #
-# 环境变量：MAX_PARALLEL=2  MAX_MIN=240  STALL_MIN=30  PUSH=0  SKIP=81
+# 环境变量：MAX_PARALLEL=2  MAX_MIN=240  STALL_MIN=30  PUSH=0  REVIEW=0  REVIEW_MIN=40  SKIP=81
 #
 # 它**不做**的事，别指望：解合并冲突、替代人工验收（真机冒烟之类）、判断验收清单
 # 里那些只有人才能验的条目。撞了冲突就停那一张、打 ready-for-human，等人。
@@ -31,6 +32,10 @@ MAX_PARALLEL=${MAX_PARALLEL:-2}
 MAX_MIN=${MAX_MIN:-240}     # 单票墙钟上限（分钟）
 STALL_MIN=${STALL_MIN:-30}  # 多久没有动静算卡死（分钟）
 PUSH=${PUSH:-0}
+# 独立评审：不过人眼就合，就得有个不同上下文的会话拿着议题去对着 diff 找茬。
+# 它只审不改、输出一行机器可读的结论；超时算「没过」——没审完的东西不往 main 上合。
+REVIEW=${REVIEW:-0}
+REVIEW_MIN=${REVIEW_MIN:-40}
 # 父票 / 史诗票不进舰队：它们是若干子票的集合，没有可交付物。用空格分隔。
 SKIP=${SKIP:-81}
 TEST_CMD=${TEST_CMD:-"mvn -o -pl yudao-module-icbc/yudao-module-icbc-api,yudao-module-icbc/yudao-module-icbc-biz test"}
@@ -111,27 +116,35 @@ brief_status() {
 }
 
 # ---------------------------------------------------------------- 段位分配
+# 分配不能只看 main：正在跑的票改在自己工作树的**未提交**文件里。所以扫一遍
+# 「main + 所有在跑票的工作树」里的实际值，取最大段 +1。这样无论 state 里记了什么都不撞。
+EC_FILE="backend/yudao-module-icbc/yudao-module-icbc-api/src/main/java/cn/iocoder/yudao/module/icbc/enums/ErrorCodeConstants.java"
+MENU_FILE="backend/sql/mysql/icbc-menu.sql"
+
+scan_files() { # <相对路径> -> 路径列表
+  echo "$ROOT/$1"
+  local w
+  for w in $(running_tickets); do
+    local wt; wt=$(state_field "$w" 4)
+    [ -n "$wt" ] && [ -d "$wt" ] && echo "$wt/$1"
+  done
+}
+
 next_ec_segment() {
-  local file="$ROOT/backend/yudao-module-icbc/yudao-module-icbc-api/src/main/java/cn/iocoder/yudao/module/icbc/enums/ErrorCodeConstants.java"
-  local used; used=$(grep -o '1_030_[0-9][0-9][0-9]_' "$file" | sed 's/1_030_\([0-9]*\)_/\1/' | sort -n | tail -1)
-  # 已分配的段也要算进去：state 的第 6 列存的是 `1_030_040_xxx`，把段号抠出来比大小
-  local alloc; alloc=$([ -f "$STATE" ] && awk -F'\t' '{print $6}' "$STATE" | sed -n 's/^1_030_\([0-9][0-9]*\)_xxx$/\1/p' | sort -n | tail -1)
-  local max=${used:-39}
-  [ -n "${alloc:-}" ] && [ "$alloc" -gt "$max" ] && max=$alloc
-  printf '1_030_%03d_xxx' $((10#$max + 1))
+  local max
+  max=$(scan_files "$EC_FILE" | xargs grep -oh '1_030_[0-9][0-9][0-9]_' 2>/dev/null \
+        | sed 's/1_030_\([0-9]*\)_/\1/' | sort -n | tail -1)
+  printf '1_030_%03d_xxx' $((10#${max:-0} + 1))
 }
 next_menu_segment() {
   # 在 5280–5380 里找第一段连续 10 个没人用的 id
-  local file="$ROOT/backend/sql/mysql/icbc-menu.sql"
-  local used; used=$(grep -oE '\(5[0-9]{3},' "$file" | tr -d '(,' | sort -n | uniq)
-  # state 的第 7 列存的是 `5280-5289`，展开成单个 id
-  local extra; extra=$([ -f "$STATE" ] && awk -F'\t' '{print $7}' "$STATE" | sed -n 's/^\([0-9][0-9]*\)-\([0-9][0-9]*\)$/\1 \2/p' | while read -r a b; do seq "$a" "$b"; done)
+  local used
+  used=$(scan_files "$MENU_FILE" | xargs grep -ohE '\(5[0-9]{3},' 2>/dev/null | tr -d '(,' | sort -n | uniq)
   local cand=5280
   while [ "$cand" -le 5380 ]; do
     local free=1 i=0
     while [ $i -lt 10 ]; do
-      local id=$((cand+i))
-      if echo "$used $extra" | tr ' ' '\n' | grep -qx "$id"; then free=0; break; fi
+      if echo "$used" | grep -qx "$((cand+i))"; then free=0; break; fi
       i=$((i+1))
     done
     [ $free = 1 ] && { echo "$cand-$((cand+9))"; return; }
@@ -151,7 +164,7 @@ cmd_launch() {
   local branch="i$n-$slug" wt="$PARENT/youfeibao-$n" log="$FLEET/logs/$n.log"
   unlock alloc
 
-  if [ -d "$wt" ]; then info "#$n 工作树已存在，复用：$wt"; else
+  if [ -d "$wt" ]; then info "#$n 工作树已存在，复用：$wt"; elif [ "${RENDER_ONLY:-0}" != 1 ]; then
     git -C "$ROOT" worktree add "$wt" -b "$branch" main >/dev/null 2>&1 || die "建工作树失败：$wt"
   fi
 
@@ -172,6 +185,11 @@ cmd_launch() {
         -e "s|@@COMMIT_PREFIX@@|feat(icbc):|g" \
         "$ROOT/scripts/fleet/common.md"
   } > "$prompt"
+
+  if [ "${RENDER_ONLY:-0}" = 1 ]; then
+    ok "只渲染，不启动。派工书：${prompt}（错误码段 ${ec}，菜单段 ${menu}）"
+    return 0
+  fi
 
   # 包一层，好在日志尾巴留下退出码——舰队靠它区分「跑完」和「崩了」
   local runner="$FLEET/run-$n.sh"
@@ -344,6 +362,89 @@ $(sed -n '/验收清单/,$p' "$FLEET/logs/$n.log" | head -20)" >/dev/null 2>&1
   ok "#$n 已关票"
 }
 
+# ---------------------------------------------------------------- 带超时地跑一个子进程
+# macOS 没有 timeout/gtimeout，自己轮询。返回子进程的退出码；超时返回 2。
+run_capped() { # <分钟> <命令...>
+  local cap=$1; shift
+  "$@" &
+  local p=$! waited=0
+  while kill -0 "$p" 2>/dev/null; do
+    if [ "$waited" -ge $((cap * 60)) ]; then
+      kill -TERM "$p" 2>/dev/null; sleep 2; kill -KILL "$p" 2>/dev/null
+      wait "$p" 2>/dev/null
+      return 2
+    fi
+    sleep 5; waited=$((waited + 5))
+  done
+  wait "$p"
+  return $?
+}
+
+# ---------------------------------------------------------------- 独立评审（可选闸门）
+# 不过人眼就合，就得有个没参与过实现、上下文干净的会话拿着议题去找茬。
+# 它只审不改；没拿到结论（跑不完 / 没输出结论行）都算不过——没审完的东西不往 main 上合。
+cmd_review() {
+  local n=$1 wt branch title
+  wt=$(state_field "$n" 4); branch=$(state_field "$n" 3)
+  title=$(gh issue view "$n" --json title -q .title)
+  [ -d "$wt" ] || { echo "✗ 工作树不存在：#${n}" >&2; return 1; }
+
+  local rprompt="$FLEET/prompts/$n.review.md" rlog="$FLEET/logs/$n.review.log"
+  cat > "$rprompt" <<EOF
+# 独立评审：#$n ${title}
+
+你是一个**独立评审者**，没有参与过这份实现。工作目录：${wt}，分支 \`${branch}\`，基线 \`main\`。
+
+先读 ${SKILLS}/code-review/SKILL.md，按它做**两轴**评审：
+
+- **Standards**：是否符合本仓库的规范（AGENTS.md、CONTEXT.md、相关 ADR、既有写法）。
+- **Spec**：\`gh issue view ${n} --comments\` 的验收清单是不是真的做到了。
+
+评审范围：\`git diff main...HEAD\`，配合 \`git log main..HEAD\` 看它是怎么分步做的。相关背景在 ${BRIEFS}/${n}.md。
+
+**你是只读的。**不许改任何文件，不许 git add / commit / checkout / stash / reset。发现要改的地方写进报告，不要自己动手。
+
+尤其盯这几类（它们正好是自动闸门看不住的）：
+
+1. **测试是不是假的**：断言太弱（只断言不报错）、把被测逻辑在测试里重写一遍、跳过了关键分支。
+2. **口径是不是对**：字段落在错的表上、状态机少了分支、验收清单里某条被默默跳过。
+3. **交付物是不是真的**：声称做了但代码里没有，或者只是个空壳。
+4. **有没有踩别人的地**：\`git diff --name-only main...HEAD\` 里有没有冻结的契约、别的票的领地。
+
+报告结尾**必须**是单独一行、不带任何其它字：
+
+\`REVIEW_VERDICT: PASS\` 或 \`REVIEW_VERDICT: BLOCK\`
+
+拿不准就 BLOCK，并在上面写清是哪一条、为什么。错杀的代价是等人看一眼；漏放的代价是 main 上多一块脏东西，而所有下游票都建在它上面。
+EOF
+
+  if [ "${RENDER_ONLY:-0}" = 1 ]; then info "只渲染，不启动：$rprompt"; return 0; fi
+  info "#$n 独立评审中（上限 ${REVIEW_MIN} 分钟，日志 ${rlog}）…"
+  run_capped "$REVIEW_MIN" env -u PI_SESSION_FILE -u PI_SESSION_ID pi -p "$(cat "$rprompt")" --name "review-$n" > "$rlog" 2>&1
+  local rc=$?
+
+  cp "$rlog" "$FLEET/gates/$n.review.md" 2>/dev/null
+  local verdict
+  verdict=$(grep -o 'REVIEW_VERDICT: [A-Z]*' "$rlog" 2>/dev/null | tail -1 | awk '{print $2}')
+  if [ "$rc" = 2 ]; then
+    echo "✗ #$n 评审没跑完（超过 ${REVIEW_MIN} 分钟），按不过处理" >&2; return 1
+  fi
+  case "${verdict}" in
+    PASS)  ok "#$n 独立评审：PASS"; return 0 ;;
+    BLOCK) echo "✗ #$n 独立评审：BLOCK，详见 $FLEET/gates/$n.review.md" >&2; return 1 ;;
+    *)     echo "✗ #$n 评审没给出结论行，按不过处理" >&2; return 1 ;;
+  esac
+}
+
+park() { # <票> <状态> <给议题的说明>
+  local n=$1 st=$2 why=$3
+  state_set "$n" "$st" "$(state_field "$n" 3)" "$(state_field "$n" 4)" "" \
+            "$(state_field "$n" 6)" "$(state_field "$n" 7)" "$FLEET/logs/$n.log"
+  gh issue edit "$n" --add-label ready-for-human >/dev/null 2>&1
+  gh issue comment "$n" --body "$why" >/dev/null 2>&1
+  info "#$n 停下等人（不自动重试）"
+}
+
 # ---------------------------------------------------------------- 主循环
 cmd_run() {
   while :; do
@@ -358,13 +459,15 @@ cmd_run() {
     fi
     wait_wave
     for n in $(running_tickets); do
-      if cmd_gate "$n"; then cmd_integrate "$n"; else
-        state_set "$n" gated-out "$(state_field "$n" 3)" "$(state_field "$n" 4)" "" \
-                  "$(state_field "$n" 6)" "$(state_field "$n" 7)" "$FLEET/logs/$n.log"
-        gh issue edit "$n" --add-label ready-for-human >/dev/null 2>&1
-        gh issue comment "$n" --body "自动舰队：这张票**没过闸**（详见 \`.fleet/gates/$n.md\`，运行日志 \`.fleet/logs/$n.log\`）。分支 \`$(state_field "$n" 3)\` 与工作树保留，等人接手；没有自动重试——同样的失败重跑一遍通常还是同样的失败。" >/dev/null 2>&1
-        info "#$n 没过闸，停下等人（不自动重试）"
+      if ! cmd_gate "$n"; then
+        park "$n" gated-out "自动舰队：这张票**没过闸**（详见 \`.fleet/gates/$n.md\`，运行日志 \`.fleet/logs/$n.log\`）。分支 \`$(state_field "$n" 3)\` 与工作树保留，等人接手。没有自动重试——同样的失败重跑一遍通常还是同样的失败。"
+        continue
       fi
+      if [ "$REVIEW" = 1 ] && ! cmd_review "$n"; then
+        park "$n" review-blocked "自动舰队：全量测试过了，但**独立评审没过**（报告 \`.fleet/gates/$n.review.md\`）。分支 \`$(state_field "$n" 3)\` 保留。评审者拿不准就会 BLOCK——请看一眼它指的那一条。"
+        continue
+      fi
+      cmd_integrate "$n"
     done
   done
   cmd_status
@@ -385,6 +488,7 @@ case "${1:-}" in
   launch)    cmd_launch "$2" ;;
   adopt)     cmd_adopt "$2" "$3" "$4" "$5" "$6" ;;
   gate)      cmd_gate "$2" ;;
+  review)    cmd_review "$2" ;;
   integrate) cmd_integrate "$2" ;;
   *) sed -n '2,20p' "$0" | sed 's/^# \?//' ;;
 esac
