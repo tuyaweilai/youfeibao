@@ -16,6 +16,11 @@ public class PayerInfoRespVO extends PayerInfoSaveReqVO {
     @Schema(description = "主键", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
     private Long id;
 
+    // 只读：工行付方编号由工行分配 / addPayerToIcbc 写入，不接受客户端在 create/update 里设置
+    // （#100 复审 BLOCK-1）。读出来仍要保留：运营要拿它与工行回调对得上。
+    @Schema(description = "工行付方编号（只读，由工行分配）", example = "P1770000000000123456")
+    private String payerNo;
+
     @Schema(description = "审核消息", example = "审核通过")
     private String auditMsg;
 

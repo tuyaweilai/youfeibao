@@ -3,7 +3,7 @@ import request from '@/config/axios'
 // 付方档案（回收企业 / 工行付方）VO
 export interface PayerVO {
   id?: number
-  payerNo?: string // 工行付方编号
+  payerNo?: string // 工行付方编号（只读：工行分配，不接受前端在 create/update 里设置，#100）
   partnerPayerId?: string // 合作方付方编号（留空后端生成）
   name?: string // 企业名称
   creditCode?: string // 统一社会信用代码

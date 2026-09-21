@@ -48,8 +48,8 @@ public class PayerInfoServiceImplTest extends BaseDbUnitTest {
     public void testSave_success() {
         // 准备参数
         PayerInfoSaveReqVO saveReqVO = randomPojo(PayerInfoSaveReqVO.class, o -> {
-            o.setCreditCode("CREDIT_" + randomString()); // 随机信用代码
-            o.setTaxNo("TAX_" + randomString()); // 随机税号
+            o.setCreditCode("91110105MA01R2278M"); // 真实形状：18 位大写字母数字（服务层按归一后的值存）
+            o.setTaxNo("91110105MA01R2278M");
             o.setTelephone("010-12345678"); // 设置固定的电话号码
         });
 
@@ -68,16 +68,16 @@ public class PayerInfoServiceImplTest extends BaseDbUnitTest {
     public void testSave_creditCodeExists() {
         // mock 数据
         PayerInfoDO dbPayer = randomPojo(PayerInfoDO.class, o -> {
-            o.setCreditCode("test-credit-code-exists");
-            o.setTaxNo("TAX_" + randomString()); // 确保税号不重复
+            o.setCreditCode("91110105MA01R2278M");
+            o.setTaxNo("91110105MA01R2278X"); // 确保税号不重复
             o.setDeleted(false); // 确保deleted字段是false
         });
         payerInfoMapper.insert(dbPayer);
         
         // 准备参数
         PayerInfoSaveReqVO saveReqVO = randomPojo(PayerInfoSaveReqVO.class, o -> {
-            o.setCreditCode("test-credit-code-exists"); // 与数据库中的重复
-            o.setTaxNo("TAX_" + randomString()); // 确保税号不重复
+            o.setCreditCode("91110105MA01R2278M"); // 与数据库中的重复
+            o.setTaxNo("91110105MA01R2278Y"); // 确保税号不重复
         });
 
         // 调用，并断言异常
@@ -89,16 +89,16 @@ public class PayerInfoServiceImplTest extends BaseDbUnitTest {
     public void testSave_taxNoExists() {
         // mock 数据
         PayerInfoDO dbPayer = randomPojo(PayerInfoDO.class, o -> {
-            o.setTaxNo("test-tax-no-exists");
-            o.setCreditCode("CREDIT_" + randomString()); // 确保信用代码不重复
+            o.setTaxNo("91110105MA01R2278M");
+            o.setCreditCode("91110105MA01R2278X"); // 确保信用代码不重复
             o.setDeleted(false); // 确保deleted字段是false
         });
         payerInfoMapper.insert(dbPayer);
         
         // 准备参数
         PayerInfoSaveReqVO saveReqVO = randomPojo(PayerInfoSaveReqVO.class, o -> {
-            o.setTaxNo("test-tax-no-exists"); // 与数据库中的重复
-            o.setCreditCode("CREDIT_" + randomString()); // 确保信用代码不重复
+            o.setTaxNo("91110105MA01R2278M"); // 与数据库中的重复
+            o.setCreditCode("91110105MA01R2278Y"); // 确保信用代码不重复
         });
 
         // 调用，并断言异常
@@ -111,8 +111,8 @@ public class PayerInfoServiceImplTest extends BaseDbUnitTest {
         // mock 数据
         PayerInfoDO dbPayer = randomPojo(PayerInfoDO.class, o -> {
             o.setStatus(CommonStatusEnum.DISABLE.getStatus());
-            o.setCreditCode("CREDIT_" + randomString()); // 确保信用代码唯一
-            o.setTaxNo("TAX_" + randomString()); // 确保税号唯一
+            o.setCreditCode("91110105MA01R2278M"); // 确保信用代码唯一
+            o.setTaxNo("91110105MA01R2278X"); // 确保税号唯一
             o.setDeleted(false); // 确保deleted字段是false
         });
         payerInfoMapper.insert(dbPayer);

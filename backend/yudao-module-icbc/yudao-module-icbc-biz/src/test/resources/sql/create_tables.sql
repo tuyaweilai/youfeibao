@@ -24,12 +24,11 @@ CREATE TABLE IF NOT EXISTS icbc_payer_info (
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
+    CONSTRAINT uk_payer_no UNIQUE (payer_no),
+    CONSTRAINT uk_partner_payer_id UNIQUE (partner_payer_id),
     CONSTRAINT uk_credit_code UNIQUE (credit_code),
     CONSTRAINT uk_tax_no UNIQUE (tax_no)
 );
-
-CREATE INDEX IF NOT EXISTS idx_payer_no ON icbc_payer_info(payer_no);
-CREATE INDEX IF NOT EXISTS idx_partner_payer_id ON icbc_payer_info(partner_payer_id);
 
 -- icbc_payee_info table (Payee Information)
 CREATE TABLE IF NOT EXISTS icbc_payee_info (

@@ -12,7 +12,6 @@ import org.springframework.test.context.jdbc.Sql;
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.HashMap;
 import java.util.Arrays;
 
 import static cn.iocoder.yudao.framework.common.util.date.LocalDateTimeUtils.buildBetweenTime;
@@ -40,7 +39,6 @@ public class PayerInfoMapperTest extends BaseDbUnitTest {
         // 准备参数
         PayerInfoDO payerInfo = randomPojo(PayerInfoDO.class, o -> {
             o.setId(null); // ID 需要自增
-            o.setTransMap(new HashMap<>()); // 设置transMap以避免序列化问题
             o.setDeleted(false); // 确保deleted字段是false
         });
 
@@ -61,7 +59,6 @@ public class PayerInfoMapperTest extends BaseDbUnitTest {
         PayerInfoDO payerInfo = randomPojo(PayerInfoDO.class, o -> {
             o.setId(null); // ID 需要自增
             o.setCreditCode("91330102MA2B0B6K5N"); // 设置唯一的信用代码
-            o.setTransMap(new HashMap<>()); // 设置transMap以避免序列化问题
             o.setDeleted(false); // 确保deleted字段是false
         });
         payerInfoMapper.insert(payerInfo);
@@ -80,7 +77,6 @@ public class PayerInfoMapperTest extends BaseDbUnitTest {
         PayerInfoDO payerInfo = randomPojo(PayerInfoDO.class, o -> {
             o.setId(null); // ID 需要自增
             o.setTaxNo("330106201607010002"); // 设置唯一的税号
-            o.setTransMap(new HashMap<>()); // 设置transMap以避免序列化问题
             o.setDeleted(false); // 确保deleted字段是false
         });
         payerInfoMapper.insert(payerInfo);
@@ -99,7 +95,6 @@ public class PayerInfoMapperTest extends BaseDbUnitTest {
         PayerInfoDO payerInfo = randomPojo(PayerInfoDO.class, o -> {
             o.setId(null); // ID 需要自增
             o.setPartnerPayerId("partner123"); // 设置唯一的合作方付款方ID
-            o.setTransMap(new HashMap<>()); // 设置transMap以避免序列化问题
             o.setDeleted(false); // 确保deleted字段是false
         });
         payerInfoMapper.insert(payerInfo);
@@ -122,7 +117,6 @@ public class PayerInfoMapperTest extends BaseDbUnitTest {
             o.setTaxNo("test-tax-no"); // 设置唯一的税号
             o.setStatus(0);
             o.setCreateTime(buildBetweenTime(2023, 2, 1, 2023, 2, 28)[0]);
-            o.setTransMap(new HashMap<>()); // 设置transMap以避免序列化问题
             o.setDeleted(false); // 确保deleted字段是false
         });
         payerInfoMapper.insert(dbPayerInfo);
@@ -132,6 +126,10 @@ public class PayerInfoMapperTest extends BaseDbUnitTest {
             o.setName("不匹配");
             o.setCreditCode("test-credit-code-2");
             o.setTaxNo("test-tax-no-2");
+            // 全局唯一键（#100）：cloneIgnoreId 会把原行的 payer_no / partner_payer_id 一起复制，
+            // 生产不会出现两个付方共用同一个编号，这里按真实形状各生成一份。
+            o.setPayerNo("PAYER_NO_PAGE_2");
+            o.setPartnerPayerId("PARTNER_PAYER_PAGE_2");
         }));
         
         // 准备参数
