@@ -1,5 +1,7 @@
 package cn.iocoder.yudao.module.icbc.controller.admin.esign.vo;
 
+import cn.iocoder.yudao.framework.common.validation.InEnum;
+import cn.iocoder.yudao.module.icbc.enums.EsignEnvironmentEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -14,6 +16,7 @@ import lombok.Data;
 public class EsignConfigSaveReqVO {
 
     @Schema(description = "环境：TEST-测试，PROD-生产", example = "TEST")
+    @InEnum(value = EsignEnvironmentEnum.class, message = "环境取值不合法，必须是 {value} 之一")
     private String environment;
 
     @Schema(description = "服务端接口地址", example = "https://ess.tencentcloudapi.com")

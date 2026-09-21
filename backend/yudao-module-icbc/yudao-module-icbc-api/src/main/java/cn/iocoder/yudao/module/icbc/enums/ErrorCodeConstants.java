@@ -527,4 +527,10 @@ public interface ErrorCodeConstants {
             "回调里的子客编号无法对应到回收企业：{}（不猜、不跨企业乱写）");
     ErrorCode ESIGN_QUOTA_EXCEEDED = new ErrorCode(1_030_041_008,
             "本企业电子签章合同额度已用尽（已用 {} / 额度 {}），请在平台运营追加额度");
+    ErrorCode ESIGN_CONSOLE_TOKEN_INVALID = new ErrorCode(1_030_041_009,
+            "开通链接已失效：控制台令牌不匹配（链接可能已被重新生成，或不是本企业签发的）");
+    ErrorCode ESIGN_CONSOLE_TOKEN_EXPIRED = new ErrorCode(1_030_041_010,
+            "开通链接已过期，请重新点「开通电子签」获取新链接");
+    ErrorCode ESIGN_ACTIVATION_STATUS_INVALID = new ErrorCode(1_030_041_011,
+            "当前开通状态不是「认证中」，不能确认激活（当前状态：{}）；请先点「开通电子签」");
 }

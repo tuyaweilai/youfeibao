@@ -47,7 +47,7 @@ public class StubEsignPort implements EsignPort {
 
     @Override
     public EsignCallback parseCallback(String signature, String timestamp, String nonce, String body) {
-        throw new UnsupportedOperationException("电子签章未开通，不应收到签署状态通知");
+        throw new EsignCallbackRejectedException("电子签章未开通，不应收到签署状态通知");
     }
 
 }

@@ -285,6 +285,7 @@ yudao:
       - /jmreport/* # 积木报表，无法携带租户编号
       - /admin-api/mp/open/** # 微信公众号开放平台，微信回调接口，无法携带租户编号
       - /admin-api/icbc/public/** # 自然人公开令牌端点：租户由令牌解析，不依赖 tenant-id 请求头
+      - /admin-api/icbc/esign/callback/** # 电子签章回调：第三方推签署状态通知，不带登录态与 tenant-id 请求头，租户由子客编号反查
       - /app-api/icbc/seller/auth/sms-send # 自然人登录：凭证落在平台租户，与请求头的租户无关
       - /app-api/icbc/seller/auth/sms-login # 同上
     ignore-tables:

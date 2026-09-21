@@ -2007,7 +2007,7 @@ member 令牌回 `code=401 账号未登录`。
 5. **端口二选一**：`StubEsignPort` 加了 `@ConditionalOnProperty(prefix="icbc.esign", name="mode", havingValue="stub", matchIfMissing=true)`，
    真实实现用 `havingValue="remote"` 即可顶上；**未配置时生效的仍是 stub，`isAvailable` 仍答 `false`**。
 6. **后台可见**：租户页 `views/icbc/esign`（状态 / 印章 / 额度 + 开通 + 确认激活）；平台页 `views/icbc/platformEsign`
-   （平台参数表单 + 各租户激活状态与额度总览 + 调整额度）。菜单 5280–5289（租户页挂基础资料，平台页挂平台运营，**平台页不进回收企业套餐**）。
+   （平台参数表单 + 各租户激活状态与额度总览 + 调整额度）。菜单 5280–5283（租户页挂基础资料，平台页挂平台运营，**平台页不进回收企业套餐**）。
 7. **落地**：`sql/mysql/icbc-esign.sql`（幂等，临时库验过两次导入）；测试建表与 `clean.sql` 同步；`README.md` 导入顺序追加一行。
    错误码段 `1_030_041_xxx`（`#91` 占 `1_030_040_xxx`）。
 8. **测试**：新增 `EsignConfigServiceTest`（4）/ `EsignTenantServiceTest`（8，真开租户拦截器）/ `EsignCallbackServiceTest`（4）；
@@ -2021,3 +2021,26 @@ member 令牌回 `code=401 账号未登录`。
 > - `#95` 消费的接口线索：`EsignCallbackService#handle` 返回的 `EsignCallback`（带 `tenantId`），
 >   以及 `EsignTenantService#resolveTenantIdBySubCustomerNo`。
 > - `contractUsed` 只落库与展示，**谁在何时 +1 属 `#95`**（发起签署成功时）。
+
+### #92 修票（独立评审 BLOCK 后，见 `.fleet/logs/92.review.log`）
+
+- **SPEC-1（原 BLOCK）回调入口真能进来了**：`POST /admin-api/icbc/esign/callback/notify` 补进
+  `backend/yudao-server/src/main/resources/application.yaml` 的 `yudao.tenant.ignore-urls`
+  （`/admin-api/icbc/esign/callback/**`）。第三方配不出 `tenant-id` 请求头，不登记就会被
+  `TenantSecurityWebFilter` 在进 Controller 前以 400 拦下，`@PermitAll` 解不掉它。
+  新增 `EsignCallbackTenantIgnoreUrlTest`：读**生产 application.yaml 的真实 ignore-urls 清单**装配真的
+  `TenantSecurityWebFilter`，模拟一发无 `tenant-id` 头的回调，断言请求能穿过过滤器（清单没登记时该断言真的红）。
+- **SPEC-2 一次性链接由代码兜底**：`activate` 现在要求 `consoleToken` 匹配 + 未过期 + 当前状态为
+  `AUTHENTICATING`，任一不满足即拒（新错误码 `ESIGN_CONSOLE_TOKEN_INVALID` / `ESIGN_CONSOLE_TOKEN_EXPIRED` /
+  `ESIGN_ACTIVATION_STATUS_INVALID`）；`EsignOpenConsoleRespVO` 单列回带 `consoleToken`，后台表单原样带回。
+  校验的是**我们自己的**一次性语义，不是第三方验签（真实腾讯控制台的激活确认并非回推）。
+- **STD-1/2/4**：「印章就位 = sealNo 非空」「剩余额度 = max(quota-used,0)」各抽一个私有口径方法；
+  `EsignPort#parseCallback` 新增 `EsignCallbackRejectedException`，`EsignCallbackServiceImpl` 只捕获它
+  （NPE / DB 异常照实抛，不伪装成伪造攻击）；`EsignConfigSaveReqVO.environment` 加 `@InEnum(EsignEnvironmentEnum)`；
+  菜单段更正为 5280–5283。
+- **端口二选一有测试锁住**：`EsignPortConditionalBeanTest` 锁住「未配置 / `mode=stub` / `mode=remote`」三种情形下
+  `EsignPort` 唯一，注释不再是唯一防线。
+- **仍属「预留」、本票未交付**（措辞更正，别当成能用）：`EsignTenantService#isTenantActivated`、
+  `#resolveTenantIdBySubCustomerNo`、`ErrorCodeConstants.ESIGN_QUOTA_EXCEEDED` 是留给 `#95` / 真实端口的；
+  真实验签（`parseCallback` 的腾讯实现）与 `contractUsed` 的 `+1` 也不在本票（属 `#95`）。
+- 全量 icbc 测试 **761 通过 / 0 失败 / 1 skip**（live 测试）。

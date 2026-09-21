@@ -97,6 +97,7 @@ public class EsignTenantServiceImpl implements EsignTenantService {
             throw exception(ESIGN_SEAL_NO_REQUIRED);
         }
         IcbcEsignTenantDO config = getOrCreateCurrent();
+        validateConsoleToken(config, reqVO.getConsoleToken());
         IcbcEsignTenantDO update = new IcbcEsignTenantDO();
         update.setId(config.getId());
         update.setActivationStatus(EsignActivationStatusEnum.ACTIVATED.getStatus());
@@ -116,7 +117,7 @@ public class EsignTenantServiceImpl implements EsignTenantService {
         IcbcEsignTenantDO config = esignTenantMapper.selectCurrent();
         return config != null
                 && EsignActivationStatusEnum.ACTIVATED.getStatus().equals(config.getActivationStatus())
-                && StrUtil.isNotBlank(config.getSealNo());
+                && isSealReady(config);
     }
 
     @Override
@@ -174,6 +175,46 @@ public class EsignTenantServiceImpl implements EsignTenantService {
 
     // ==================== 内部方法 ====================
 
+    /**
+     * 一次性控制台链接的语义由我们自己兜底：令牌匹配 + 未过期 + 当前处于「认证中」。
+     * 重新生成链接会换令牌，所以旧令牌必然对不上、旧链接随即失效。
+     *
+     * <p>注意：这是**我们自己的**一次性语义，不是第三方验签——真实腾讯控制台的激活确认
+     * 并非回推（#92 没有腾讯账号，见 SPEC-2），这里校验的只是「激活必须紧跟在一次有效的
+     * 开通链接之后」，不假装它是第三方验签。
+     */
+    private void validateConsoleToken(IcbcEsignTenantDO config, String consoleToken) {
+        if (StrUtil.isBlank(config.getConsoleToken()) || !config.getConsoleToken().equals(consoleToken)) {
+            throw exception(ESIGN_CONSOLE_TOKEN_INVALID);
+        }
+        LocalDateTime expireTime = config.getConsoleTokenExpireTime();
+        if (expireTime == null || !expireTime.isAfter(LocalDateTime.now())) {
+            throw exception(ESIGN_CONSOLE_TOKEN_EXPIRED);
+        }
+        if (!EsignActivationStatusEnum.AUTHENTICATING.getStatus().equals(config.getActivationStatus())) {
+            throw exception(ESIGN_ACTIVATION_STATUS_INVALID,
+                    EsignActivationStatusEnum.nameOf(config.getActivationStatus()));
+        }
+    }
+
+    /**
+     * 「印章就位」的唯一判据：{@code sealNo} 非空。映射处共用，避免口径漂移。
+     */
+    private static boolean isSealReady(IcbcEsignTenantDO config) {
+        return config != null && StrUtil.isNotBlank(config.getSealNo());
+    }
+
+    /**
+     * 「剩余额度」的唯一算法：配额减已用，不小于 0。
+     */
+    private static int remainingQuota(Integer quota, Integer used) {
+        return Math.max(defaultZero(quota) - defaultZero(used), 0);
+    }
+
+    private static int defaultZero(Integer value) {
+        return value == null ? 0 : value;
+    }
+
     private IcbcEsignTenantDO createCurrent() {
         Long tenantId = TenantContextHolder.getRequiredTenantId();
         IcbcEsignTenantDO created = buildNewConfig(tenantId);
@@ -203,6 +244,9 @@ public class EsignTenantServiceImpl implements EsignTenantService {
         EsignOpenConsoleRespVO resp = new EsignOpenConsoleRespVO();
         resp.setSubCustomerNo(config.getSubCustomerNo());
         resp.setLink(buildConsoleLink(platform, config.getSubCustomerNo(), token));
+        // 令牌既在 link 里，也单独回一份：前端要在「确认已激活」时原样带回，
+        // 后端据此校验一次性语义（旧链接作废、未过期、状态仍是认证中）
+        resp.setConsoleToken(token);
         resp.setExpiresTime(config.getConsoleTokenExpireTime());
         resp.setActivationStatus(config.getActivationStatus());
         resp.setActivationStatusName(status != null ? status.getName() : null);
@@ -232,8 +276,6 @@ public class EsignTenantServiceImpl implements EsignTenantService {
         Integer activationStatus = config != null ? config.getActivationStatus()
                 : EsignActivationStatusEnum.NOT_OPENED.getStatus();
         EsignActivationStatusEnum status = EsignActivationStatusEnum.ofStatus(activationStatus);
-        int quota = config == null || config.getContractQuota() == null ? 0 : config.getContractQuota();
-        int used = config == null || config.getContractUsed() == null ? 0 : config.getContractUsed();
         PlatformEsignTenantRespVO resp = new PlatformEsignTenantRespVO();
         resp.setTenantId(tenantId);
         resp.setTenantName(tenantApi.getTenantName(tenantId));
@@ -241,10 +283,12 @@ public class EsignTenantServiceImpl implements EsignTenantService {
         resp.setActivationStatus(activationStatus);
         resp.setActivationStatusName(status != null ? status.getName() : null);
         resp.setSealNo(config != null ? config.getSealNo() : null);
-        resp.setSealReady(config != null && StrUtil.isNotBlank(config.getSealNo()));
+        resp.setSealReady(isSealReady(config));
+        int quota = defaultZero(config != null ? config.getContractQuota() : null);
+        int used = defaultZero(config != null ? config.getContractUsed() : null);
         resp.setContractQuota(quota);
         resp.setContractUsed(used);
-        resp.setRemainingQuota(Math.max(quota - used, 0));
+        resp.setRemainingQuota(remainingQuota(quota, used));
         resp.setActivatedTime(config != null ? config.getActivatedTime() : null);
         return resp;
     }
@@ -258,12 +302,12 @@ public class EsignTenantServiceImpl implements EsignTenantService {
         resp.setNextStep(status != null ? status.getNextStep() : null);
         resp.setOperatorNo(config.getOperatorNo());
         resp.setSealNo(config.getSealNo());
-        resp.setSealReady(StrUtil.isNotBlank(config.getSealNo()));
-        int quota = config.getContractQuota() == null ? 0 : config.getContractQuota();
-        int used = config.getContractUsed() == null ? 0 : config.getContractUsed();
+        resp.setSealReady(isSealReady(config));
+        int quota = defaultZero(config.getContractQuota());
+        int used = defaultZero(config.getContractUsed());
         resp.setContractQuota(quota);
         resp.setContractUsed(used);
-        resp.setRemainingQuota(Math.max(quota - used, 0));
+        resp.setRemainingQuota(remainingQuota(quota, used));
         resp.setActivatedTime(config.getActivatedTime());
         resp.setPlatformConfigured(esignConfigService.isPlatformConfigured());
         return resp;

@@ -122,11 +122,13 @@ const opening = ref(false)
 const activating = ref(false)
 const status = ref<EsignTenantStatusVO>({})
 const consoleLink = ref('')
+const consoleToken = ref('')
 const expiresTime = ref<Date>()
 
 const activateVisible = ref(false)
 const activateFormRef = ref()
-const activateForm = reactive<{ operatorNo?: string; sealNo: string; remark?: string }>({
+const activateForm = reactive<{ consoleToken: string; operatorNo?: string; sealNo: string; remark?: string }>({
+  consoleToken: '',
   operatorNo: undefined,
   sealNo: '',
   remark: undefined
@@ -157,6 +159,7 @@ const handleOpen = async () => {
   try {
     const data = await EsignApi.openConsole()
     consoleLink.value = data.link
+    consoleToken.value = data.consoleToken || ''
     expiresTime.value = data.expiresTime
     message.success('已生成一次性控制台链接')
     await getStatus()
@@ -171,8 +174,13 @@ const copyLink = async () => {
 }
 
 const openActivateDialog = () => {
+  if (!consoleToken.value) {
+    message.warning('请先点「开通电子签」拿到控制台链接，完成企业认证后再回来确认激活')
+    return
+  }
   activateForm.sealNo = status.value.sealNo || ''
   activateForm.operatorNo = status.value.operatorNo
+  activateForm.consoleToken = consoleToken.value
   activateForm.remark = undefined
   activateVisible.value = true
 }
@@ -184,6 +192,7 @@ const submitActivate = async () => {
     await EsignApi.activate(activateForm)
     message.success('已激活，印章就位')
     activateVisible.value = false
+    consoleToken.value = ''
     await getStatus()
   } finally {
     activating.value = false

@@ -88,16 +88,37 @@ public interface EsignPort {
      * <p>回调报文里带的是**子客编号**而不是我们的租户号，所以返回结果必须带回解析出的
      * {@link EsignCallback#getTenantId()}，供调用方路由到正确的租户。
      *
-     * <p><b>验签失败必须明确失败</b>（抛异常），不得返回 {@code null} 或「空通知」：
-     * 伪造的通知不能被静默吞掉。
+     * <p><b>验签失败必须明确失败</b>（抛 {@link EsignCallbackRejectedException}），不得返回 {@code null}
+     * 或「空通知」：伪造的通知不能被静默吞掉。实现必须把「验签不过 / 未开通 / 报文损坏」等
+     * **受控拒绝**统一包成这一种异常；实现内部的 NPE / 数据库异常不算拒绝，照实抛出，
+     * 免得真 bug 被伪装成伪造攻击。
      *
      * @param signature 签名
      * @param timestamp 时间戳
      * @param nonce     随机串
      * @param body      原始报文
      * @return 归一化后的签署状态通知
+     * @throws EsignCallbackRejectedException 回调被明确拒绝（验签失败 / 未开通 / 报文不可解析）
      */
     EsignCallback parseCallback(String signature, String timestamp, String nonce, String body);
+
+    /**
+     * 端口对一条回调的**受控拒绝**：验签不过、未开通、报文不可解析。
+     *
+     * <p>它是端口契约里唯一一种「预期内的失败」：业务层把它翻译成平台错误码与可读原因；
+     * 其它运行时异常（NPE、DB 异常……）不属于拒绝，必须原样向上抛，不能被伪装成「攻击」。
+     */
+    class EsignCallbackRejectedException extends RuntimeException {
+
+        public EsignCallbackRejectedException(String message) {
+            super(message);
+        }
+
+        public EsignCallbackRejectedException(String message, Throwable cause) {
+            super(message, cause);
+        }
+
+    }
 
     /**
      * 发起签署的入参。

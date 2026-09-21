@@ -22,6 +22,7 @@ export interface EsignTenantStatusVO {
 export interface EsignOpenConsoleVO {
   subCustomerNo?: string
   link?: string
+  consoleToken?: string
   expiresTime?: Date
   activationStatus?: number
   activationStatusName?: string
@@ -69,8 +70,8 @@ export const EsignApi = {
   getStatus: async () => await request.get({ url: `/icbc/esign/status` }),
   // 开通：取一枚一次性控制台链接
   openConsole: async () => await request.post({ url: `/icbc/esign/open` }),
-  // 确认已激活（企业认证通过 + 企业印章已创建）
-  activate: async (data: { operatorNo?: string; sealNo: string; remark?: string }) =>
+  // 确认已激活（企业认证通过 + 企业印章已创建；带上开通时的一次性令牌）
+  activate: async (data: { consoleToken: string; operatorNo?: string; sealNo: string; remark?: string }) =>
     await request.post({ url: `/icbc/esign/activate`, data })
 }
 

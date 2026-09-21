@@ -10,6 +10,7 @@ import cn.iocoder.yudao.module.icbc.controller.admin.esign.vo.EsignTenantStatusR
 import cn.iocoder.yudao.module.icbc.controller.admin.esign.vo.PlatformEsignQuotaSaveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.esign.vo.PlatformEsignTenantRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.esign.IcbcEsignTenantDO;
+import cn.iocoder.yudao.module.icbc.dal.mysql.esign.IcbcEsignTenantMapper;
 import cn.iocoder.yudao.module.icbc.enums.EsignActivationStatusEnum;
 import cn.iocoder.yudao.module.icbc.service.esign.impl.EsignConfigServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.esign.impl.EsignTenantServiceImpl;
@@ -23,6 +24,7 @@ import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
@@ -51,6 +53,8 @@ public class EsignTenantServiceTest extends BaseDbUnitTest {
     private EsignTenantService esignTenantService;
     @Resource
     private EsignConfigService esignConfigService;
+    @Resource
+    private IcbcEsignTenantMapper esignTenantMapper;
 
     @MockBean
     private TenantApi tenantApi;
@@ -117,9 +121,10 @@ public class EsignTenantServiceTest extends BaseDbUnitTest {
     public void testActivate_setsSealReadyAndActivated() {
         savePlatformConfig();
         TenantContextHolder.setTenantId(TENANT_ID);
-        esignTenantService.openConsole();
+        EsignOpenConsoleRespVO opened = esignTenantService.openConsole();
 
         EsignActivateReqVO reqVO = new EsignActivateReqVO();
+        reqVO.setConsoleToken(opened.getConsoleToken());
         reqVO.setOperatorNo("OP1001");
         reqVO.setSealNo("SEAL-001");
         esignTenantService.activate(reqVO);
@@ -131,6 +136,73 @@ public class EsignTenantServiceTest extends BaseDbUnitTest {
         assertEquals("SEAL-001", status.getSealNo());
         assertNotNull(status.getActivatedTime());
         assertTrue(status.getPlatformConfigured());
+        // 激活即用掉令牌：同一枚令牌不能再用
+        assertServiceException(() -> esignTenantService.activate(reqVO), ESIGN_CONSOLE_TOKEN_INVALID);
+    }
+
+    @Test
+    public void testActivate_withoutOpenConsole_isRejected() {
+        // 修 SPEC-2 之前的洞：NOT_OPENED 不能直接跳到 ACTIVATED
+        TenantContextHolder.setTenantId(TENANT_ID);
+        EsignActivateReqVO reqVO = new EsignActivateReqVO();
+        reqVO.setConsoleToken("not-a-real-token");
+        reqVO.setSealNo("SEAL-001");
+        assertServiceException(() -> esignTenantService.activate(reqVO), ESIGN_CONSOLE_TOKEN_INVALID);
+        assertFalse(esignTenantService.isTenantActivated());
+    }
+
+    @Test
+    public void testActivate_oldTokenAfterReopen_isRejected() {
+        savePlatformConfig();
+        TenantContextHolder.setTenantId(TENANT_ID);
+        EsignOpenConsoleRespVO first = esignTenantService.openConsole();
+        // 再次开通：换新令牌，旧链接随即作废
+        EsignOpenConsoleRespVO second = esignTenantService.openConsole();
+        assertNotEquals(first.getConsoleToken(), second.getConsoleToken());
+
+        EsignActivateReqVO reqVO = new EsignActivateReqVO();
+        reqVO.setConsoleToken(first.getConsoleToken());
+        reqVO.setSealNo("SEAL-001");
+        assertServiceException(() -> esignTenantService.activate(reqVO), ESIGN_CONSOLE_TOKEN_INVALID);
+        assertFalse(esignTenantService.isTenantActivated());
+    }
+
+    @Test
+    public void testActivate_expiredToken_isRejected() {
+        savePlatformConfig();
+        TenantContextHolder.setTenantId(TENANT_ID);
+        EsignOpenConsoleRespVO opened = esignTenantService.openConsole();
+
+        // 把有效期拨到过去，模拟链接过期
+        IcbcEsignTenantDO update = new IcbcEsignTenantDO();
+        update.setId(esignTenantMapper.selectCurrent().getId());
+        update.setConsoleTokenExpireTime(LocalDateTime.now().minusMinutes(1));
+        esignTenantMapper.updateById(update);
+
+        EsignActivateReqVO reqVO = new EsignActivateReqVO();
+        reqVO.setConsoleToken(opened.getConsoleToken());
+        reqVO.setSealNo("SEAL-001");
+        assertServiceException(() -> esignTenantService.activate(reqVO), ESIGN_CONSOLE_TOKEN_EXPIRED);
+        assertFalse(esignTenantService.isTenantActivated());
+    }
+
+    @Test
+    public void testActivate_wrongStatus_isRejected() {
+        savePlatformConfig();
+        TenantContextHolder.setTenantId(TENANT_ID);
+        EsignOpenConsoleRespVO opened = esignTenantService.openConsole();
+
+        // 令牌有效、也未过期，但状态被拨回「未开通」——状态不对不能激活
+        IcbcEsignTenantDO update = new IcbcEsignTenantDO();
+        update.setId(esignTenantMapper.selectCurrent().getId());
+        update.setActivationStatus(EsignActivationStatusEnum.NOT_OPENED.getStatus());
+        esignTenantMapper.updateById(update);
+
+        EsignActivateReqVO reqVO = new EsignActivateReqVO();
+        reqVO.setConsoleToken(opened.getConsoleToken());
+        reqVO.setSealNo("SEAL-001");
+        assertServiceException(() -> esignTenantService.activate(reqVO), ESIGN_ACTIVATION_STATUS_INVALID, "未开通");
+        assertFalse(esignTenantService.isTenantActivated());
     }
 
     @Test
@@ -171,8 +243,9 @@ public class EsignTenantServiceTest extends BaseDbUnitTest {
         // 租户 1 已激活 + 印章就位；租户 2 只开通过；租户 3 没碰过
         savePlatformConfig();
         TenantContextHolder.setTenantId(1L);
-        esignTenantService.openConsole();
+        EsignOpenConsoleRespVO opened = esignTenantService.openConsole();
         EsignActivateReqVO reqVO = new EsignActivateReqVO();
+        reqVO.setConsoleToken(opened.getConsoleToken());
         reqVO.setSealNo("SEAL-001");
         esignTenantService.activate(reqVO);
         TenantContextHolder.setTenantId(2L);

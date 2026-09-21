@@ -21,6 +21,9 @@ public class EsignOpenConsoleRespVO {
     @Schema(description = "一次性控制台链接（完成企业认证与创建企业印章）")
     private String link;
 
+    @Schema(description = "本次链接的一次性令牌：确认激活时原样带回；重新开通会换新令牌，旧链接随之作废")
+    private String consoleToken;
+
     @Schema(description = "链接有效期止")
     private LocalDateTime expiresTime;
 
