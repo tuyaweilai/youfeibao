@@ -328,7 +328,8 @@ cmd_integrate() {
   local n=$1 branch; branch=$(state_field "$n" 3)
   local wt; wt=$(state_field "$n" 4)
   local title; title=$(gh issue view "$n" --json title -q .title)
-  local commits; commits=$(git -C "$ROOT" rev-list --count "main..$branch")
+  # 人工解完冲突再跑一次时，分支已经合过了，`main..branch` 会数成 0——改从合并提交自身数。
+  local commits; commits=$(git -C "$ROOT" rev-list --count "$merged_sha^1..$merged_sha^2" 2>/dev/null || echo 0)
 
   if ! git -C "$ROOT" diff --quiet || ! git -C "$ROOT" diff --cached --quiet; then
     die "main 工作树不干净，先处理：$ROOT"
@@ -360,7 +361,7 @@ cmd_integrate() {
   # 驱动再凭空追加一整节会变成两段同标题的重复。
   {
     echo
-    echo "### 合并记录：#$n（自动舰队）"
+    echo "### 合并记录：#${n}（自动舰队）"
     echo
     echo "- 分支 \`$branch\` → \`$merged_sha\`：$files 个文件、$commits 个提交${review_note}"
     echo "- 闸门：全量 icbc \`$summary\`；报告 \`.fleet/gates/$n.md\`，运行日志 \`$log\`（\`.fleet/\` 与收养票的仓库外日志不入库）"
@@ -388,7 +389,7 @@ cmd_integrate() {
 
 **机器验不了、留给人验收的**（agent 报告里的那一段）：
 
-${tail_report:-（报告里没有这一节，请翻 $log）}" >/dev/null 2>&1
+${tail_report:-（报告里没有这一节，请翻 ${log}）}" >/dev/null 2>&1
   gh issue close "$n" --comment "代码与验收已核，关闭。" >/dev/null 2>&1
   ok "#$n 已关票"
 }
