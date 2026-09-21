@@ -2783,3 +2783,9 @@ admin 登录 / 用户保存（`@Mobile`）。**本票不治这条**，真实理�
   不把「临时凭据试通」写成「已存配置验证通过」。
 - **措辞**：「不消耗识别额度」不成立（1×1 占位图仍是一次 `IDCardOCR` 计费调用），已改成「不涉及真证件影像，
   但会计入腾讯云调用次数」。
+
+### 合并记录：#103（自动舰队）
+
+- 分支 `i103-card-recognition-config` → `e2650512`：42 个文件、4 个提交
+- 独立评审：PASS（报告 `.fleet/gates/103.review.md`）
+- 闸门：全量 icbc `[WARNING] Tests run: 924, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/103.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/103.log`（`.fleet/` 与收养票的仓库外日志不入库）
