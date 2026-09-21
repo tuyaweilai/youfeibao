@@ -75,6 +75,11 @@ public class IcbcPayeeBankCardChangeDO extends TenantBaseDO {
     private String newBankBranch;
 
     /**
+     * 是否我行用户：0-非我行用户，1-我行用户（为空按 1 上送，见 {@code DEFAULT_ACCOUNT_CODE}）
+     */
+    private String accountCode;
+
+    /**
      * 证件签发日期 yyyy-MM-dd（收方入驻入参快照）
      */
     private String idSignDate;

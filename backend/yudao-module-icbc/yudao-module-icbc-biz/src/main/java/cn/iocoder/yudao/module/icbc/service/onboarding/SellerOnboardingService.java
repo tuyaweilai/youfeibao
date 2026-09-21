@@ -62,9 +62,12 @@ public interface SellerOnboardingService {
      * @param auditStatus 查询接口给的审核状态：1-审核通过，2-新增审核中，3-修改审核中，4-删除审核中；回调路径传空
      * @param result      审核结果：pass / reject；查询接口不带这个字段，传空
      * @param rejectReason 审核拒绝原因
+     * @param operaType   回调的操作类型：02-收方修改（换卡），缺省 / 未知当新增。决定这条结果落在
+     *                    **收方档案**（新增）还是**换卡单**（修改）上（#86）
      * @return 更新后的档案
      */
-    PayeeInfoDO reconcileOnboardingStatus(Long payeeId, String auditStatus, String result, String rejectReason);
+    PayeeInfoDO reconcileOnboardingStatus(Long payeeId, String auditStatus, String result, String rejectReason,
+                                          String operaType);
 
     /**
      * 收方入驻失败时留下联系方式等待联系
@@ -149,7 +152,9 @@ public interface SellerOnboardingService {
      * @param outVendorId  子商户编号（回收企业），即报文里的 appIdSub
      * @param result       审核结果（pass / reject）
      * @param rejectReason 拒绝原因
+     * @param operaType    回调的操作类型：02-收方修改（换卡），缺省即新增（#86）
      */
-    void handleOnboardingNotify(String outUserId, String outVendorId, String result, String rejectReason);
+    void handleOnboardingNotify(String outUserId, String outVendorId, String result, String rejectReason,
+                                String operaType);
 
 }

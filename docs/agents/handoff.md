@@ -1815,3 +1815,38 @@ canvas + `toDataURL` 渲染器已打包；自然人端 `pnpm ts:check` 零错误
 本票范围是预下单，没动它；它与 #89（换卡 / 自然人端重做）或 #87（词汇清除）同批收掉更顺。
 
 **frontier**：#84 已解。剩余同批：**#86**（换卡）；#87、#89 由 #86 阻塞；另有 #90（司机端实名枚举值）。
+
+## #86 换卡改走收方修改接口（已落地）
+
+#83 已经把换卡的**出站**改成了收方修改数据接口（`updatePayeeBankCard`），本票收掉剩下的三处。
+
+1. **回调按 `operaType` 区分新增 / 修改**：新增 `PayeeOnboardingOperaTypeEnum`（`MODIFY="02"`，
+   另有 `isModifyAuditStatus("3")` 对应查询接口的「修改审核中」）。`PayeeOnboardingNotifyHandler`
+   读 `operaType` 并传给 `handleOnboardingNotify`；`reconcileOnboardingStatus` 增加 `operaType` 参数，
+   **只按它（或查询的 auditStatus=3）决定结果落在收方档案还是换卡单**，不再靠「有没有在途换卡单」推断。
+   - 修改结果**没有在途换卡单**时只 `log.warn`，不改写建档状态——以前会被当成新增结果，
+     把「本机已取消、工行仍在下发」的修改拒绝，错误地写成整个收方入驻被拒（#86 的动机）。
+   - 查询兜底没有 `operaType`，用 `auditStatus=3` 表达同一件事，在 `syncOnboarding` 里映射。
+2. **换卡发起侧字段补齐**：`accountCode`（是否我行卡）从入驻提交 VO 挪到**换卡单自己**——
+   `PayeeBankCardChangeSaveReqVO` / `IcbcPayeeBankCardChangeDO` 各加一个字段，
+   `SubmitBankCardChange` 从变更单取（为空仍按 1-我行用户兜底）；`SellerBankCardChangeReqVO`
+   （自然人端）也接上，页面的绑定归 #89。顺带修掉「新卡行名从入驻提交 VO 取」的旧写法，
+   免得把首次入驻的旧卡识别结果带到修改上。
+3. **回归测试确认无遗漏**：`PayeeBankCardChangeServiceTest`（11 条）与 `PaymentServiceImplTest`
+   已覆盖「不允许多张卡 / 审核期间付款挂起 / 被拒后原卡继续有效」；本票补
+   `PayeeOnboardingOperaTypeEnumTest` 3 条、`SellerOnboardingNotifyTest` 端到端
+   「带 `operaType=02` 的回调只收敛换卡单」1 条、`SellerOnboardingServiceImplTest`
+   3 条（修改回调改换卡单 / 无在途变更时不动建档状态 / `getOnboarding` 显「银行审核中」）。
+
+**落地**：`sql/mysql/icbc-bank-card-change-account-code.sql`（幂等 `ALTER`，按 `information_schema`
+判存在；建表脚本与测试 `create_tables.sql` 同步成最终形状；已进 `README.md` 导入顺序，在临时库
+跑过「列不存在 → 加列」与「列已存在 → 跳过」两种）。顺带把 `icbc-bank-card-change.sql` 头注里
+「复用 ONBOARDING 页面」的旧说法改成了收方修改数据接口。
+
+**验收实测**：ICBC 模块 **725 个测试全绿**（#84 的 718 + 本票 7）；全量 `compile` 通过。
+本票**无前端改动**（换卡表单与「是否本人行卡」由 #89 绑）。
+
+**一个签名变更（后续票注意）**：`SellerOnboardingService.reconcileOnboardingStatus(...)` 与
+`handleOnboardingNotify(...)` 都多了最后一个 `operaType` 参数；直接调用它们的测试已全部跟改。
+
+**frontier**：#86 已解 → **#87（钱包概念清除）与 #89（自然人端重做）同时解锁**；另有 #90（司机端实名枚举值）。

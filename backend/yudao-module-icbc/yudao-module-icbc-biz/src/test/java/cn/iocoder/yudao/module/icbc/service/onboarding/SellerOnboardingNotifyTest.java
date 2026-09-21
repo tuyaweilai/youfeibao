@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.icbc.service.onboarding;
 import cn.iocoder.yudao.module.erp.api.stock.StockApi;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
+import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeBankCardChangeSaveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.naturalperson.vo.NaturalPersonRegisterReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPersonDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
@@ -17,6 +18,7 @@ import cn.iocoder.yudao.module.icbc.service.callback.handler.FaceVerifyNotifyHan
 import cn.iocoder.yudao.module.icbc.service.callback.handler.PayeeOnboardingNotifyHandler;
 import cn.iocoder.yudao.module.icbc.service.callback.impl.CallbackNotifyServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
+import cn.iocoder.yudao.module.icbc.service.payee.PayeeBankCardChangeService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.impl.SellerOnboardingServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -27,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
@@ -59,6 +62,8 @@ public class SellerOnboardingNotifyTest extends BaseDbUnitTest {
     private PayeeInfoMapper payeeInfoMapper;
     @Resource
     private PayerInfoMapper payerInfoMapper;
+    @Resource
+    private PayeeBankCardChangeService bankCardChangeService;
 
     @MockBean
     private IcbcGateway icbcGateway;
@@ -90,6 +95,31 @@ public class SellerOnboardingNotifyTest extends BaseDbUnitTest {
         assertEquals("SUCCESS", result);
         PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
         assertEquals(PayeeOnboardingOutcomeEnum.READY.getCode(), updated.getOnboardingState());
+    }
+
+    @Test
+    public void testOnboardingModifyCallbackResolvesCardChangeNotOnboardingState() {
+        // 收方修改回调带 operaType=02：结果只能落到**换卡单**上，不能去改建档状态（#86）
+        PayeeInfoDO payee = insertPayee("USER_MOD_N", "110101199001010044", "13800000044");
+        IcbcNaturalPersonDO person = personOf(payee);
+        insertPayer(OUT_VENDOR_ID);
+        PayeeInfoDO ready = new PayeeInfoDO();
+        ready.setId(payee.getId());
+        ready.setOnboardingState(PayeeOnboardingOutcomeEnum.READY.getCode());
+        payeeInfoMapper.updateById(ready);
+        PayeeBankCardChangeSaveReqVO changeReq = new PayeeBankCardChangeSaveReqVO();
+        changeReq.setPayeeId(payee.getId());
+        changeReq.setNewBankCardNo("6222029999888877");
+        changeReq.setRequestSource("SELLER_PORTAL");
+        bankCardChangeService.requestChange(changeReq);
+
+        String result = callbackNotifyService.receive(
+                "{\"appId\":\"A\",\"appIdSub\":\"" + OUT_VENDOR_ID + "\",\"outUserId\":\""
+                        + person.getOutUserId() + "\",\"result\":\"pass\",\"operaType\":\"02\"}");
+
+        assertEquals("SUCCESS", result);
+        assertEquals("6222029999888877", payeeInfoMapper.selectById(payee.getId()).getBankCardNo());
+        assertFalse(bankCardChangeService.hasPending(payee.getId()));
     }
 
     @Test

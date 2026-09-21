@@ -75,6 +75,8 @@ public class PayeeBankCardChangeServiceImpl implements PayeeBankCardChangeServic
                 .newBankCardNo(reqVO.getNewBankCardNo())
                 .newBankName(reqVO.getNewBankName())
                 .newBankBranch(reqVO.getNewBankBranch())
+                // 「是否我行卡」由换卡发起侧带上（#86）；为空时由提交时兜底为 1-我行用户
+                .accountCode(reqVO.getAccountCode())
                 // 证件有效期沿用档案，除非这次显式提供
                 .idSignDate(StrUtil.blankToDefault(reqVO.getIdSignDate(), payee.getIdSignDate()))
                 .idValidityPeriod(StrUtil.blankToDefault(reqVO.getIdValidityPeriod(), payee.getIdValidityPeriod()))

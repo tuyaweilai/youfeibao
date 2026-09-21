@@ -7,9 +7,9 @@ SET NAMES utf8mb4;
 -- 换银行卡（#37，见 docs/adr/0010-付款走公对私直付到银行卡.md）
 --
 -- 「卡过期 / 换行 / 卡丢失」是必然会发生的事。工行收方入驻绑的是本人**一张**卡，
--- 换卡必须重走收方入驻（同一 outUserId + outVendorId 在工行侧是「修改」，auditStatus=3 修改审核中），
--- 因此：
---   * 不新造流程——复用已有的 ONBOARDING 令牌与后端输出表单机制；
+-- 换卡走工行的**收方修改数据接口**（`edpreceive/update`，ADR 0035），不再重跑一次新增；
+-- 工行侧把这次修改当成一次审核（auditStatus=3 修改审核中），因此：
+--   * 不新造流程——发起侧只落一张变更单，提交时调修改接口；
 --   * 不允许多张卡——收方档案（icbc_payee_info.bank_card_no）只保留生效中的那一张，
 --     待变更的新卡只活在本表里，审核通过才「搬」过去；
 --   * 审核期间新交易的付款挂起——企业侧的预下单照旧，但**付款发起**被拦下，避免钱打到废卡（退汇）。
@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS `icbc_payee_bank_card_change` (
   `new_bank_card_no` varchar(64) NOT NULL COMMENT '待变更的新银行卡号（审核通过前不生效）',
   `new_bank_name` varchar(100) DEFAULT NULL COMMENT '新卡开户银行',
   `new_bank_branch` varchar(100) DEFAULT NULL COMMENT '新卡开户支行',
+  `account_code` varchar(2) DEFAULT NULL COMMENT '是否我行用户：0-非我行用户，1-我行用户（为空按 1 上送）',
   `id_sign_date` varchar(20) DEFAULT NULL COMMENT '证件签发日期 yyyy-MM-dd（收方入驻入参快照）',
   `id_validity_period` varchar(20) DEFAULT NULL COMMENT '证件截止日期 yyyy-MM-dd（收方入驻入参快照）',
   `icbc_openacct_status` varchar(8) DEFAULT NULL COMMENT '工行侧开户状态（原样透传，只属于本次变更）',

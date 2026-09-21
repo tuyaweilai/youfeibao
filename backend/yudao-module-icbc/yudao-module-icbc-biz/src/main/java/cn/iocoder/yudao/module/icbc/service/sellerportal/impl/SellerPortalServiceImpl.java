@@ -391,6 +391,7 @@ public class SellerPortalServiceImpl implements SellerPortalService {
         saveReqVO.setNewBankCardNo(reqVO.getBankCardNo());
         saveReqVO.setNewBankName(reqVO.getBankName());
         saveReqVO.setNewBankBranch(reqVO.getBankBranch());
+        saveReqVO.setAccountCode(reqVO.getAccountCode());
         saveReqVO.setIdSignDate(reqVO.getIdSignDate());
         saveReqVO.setIdValidityPeriod(reqVO.getIdValidityPeriod());
         saveReqVO.setRequestSource("SELLER_PORTAL");

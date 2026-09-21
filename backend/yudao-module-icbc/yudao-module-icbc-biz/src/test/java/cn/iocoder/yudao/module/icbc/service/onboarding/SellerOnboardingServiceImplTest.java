@@ -20,6 +20,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payer.PayerInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeBankCardChangeStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOperaTypeEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOutcomeEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeRealNameStatusEnum;
 import cn.iocoder.yudao.module.icbc.gateway.IcbcGateway;
@@ -289,7 +290,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         PayeeInfoDO payee = insertPayee("USER_AUTO_REJ", "110101199001010065", "13800000065");
         markRealNamePassed(payee);
         insertPayer(OUT_VENDOR_ID);
-        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "reject", "资料不符");
+        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "reject", "资料不符", null);
 
         // 又收到一次实名通过通知，也不能把已被拒的入驻又重新发起一次（拒绝后由人工决定是否重试）
         sellerOnboardingService.handleFaceVerifyNotify(personOf(payee).getOutUserId(), true, null);
@@ -446,7 +447,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
                 "138" + String.format("%08d", 10000000 + seq));
 
         PayeeInfoDO updated = sellerOnboardingService.reconcileOnboardingStatus(
-                payee.getId(), auditStatus, result, "reject".equals(result) ? "资料不符" : null);
+                payee.getId(), auditStatus, result, "reject".equals(result) ? "资料不符" : null, null);
 
         assertEquals(expected.getCode(), updated.getOnboardingState());
         assertEquals(expected.isInvoiceEligible(), eligible);
@@ -466,7 +467,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
 
         // 两条输入都没给（结果未回）→ 不推进状态机
         PayeeInfoDO updated = sellerOnboardingService.reconcileOnboardingStatus(
-                payee.getId(), null, null, null);
+                payee.getId(), null, null, null, null);
         assertNull(updated.getOnboardingState());
     }
 
@@ -479,7 +480,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         insertPayer(OUT_VENDOR_ID);
 
         sellerOnboardingService.handleOnboardingNotify(person.getOutUserId(), OUT_VENDOR_ID,
-                "pass", null);
+                "pass", null, null);
 
         PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
         assertEquals(PayeeOnboardingOutcomeEnum.READY.getCode(), updated.getOnboardingState());
@@ -493,7 +494,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         insertPayer(OUT_VENDOR_ID);
 
         sellerOnboardingService.handleOnboardingNotify(person.getOutUserId(), OUT_VENDOR_ID,
-                "reject", "资料不符");
+                "reject", "资料不符", null);
 
         PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
         assertEquals(PayeeOnboardingOutcomeEnum.REJECTED.getCode(), updated.getOnboardingState());
@@ -508,7 +509,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         IcbcNaturalPersonDO person = personOf(payee);
 
         assertServiceException(() -> sellerOnboardingService.handleOnboardingNotify(person.getOutUserId(),
-                "NOT_A_PAYER", "pass", null), SELLER_ONBOARDING_VENDOR_UNRESOLVED, "NOT_A_PAYER");
+                "NOT_A_PAYER", "pass", null, null), SELLER_ONBOARDING_VENDOR_UNRESOLVED, "NOT_A_PAYER");
         assertNull(payeeInfoMapper.selectById(payee.getId()).getOnboardingState());
     }
 
@@ -598,7 +599,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
     public void testAssertReadyForInvoice_fullChain() {
         PayeeInfoDO payee = insertPayee("USER_READY", "110101199001010027", "13800000027");
         markRealNamePassed(payee);
-        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "pass", null);
+        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "pass", null, null);
         sellerOnboardingService.saveFrameworkAgreement(agreementReq(payee.getId(), "废钢"));
         authorize(payee.getId());
 
@@ -618,7 +619,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
     public void testAssertReadyForInvoice_blockedOnRejected() {
         PayeeInfoDO payee = insertPayee("USER_REJECT", "110101199001010028", "13800000028");
         markRealNamePassed(payee);
-        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "reject", "资料不符");
+        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "reject", "资料不符", null);
         sellerOnboardingService.saveFrameworkAgreement(agreementReq(payee.getId(), "废钢"));
         authorize(payee.getId());
 
@@ -635,7 +636,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
     public void testAssertReadyForInvoice_blockedOnMissingAgreement() {
         PayeeInfoDO payee = insertPayee("USER_NOAGREE", "110101199001010029", "13800000029");
         markRealNamePassed(payee);
-        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "pass", null);
+        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "pass", null, null);
         authorize(payee.getId());
 
         assertServiceException(() -> sellerOnboardingService.assertReadyForInvoice(payee.getId()),
@@ -666,7 +667,10 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         PayeeInfoDO payee = insertPayee("USER_CHANGE", "110101199001010041", "13800000041");
         markReady(payee);
         insertPayer(OUT_VENDOR_ID);
-        bankCardChangeService.requestChange(changeReq(payee.getId(), "6222029999888877", "中国工商银行"));
+        // 「是否我行卡」是换卡发起侧在变更单上定下来的（#86），不从入驻提交 VO 借
+        PayeeBankCardChangeSaveReqVO changeReq = changeReq(payee.getId(), "6222029999888877", "中国工商银行");
+        changeReq.setAccountCode("0");
+        bankCardChangeService.requestChange(changeReq);
         when(icbcGateway.updatePayeeBankCard(any())).thenReturn(IcbcGatewayResult.success(
                 PayeeOnboardingReceipt.builder().build(), 0, "受理成功"));
 
@@ -683,6 +687,10 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         verify(icbcGateway, never()).submitPayeeOnboarding(any());
         // 送给工行的是**变更单上的新卡**，不是生效中的旧卡
         assertEquals("6222029999888877", captor.getValue().getReceiverAccount());
+        // 是否我行卡也从变更单上取
+        assertEquals("0", captor.getValue().getAccountCode());
+        // 新卡行名也从变更单上取，不把入驻提交里那个假的识别结果带上
+        assertEquals("中国工商银行", captor.getValue().getBankName());
         // 生效卡与档案字段都不动：换卡要等工行审核通过（PayeeBankCardChangeService）
         PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
         assertEquals("6222021234567890", updated.getBankCardNo());
@@ -697,7 +705,8 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         bankCardChangeService.requestChange(changeReq(payee.getId(), "6222029999888877", null));
 
         // 工行审核拒绝：结果属于新卡，不该改写建档状态
-        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "reject", "卡号与姓名不符");
+        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "reject", "卡号与姓名不符",
+                PayeeOnboardingOperaTypeEnum.MODIFY.getCode());
 
         PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
         assertEquals("6222021234567890", updated.getBankCardNo());
@@ -715,13 +724,62 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
         markReady(payee);
         bankCardChangeService.requestChange(changeReq(payee.getId(), "6222029999888877", "中国工商银行"));
 
-        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "pass", null);
+        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "pass", null,
+                PayeeOnboardingOperaTypeEnum.MODIFY.getCode());
 
         PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
         assertEquals("6222029999888877", updated.getBankCardNo());
         assertEquals("中国工商银行", updated.getBankName());
         assertEquals(PayeeOnboardingOutcomeEnum.READY.getCode(), updated.getOnboardingState());
         assertFalse(sellerOnboardingService.hasPendingBankCardChange(payee.getId()));
+    }
+
+    @Test
+    public void testHandleOnboardingNotify_modifyCallbackResolvesCardChangeNotPayeeState() {
+        PayeeInfoDO payee = insertPayee("USER_CHANGE_N", "110101199001010044", "13800000044");
+        markReady(payee);
+        insertPayer(OUT_VENDOR_ID);
+        bankCardChangeService.requestChange(changeReq(payee.getId(), "6222029999888877", "中国工商银行"));
+
+        // 修改回调带 operaType=02：结果只收敛换卡单（换卡单的 pass 才是新卡生效的依据）
+        sellerOnboardingService.handleOnboardingNotify(personOf(payee).getOutUserId(), OUT_VENDOR_ID,
+                "pass", null, PayeeOnboardingOperaTypeEnum.MODIFY.getCode());
+
+        PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
+        assertEquals("6222029999888877", updated.getBankCardNo());
+        assertEquals(PayeeOnboardingOutcomeEnum.READY.getCode(), updated.getOnboardingState());
+        assertFalse(sellerOnboardingService.hasPendingBankCardChange(payee.getId()));
+    }
+
+    @Test
+    public void testHandleOnboardingNotify_modifyCallbackWithoutPendingChangeLeavesPayeeUntouched() {
+        PayeeInfoDO payee = insertPayee("USER_CHANGE_O", "110101199001010045", "13800000045");
+        markReady(payee);
+        insertPayer(OUT_VENDOR_ID);
+
+        // 本机没有在途换卡单（例如已手动取消），工行仍下发修改结果：不猜，更不能用它改写建档状态
+        sellerOnboardingService.handleOnboardingNotify(personOf(payee).getOutUserId(), OUT_VENDOR_ID,
+                "reject", "卡号与姓名不符", PayeeOnboardingOperaTypeEnum.MODIFY.getCode());
+
+        PayeeInfoDO updated = payeeInfoMapper.selectById(payee.getId());
+        assertEquals("6222021234567890", updated.getBankCardNo());
+        assertEquals(PayeeOnboardingOutcomeEnum.READY.getCode(), updated.getOnboardingState());
+    }
+
+    @Test
+    public void testGetOnboarding_showsPendingCardChangeStatus() {
+        PayeeInfoDO payee = insertPayee("USER_CHANGE_V", "110101199001010046", "13800000046");
+        markReady(payee);
+        bankCardChangeService.requestChange(changeReq(payee.getId(), "6222029999888877", "中国工商银行"));
+
+        SellerOnboardingRespVO overview = sellerOnboardingService.getOnboarding(payee.getId());
+
+        // 企业侧要看得见「钱要打到哪张卡、审核到哪一步」
+        assertEquals("银行审核中", overview.getBankCardChangeStatusName());
+        assertNotNull(overview.getBankCardChangeStatus());
+        assertNotNull(overview.getBankCardChangeRequestedAt());
+        // 生效中的卡在审核通过前不动
+        assertEquals("6222021234567890", payeeInfoMapper.selectById(payee.getId()).getBankCardNo());
     }
 
     // ==================== 助手 ====================
@@ -776,7 +834,7 @@ public class SellerOnboardingServiceImplTest extends BaseDbUnitTest {
     /** 先把建档推到 READY：换卡是「已入驻之后」的事。 */
     private void markReady(PayeeInfoDO payee) {
         markRealNamePassed(payee);
-        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "pass", null);
+        sellerOnboardingService.reconcileOnboardingStatus(payee.getId(), null, "pass", null, null);
     }
 
     private PayeeBankCardChangeSaveReqVO changeReq(Long payeeId, String newCardNo, String bankName) {

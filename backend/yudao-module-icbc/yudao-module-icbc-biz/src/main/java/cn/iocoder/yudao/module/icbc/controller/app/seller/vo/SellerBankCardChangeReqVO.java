@@ -5,6 +5,7 @@ import lombok.Data;
 
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 
 /**
@@ -37,6 +38,10 @@ public class SellerBankCardChangeReqVO {
     @Schema(description = "新卡开户支行（选填）", example = "北京分行营业部")
     @Size(max = 100, message = "开户支行长度不能超过 100 个字符")
     private String bankBranch;
+
+    @Schema(description = "是否本人我行卡：0-非我行用户，1-我行用户（为空按 1 上送）", example = "1")
+    @Pattern(regexp = "^[01]$", message = "是否我行用户只能填 0 或 1")
+    private String accountCode;
 
     @Schema(description = "证件签发日期 yyyy-MM-dd（选填，默认沿用档案）", example = "2020-01-01")
     private String idSignDate;

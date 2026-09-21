@@ -34,7 +34,9 @@ public class PayeeOnboardingNotifyHandler implements IcbcNotifyHandler {
         String result = payload.getString("result");
         String rejectReason = StrUtil.blankToDefault(payload.getString("rejectReason"),
                 payload.getString("custStatusDetail"));
-        sellerOnboardingService.handleOnboardingNotify(outUserId, outVendorId, result, rejectReason);
+        // 修改（换卡）回调一定带 operaType=02，新增回调不带：结果落在不同对象上（#86）
+        String operaType = payload.getString("operaType");
+        sellerOnboardingService.handleOnboardingNotify(outUserId, outVendorId, result, rejectReason, operaType);
     }
 
 }
