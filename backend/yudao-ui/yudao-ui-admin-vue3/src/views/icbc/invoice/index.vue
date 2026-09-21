@@ -304,7 +304,6 @@ const handleSubmit = async () => {
         taxRate: g.taxRate,
         mergedCode: g.mergedCode
       })),
-      trxChannel: '01',
       asynFlag: '0',
       currency: '001',
       payJumpUrl: origin,

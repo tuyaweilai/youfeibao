@@ -2,6 +2,8 @@ package cn.iocoder.yudao.module.icbc.controller.admin.payee.vo;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import cn.iocoder.yudao.framework.common.validation.InEnum;
+import cn.iocoder.yudao.module.icbc.enums.IcbcOccupationEnum;
 import javax.validation.constraints.*;
 
 @Schema(description = "管理后台 - 工行收方信息新增/修改 Request VO")
@@ -33,6 +35,7 @@ public class PayeeInfoSaveReqVO {
     private String mobile;
 
     @Schema(description = "银行卡号", example = "6222021234567890123")
+    @Pattern(regexp = "^\\d{16,19}$", message = "银行卡号应为 16-19 位数字")
     private String bankCardNo;
 
     @Schema(description = "开户银行", example = "中国工商银行")
@@ -47,7 +50,8 @@ public class PayeeInfoSaveReqVO {
     @Schema(description = "业务类型", example = "RECYCLE")
     private String businessType;
 
-    @Schema(description = "职业", example = "001")
+    @Schema(description = "职业（工行 15 值字典，只能从字典里选）", example = "14")
+    @InEnum(value = IcbcOccupationEnum.class, message = "职业取值不合法，必须在 {value} 里选")
     private String occupation;
 
     @Schema(description = "关联企业名称", example = "某某回收公司")

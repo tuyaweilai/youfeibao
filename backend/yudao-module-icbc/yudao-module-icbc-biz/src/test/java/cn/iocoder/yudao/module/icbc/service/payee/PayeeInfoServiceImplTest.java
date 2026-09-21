@@ -8,6 +8,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.naturalperson.IcbcNaturalPers
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
+import cn.iocoder.yudao.module.icbc.enums.IcbcOccupationEnum;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
@@ -108,6 +109,9 @@ public class PayeeInfoServiceImplTest extends BaseDbUnitTest {
             o.setId(dbPayeeInfo.getId()); // 设置更新的 ID
             o.setIdCardNo(dbPayeeInfo.getIdCardNo()); // 保持相同的身份证号
             o.setMobile(dbPayeeInfo.getMobile()); // 保持相同的手机号
+            // 银行卡号与职业有格式 / 字典约束（#84）：randomPojo 给这两个字段生成不出合法值，显式给
+            o.setBankCardNo("6222021234567890123");
+            o.setOccupation(IcbcOccupationEnum.OTHER.getCode());
         });
 
         // 调用

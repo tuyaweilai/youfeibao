@@ -35,10 +35,6 @@ public class InvoicePreOrderReqVO {
     @Schema(description = "卖方主体类型（平台侧字段，不上送工行）：1-自然人出售者，2~6-非自然人。反向开票只对自然人开放（ADR 0029）", example = "1")
     private Integer sellerSubjectType;
 
-    @Schema(description = "交易渠道：01-PC,02-移动端", example = "01")
-    @Size(max = 2, message = "交易渠道长度不能超过2个字符")
-    private String trxChannel;
-
     @Schema(description = "线上异步支付标识：0-其他1-线上企网异步支付", example = "0")
     @Size(max = 1, message = "线上异步支付标识长度不能超过1个字符")
     private String asynFlag;

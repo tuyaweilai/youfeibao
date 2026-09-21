@@ -18,7 +18,6 @@ export interface InvoicePreOrderVO {
   outOrderId?: string
   outVendorId?: string
   outUserId?: string
-  trxChannel?: string
   asynFlag?: string
   currency?: string
   payJumpUrl?: string

@@ -28,7 +28,14 @@
         </el-col>
         <el-col :span="12">
           <el-form-item label="职业" prop="occupation">
-            <el-input v-model="formData.occupation" placeholder="请输入职业" />
+            <el-select v-model="formData.occupation" placeholder="请选择（工行字典）" class="w-full" clearable>
+              <el-option
+                v-for="item in ICBC_OCCUPATION_OPTIONS"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
           </el-form-item>
         </el-col>
       </el-row>
@@ -77,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { PayeeApi, PayeeVO } from '@/api/icbc/payee'
+import { ICBC_OCCUPATION_OPTIONS, PayeeApi, PayeeVO } from '@/api/icbc/payee'
 
 /** 出售者档案 表单 */
 defineOptions({ name: 'IcbcPayeeForm' })
@@ -122,7 +129,9 @@ const formRules = reactive({
   mobile: [
     { required: true, message: '手机号不能为空', trigger: 'blur' },
     { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }
-  ]
+  ],
+  // 工行收方账号：16-19 位数字（后端 PayeeInfoSaveReqVO 同一条规则）
+  bankCardNo: [{ pattern: /^\d{16,19}$/, message: '银行卡号应为 16-19 位数字', trigger: 'blur' }]
 })
 
 /** 打开弹窗 */

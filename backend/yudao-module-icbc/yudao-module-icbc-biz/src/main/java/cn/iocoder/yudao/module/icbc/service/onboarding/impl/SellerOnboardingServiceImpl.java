@@ -19,6 +19,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payer.PayerInfoMapper;
 import cn.iocoder.yudao.module.icbc.enums.IcbcStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.IcbcOccupationEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeBankCardChangeStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeOnboardingOutcomeEnum;
 import cn.iocoder.yudao.module.icbc.enums.PayeeRealNameStatusEnum;
@@ -70,7 +71,7 @@ public class SellerOnboardingServiceImpl implements SellerOnboardingService {
      * 工行职业字典的缺省值：「14-其他」。15 个取值里只有它**不宣称任何事实**——「13-无职业」是在断言
      * 这个人没有工作，那是编造；「其他」只表示我们没问。将来建档向导加一步问职业，这里就不再兜底。
      */
-    private static final String DEFAULT_OCCUPATION = "14";
+    private static final String DEFAULT_OCCUPATION = IcbcOccupationEnum.OTHER.getCode();
 
     /**
      * 「是否我行用户」的缺省值：1-我行用户。现场端拿到的多是工行卡；非工行卡由现场端或后续的

@@ -158,6 +158,12 @@ const handoff = reactive({ token: '', link: '', qr: '', expiresText: '' })
 const lookup = reactive({ idCardNo: '', mobile: '' })
 const newSeller = reactive({ name: '', idCardNo: '', mobile: '', bankCardNo: '', address: '' })
 
+/** 工行收方账号：16-19 位数字（与后端 PayeeInfoSaveReqVO 同一条规则） */
+const BANK_CARD_RE = /^\d{16,19}$/
+/** 工行住址规则：不少于 4 个汉字，或不少于 7 个字符 */
+const ADDRESS_MIN_CHINESE = 4
+const ADDRESS_MIN_CHARS = 7
+
 // 只读准入进度：composable 在 payeeId 变化时自动拉取（watch immediate）
 const { overview, load, tips } = useSellerOnboarding(() => payeeId.value)
 
@@ -195,8 +201,9 @@ async function onLookup() {
 }
 
 async function onCreateSeller() {
-  if (!newSeller.name || !newSeller.idCardNo || !newSeller.mobile) {
-    uni.showModal({ title: '还差一点', content: '姓名、身份证号与手机号必填', showCancel: false })
+  const invalid = validateNewSeller()
+  if (invalid) {
+    uni.showModal({ title: '还差一点', content: invalid, showCancel: false })
     return
   }
   creating.value = true
@@ -208,6 +215,30 @@ async function onCreateSeller() {
   } finally {
     creating.value = false
   }
+}
+
+/**
+ * 建档前的现场校验：拦下「现场能填进去、工行不收」的值（#84）。
+ *
+ * 银行卡与住址都是工行收方入驻的必输 / 有格式要求的字段，到了工行才被驳回就晚了：
+ * 现场要当场说清缺什么。返回空字符串表示通过。
+ */
+function validateNewSeller(): string {
+  if (!newSeller.name || !newSeller.idCardNo || !newSeller.mobile) {
+    return '姓名、身份证号与手机号必填'
+  }
+  if (!newSeller.bankCardNo) {
+    return '请填出售者本人的银行卡号（收方入驻要用）'
+  }
+  if (!BANK_CARD_RE.test(newSeller.bankCardNo)) {
+    return '银行卡号应为 16-19 位数字，请核对后重填'
+  }
+  const address = (newSeller.address || '').trim()
+  const chineseCount = (address.match(/[\u4e00-\u9fa5]/g) || []).length
+  if (chineseCount < ADDRESS_MIN_CHINESE && address.length < ADDRESS_MIN_CHARS) {
+    return `住址至少 ${ADDRESS_MIN_CHINESE} 个汉字（或不少于 ${ADDRESS_MIN_CHARS} 个字符），工行才收`
+  }
+  return ''
 }
 
 /** 进入某位出售者：拉一次只读进度，并立刻把「交给本人」的入口准备好 */

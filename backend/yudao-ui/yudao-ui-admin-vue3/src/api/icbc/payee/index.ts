@@ -49,6 +49,26 @@ export interface PayeeBankCardChangeVO {
   createTime?: number
 }
 
+// 工行收方入驻的「职业」字典（15 值）：与后端 IcbcOccupationEnum 一一对应。
+// 这是**工行的字典**，后台只能从这些里选；手敲一个词会被工行驳回（#84）。
+export const ICBC_OCCUPATION_OPTIONS = [
+  { value: '1', label: '公务员' },
+  { value: '2', label: '事业单位员工' },
+  { value: '3', label: '公司员工' },
+  { value: '4', label: '军人警察' },
+  { value: '5', label: '工人' },
+  { value: '6', label: '农民' },
+  { value: '7', label: '管理人员' },
+  { value: '8', label: '技术人员' },
+  { value: '9', label: '私营业主' },
+  { value: '10', label: '文体明星' },
+  { value: '11', label: '自由职业者' },
+  { value: '12', label: '学生' },
+  { value: '13', label: '无职业' },
+  { value: '14', label: '其他' },
+  { value: '15', label: '退休' }
+]
+
 // 出售者档案 API
 export const PayeeApi = {
   // 查询出售者档案分页

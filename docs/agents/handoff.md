@@ -1784,3 +1784,34 @@ canvas + `toDataURL` 渲染器已打包；自然人端 `pnpm ts:check` 零错误
 
 **frontier**：#82 已解。剩余同批：**#84**（字段校验收口）、**#86**（换卡）；#89 被 #86 阻塞、#87 被 #86 阻塞。
 另有 #90（司机端实名状态判断的枚举值错，本票顺手发现）。
+
+## #84 建档与后台的字段校验收口（已落地）
+
+三处「现场能填进去、工行不收」或「填了也没用」的字段被收口。
+
+1. **职业只能是工行的 15 值字典**：新增 `IcbcOccupationEnum`（api 层，15 值 + 中文名，`ArrayValuable<String>`），
+   `PayeeInfoSaveReqVO.occupation` 加 `@InEnum` 校验；后台 `PayeeForm` 的「职业」从自由文本改成 `el-select`
+   （选项常量 `ICBC_OCCUPATION_OPTIONS` 在 `api/icbc/payee/index.ts`）。`SellerOnboardingServiceImpl`
+   的缺省值 `DEFAULT_OCCUPATION` 改引用 `IcbcOccupationEnum.OTHER.getCode()`（行为不变，仍是 14）。
+2. **现场端银行卡号与住址**：`pages/payee/index.vue` 建档前校验——卡号为空 / 非 16–19 位数字拦下；
+   住址按工行规则（**不少于 4 个汉字，或不少于 7 个字符**）拦下，各自给出原因。后端
+   `PayeeInfoSaveReqVO.bankCardNo` 加了同一条 `@Pattern`（不填仍允许，卡可后补）。
+3. **预下单的「交易渠道」清掉**：`InvoicePreOrderReqVO.trxChannel`、后台 `api/icbc/invoice/index.ts`
+   的类型、`views/icbc/invoice/index.vue` 里写死的 `trxChannel: '01'` 都删了。它与入驻那个同名字段
+   是两套字典，且适配层从未上送（ADR 0035 决策 7）。
+
+**验收实测**：ICBC 模块 **718 个测试全绿**（#82 的 712 + 本票 6：`IcbcOccupationEnumTest` 3 +
+`PayeeInfoSaveReqVOValidationTest` 3）；全量 `compile` 通过；现场端 `pnpm ts:check` 零错误、
+`build:h5` 通过；PC `pnpm build:local` 通过。
+
+**测试抓到的一件事**：`randomPojo` 背后是 Podam 7.2.11，它有 `BeanValidationStrategy`，会读 JSR-303
+注解去造值——加了 `@Pattern(^\d{16,19}$)` 之后，它**造不出**这个字段，`bankCardNo` 变成 `null`，
+`PayeeInfoServiceImplTest.testUpdatePayeeInfo_success` 因此断言失败（DO 里是随机串、入参是 null）。
+已在该用例里显式给上合法卡号与职业，并在注释里写明原因。**以后给 VO 字段加 `@Pattern` / 字典校验，
+先看有没有随机造数的测试会踩到。**
+
+**一处如实说明（未做）**：自然人端 `onboardingFormUrl(token, trxChannel)` 上还挂着一个 `trxChannel`
+（`03/05` 那套入驻字典），后端 `writeOnboardingForm` **根本不读它**——是 #83 删入驻页面时留下的死参数。
+本票范围是预下单，没动它；它与 #89（换卡 / 自然人端重做）或 #87（词汇清除）同批收掉更顺。
+
+**frontier**：#84 已解。剩余同批：**#86**（换卡）；#87、#89 由 #86 阻塞；另有 #90（司机端实名枚举值）。
