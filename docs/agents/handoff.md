@@ -2638,3 +2638,9 @@ cardNumber / drawerCardNumber / payerAcctNum / taxPayerAccountNo / address / sel
 **如实记的残留（本票不改，与既有 `NaturalPersonServiceImpl#register` 同病）**：`addPayerToIcbc` 是
 `@Transactional`，其兜底回读处在 REPEATABLE READ 的一致性读快照下——并发方在预检之后提交的那一行
 **读不到**，兜底仍会 `throw cause`。`create` / `update` 不在事务里（各自 autocommit），不受影响。
+
+### 合并记录：#100（自动舰队）
+
+- 分支 `i100-payer-global-key` → `40d88067`：16 个文件、3 个提交
+- 独立评审：PASS（报告 `.fleet/gates/100.review.md`）
+- 闸门：全量 icbc `[WARNING] Tests run: 912, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/100.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/100.log`（`.fleet/` 与收养票的仓库外日志不入库）
