@@ -131,26 +131,36 @@ scan_files() { # <相对路径> -> 路径列表
 }
 
 next_ec_segment() {
-  local max
-  max=$(scan_files "$EC_FILE" | xargs grep -oh '1_030_[0-9][0-9][0-9]_' 2>/dev/null \
-        | sed 's/1_030_\([0-9]*\)_/\1/' | sort -n | tail -1)
-  printf '1_030_%03d_xxx' $((10#${max:-0} + 1))
+  # 两个来源都要看，少一个就会撞：
+  #  ① 磁盘上的实际值——收养的票、以及已经动手写过的在跑票
+  #  ② state 里刚分配出去的段——同一波次里刚起的票，工作树还是干净的 main，扫不到
+  local from_files from_state max
+  from_files=$(scan_files "$EC_FILE" | xargs grep -oh '1_030_[0-9][0-9][0-9]_' 2>/dev/null \
+               | sed 's/1_030_\([0-9]*\)_/\1/' | sort -n | tail -1)
+  from_state=$([ -f "$STATE" ] && awk -F'\t' '{print $6}' "$STATE" \
+               | sed -n 's/^1_030_\([0-9][0-9]*\)_xxx$/\1/p' | sort -n | tail -1)
+  max=${from_files:-0}
+  [ -n "${from_state:-}" ] && [ "$from_state" -gt "$max" ] && max=$from_state
+  printf '1_030_%03d_xxx' $((10#$max + 1))
 }
 next_menu_segment() {
   # 在 5280–5380 里找第一段连续 10 个没人用的 id
-  local used
+  local used from_state
   used=$(scan_files "$MENU_FILE" | xargs grep -ohE '\(5[0-9]{3},' 2>/dev/null | tr -d '(,' | sort -n | uniq)
+  from_state=$([ -f "$STATE" ] && awk -F'\t' '{print $7}' "$STATE" \
+               | sed -n 's/^\([0-9][0-9]*\)-\([0-9][0-9]*\)$/\1 \2/p' | while read -r a b; do seq "$a" "$b"; done)
+  local all; all="$(echo "$used"; echo "$from_state")"
   local cand=5280
   while [ "$cand" -le 5380 ]; do
     local free=1 i=0
     while [ $i -lt 10 ]; do
-      if echo "$used" | grep -qx "$((cand+i))"; then free=0; break; fi
+      if echo "$all" | grep -qx "$((cand+i))"; then free=0; break; fi
       i=$((i+1))
     done
     [ $free = 1 ] && { echo "$cand-$((cand+9))"; return; }
     cand=$((cand+10))
   done
-  echo "（无空闲段，本票不要加菜单）"
+  echo "（无空闲段本票不要加菜单）"
 }
 
 # ---------------------------------------------------------------- 启动
@@ -210,10 +220,10 @@ EOF
   info "    日志 tail -f $log"
 }
 
-cmd_adopt() { # n pid branch wt log
-  local n=$1 pid=$2 branch=$3 wt=$4 log=$5
-  state_set "$n" running "$branch" "$wt" "$pid" "（继承）" "（继承）" "$log"
-  ok "#$n 已收养 pid=$pid"
+cmd_adopt() { # n pid branch wt log [ec] [menu]
+  local n=$1 pid=$2 branch=$3 wt=$4 log=$5 ec=${6:-（继承）} menu=${7:-（继承）}
+  state_set "$n" running "$branch" "$wt" "$pid" "$ec" "$menu" "$log"
+  ok "#$n 已收养 pid=${pid}（错误码段 ${ec}，菜单段 ${menu}）"
 }
 
 # 最后一次有动静的时间：运行日志 + 该工作树自己的 pi 会话文件（会话文件是实时的，日志要到跑完才写）
@@ -349,7 +359,14 @@ cmd_integrate() {
   git -C "$ROOT" commit -q -m "docs(handoff): #$n 记录（自动舰队）"
   state_set "$n" merged "$branch" "$wt" "" "$(state_field "$n" 6)" "$(state_field "$n" 7)" "$FLEET/logs/$n.log"
   [ -n "$wt" ] && [ -d "$wt" ] && git -C "$ROOT" worktree remove --force "$wt" >/dev/null 2>&1
-  [ "$PUSH" = 1 ] && git -C "$ROOT" push origin main >/dev/null 2>&1 && info "已 push"
+  [ "$PUSH" = 1 ] && {
+    if git -C "$ROOT" push origin main > "$FLEET/logs/push.log" 2>&1; then
+      info "已 push 到 origin/main"
+    else
+      echo "✗ push 失败！票已合并并关，但远端 main 落后了。看 $FLEET/logs/push.log" >&2
+      gh issue comment "$n" --body "⚠ 自动舰队：**本地**已合并（\`$merged_sha\`）并关票，但 \`git push origin main\` **失败**。远端 main 落后于本地，需要人工推一次。" >/dev/null 2>&1
+    fi
+  }
 
   gh issue comment "$n" --body "自动舰队已合并到 main：
 - 合并提交 \`$merged_sha\`（$commits 个提交，$files 个文件）
@@ -486,7 +503,7 @@ case "${1:-}" in
   run)       cmd_run ;;
   status)    cmd_status ;;
   launch)    cmd_launch "$2" ;;
-  adopt)     cmd_adopt "$2" "$3" "$4" "$5" "$6" ;;
+  adopt)     cmd_adopt "$2" "$3" "$4" "$5" "$6" "${7:-}" "${8:-}" ;;
   gate)      cmd_gate "$2" ;;
   review)    cmd_review "$2" ;;
   integrate) cmd_integrate "$2" ;;
