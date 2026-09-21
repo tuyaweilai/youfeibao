@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.icbc.service.token;
 
 import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
+import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
 import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenCreateReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenRespVO;
@@ -12,6 +13,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.token.IcbcPublicTokenMapper;
 import cn.iocoder.yudao.module.icbc.enums.PublicTokenPurposeEnum;
 import cn.iocoder.yudao.module.icbc.service.token.impl.PublicTokenServiceImpl;
+import cn.iocoder.yudao.test.icbc.IcbcTenantTestConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,8 +32,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * {@link PublicTokenServiceImpl} 的单元测试：签发、验签、单用途/限次、租户与业务绑定。
+ *
+ * <p>{@link IcbcTenantTestConfiguration} 打开多租户拦截器：作废是「在全局表上做鉴权端写入」，
+ * 与其它方法不同——{@code icbc_public_token} 在 {@code ignore-tables} 里，SQL 没有租户条件，
+ * 租户收口必须在 Java 侧做（#94 评审 S-1）。
  */
-@Import({PublicTokenServiceImpl.class, PublicTokenCodec.class})
+@Import({PublicTokenServiceImpl.class, PublicTokenCodec.class, IcbcTenantTestConfiguration.class})
 @TestPropertySource(properties = "icbc.public-token.secret=test-public-token-secret-0123456789abcdef")
 @Sql(scripts = "/sql/create_tables.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Transactional
@@ -47,6 +53,8 @@ public class PublicTokenServiceImplTest extends BaseDbUnitTest {
     private PayeeInfoMapper payeeInfoMapper;
     @Resource
     private IcbcPublicTokenMapper publicTokenMapper;
+    @Resource
+    private PublicTokenCodec publicTokenCodec;
 
     @BeforeEach
     public void setUp() {
@@ -178,9 +186,38 @@ public class PublicTokenServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void testRevoke_crossTenantTokenTreatedAsNotFound_andRowUnchanged() {
+        // 另一家回收企业（tenantId=2）签发的邀请令牌：本租户拿到字符串也不能作废它。
+        // 这条用例必须真红：icbc_public_token 在 ignore-tables 里，selectByJti / updateById 都没有租户条件，
+        // 没有 Java 侧收口时 revoke 会成功、下面两处断言（NotFound + 行不变）全崩。
+        PublicTokenRespVO minted = TenantUtils.execute(2L,
+                () -> publicTokenService.mint(createReq("ONBOARDING_WIZARD", null, null)));
+        String jti = publicTokenCodec.verify(minted.getToken()).getJti();
+        LocalDateTime before = publicTokenMapper.selectByJti(jti).getExpiresTime();
+
+        TenantContextHolder.setTenantId(TENANT_ID); // 当前上下文是租户 1
+        assertServiceException(() -> publicTokenService.revoke(minted.getToken()), PUBLIC_TOKEN_NOT_FOUND);
+
+        assertEquals(before, publicTokenMapper.selectByJti(jti).getExpiresTime(),
+                "别家企业的令牌行一个字都不能改");
+    }
+
+    @Test
+    public void testRevoke_nonRevocablePurposeRejected_andRowUnchanged() {
+        insertOrder("ORDER_T7");
+        PublicTokenRespVO minted = publicTokenService.mint(createReq("INVOICE_DOWNLOAD", "ORDER_T7", null));
+        String jti = publicTokenCodec.verify(minted.getToken()).getJti();
+        LocalDateTime before = publicTokenMapper.selectByJti(jti).getExpiresTime();
+
+        // 本租户、签名有效，但这个用途不支持作废：新端点不能变成掐断任意链接的万能钥匙
+        assertServiceException(() -> publicTokenService.revoke(minted.getToken()), PUBLIC_TOKEN_PURPOSE_MISMATCH);
+
+        assertEquals(before, publicTokenMapper.selectByJti(jti).getExpiresTime(), "被拒后行不能被改动");
+    }
+
+    @Test
     public void testRevoke_recordMissingGivesReadableError() {
-        insertOrder("ORDER_T6");
-        PublicTokenRespVO respVO = publicTokenService.mint(createReq("INVOICE_DOWNLOAD", "ORDER_T6", null));
+        PublicTokenRespVO respVO = publicTokenService.mint(createReq("ONBOARDING_WIZARD", null, null));
         // 签名有效但库记录已不存在（清理 / 误删）：不能静默成功
         publicTokenMapper.deleteById(publicTokenMapper.selectList().get(0).getId());
 

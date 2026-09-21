@@ -19,6 +19,7 @@ import org.springframework.validation.annotation.Validated;
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Objects;
 import java.util.UUID;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
@@ -124,12 +125,21 @@ public class PublicTokenServiceImpl implements PublicTokenService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void revoke(String token) {
-        // 验签只证明「这枚令牌是我们签的」；是否在库里、是否已过期由下面判定。
+        // 验签只证明「这枚令牌是我们签的」；是否在库里、是否属于本租户、是否可作废由下面判定。
         // 已经过期的令牌不再重复作废，直接告诉调用方「这枚已经不在有效期内」。
         PublicTokenPayload payload = publicTokenCodec.verify(token);
         IcbcPublicTokenDO record = publicTokenMapper.selectByJti(payload.getJti());
-        if (record == null) {
+        // icbc_public_token 是全局表（在 ignore-tables 里），下面这些查询 / 更新**没有租户条件**，
+        // 所以必须在 Java 侧收口：不属于当前租户就按「不存在」处理——不能回「无权」，那会泄露它存在（#94 评审 S-1）。
+        if (record == null || !Objects.equals(record.getTenantId(), TenantContextHolder.getTenantId())) {
             throw exception(PUBLIC_TOKEN_NOT_FOUND);
+        }
+        // 用途收口：只有「转达给本人的邀请 / 实名链接」可作废，见 PublicTokenPurposeEnum#revocable。
+        // 否则这个新端点会变成一把能掐断任何用途链接的万能钥匙（#94 评审 S-1）。
+        PublicTokenPurposeEnum purpose = PublicTokenPurposeEnum.ofCode(record.getPurpose())
+                .orElseThrow(() -> exception(PUBLIC_TOKEN_PURPOSE_MISMATCH));
+        if (!purpose.isRevocable()) {
+            throw exception(PUBLIC_TOKEN_PURPOSE_MISMATCH);
         }
         // 作废 = 把有效期提前到现在：verify / redeem 都会按「已过期」拒绝，链接立刻失效。
         // 不新增「作废」列：令牌表已进脊柱建表脚本，加列成本高于收益，而有效期语义足够表达。

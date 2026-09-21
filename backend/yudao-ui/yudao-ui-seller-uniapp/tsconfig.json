@@ -15,7 +15,9 @@
     "baseUrl": ".",
     "types": ["@dcloudio/types", "vite/client"],
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@youfeibao/field-shared": ["../packages/field-shared/src/index.ts"],
+      "@youfeibao/field-shared/*": ["../packages/field-shared/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.vue", "vite.config.ts"],

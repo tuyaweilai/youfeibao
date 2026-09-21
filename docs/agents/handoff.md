@@ -2232,3 +2232,46 @@ member 令牌回 `code=401 账号未登录`。
 > `PublicOnboardingWizardAccessLogAnnotationTest` 1 例 + `PublicOnboardingWizardServiceImplTest` 10 例 +
 > `PublicTokenServiceImplTest` 3 例 = 14）。自然人端 `ts:check` 零错误、`build:h5` 与 `build:mp-weixin` 通过；
 > 现场端 / 司机端 `ts:check` 零错误、现场端 `build:h5` 通过。PC 后台本票无改动。
+
+## #94 修票：独立评审 BLOCK 后的补齐（追加一个提交，未改历史）
+
+独立评审 `REVIEW_VERDICT: BLOCK`（报告 `.fleet/gates/94.review.md`），两条阻断：S-1 作废接口在全局表上
+没有租户收口（跨租户可作废别家链接）；SP-1 / AC1 只做了「待建档」一半。本轮逐条对账：
+
+1. **S-1（阻断项）已修**：`PublicTokenService#revoke` 在 Java 侧收口——`icbc_public_token` 是全局表
+   （在 `ignore-tables` 里，SQL 没有租户条件），记录的 `tenant_id` 与当前租户不一致一律按
+   `PUBLIC_TOKEN_NOT_FOUND` 处理（不回「无权」，不泄露它存在）；并限制用途：只有
+   `PublicTokenPurposeEnum#revocable` 为真的转达链接（`ONBOARDING_WIZARD` / `ONBOARDING`）可作废，
+   其它用途按 `PUBLIC_TOKEN_PURPOSE_MISMATCH` 拒。
+   新用例 `testRevoke_crossTenantTokenTreatedAsNotFound_andRowUnchanged` 真开租户上下文、断言跨租户被拒
+   且行不变（没有收口就会红）；`testRevoke_nonRevocablePurposeRejected_andRowUnchanged` 钉住用途收口。
+2. **SP-1 / AC1（阻断项）已修**：`OnboardingWizardServiceImpl#submit` 遇到「本租户已有同身份证档案」
+   不再抛 `WIZARD_PAYEE_ALREADY_ARCHIVED`，改为**更新既有那一份**并返回它：证件有效期 / 卡号 / 开户行 /
+   支行 / 住址 / 是否我行卡按本次确认值写回；姓名 / 证件号 / 手机号（身份字段）不动；自然人主体按既有
+   「复用不覆盖」规则也不被改写。协议仍走 `saveFrameworkAgreement` 的既有重签留痕（新协议生效即作废旧生效）。
+   幂等：`ONBOARDING_WIZARD` 令牌 `maxUses = 1`，同一枚链接再次提交读 `PUBLIC_TOKEN_USED_UP`，那一次的写入
+   随事务回滚（`testSubmit_successConsumesTheOnlyUse...` 用 `NOT_SUPPORTED` 事务真看回滚，不再只写注释）。
+   `WIZARD_PAYEE_ALREADY_ARCHIVED` 不再抛出，码位保留、加了一句说明（只追加不重排）。
+3. **AC1 前端入口**：现场端 `pages/payee/index.vue` 第二步（已带 `payeeId`）补上「本人自填建档」卡片，
+   复用既有的 `useWizardInviteLink`（二维码 / 复制 / 作废 / 重新生成），并在「换一位出售者」时一并清空。
+4. **S-2 已修（类型共享）**：向导的请求 / 响应类型收进 `packages/field-shared/src/api/wizardTypes.ts`
+   （纯类型、零 import），`field-shared/src/api/wizard.ts` 与 `seller-uniapp/src/api/wizard.ts` 各自只引它；
+   自然人端加 `@youfeibao/field-shared` 别名 / tsconfig paths，用 `import type` 引（运行时不带现场端请求层）。
+   两个 composable（`useHandoffLink` / `useWizardInviteLink`）的重复**保留**——评审也判「共享请求层不成立」，
+   二维码渲染与提示封装留在各自宿主，本票不动。
+5. **S-3 已修**：`seller-uniapp/README.md` 的用途清单补上 `ONBOARDING_WIZARD`。
+6. **S-4 已说明**：`ErrorCodeConstants` 043 段旁注明——042 是并行票 **#93** 分配到的段
+   （`.fleet/state.tsv`：#93 = `1_030_042_xxx`、#94 = `1_030_043_xxx`、#95 = `1_030_044_xxx`）。
+7. **S-5 已修**：自填壳第 4 步「是否本人工行卡」补回现场端那两条解释（识别为……请点确认 / 识别不到按缺省工行卡）。
+8. **S-6 已修**：自填壳 `assertLandedShape` 补齐 `resp.getSignMethod()` 与 `verify(esignPort, never())`；
+   `testSubmit_successConsumes...` 的「不留下第二份档案」改成真断言。
+
+> **仍未做，如实记**：① 弱网重提不是向导内闭环——**同一枚**链接重提读 `USED_UP`，本人停在步骤 4；要闭环
+> 需「建档后用链接找回 payeeId」或幂等键，不在本票。② 真机项（相机、微信开链接、弱网本地暂存）仍未验。
+> ③ 幂等的边界：`maxUses=1` + 事务回滚保证「同一枚链接不产生第二份档案」；「已建档的人用**新**链接再提交」
+> 会更新既有档案并每次新增一条协议（旧协议作废、历史可查）——那是重签语义，不是重复建档。
+> ④ 上面的 #94 小节「如实记下的缺口 ②（已建档的人走不完自填向导）」已被本轮推翻，以本节为准。
+
+> **测试数字**：ICBC 模块 **794 passed / 0 fail / 1 skipped**（上一轮 792，+2 跨租户作废 / 用途收口）。
+> 自然人端 `ts:check` 零错误、`build:h5` 与 `build:mp-weixin` 通过；现场端 / 司机端 `ts:check` 零错误、
+> 现场端 `build:h5` 通过。PC 后台本票无改动。

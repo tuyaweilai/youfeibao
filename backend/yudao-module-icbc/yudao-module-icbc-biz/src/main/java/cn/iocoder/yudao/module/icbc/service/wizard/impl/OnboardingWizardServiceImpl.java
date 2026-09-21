@@ -110,15 +110,31 @@ public class OnboardingWizardServiceImpl implements OnboardingWizardService {
     @Transactional(rollbackFor = Exception.class)
     public OnboardingWizardSubmitRespVO submit(@Valid OnboardingWizardSubmitReqVO reqVO) {
         validateSubmit(reqVO);
-        // 同一租户内一张身份证只能有一份收方档案：已有档案时该做的是「去改那一份」，不是再建一份。
-        // 这里换成一句可读的话，而不是让 createPayeeInfo 抛出「身份证号码已存在」的错码（#91 评审 SP-5）
-        if (payeeInfoService.getPayeeInfoByIdCardNo(reqVO.getIdCardNo()) != null) {
-            throw exception(WIZARD_PAYEE_ALREADY_ARCHIVED);
-        }
+        // 同一租户内一张身份证只能有一份收方档案（#91）。已有档案不再拒绝（#94 修票 / 父票 #81 故事 14）：
+        // 「本人当时没签，回头还能再给一次链接」——本人自填壳会拿着一枚新链接再走一遍。
+        // 这时该做的是**更新那一份**：把本次本人确认过的字段写上去，幂等地返回既有档案，不新建第二份。
+        PayeeInfoDO existing = payeeInfoService.getPayeeInfoByIdCardNo(reqVO.getIdCardNo());
+        Long payeeId = existing != null ? updateArchive(existing, reqVO) : createArchive(reqVO);
+        PayeeInfoDO payee = payeeInfoService.getPayeeInfo(payeeId);
 
-        // 1. 收方档案：姓名 / 证件号 / 证件有效期登记并关联平台级自然人主体（有则复用、主体上已填的值不覆盖），
-        //    证件有效期同时作为本次确认值留在档案上；卡号 / 开户行 / 住址 / 是否我行卡也写进档案
-        //    （ADR 0017、#81 决策 5）
+        // 2. 框架收购协议：电子签章未开通即落 PAPER，本票不发起电子签署（#95）。
+        //    重签按既有留痕规则：saveFrameworkAgreement 会让新协议生效、旧生效协议作废，历史仍可查。
+        String signMethod = resolveSignMethod(TenantContextHolder.getRequiredTenantId());
+        Long agreementId = sellerOnboardingService.saveFrameworkAgreement(toAgreement(reqVO, payeeId, signMethod));
+
+        return OnboardingWizardSubmitRespVO.builder()
+                .payeeId(payeeId)
+                .naturalPersonId(payee.getNaturalPersonId())
+                .agreementId(agreementId)
+                .signMethod(signMethod)
+                .build();
+    }
+
+    /**
+     * 首次建档：姓名 / 证件号 / 证件有效期登记并关联平台级自然人主体（有则复用、主体上已填的值不覆盖），
+     * 卡号 / 开户行 / 住址 / 是否我行卡也写进档案（ADR 0017、#81 决策 5）。
+     */
+    private Long createArchive(OnboardingWizardSubmitReqVO reqVO) {
         PayeeInfoSaveReqVO saveReqVO = new PayeeInfoSaveReqVO();
         saveReqVO.setName(reqVO.getName());
         saveReqVO.setIdCardNo(reqVO.getIdCardNo());
@@ -131,19 +147,33 @@ public class OnboardingWizardServiceImpl implements OnboardingWizardService {
         saveReqVO.setBankBranch(reqVO.getBankBranch());
         saveReqVO.setAccountCode(StrUtil.blankToDefault(reqVO.getAccountCode(), IcbcAccountCodeEnum.ICBC.getCode()));
         saveReqVO.setBusinessType("RECYCLE");
-        Long payeeId = payeeInfoService.createPayeeInfo(saveReqVO);
-        PayeeInfoDO payee = payeeInfoService.getPayeeInfo(payeeId);
+        return payeeInfoService.createPayeeInfo(saveReqVO);
+    }
 
-        // 2. 框架收购协议：电子签章未开通即落 PAPER，本票不发起电子签署（#95）
-        String signMethod = resolveSignMethod(TenantContextHolder.getRequiredTenantId());
-        Long agreementId = sellerOnboardingService.saveFrameworkAgreement(toAgreement(reqVO, payeeId, signMethod));
-
-        return OnboardingWizardSubmitRespVO.builder()
-                .payeeId(payeeId)
-                .naturalPersonId(payee.getNaturalPersonId())
-                .agreementId(agreementId)
-                .signMethod(signMethod)
-                .build();
+    /**
+     * 已有档案时的更新（#94 修票）：只写本次本人确认过的字段——证件有效期 / 卡号 / 开户行 / 住址 / 是否我行卡。
+     *
+     * <p>姓名 / 证件号 / 手机号是身份字段，**不动**：这是本人再次确认，不是换人；证件号原样带上，
+     * {@code updatePayeeInfo} 才会保留原有自然人主体（不重新登记、不覆盖主体上的证件有效期，见 #91 SP-1）。
+     * 「是否我行卡」只在本次真的选过时改写，留空不拿缺省值把旧值盖掉。
+     */
+    private Long updateArchive(PayeeInfoDO existing, OnboardingWizardSubmitReqVO reqVO) {
+        PayeeInfoSaveReqVO updateReqVO = new PayeeInfoSaveReqVO();
+        updateReqVO.setId(existing.getId());
+        // 姓名 / 手机号是身份字段，保持档案原值；只在档案本身为空时（历史数据）用本次确认值兜底，
+        // 避免撞上 PayeeInfoSaveReqVO 的 @NotEmpty
+        updateReqVO.setName(StrUtil.blankToDefault(existing.getName(), reqVO.getName()));
+        updateReqVO.setIdCardNo(existing.getIdCardNo());
+        updateReqVO.setMobile(StrUtil.blankToDefault(existing.getMobile(), reqVO.getMobile()));
+        updateReqVO.setAddress(reqVO.getAddress());
+        updateReqVO.setIdSignDate(reqVO.getIdSignDate());
+        updateReqVO.setIdValidityPeriod(reqVO.getIdValidityPeriod());
+        updateReqVO.setBankCardNo(reqVO.getBankCardNo());
+        updateReqVO.setBankName(reqVO.getBankName());
+        updateReqVO.setBankBranch(reqVO.getBankBranch());
+        updateReqVO.setAccountCode(StrUtil.trimToNull(reqVO.getAccountCode()));
+        payeeInfoService.updatePayeeInfo(updateReqVO);
+        return existing.getId();
     }
 
     /**

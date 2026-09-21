@@ -6,6 +6,7 @@ import cn.iocoder.yudao.framework.test.core.ut.BaseDbUnitTest;
 import cn.iocoder.yudao.module.icbc.UnitTestConfiguration;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenCreateReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.publictoken.vo.PublicTokenRespVO;
+import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeInfoPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.payee.vo.PayeeInfoSaveReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.wizard.vo.*;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.agreement.IcbcFrameworkAgreementDO;
@@ -33,6 +34,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
@@ -41,7 +43,11 @@ import java.util.Collections;
 import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServiceException;
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -168,26 +174,34 @@ public class PublicOnboardingWizardServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED) // 这条要看到真实回滚：不套测试事务，提交各自成事务
     public void testSubmit_successConsumesTheOnlyUse_sameLinkCannotBuildTwoArchives() {
         String token = mintInvite().getToken();
-        publicOnboardingWizardService.submit(token, fullReq("110101199001010202", "13800000202"));
+        String firstIdCardNo = "110101199001010202";
+        publicOnboardingWizardService.submit(token, fullReq(firstIdCardNo, "13800000202"));
 
-        // 一枚链接只建一份档案：换一个人再提交即被拒（maxUses = 1，成功落库才占用；
-        // 后面的落库会在同一事务里回滚，不会留下第二份档案）
+        // 一枚链接只建一份档案：换一个人再提交即被拒（maxUses = 1，成功落库才占用）
         assertServiceException(() -> publicOnboardingWizardService.submit(
                 token, fullReq("110101199001010207", "13800000207")), PUBLIC_TOKEN_USED_UP);
+        // 把注释声称的东西断言掉（#94 评审 S-6）：第二次调用里的落库在同一事务里回滚，没留下第二份档案，
+        // 也没把第一次那份改坏
+        assertNull(payeeInfoMapper.selectByIdCardNo("110101199001010207"), "第二个人不能凭同一枚链接建档");
+        assertNotNull(payeeInfoMapper.selectByIdCardNo(firstIdCardNo), "第一个人的档案仍在");
+        assertEquals(1, countByIdCardNo(firstIdCardNo));
     }
 
     @Test
-    public void testSubmit_weakNetworkRetry_sameePersonReadsAlreadyArchived() {
+    public void testSubmit_weakNetworkRetry_sameTokenReadsLinkUsedUp_andLeavesOneArchive() {
         String token = mintInvite().getToken();
         String idCardNo = "110101199001010208";
         publicOnboardingWizardService.submit(token, fullReq(idCardNo, "13800000208"));
 
-        // 弱网下服务端已落库、客户端超时后重提：拿到的是「本企业已有档案」而不是「链接用尽」，
-        // 本人看得懂发生了什么（失败重试不占次数，所以到了落库这一步才撞）
+        // 弱网下服务端已落库、客户端超时后用**同一枚链接**重提：链接已用尽（recognize 与重开不占次数，
+        // 但成功落库那一次已经占掉）；重提里的档案更新在同一事务里回滚，不会留下第二份档案，
+        // 也不会把第一次那份改坏
         assertServiceException(() -> publicOnboardingWizardService.submit(token, fullReq(idCardNo, "13800000208")),
-                WIZARD_PAYEE_ALREADY_ARCHIVED);
+                PUBLIC_TOKEN_USED_UP);
+        assertEquals(1, countByIdCardNo(idCardNo), "同一枚链接重复提交不产生第二份档案");
     }
 
     @Test
@@ -211,15 +225,19 @@ public class PublicOnboardingWizardServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testSubmit_alreadyArchivedInTenant_rejectsReadably() {
+    public void testSubmit_alreadyArchivedInTenant_updatesThatArchive_andKeepsOneRow() {
         String idCardNo = "110101199001010204";
         String mobile = "13800000204";
-        payeeInfoService.createPayeeInfo(payeeReq(idCardNo, mobile));
+        Long existingPayeeId = payeeInfoService.createPayeeInfo(payeeReq(idCardNo, mobile));
         String token = mintInvite().getToken();
 
-        // 同一租户一张身份证只能有一份档案：自填壳给出与代录壳同一句可读提示
-        assertServiceException(() -> publicOnboardingWizardService.submit(token, fullReq(idCardNo, mobile)),
-                WIZARD_PAYEE_ALREADY_ARCHIVED);
+        // AC1 的「已建档」分支（#94 修票）：本人拿到一枚新链接也能走完，落在**既有那份档案**上，
+        // 不新建、也不以「本企业已有档案」拒掉
+        OnboardingWizardSubmitRespVO resp = publicOnboardingWizardService.submit(token, fullReq(idCardNo, mobile));
+
+        assertEquals(existingPayeeId, resp.getPayeeId(), "已建档的人走自填向导要更新既有档案");
+        assertEquals(1, countByIdCardNo(idCardNo), "幂等：同一张身份证仍只有一份档案");
+        assertLandedShape(resp, idCardNo);
     }
 
     @Test
@@ -252,7 +270,18 @@ public class PublicOnboardingWizardServiceImplTest extends BaseDbUnitTest {
         reqVO.setName("张三");
         reqVO.setIdCardNo(idCardNo);
         reqVO.setMobile(mobile);
+        // 与 fullReq 的证件有效期一致：自然人主体按「复用不覆盖」规则保留先登记的值，
+        // 断言落库形状时两边才对得上
+        reqVO.setIdSignDate("2020-01-01");
+        reqVO.setIdValidityPeriod("2030-01-01");
         return reqVO;
+    }
+
+    /** 某张身份证在本租户有几份收方档案：幂等断言用。 */
+    private int countByIdCardNo(String idCardNo) {
+        PayeeInfoPageReqVO page = new PayeeInfoPageReqVO();
+        page.setIdCardNo(idCardNo);
+        return payeeInfoMapper.selectList(page).size();
     }
 
     private OnboardingWizardSubmitReqVO fullReq(String idCardNo, String mobile) {
@@ -292,8 +321,15 @@ public class PublicOnboardingWizardServiceImplTest extends BaseDbUnitTest {
         IcbcFrameworkAgreementDO agreement = frameworkAgreementMapper.selectById(resp.getAgreementId());
         assertNotNull(agreement);
         assertEquals(FrameworkAgreementSignMethodEnum.PAPER.getCode(), agreement.getSignMethod());
+        assertEquals(FrameworkAgreementSignMethodEnum.PAPER.getCode(), resp.getSignMethod(),
+                "两个壳的 submit 结果都带同一签署方式（#94 评审 S-6）");
         assertEquals(1, agreement.getStatus());
         assertNotNull(agreement.getSignedAt());
+
+        // 本票不发起电子签署：不调 initiate / createSignUrl（与代录壳同一断言，
+        // 两个壳都不许偷偷写一份「没人签过」的电子协议）
+        verify(esignPort, never()).initiate(anyLong(), any());
+        verify(esignPort, never()).createSignUrl(anyLong(), any(), any());
     }
 
 }

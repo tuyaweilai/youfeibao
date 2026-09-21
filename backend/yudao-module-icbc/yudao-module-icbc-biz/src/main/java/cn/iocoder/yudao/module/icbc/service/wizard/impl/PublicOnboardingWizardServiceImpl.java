@@ -29,7 +29,8 @@ import java.util.function.Supplier;
  *
  * <p>令牌占用口径：识别与打开页面**不占次数**（本人会重拍、回退、切后台），只有
  * {@code submit} 成功落库后才占用唯一一次（{@code maxUses = 1}）——一枚链接只建一份档案。
- * 失败（校验不过 / 撞已有档案）不占次数，本人重试看得懂原因。
+ * 校验不过不占次数，本人重试看得懂原因；同一枚链接再提交一次（如弱网重提）会读到「链接已用尽」，
+ * 它上一次写下的东西随事务回滚，不会留下第二份档案（#94 评审 S-6）。
  */
 @Service
 @Validated
@@ -79,7 +80,7 @@ public class PublicOnboardingWizardServiceImpl implements PublicOnboardingWizard
             resp.setOnboardingToken(mintOnboardingToken(resp.getPayeeId()));
             resp.setOnboardingExpiresTime(onboardingExpiresTime(resp.getOnboardingToken()));
             // 一枚链接只建一份档案：成功落库后才占用唯一一次使用次数。
-            // 若不成功（校验不过 / 弱网重提撞已有档案）就不占，本人重试的仍是同一条可读错误。
+            // 校验不过 / 弱网重提同一枚链接时不占（重提读到的是「链接已用尽」，上一次的写入随事务回滚）。
             publicTokenService.consume(payload);
             return resp;
         });

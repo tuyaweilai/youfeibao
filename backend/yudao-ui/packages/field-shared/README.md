@@ -13,6 +13,7 @@
 | `src/api/payee.ts` | 自然人档案：带档（身份证号 / 手机号）、建档 |
 | `src/api/publicToken.ts` | 签发 / 作废一次性令牌（把建档链接交给出售者本人；#94 加了自填建档链接的作废） |
 | `src/api/wizard.ts` | 建档向导（#91）的五步壳接口：无状态识别三枚 + 一次性落库 |
+| `src/api/wizardTypes.ts` | 向导的请求 / 响应**类型**（纯类型、零 import）：现场端壳与自然人自填壳共用一份，#94 评审 S-2 |
 | `src/utils/icbcForm.ts` | 工行 UI 页面接口的自动提交表单：新窗口承载（ADR 0016） |
 | `src/utils/realName.ts` | 实人认证状态的判定：**1 是「认证中」，只有 2 是「认证通过」**（#90） |
 | `src/utils/onboarding.ts` | 收方入驻状态的判定：只有 `READY` 是「入驻完成」（#90 顺带修的同类问题） |

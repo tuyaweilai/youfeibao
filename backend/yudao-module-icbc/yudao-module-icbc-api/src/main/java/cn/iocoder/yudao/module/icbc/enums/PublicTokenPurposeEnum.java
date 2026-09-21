@@ -12,31 +12,30 @@ import java.util.Optional;
 public enum PublicTokenPurposeEnum {
 
     /** 发票 PDF 下载：绑定一张票（合作方订单号），单次有效 */
-    INVOICE_DOWNLOAD("INVOICE_DOWNLOAD", "发票下载", BusinessKeyType.ORDER, 1),
+    INVOICE_DOWNLOAD("INVOICE_DOWNLOAD", "发票下载", BusinessKeyType.ORDER, 1, false),
     /** 收方入驻失败后留联系方式：绑定一个收方，单次有效 */
-    CONTACT_LEAD("CONTACT_LEAD", "失败留联系方式", BusinessKeyType.PAYEE, 1),
+    CONTACT_LEAD("CONTACT_LEAD", "失败留联系方式", BusinessKeyType.PAYEE, 1, false),
     /** 额度查询：绑定一个自然人收方，有效期内限次使用（页面可刷新） */
-    QUOTA_QUERY("QUOTA_QUERY", "额度查询", BusinessKeyType.PAYEE, 20),
+    QUOTA_QUERY("QUOTA_QUERY", "额度查询", BusinessKeyType.PAYEE, 20, false),
     /** 汇算清缴对账：绑定一个自然人收方，出售者查自己的开票与已缴税款（可刷新） */
-    SETTLEMENT_STATEMENT("SETTLEMENT_STATEMENT", "汇算清缴对账", BusinessKeyType.PAYEE, 20),
+    SETTLEMENT_STATEMENT("SETTLEMENT_STATEMENT", "汇算清缴对账", BusinessKeyType.PAYEE, 20, false),
     /** 出售者建档：绑定一个自然人收方，让自然人在自己手机上完成工行实名 / 收方入驻（可重开页面） */
-    ONBOARDING("ONBOARDING", "出售者建档", BusinessKeyType.PAYEE, 20),
+    ONBOARDING("ONBOARDING", "出售者建档", BusinessKeyType.PAYEE, 20, true),
     /**
      * 触达通知（#36）：短信 / 收货员转达的链接，绑定一个自然人收方，让他打开就能看到
      * 「待确认的结算 / 付款异常 / 已开出的票」，**不需要先注册**（ADR 0023）。
      */
-    SELLER_NOTICE("SELLER_NOTICE", "触达通知", BusinessKeyType.PAYEE, 20),
+    SELLER_NOTICE("SELLER_NOTICE", "触达通知", BusinessKeyType.PAYEE, 20, false),
     /**
      * 本人自填建档（#94，ADR 0007 补充）：收货员把链接交给本人，让他在自己手机上走完
      * 同一套五步向导（拍证件 / 银行卡 → 确认 → 落库）。
      *
      * <p>它绑定的是**这枚免注册链接本身**，不是某个收方档案：链接生成时这个人可能还没有档案，
-     * 收方档案要等向导落库时才建（这样中途退出不会留下半成品档案）。有效期 24 小时；识别、重开页面
-     * 与失败重试**不占次数**，只有成功落库那一次才占，所以限次就是 1——一枚链接只建一份档案。
-     * 弱网下服务端已落库、客户端超时后重提，拿到的是「本企业已有档案」而不是「链接用尽」，
-     * 本人看得懂发生了什么。
+     * 收方档案要等向导落库时才建（这样中途退出不会留下半成品档案），已建档的人也能再走一次、
+     * 更新既有那一份（#94 修票）。有效期 24 小时；识别、重开页面与失败重试**不占次数**，
+     * 只有成功落库那一次才占，所以限次就是 1——一枚链接只建一份档案。
      */
-    ONBOARDING_WIZARD("ONBOARDING_WIZARD", "本人自填建档", BusinessKeyType.ONBOARDING_INVITE, 1);
+    ONBOARDING_WIZARD("ONBOARDING_WIZARD", "本人自填建档", BusinessKeyType.ONBOARDING_INVITE, 1, true);
 
     /**
      * 令牌绑定的业务键类型。
@@ -57,12 +56,23 @@ public enum PublicTokenPurposeEnum {
     private final String name;
     private final BusinessKeyType businessKeyType;
     private final int maxUses;
+    /**
+     * 这枚用途的令牌是否允许被「作废」（{@code POST /icbc/public-token/revoke}）。
+     *
+     * <p>只有**收货员当场交给本人、需要在对方拿到后收回 / 重发的转达链接**才为 {@code true}
+     * （#94：本人自填建档邀请、实名链接）。按业务事件由系统签发的自助链接（发票下载、额度查询、
+     * 汇算清缴、触达通知）为 {@code false}：它们背后对应的是业务对象，要停用应当走底层业务动作，
+     * 而不是让这个新端点在背后悄悄把别人的链接掐断。将来某个用途要支持作废，在这里显式打开。
+     */
+    private final boolean revocable;
 
-    PublicTokenPurposeEnum(String code, String name, BusinessKeyType businessKeyType, int maxUses) {
+    PublicTokenPurposeEnum(String code, String name, BusinessKeyType businessKeyType, int maxUses,
+                           boolean revocable) {
         this.code = code;
         this.name = name;
         this.businessKeyType = businessKeyType;
         this.maxUses = maxUses;
+        this.revocable = revocable;
     }
 
     public String getCode() {
@@ -79,6 +89,10 @@ public enum PublicTokenPurposeEnum {
 
     public int getMaxUses() {
         return maxUses;
+    }
+
+    public boolean isRevocable() {
+        return revocable;
     }
 
     public static Optional<PublicTokenPurposeEnum> ofCode(String code) {

@@ -166,6 +166,12 @@
               非工行卡
             </view>
           </view>
+          <view v-if="!draft.accountCode && draft.accountCodeRecognized" class="tip">
+            识别为「{{ draft.accountCodeRecognized === '1' ? '是工行卡' : '非工行卡' }}」，请点一下确认。
+          </view>
+          <view v-else-if="!draft.accountCode" class="tip">
+            识别不到、你也没选时，将按缺省「是工行卡」建档。
+          </view>
         </view>
 
         <view class="divider" />
@@ -508,7 +514,8 @@ async function onSubmit() {
     draft.step = 5
     persist()
   } catch (e) {
-    // 落库失败 / 已是本企业档案：留在第 4 步，已填内容不丢
+    // 落库失败（校验不过 / 链接已用尽）：留在第 4 步，已填内容不丢。
+    // 已建档不再是一类失败：后端会更新既有档案（#94 修票）。
     tips((e as Error).message || '建档失败')
   } finally {
     submitting.value = false
