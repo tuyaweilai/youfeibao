@@ -21,7 +21,10 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.download.InvoiceFileMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payee.PayeeInfoMapper;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
+import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
 import cn.iocoder.yudao.module.icbc.service.download.impl.InvoiceDownloadServiceImpl;
+import cn.iocoder.yudao.module.icbc.service.invoice.AutoInvoiceApplicationService;
 import cn.iocoder.yudao.module.icbc.service.publicapi.impl.PublicAccessServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.impl.NaturalPersonServiceImpl;
 import cn.iocoder.yudao.module.icbc.service.notify.SellerNotifyService;
@@ -82,6 +85,10 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
     /** 触达是另一条链路（#36），这里只验证公开端点如何解析并转交 */
     @MockBean
     private SellerNotifyService sellerNotifyService;
+
+    /** 开票确认页取表单（#106）：这里只验证公开端点如何按令牌把 HTML 交给浏览器 */
+    @MockBean
+    private AutoInvoiceApplicationService autoInvoiceApplicationService;
     @Resource
     private InvoiceOrderMapper invoiceOrderMapper;
     @Resource
@@ -354,6 +361,50 @@ public class PublicAccessServiceImplTest extends BaseDbUnitTest {
         publicAccessService.writeOnboardingForm(token, response);
 
         assertTrue(response.getContentAsString().contains("<form>go</form>"));
+    }
+
+    @Test
+    public void testWriteInvoiceConfirmPage_returnsPreOrderForm() throws Exception {
+        Long acquisitionId = 8001L;
+        InvoiceOrderDO order = InvoiceOrderDO.builder()
+                .orderNo("INV_CONFIRM_1")
+                .partnerOrderId("ACQ_CONFIRM_1")
+                .acquisitionId(acquisitionId)
+                .totalAmount(new BigDecimal("500.00"))
+                .orderStatus(0)
+                .invoiceStatus(0).paymentStatus(0).taxStatus(0).confirmStatus(0)
+                .preInvoiceStatus(PreInvoiceStatusEnum.IN_PROGRESS.getStatus())
+                .confirmPageHtml("<form id=\"pre-order\">go</form>")
+                .build();
+        invoiceOrderMapper.insert(order);
+        when(autoInvoiceApplicationService.confirmPageHtml("ACQ_CONFIRM_1"))
+                .thenReturn("<form id=\"pre-order\">go</form>");
+        String token = mint("INVOICE_CONFIRM_PAGE", "ACQ_CONFIRM_1", null);
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        publicAccessService.writeInvoiceConfirmPage(token, response);
+
+        assertTrue(response.getContentAsString().contains("<form id=\"pre-order\">go</form>"));
+    }
+
+    @Test
+    public void testWriteInvoiceConfirmPage_expiredForm_saysWhy() throws Exception {
+        InvoiceOrderDO order = InvoiceOrderDO.builder()
+                .orderNo("INV_CONFIRM_2")
+                .partnerOrderId("ACQ_CONFIRM_2")
+                .totalAmount(new BigDecimal("500.00"))
+                .orderStatus(0)
+                .invoiceStatus(0).paymentStatus(0).taxStatus(0).confirmStatus(0)
+                .preInvoiceStatus(PreInvoiceStatusEnum.IN_PROGRESS.getStatus())
+                .build();
+        invoiceOrderMapper.insert(order);
+        when(autoInvoiceApplicationService.confirmPageHtml("ACQ_CONFIRM_2")).thenReturn(null);
+        String token = mint("INVOICE_CONFIRM_PAGE", "ACQ_CONFIRM_2", null);
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        publicAccessService.writeInvoiceConfirmPage(token, response);
+
+        assertTrue(response.getContentAsString().contains("确认页已过期"));
     }
 
     private SellerOnboardingRespVO onboarding(Integer realNameStatus, String onboardingState,

@@ -105,13 +105,13 @@ public class WorkbenchServiceTest extends BaseDbUnitTest {
     @Resource
     private IcbcGoodsConfigMapper goodsConfigMapper;
 
-    // ==================== 八类待办的骨架 ====================
+    // ==================== 九类待办的骨架 ====================
 
     @Test
-    public void testOverview_hasAllEightTodosInFixedOrderWithDefinition() {
+    public void testOverview_hasAllNineTodosInFixedOrderWithDefinition() {
         WorkbenchOverviewRespVO overview = workbenchService.getOverview();
 
-        assertEquals(8, overview.getTodos().size());
+        assertEquals(9, overview.getTodos().size());
         assertEquals(Arrays.stream(WorkbenchTodoCodeEnum.values()).map(WorkbenchTodoCodeEnum::getCode)
                 .collect(Collectors.toList()),
                 overview.getTodos().stream().map(WorkbenchTodoRespVO::getCode).collect(Collectors.toList()));
@@ -265,6 +265,28 @@ public class WorkbenchServiceTest extends BaseDbUnitTest {
         WorkbenchItemRespVO twoLines = todo.getItems().stream()
                 .filter(item -> "INV_TWO_LINES".equals(item.getNo())).findFirst().orElseThrow(AssertionError::new);
         assertEquals("预开票失败 / 开票失败 / 缴税失败 / 上传失败", twoLines.getSubtitle());
+    }
+
+    @Test
+    public void testPaymentPendingTimeout_onlyOverdueUnpaidInvoices() {
+        // 超时未付：预开票成功、未付款成功、预下单早于阈值
+        insertInvoiceWithPreOrderTime("INV_OVERDUE", PreInvoiceStatusEnum.SUCCESS.getStatus(),
+                PaymentStatusEnum.PENDING.getStatus(), 10);
+        // 刚发起，还没超时
+        insertInvoiceWithPreOrderTime("INV_FRESH", PreInvoiceStatusEnum.SUCCESS.getStatus(),
+                PaymentStatusEnum.PENDING.getStatus(), 1);
+        // 已经付了的不算
+        insertInvoiceWithPreOrderTime("INV_PAID", PreInvoiceStatusEnum.SUCCESS.getStatus(),
+                PaymentStatusEnum.SUCCESS.getStatus(), 30);
+        // 预开票还没成功的（自然人还没确认）不算「待付款超时」
+        insertInvoiceWithPreOrderTime("INV_NOT_PREORDERED", PreInvoiceStatusEnum.IN_PROGRESS.getStatus(),
+                PaymentStatusEnum.PENDING.getStatus(), 30);
+
+        WorkbenchTodoRespVO todo = todo(workbenchService.getOverview(), "PAYMENT_PENDING_TIMEOUT");
+
+        assertEquals(1L, todo.getTotal());
+        assertEquals("INV_OVERDUE", todo.getItems().get(0).getNo());
+        assertTrue(todo.getItems().get(0).getSubtitle().contains("未付款"));
     }
 
     // ==================== 预警与开票就绪 ====================
@@ -452,6 +474,26 @@ public class WorkbenchServiceTest extends BaseDbUnitTest {
                 .uploadStatus(uploadStatus)
                 .confirmStatus(0)
                 .preInvoiceStatus(preInvoiceStatus)
+                .build();
+        invoiceOrderMapper.insert(invoice);
+    }
+
+    /** 造一张票：控制预下单时间，用于「待付款超时」（#106）。 */
+    private void insertInvoiceWithPreOrderTime(String orderNo, Integer preInvoiceStatus,
+                                              Integer paymentStatus, int preOrderDaysAgo) {
+        InvoiceOrderDO invoice = InvoiceOrderDO.builder()
+                .orderNo(orderNo)
+                .partnerOrderId("ACQ_" + orderNo)
+                .payeeNo("PAYEE_NO_1")
+                .totalAmount(new BigDecimal("1000.00"))
+                .businessType("SCRAP")
+                .orderStatus(0)
+                .invoiceStatus(InvoiceIssueStatusEnum.NOT_ISSUED.getStatus())
+                .paymentStatus(paymentStatus)
+                .taxStatus(0)
+                .confirmStatus(0)
+                .preInvoiceStatus(preInvoiceStatus)
+                .preOrderTime(LocalDateTime.now().minusDays(preOrderDaysAgo))
                 .build();
         invoiceOrderMapper.insert(invoice);
     }
