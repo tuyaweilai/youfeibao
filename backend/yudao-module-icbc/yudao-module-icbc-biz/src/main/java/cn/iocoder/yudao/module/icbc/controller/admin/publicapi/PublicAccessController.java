@@ -104,4 +104,13 @@ public class PublicAccessController {
         publicAccessService.writeOnboardingForm(token, response);
     }
 
+    @GetMapping("/invoice/confirm-page")
+    @Operation(summary = "用令牌打开自然人开票信息确认页（工行自动提交表单）",
+            description = "结算确认之后逐张开票信息确认的落点：自然人在自己手机上打开，就是本人在工行页面上确认那一步")
+    @Parameter(name = "token", description = "公开令牌", required = true)
+    public void invoiceConfirmPage(@RequestParam("token") String token,
+                                   HttpServletResponse response) throws IOException {
+        publicAccessService.writeInvoiceConfirmPage(token, response);
+    }
+
 }

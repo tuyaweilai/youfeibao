@@ -87,6 +87,25 @@ public class PayerInfoDO extends TenantBaseDO {
     private String taxpayerType;
 
     /**
+     * 开票人姓名（须与工行税务登记的开票员为同一实名主体）。
+     *
+     * <p>与 {@link #drawerCardNumber}、{@link #areaCode} 一并构成本企业的**开票参数**：
+     * 这三项是工行预下单的必输项。结算确认后自动预下单发生在自然人的手机上（#106 / ADR 0039），
+     * 那一刻没有开票员在场，所以必须提前落成租户配置；三项不全时不自动发起，退回人工路径。
+     */
+    private String drawerName;
+
+    /**
+     * 开票人证件号码
+     */
+    private String drawerCardNumber;
+
+    /**
+     * 应税行为发生地（省级税务机关代码，如 110000）
+     */
+    private String areaCode;
+
+    /**
      * 业务类型
      */
     private String businessType;

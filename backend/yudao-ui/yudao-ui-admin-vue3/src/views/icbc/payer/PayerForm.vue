@@ -46,6 +46,24 @@
           </el-form-item>
         </el-col>
       </el-row>
+      <el-divider content-position="left">
+        开票参数（结算确认后自动预下单要用，三项都要有才自动发起）
+      </el-divider>
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="开票人姓名" prop="drawerName">
+            <el-input v-model="formData.drawerName" placeholder="须与工行税务登记的开票员同一实名主体" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="开票人证件号码" prop="drawerCardNumber">
+            <el-input v-model="formData.drawerCardNumber" placeholder="开票人身份证号" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-form-item label="应税行为发生地" prop="areaCode">
+        <el-input v-model="formData.areaCode" placeholder="省级税务机关代码，如 110000" />
+      </el-form-item>
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="联系人姓名" prop="contactName">
@@ -113,6 +131,9 @@ function buildEmpty(): PayerVO {
     contactName: undefined,
     contactMobile: undefined,
     taxpayerType: '01',
+    drawerName: undefined,
+    drawerCardNumber: undefined,
+    areaCode: undefined,
     businessType: 'RECYCLE',
     status: 0
   }

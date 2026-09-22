@@ -2874,3 +2874,50 @@ PC 后台 `vite build` Build successful。
 
 **给实现票的两条口径提醒**：① 完整度在 Java 里算，**「仅看缺件」不能直接加 SQL 条件**（`total` 会错），
 brief 里给了做法与上限要求；② 票 2 与票 1 并行，**不许改对方目录**（禁区写在各自 brief 的前三行）。
+
+## #106 结算确认后自动预下单（已完成）
+
+把「结算确认 → 逐张预下单 → 自然人在工行页面上确认开票信息」接成一条链（ADR 0039）。
+
+1. **本企业开票参数**（新）：工行预下单必输「开票人姓名 / 开票人证件号码 / 应税行为发生地」，而自动预下单
+   发生在自然人手机上、没有开票员在场。三项落在**付方档案**（`icbc_payer_info` 加 `drawer_name` /
+   `drawer_card_number` / `area_code`，一租户一行，语义就是「本企业开票主体」），后台「付方档案」页维护。
+   **三项不齐不自动发起**，把原因如实回给自然人。迁移 `sql/mysql/icbc-auto-preorder.sql`（幂等）。
+2. **自动衔接**：`SellerSettlementController.confirm` 写完结算单后调用 `AutoInvoiceApplicationService.applyForSettlement`，
+   逐张发起；**单张失败只记日志**（不回滚已落库的确认），已有开票单的跳过（幂等）。门禁仍是开票申请那一套
+   （资质 / 出售者就绪 / 额度 / 结算确认 / 品类编码 / 要件），不因为「自动」少一道。自动路径固定开**普票**。
+3. **确认页表单落库**（新）：`icbc_invoice_order.confirm_page_html` 存工行返回的自动提交表单；重复发起也把它交回。
+   自然人在手机上关掉页面不再等于丢掉入口（跨天重开依赖工行签名时效，见下面的边界）。
+4. **公开确认页**（新）：令牌用途 `INVOICE_CONFIRM_PAGE`（绑定合作方订单号，20 次，可重开）+ 后端公开端点
+   `GET /admin-api/icbc/public/invoice/confirm-page?token=`，输出 HTML——H5 新标签与小程序 `web-view` 都能开，
+   前端不拼工行 URL（沿用 ADR 0016 的承载方式）。链接由 `PublicPageLinkBuilder` 拼，
+   基地址取 `icbc.public-base-url`，没配则退化为当前请求 origin + `icbc.public-api-prefix`（本地联调可用）。
+5. **自然人端**：`GET /app-api/icbc/seller/settlement/invoice-status` 逐张给出档位
+   （`InvoiceConfirmStageEnum`：还不能发起 / 待你在工行页面确认 / 已确认等付款）+ 不能发起时的逐项原因与补齐方式
+   + 确认页地址；结算确认成功后页面立刻把这一段摆出来，逐张点「去工行确认这一张」。
+6. **开票员入口退为兜底**：PC「开票申请」页标题与按钮改成「兜底入口」，说明出售者确认后系统已自动逐张预下单；
+   现场端「复制确认链接」的文案跟着改成「确认后自动发起开票」。
+7. **待付款超时**（新）：工作台待办 `PAYMENT_PENDING_TIMEOUT`，按 `preOrderTime + icbc.invoice.pending-payment-days`
+   （默认 7）现算——**查询口径、不落状态，因此没有定时任务**；超时只提醒（开票员与财务都看同一块工作台），
+   **不自动取消**预开票（取消要走工行 reversal，是企业的决定）。
+8. **配置**：`icbc.invoice.jump-url-base`（缺省退回 `icbc.notify.seller-app-url`）、`icbc.invoice.pending-payment-days`、
+   `icbc.public-base-url`、`icbc.public-api-prefix`；`.env.example` 与 `application-local.yaml` 同步。
+
+**已知边界（如实说，别读成「已验」）**：
+
+- **确认页表单会过期**：存储的是工行返回的带签名表单，跨天重开可能被工行拒。官方的重发入口是预下单的
+  `isRedo=Y`（研究文档 §6），我们的 `PreOrderReq` **没有这个字段**，所以「过期后重新取一张确认页」**没接**。
+  这是本票之后最该补的一条。
+- **一个结算单 = N 次工行确认**：预下单是一张收购单一次，3 张单就是 3 张确认页。自然人按步骤逐张确认，
+  但 ADR 0018 想省的「确认两三次」在工行这一环还回来了。**「一站一批次一张票」另开票**（见 #107）。
+- **回跳地址形同虚设**：`invoiceJumpUrl` 拼的是 `<jump-url-base>/icbc/invoice/confirmed`，两个前端都没有这个路由；
+  `jump-url-base` 现在默认取自然人端入口，落地页仍是 404。工行只要求「有个 https 地址」，所以不拦流程，但体验是断的。
+- **自动路径固定开普票**：`invoiceType=02` 写死在 `AutoInvoiceApplicationServiceImpl`；要开专票仍走兜底入口（开票员选）。
+- **触达没有推送**：超时提醒落在工作台（开票员与财务都看得到），没有站内信 / 短信——沿 ADR 0023 与 handoff #5 的既有决定
+  （`TenantApi` 拿不到租户联系人，做不了真推送）。
+- **真机与真工行都没验**：走 `icbc.gateway.mode=fake` 的假适配层；预下单是 UI 接口，沙箱本就不支持。
+
+**验收实测**：全量 icbc `[WARNING] Tests run: 951, Failures: 0, Errors: 0, Skipped: 2`（基线 938：新增
+`AutoInvoiceApplicationServiceImplTest` 10 条，`PublicAccessServiceImplTest` 加 2 条确认页用例，
+`WorkbenchServiceTest` 加 1 条待付款超时用例并改成九项待办）；自然人端 `pnpm ts:check` EXIT=0 + `build:h5` DONE；
+现场端 `pnpm ts:check` EXIT=0 + `build:h5` DONE；PC 后台 `vite build` Build successful。

@@ -1,5 +1,11 @@
 <template>
-  <ContentWrap title="开票申请（按收购单发起）">
+  <ContentWrap title="开票申请（兜底入口：按收购单手动发起）">
+    <el-alert
+      type="warning"
+      :closable="false"
+      class="mb-10px"
+      title="这里是兜底入口。出售者在结算单上确认后，系统已自动逐张预下单；只有异常重发、或线下签字确认后需要补发起时才用本页。"
+    />
     <el-alert
       type="info"
       :closable="false"
@@ -39,7 +45,7 @@
         <el-button @click="handleQuery"><Icon icon="ep:search" class="mr-5px" /> 搜索</el-button>
         <el-button type="primary" :disabled="selectedIds.length === 0" :loading="applying"
           @click="handleApplySelected" v-hasPermi="['icbc:invoice-application:apply']">
-          <Icon icon="ep:promotion" class="mr-5px" /> 批量发起开票申请（{{ selectedIds.length }}）
+          <Icon icon="ep:promotion" class="mr-5px" /> 批量发起开票申请（兜底 · {{ selectedIds.length }}）
         </el-button>
       </el-form-item>
     </el-form>
@@ -72,7 +78,7 @@
           </el-button>
           <el-button link type="primary" :disabled="!!row.invoicePartnerOrderId"
             @click="handleApplyOne(row)" v-hasPermi="['icbc:invoice-application:apply']">
-            发起开票申请
+            发起开票申请（兜底）
           </el-button>
           <el-button v-if="row.invoicePartnerOrderId" link type="primary" @click="handleQueryStatus(row.invoicePartnerOrderId)">
             查状态

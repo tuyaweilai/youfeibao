@@ -39,7 +39,16 @@ public enum PublicTokenPurposeEnum {
      * </ul>
      * 有效期 24 小时；识别、重开页面与失败重试**不占次数**，只有成功落库那一次才占，所以限次就是 1。
      */
-    ONBOARDING_WIZARD("ONBOARDING_WIZARD", "本人自填建档", BusinessKeyType.ONBOARDING_INVITE, 1, true);
+    ONBOARDING_WIZARD("ONBOARDING_WIZARD", "本人自填建档", BusinessKeyType.ONBOARDING_INVITE, 1, true),
+
+    /**
+     * 开票信息确认页（#106，ADR 0039）：绑定一张票（合作方订单号），让自然人在自己手机上打开
+     * 工行的「自然人确认页面」。工行预下单是 UI 接口、返回一段自动提交表单，页面由**后端**输出，
+     * 所以这枚令牌指回后端的公开页（见 {@code PublicPageLinkBuilder}）。
+     *
+     * <p>允许重开（限 20 次）：他在手机上关掉页面是常事，重开同一会话内的确认页是安全的。
+     */
+    INVOICE_CONFIRM_PAGE("INVOICE_CONFIRM_PAGE", "开票信息确认页", BusinessKeyType.ORDER, 20, false);
 
     /**
      * 令牌绑定的业务键类型。

@@ -70,6 +70,19 @@ public class PayerInfoSaveReqVO {
     @Pattern(regexp = "^(01|02)$", message = "纳税人类型不正确")
     private String taxpayerType;
 
+    @Schema(description = "开票人姓名（须与工行税务登记的开票员为同一实名主体）；自动预下单的必填项",
+            example = "李四")
+    @Size(max = 200, message = "开票人姓名长度不能超过200个字符")
+    private String drawerName;
+
+    @Schema(description = "开票人证件号码；自动预下单的必填项", example = "110101199001011234")
+    @Size(max = 30, message = "开票人证件号码长度不能超过30个字符")
+    private String drawerCardNumber;
+
+    @Schema(description = "应税行为发生地（省级税务机关代码，如 110000）；自动预下单的必填项", example = "110000")
+    @Size(max = 11, message = "应税行为发生地长度不能超过11个字符")
+    private String areaCode;
+
     @Schema(description = "业务类型", example = "RECYCLE")
     @Size(max = 50, message = "业务类型长度不能超过50个字符")
     private String businessType;

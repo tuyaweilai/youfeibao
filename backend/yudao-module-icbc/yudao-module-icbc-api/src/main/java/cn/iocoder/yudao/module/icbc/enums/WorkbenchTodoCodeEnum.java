@@ -45,7 +45,11 @@ public enum WorkbenchTodoCodeEnum {
 
     INVOICE_FAILED("INVOICE_FAILED", "票务失败", null,
             "预开票失败、开票失败、缴税失败或缴税异常、上传失败四条状态线任一异常的发票（同一张票只算一条）。"
-                    + "红冲是另一张单（红字冲销）的状态线，不在本项口径内。");
+                    + "红冲是另一张单（红字冲销）的状态线，不在本项口径内。"),
+
+    PAYMENT_PENDING_TIMEOUT("PAYMENT_PENDING_TIMEOUT", "待付款超时", null,
+            "预开票成功、尚未付款成功，且预下单已超过配置天数（icbc.invoice.pending-payment-days，默认 7 天）的票。"
+                    + "票已经备好、企业一直没打钱。超时**只提醒不自动取消**：取消预开票要走工行的 reversal，是企业的决定。");
 
     private final String code;
     private final String name;

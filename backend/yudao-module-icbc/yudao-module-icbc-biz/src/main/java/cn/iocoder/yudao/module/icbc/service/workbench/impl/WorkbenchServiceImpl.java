@@ -40,6 +40,7 @@ import cn.iocoder.yudao.module.icbc.service.stockin.StockInService;
 import cn.iocoder.yudao.module.icbc.service.workbench.WorkbenchService;
 import cn.iocoder.yudao.module.icbc.util.MaskUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -48,6 +49,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -79,6 +81,10 @@ public class WorkbenchServiceImpl implements WorkbenchService {
     private static final Integer ENTERPRISE_AUTH_APPROVED = 1;
     /** 资质到期预警状态：0-待处理（见 {@code IcbcExpiryWarningDO#status}） */
     private static final Integer EXPIRY_WARNING_OPEN = 0;
+
+    /** 待付款超时的天数阈值（#106）：超过它就进待办，只提醒不自动取消 */
+    @Value("${icbc.invoice.pending-payment-days:7}")
+    private int pendingPaymentDays;
 
     @Resource
     private IcbcAppointmentMapper icbcAppointmentMapper;
@@ -167,6 +173,8 @@ public class WorkbenchServiceImpl implements WorkbenchService {
                 return paymentFailed();
             case INVOICE_FAILED:
                 return invoiceFailed();
+            case PAYMENT_PENDING_TIMEOUT:
+                return pendingPaymentTimeout();
             default:
                 // 八项待办都已接入；保留 default 以便将来新增枚举项时先落「待接入」
                 return null;
@@ -308,6 +316,34 @@ public class WorkbenchServiceImpl implements WorkbenchService {
         List<WorkbenchItemRespVO> items = invoiceOrderMapper.selectListException(PREVIEW_LIMIT)
                 .stream().map(this::toItem).collect(Collectors.toList());
         return TodoPreview.of(total, items);
+    }
+
+    /**
+     * 待付款超时（#106）：票备好了、钱一直没付。超时只提醒，不自动取消预开票。
+     *
+     * <p>取数在 {@code InvoiceOrderMapper} 里（按 preOrderTime + 配置天数），本项不落任何状态：
+     * 「超时」是一个查出来的口径，不是一件被写下来的事实——免得它随时间变脏。
+     */
+    private TodoPreview pendingPaymentTimeout() {
+        long total = invoiceOrderMapper.selectCountPendingPaymentOverdue(pendingPaymentDays);
+        List<WorkbenchItemRespVO> items = invoiceOrderMapper
+                .selectListPendingPaymentOverdue(pendingPaymentDays, PREVIEW_LIMIT)
+                .stream().map(this::toPendingPaymentItem).collect(Collectors.toList());
+        return TodoPreview.of(total, items);
+    }
+
+    private WorkbenchItemRespVO toPendingPaymentItem(InvoiceOrderDO invoice) {
+        WorkbenchItemRespVO item = new WorkbenchItemRespVO();
+        item.setId(invoice.getId());
+        item.setNo(invoice.getOrderNo());
+        item.setTitle(firstNonBlank(invoice.getPartnerOrderId(), invoice.getPayeeNo(), "未知业务单"));
+        long days = invoice.getPreOrderTime() == null ? 0
+                : ChronoUnit.DAYS.between(invoice.getPreOrderTime(), LocalDateTime.now());
+        item.setSubtitle("预开票成功已 " + days + " 天未付款");
+        item.setStatusName(PaymentStatusEnum.nameOf(invoice.getPaymentStatus()));
+        item.setTime(invoice.getPreOrderTime());
+        item.setAmount(invoice.getTotalAmount());
+        return item;
     }
 
     private WorkbenchItemRespVO toItem(InvoiceOrderDO invoice) {

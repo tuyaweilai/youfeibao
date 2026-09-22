@@ -21,7 +21,7 @@
         <text>{{ settlement.disputeReasonName }}（{{ settlement.disputeCount }} 次）</text>
       </view>
       <view v-if="settlement.enterpriseNotReplied" class="warn">企业尚未回复，出售者侧会看到这个提示。</view>
-      <button v-if="!isConfirmed" class="btn btn--primary" @click="onForward">复制确认链接</button>
+      <button v-if="!isConfirmed" class="btn btn--primary" @click="onForward">复制确认链接（确认后自动发起开票）</button>
     </view>
 
     <view class="card">
@@ -53,7 +53,8 @@
     </view>
 
     <view class="scope-note">
-      确认表达的是出售者对计量与计价事实的认可；允许之后分批开票付款。
+      确认表达的是出售者对计量与计价事实的认可。他确认后，系统会自动把这一批逐张推去开票，
+      并请他在工行页面上确认开票信息；他确认完企业才能付款，付款成功即开票（ADR 0038 / 0039）。
     </view>
   </view>
 </template>
@@ -75,7 +76,7 @@ const isConfirmed = computed(() => {
 const statusHint = computed(() => {
   switch (settlement.value?.confirmStatus) {
     case 1:
-      return '出售者已确认，可以发起开票。'
+      return '出售者已确认，系统已自动逐张发起开票；等他在工行页面上确认开票信息。'
     case 2:
       return settlement.value?.enterpriseNotReplied
         ? '出售者有异议，企业尚未回复。'
@@ -85,7 +86,7 @@ const statusHint = computed(() => {
     case 4:
       return '已线下签字确认，等价于出售者确认。'
     default:
-      return '等出售者确认；未确认不能发起开票。'
+      return '等出售者确认（把上面的链接转达给他）；确认后系统会自动发起开票。'
   }
 })
 

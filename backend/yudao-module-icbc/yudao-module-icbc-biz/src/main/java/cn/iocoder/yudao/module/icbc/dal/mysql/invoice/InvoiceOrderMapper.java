@@ -4,6 +4,7 @@ import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.InvoiceOrderDO;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PaymentStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.TaxStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.UploadStatusEnum;
@@ -115,6 +116,36 @@ public interface InvoiceOrderMapper extends BaseMapperX<InvoiceOrderDO> {
                         .or().in(InvoiceOrderDO::getTaxStatus, TaxStatusEnum.exceptionStatuses())
                         .or().eq(InvoiceOrderDO::getUploadStatus, UploadStatusEnum.FAILED.getStatus()))
                 .orderByDesc(InvoiceOrderDO::getId)
+                .last("LIMIT " + limit));
+    }
+
+    // ==================== 工作台待办（#106）：待付款超时 ====================
+
+    /**
+     * 「待付款超时」的取数条件：预开票成功、尚未付款成功，且预下单已超过 {@code days} 天。
+     *
+     * <p>不看收购单是否作废：这里要提醒的正是「票已经备好了、钱一直没付」。预开票被取消的会落到
+     * preInvoiceStatus=04，自然被排除在外。
+     */
+    default LambdaQueryWrapperX<InvoiceOrderDO> pendingPaymentOverdueQuery(int days) {
+        LocalDateTime before = LocalDateTime.now().minusDays(days);
+        LambdaQueryWrapperX<InvoiceOrderDO> wrapper = new LambdaQueryWrapperX<>();
+        wrapper.eq(InvoiceOrderDO::getPreInvoiceStatus, PreInvoiceStatusEnum.SUCCESS.getStatus());
+        wrapper.ne(InvoiceOrderDO::getPaymentStatus, PaymentStatusEnum.SUCCESS.getStatus());
+        wrapper.isNotNull(InvoiceOrderDO::getPreOrderTime);
+        wrapper.lt(InvoiceOrderDO::getPreOrderTime, before);
+        return wrapper;
+    }
+
+    /** 工作台「待付款超时」条数。 */
+    default long selectCountPendingPaymentOverdue(int days) {
+        return selectCount(pendingPaymentOverdueQuery(days));
+    }
+
+    /** 工作台「待付款超时」明细：拖得最久的排在前面，最多 {@code limit} 条。 */
+    default List<InvoiceOrderDO> selectListPendingPaymentOverdue(int days, int limit) {
+        return selectList(pendingPaymentOverdueQuery(days)
+                .orderByAsc(InvoiceOrderDO::getPreOrderTime)
                 .last("LIMIT " + limit));
     }
 

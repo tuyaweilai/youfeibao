@@ -62,6 +62,32 @@
         </view>
       </view>
 
+      <!-- 开票信息确认（#106）：确认结算之后，这一批里每张票都要本人在工行页面上确认一次 -->
+      <view v-if="showInvoiceSection" class="card action">
+        <view class="card__title">开票信息确认</view>
+        <view class="invoice-hint">{{ invoiceHeadline }}</view>
+        <view v-for="item in invoiceItems" :key="item.acquisitionId" class="invoice">
+          <view class="invoice__row">
+            <text class="invoice__no">{{ item.acquisitionNo }}</text>
+            <text :class="['invoice__stage', item.stage === 'CONFIRMED' ? 'invoice__stage--ok' : '']">
+              {{ item.stageName }}
+            </text>
+          </view>
+          <view class="invoice__meta">{{ item.categoryName }} · {{ item.amount ?? 0 }} 元</view>
+          <view v-if="item.message" class="invoice__msg">{{ item.message }}</view>
+          <view v-for="fail in item.failures || []" :key="fail.code" class="invoice__fail">
+            {{ fail.name }}：{{ fail.message }}<text v-if="fail.remedy">（{{ fail.remedy }}）</text>
+          </view>
+          <button
+            v-if="item.confirmPageAvailable"
+            class="btn btn--primary"
+            @click="openConfirmPage(item)"
+          >
+            去工行确认这一张
+          </button>
+        </view>
+      </view>
+
       <!-- 待确认 / 有异议：确认与异议两个动作 -->
       <view v-if="actionable" class="card action">
         <label class="check" @click="agreed = !agreed">
@@ -81,14 +107,17 @@
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import {
+  InvoiceConfirmItem,
   REAL_NAME_STATUS,
   confirmSettlement,
   disputeSettlement,
   getProfile,
   getSettlement,
+  getSettlementInvoiceStatus,
   mintRealNameLink,
   Settlement
 } from '@/api/seller'
+import { openExternalUrl } from '@/utils/external'
 import { useSellerAuthStore } from '@/store/auth'
 import { openHtmlWithAuth } from '@/utils/download'
 
@@ -107,6 +136,21 @@ const realNamePassed = ref(true)
 const linking = ref(false)
 
 const confirmed = computed(() => [1, 4].includes(settlement.value?.confirmStatus ?? -1))
+
+/** 已确认过才显示开票确认这一段：没确认就没有「逐张去工行确认」这回事 */
+const invoiceItems = ref<InvoiceConfirmItem[]>([])
+const showInvoiceSection = computed(() => invoiceItems.value.length > 0)
+const invoiceHeadline = computed(() => {
+  const pending = invoiceItems.value.filter((item) => item.stage === 'WAITING_CONFIRM').length
+  if (pending > 0) {
+    return `还有 ${pending} 张要在工行页面上确认开票信息；确认后企业才能付款、付款成功即开票。`
+  }
+  const blocked = invoiceItems.value.filter((item) => item.stage === 'BLOCKED').length
+  if (blocked > 0) {
+    return '这一批还有票没能发起开票，原因写在下面；企业处理完就能继续。'
+  }
+  return '这一批的开票信息都已确认，等企业付款。'
+})
 const actionable = computed(() => [0, 2, 3].includes(settlement.value?.confirmStatus ?? -1))
 
 const REASONS = [
@@ -131,6 +175,9 @@ async function load() {
     // 实名是平台级的、记在自然人主体上：拿它决定要不要显示提醒（不改确认动作）
     const profile = await getProfile(naturalPersonId.value)
     realNamePassed.value = profile.realNameStatus === REAL_NAME_STATUS.PASSED
+    if (confirmed.value) {
+      loadInvoiceStatus()
+    }
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -163,6 +210,24 @@ async function goRealName() {
   }
 }
 
+async function loadInvoiceStatus() {
+  try {
+    invoiceItems.value = (await getSettlementInvoiceStatus(naturalPersonId.value, settlementId.value)) || []
+  } catch (e) {
+    // 拿不到步骤不影响他已经确认的事实：不弹错，页面上只是不显示这一段
+    invoiceItems.value = []
+  }
+}
+
+/** 打开工行的自然人确认页面；H5 用新标签，小程序用 web-view（ADR 0016） */
+function openConfirmPage(item: InvoiceConfirmItem) {
+  if (!item.confirmPageUrl) {
+    uni.showToast({ title: '确认页暂时打不开，请让企业重新发起', icon: 'none' })
+    return
+  }
+  openExternalUrl(item.confirmPageUrl, true)
+}
+
 async function onConfirm() {
   if (!settlement.value) return
   submitting.value = true
@@ -174,7 +239,9 @@ async function onConfirm() {
     )
     uni.showToast({ title: '已确认', icon: 'success' })
     agreed.value = false
-    load()
+    // 确认后立刻把「这一批的票要逐张去工行确认」摆出来：这就是他下一步要做的事（ADR 0039）
+    await load()
+    loadInvoiceStatus()
   } catch (e) {
     uni.showToast({ title: (e as Error).message, icon: 'none' })
   } finally {
@@ -307,6 +374,75 @@ function formatTime(time?: string) {
     color: #8a6a1f;
     font-size: 26rpx;
     line-height: 1.7;
+  }
+}
+
+/* 开票信息确认（#106）：一张票一段，能点就直接去工行确认 */
+.invoice-hint {
+  margin-bottom: 16rpx;
+  color: #5b6b7c;
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.invoice {
+  padding: 20rpx 0;
+  border-bottom: 1px solid #f0f3f1;
+
+  &:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16rpx;
+  }
+
+  &__no {
+    font-size: 28rpx;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  &__stage {
+    flex: 0 0 auto;
+    padding: 4rpx 14rpx;
+    color: #8a5a12;
+    background-color: #fff6e6;
+    border-radius: 999rpx;
+    font-size: 22rpx;
+
+    &--ok {
+      color: #176b4c;
+      background-color: #eaf3ed;
+    }
+  }
+
+  &__meta {
+    margin-top: 8rpx;
+    color: #5b6b7c;
+    font-size: 24rpx;
+  }
+
+  &__msg {
+    margin-top: 8rpx;
+    color: #203b2e;
+    font-size: 24rpx;
+    line-height: 1.6;
+  }
+
+  &__fail {
+    margin-top: 8rpx;
+    color: #ad3b12;
+    font-size: 22rpx;
+    line-height: 1.6;
+  }
+
+  .btn {
+    margin-top: 16rpx;
   }
 }
 
