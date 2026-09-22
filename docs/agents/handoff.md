@@ -2921,3 +2921,110 @@ brief 里给了做法与上限要求；② 票 2 与票 1 并行，**不许改�
 `AutoInvoiceApplicationServiceImplTest` 10 条，`PublicAccessServiceImplTest` 加 2 条确认页用例，
 `WorkbenchServiceTest` 加 1 条待付款超时用例并改成九项待办）；自然人端 `pnpm ts:check` EXIT=0 + `build:h5` DONE；
 现场端 `pnpm ts:check` EXIT=0 + `build:h5` DONE；PC 后台 `vite build` Build successful。
+
+## 菜单管理里权限行不再是裸标识（已完成，无 issue 编号）
+
+`后台管理 → 菜单管理` 里 56 行按钮的名字原来是 `logistics:transport-cost:delete` 这样的权限标识，
+且全部平铺在根节点（实测：`logistics:*` 50 行 + `icbc:*` 6 行，`parent_id=0`、`name = permission`）。
+根因是同步服务的兜底建行：`MenuApi.createPermissionMenu(permission, permission)` 把 `name` 设成权限标识、
+`parentId` 写死根节点。yudao 原生菜单（如 `system:user:query` → 父「用户管理」、名「用户查询」）与
+`icbc-menu.sql` 都不是这个形态。
+
+1. **`MenuApi` 换一个入口**：`createPermissionMenu(name, permission)` → `ensurePermissionMenu(name, permission, parentId, sort)`，
+   并加 `getMenuIdByComponentName(componentName)`。新方法**只归集「未归集」的行**（`name == permission && parentId == 根`）：
+   缺失则建、裸标识则**就地改名改父（行 id 不变，角色-菜单授权与租户套餐不受影响）**、已归集或由 SQL / 后台编排的一律不动。
+   第三条是刻意的——`icbc-menu.sql` 里一个权限会挂在多个按钮上（`icbc:purchase-order:manage` 有 8 行），
+   无条件按单值收敛会把人工编排改坏。代价：归集过一次的行不再跟随参数变化，换位置仍由各域菜单 SQL 重建（那本就是菜单结构变更入口）。
+2. **归属表（新）**：`LogisticsPermissionMenuEnum`（50 条，物流按钮行的单一来源，ADR 0026 的物流侧实现）与
+   `RecyclingPermissionMenuEnum`（6 条）。父页面用**组件名**（`LogisticsVehicle` / `IcbcReadiness` / `ErpStock`），
+   `null` 表示无对应页面（初始化 / 接口级权限）留根节点。
+3. **回收域的分工要有测试守住**：回收按钮行仍以 `icbc-menu.sql` 为主，枚举只放 SQL 里**没有**的。
+   `RecyclingPermissionMenuEnumTest` 把这条锁成不变式：`角色清单 = SQL 里编排过的 ∪ 枚举登记的`（重叠 / 漏项都报错）。
+4. **两个实测踩到的坑**：
+   - **组件名在库里并不唯一**：`ErpStock` / `ErpSupplier` 各两行（已停用的 ERP 那一棵 2590/2603 与 icbc 页面 5191/5193）。
+     原来的 `MenuMapper.selectByComponentName`（`selectOne`）会直接抛 `TooManyResultsException`，第一次启动 icbc 同步就挂在这里。
+     已加 `selectListByComponentName`，`MenuService.getMenuByComponentName` 在同名多行时取「自身与所有祖先都启用」的那一个——
+     ERP 的停用只标在树根（2563），子孙行自身还是启用态，只看 `status` 会挑错（实测挑成了 2590「产品库存」）。
+     **顺带发现（未修）**：`validateMenuComponentName` 同样用 `selectByComponentName`，因此后台编辑「库存查询 / 单位供货方」
+     这两行菜单会 500（`TooManyResults`）。属既有问题，与本次改动无关。
+   - **页面菜单不存在时要能退化**：本地库还没导菜单 SQL 时，同步回退到根节点并打 warn，而不是丢掉权限行（丢了会 403）。
+5. **新增权限的流程**：`LogisticsPermission` 登记 → 挂到 `LogisticsRoleEnum` 的某角色 → **在 `LogisticsPermissionMenuEnum` 补一行**
+   （漏了被 `LogisticsPermissionMenuEnumTest` 挡住）。回收域则是：进 `icbc-menu.sql`，或（暂时不进时）登记到 `RecyclingPermissionMenuEnum`。
+
+**验收实测**（本地库 + 真机跑 `yudao-server`，两次重启前后对比）：
+
+- 启动前：`type=3 AND parent_id=0 AND name=permission` 共 56 行；启动后：**0 行**（全表 `name = permission` 也是 0）。
+- 物流 50 个按钮全部归位：运输任务 13 / 车辆档案 6 / 司机档案 10 / 承运商档案 5 / 承运合同 5 / 运费对账 10，
+  剩 1 行「物流权限初始化」在根。icbc：开票就绪自检 2 / 库存查询 1 / 根 3（工行调用日志查询、回收域权限初始化、跨租户发票查询）。
+- 行 id 未变，`system_role_menu` 与套餐 200 的 `menu_ids` 不受影响；`/admin-api/system/auth/get-permission-info`
+  仍返回「物流管理 → 六个页面」与全部 50 条 `logistics:*` 权限；`/admin-api/system/menu/list` 548 行、无一是权限标识名。
+- 测试：system-biz `MenuApiImplTest` 4 + `MenuServiceImplTest` 18 + `PermissionServiceTest` 22 全绿；
+  物流 162 条全绿（新增 `LogisticsPermissionMenuEnumTest` 4 条、同步服务加 3 条）；icbc 995 条全绿（新增 `RecyclingPermissionMenuEnumTest` 3 条）。
+
+## #114 后台首页改成流程导航页（已完成）
+
+`/index` 首页原来是 `src/views/Home/Index.vue`（yudao 开源演示页：6 个开源项目卡 + github 外链、假通知、假 ECharts），
+现改成流程导航页，形态照 `参考/961790088107_.pic.jpg`（另一家产品的后台首页）。工作台**未动**。
+
+1. **两组八张卡，点卡即进对应功能**。① 对自然人的交易（5 张）：建档 `/counterparty/payee` / 收购登记 `/recycling/acquisition` /
+   付款 `/finance/payment` / 反向开票 `/finance/invoice` / 一票一档 `/trace/evidence`；② 对用废企业的交易（3 张）：
+   用废企业建档 / 创建送货单 / 正向开票——**只排版不给入口**（ADR 0003 一期只做反向开票），底部灰字「尚未开通」。
+2. **顺序与参考件刻意相反**：参考件第3步反向开票、第4步付款；我们**先付款后开票**（工行一票一付，ADR 0038 的档位顺序），
+   所以第3步是付款、第4步是反向开票。
+3. **结算确认与自然人确认不占卡**（ADR 0018 / 0039）：这两步的操盘手是自然人本人与工行页面，企业只能等；
+   写成第3步下面的一行浅灰说明，避免被读成「这里要我自己点一下」。
+4. **无权限的卡不消失**：五张卡恒显示（流程图缺一格比多点一下更让人困惑），没权限的那张置灰、底部换成
+   「当前角色无此权限」、不跳转。判定用 `checkPermi`（`@/utils/permission`），**不用** `v-hasPermi`（指令是删元素）。
+5. **首页不显示企业名**：前端没有「本租户企业名称」这个值（用户态只存 tenantId；`enterprise/info` 是「企业信息」
+   CRUD 列表，没有「本企业」概念），要显示得加后端接口——本票不做，留给「顶栏显示本租户名」那一票。页头是
+   「<昵称>，按下面的流程从左到右一步步操作就行」+ 一个静态的「今日待办 → 工作台」按钮（不拉 `icbc:workbench:query`）。
+6. **文件**：新页 `src/views/icbc/home/index.vue`；`src/router/modules/remaining.ts` 的 `/index` 指过去，路由 name 由
+   `Index` 改成 `IcbcHome`（**组件名必须与路由 name 一致**，tagsView 的 `keep-alive :include` 认的是这个）；
+   `src/views/Home/` 四个文件（`Index.vue` / `Index2.vue` / `echarts-data.ts` / `types.ts`）整体删除——已确认除
+   `remaining.ts` 外无引用，菜单 SQL 里也没有 Home 这一行。
+7. **词汇**：五步是**操作顺序**，不是「收购进度」六档（ADR 0038）、也不是「证据节点」（#107）——页面文件顶部写了这条注释；
+   `CONTEXT.md` 不为它加词条。第5步副标题写「五流证据、链式视图」（不是参考件的「星链图」）。
+8. **写页面时踩到的坑**：`ContentWrap` 的 `#header` 插槽在 `v-if="title"` 的 `#header` 模板**里面**，只给插槽不传 `title`
+   会**整块不渲染**——两个组标题与说明当时一个都没出来，是后面那次 DOM 冒烟抓到的。要传 `title="① 对自然人的交易"`。
+
+**验收实测**：
+
+- `pnpm build:local`（`vite build`）Build successful，EXIT=0（改动后跑了两次，含 `checkPermi` 收口后一次）。
+- **`pnpm ts:check` 在这个仓库基线就不干净**：`git worktree` 取 HEAD + 生成物（`src/types/auto-imports.d.ts`、
+  `auto-components.d.ts` 是 gitignore 的构建产物，缺了会凭空多出 7415 条 `TS2304`）实测 **1254 条**既有报错，
+  全在 system / erp / mall / pay 等没碰过的模块；本票改动后 **1253 条**——少的那条正是删掉的
+  `src/views/Home/Index.vue(194,7) TS6133 'setWatermark'`，本票三个文件 **0 报错**。**新会话别把 PC 后台的 `ts:check` 当验收口径**（既有口径是 `vite build`）。
+- **DOM 级冒烟**（本机没装 playwright / puppeteer / vitest，用 Chrome 153 headless + CDP + Node 26 内置 `WebSocket`
+  直连，脚本是一次性的、没进仓库）：admin 登录后落到 `/index`，DOM 实测 8 张卡与文案全对，两个组标题与说明在位；
+  五张卡点击分别落到 `/counterparty/payee`、`/recycling/acquisition`、`/finance/payment`、`/finance/invoice`、
+  `/trace/evidence`；② 的三张卡可点=false、点了不跳转、带「尚未开通」；
+  **无权限分支**用运行期从 pinia（store id 是 `admin-user`，不是 `user`）里摘掉 `icbc:payment:query` 模拟：
+  卡片立刻变成「当前角色无此权限」、`cursor-pointer` 消失、点了停在 `/index`，权限加回来又变回「点这里进入」；
+  「今日待办 → 工作台」按钮落到 `/workbench`；控制台没有本页的 error/warning。
+- **几何断行**（1600 / 900 / 390 宽实测）：1600 是 ① 5 张一行 + ② 3 张一行；900 是 ① 两行 2+2+1、② 三张各自一行
+  （② 的卡 `min-w-[320px]`，内容区 638px 放不下两张）；390 是一张一行。与设计一致。
+- **未做（如实说）**：真机 / 像素级外观（配色、间距、hover）没有让人眼看过一遍——本机模型看不了图，
+  上面全是 DOM 与几何的机器判定；给工行或客户演示前，请人起 `pnpm dev`（3100 / 联调 48080）自己扫一眼。
+
+## 本地演示数据：付款 / 发票下载两页的列表与下拉（已完成，无 issue 编号）
+
+三处改动都只为**本地联调与演示**能一眼看到东西，没有领域口径的变化。
+
+1. **演示数据脚本进仓库**：`scripts/demo/seed-icbc-demo-invoices.sh` + `scripts/demo/icbc-demo-invoices.sql`
+   + `scripts/demo/make-demo-invoice-pdf.py`。一条命令造出 4 笔「已付款 + 已开票 + 已下载 PDF」的收购单
+   （ACQ20260922DEMO01/02/04/05，卖家周忍法 / payee 2 / 租户 1），并生成演示 PDF 到 `/tmp/icbc-demo`。
+   幂等，可重复跑；`file_size` 按磁盘真实大小回填（`downloadFile` 拿它当 `Content-Length`，对不上会截断）。
+   另有 `ACQ20260922DEMO03`（待付款、18000 元）是付款页的演示单，见下一条。
+   **/tmp 会重启丢**：丢了就重跑那个 sh。演示数据一个字节都不进证据链以外的口径（PDF 是英文占位内容，不是真发票）。
+2. **付款页 `/finance/payment`**：开票合作方订单号从输入框改成可搜索下拉，数据源是同一条派生口径
+   `acquisition/page?status=1`（待付款 = 预开票成功且未付款，ADR 0038），选中自动带出金额；`allow-create` 保留手输。
+3. **发票下载页 `/finance/download`**：改成列表优先——新增后端 `GET /icbc/invoice-download/page`
+   （`InvoiceDownloadPageReqVO` + `InvoiceDownloadMapper#selectPage` + `InvoiceFileMapper#selectListByDownloadIds`
+   批量带文件，权限沿用 `icbc:invoice-download:query`），页面第一屏就是「可下载的发票 PDF」表格，
+   行内直接「下载 PDF」，下载记录详情 / 执行下载 / 重试收进「查看详情」弹窗。
+   单测：`InvoiceDownloadServiceImplTest` 加 `testGetDownloadPage_filterAndFiles` / `_empty`（7 个全绿）。
+4. **实测**：`invoice-download/page` 回 4 条且每条带 PDF 文件；`download-file` 字节数与磁盘一致（1005 / 1009，`%PDF-1.4` 开头）；
+   `evidence/get?partnerOrderId=ACQ20260922DEMO05` 的**发票流**已列出该 PDF（`sourceType=INVOICE_FILE`）——
+   一票一档页不用另造证据行，发票流本来就由 `icbc_invoice_file` 派生。前后端改动后
+   `pnpm ts:check` 仍是 1253 条既有报错、三个改动文件 0 报错（口径见 #114 那节）。
+   后端已 `mvn -o -pl yudao-module-icbc/yudao-module-icbc-biz -am -DskipTests install` 并重启（日志 `/tmp/icbc-download-server.log`）。
