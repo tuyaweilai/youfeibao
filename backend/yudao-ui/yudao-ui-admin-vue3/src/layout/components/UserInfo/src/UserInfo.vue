@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ElMessageBox } from 'element-plus'
+import { UserFilled } from '@element-plus/icons-vue'
 
-import avatarImg from '@/assets/imgs/avatar.gif'
 import { useDesign } from '@/hooks/web/useDesign'
 import { useTagsViewStore } from '@/store/modules/tagsView'
 import { useUserStore } from '@/store/modules/user'
@@ -23,7 +23,9 @@ const { getPrefixCls } = useDesign()
 
 const prefixCls = getPrefixCls('user-info')
 
-const avatar = computed(() => userStore.user.avatar || avatarImg)
+// 头像：有头像图片时展示图片；没有或加载失败时，展示默认的「用户」图标
+const avatar = computed(() => userStore.user.avatar || '')
+const avatarIcon = UserFilled
 const userName = computed(() => userStore.user.nickname ?? 'Admin')
 
 // 锁定屏幕
@@ -57,7 +59,12 @@ const toDocument = () => {
 <template>
   <ElDropdown class="custom-hover" :class="prefixCls" trigger="click">
     <div class="flex items-center">
-      <ElAvatar :src="avatar" alt="" class="w-[calc(var(--logo-height)-25px)] rounded-[50%]" />
+      <ElAvatar
+        :src="avatar"
+        :icon="avatarIcon"
+        alt=""
+        class="w-[calc(var(--logo-height)-25px)] rounded-[50%]"
+      />
       <span class="pl-[5px] text-14px text-[var(--top-header-text-color)] <lg:hidden">
         {{ userName }}
       </span>
@@ -94,6 +101,11 @@ const toDocument = () => {
 </template>
 
 <style scoped lang="scss">
+// 右上角头像：无头像图片时展示默认的「用户」图标（主题色底 + 白色图标）
+:deep(.el-avatar) {
+  background-color: var(--el-color-primary);
+}
+
 .fade-bottom-enter-active,
 .fade-bottom-leave-active {
   transition:
