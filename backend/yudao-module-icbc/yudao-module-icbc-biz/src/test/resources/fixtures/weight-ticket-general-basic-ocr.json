@@ -1,0 +1,301 @@
+{
+  "TextDetections": [
+    {
+      "DetectedText": "No",
+      "ItemPolygon": {
+        "Height": 24,
+        "Width": 31,
+        "X": 317,
+        "Y": 301
+      }
+    },
+    {
+      "DetectedText": "过磅",
+      "ItemPolygon": {
+        "Height": 44,
+        "Width": 139,
+        "X": 226,
+        "Y": 343
+      }
+    },
+    {
+      "DetectedText": "单",
+      "ItemPolygon": {
+        "Height": 38,
+        "Width": 45,
+        "X": 406,
+        "Y": 345
+      }
+    },
+    {
+      "DetectedText": "WEIGHT",
+      "ItemPolygon": {
+        "Height": 24,
+        "Width": 110,
+        "X": 247,
+        "Y": 390
+      }
+    },
+    {
+      "DetectedText": "BILL",
+      "ItemPolygon": {
+        "Height": 23,
+        "Width": 59,
+        "X": 379,
+        "Y": 391
+      }
+    },
+    {
+      "DetectedText": "2105",
+      "ItemPolygon": {
+        "Height": 25,
+        "Width": 55,
+        "X": 7,
+        "Y": 453
+      }
+    },
+    {
+      "DetectedText": "①司磅员留存",
+      "ItemPolygon": {
+        "Height": 28,
+        "Width": 177,
+        "X": 141,
+        "Y": 440
+      }
+    },
+    {
+      "DetectedText": "Operator",
+      "ItemPolygon": {
+        "Height": 23,
+        "Width": 107,
+        "X": 421,
+        "Y": 442
+      }
+    },
+    {
+      "DetectedText": "序号SERIALNO",
+      "ItemPolygon": {
+        "Height": 32,
+        "Width": 150,
+        "X": 132,
+        "Y": 501
+      }
+    },
+    {
+      "DetectedText": "sxk",
+      "ItemPolygon": {
+        "Height": 24,
+        "Width": 56,
+        "X": 29,
+        "Y": 566
+      }
+    },
+    {
+      "DetectedText": "日期 DATE",
+      "ItemPolygon": {
+        "Height": 31,
+        "Width": 107,
+        "X": 137,
+        "Y": 566
+      }
+    },
+    {
+      "DetectedText": "0307",
+      "ItemPolygon": {
+        "Height": 23,
+        "Width": 69,
+        "X": 387,
+        "Y": 557
+      }
+    },
+    {
+      "DetectedText": "时间TIME",
+      "ItemPolygon": {
+        "Height": 31,
+        "Width": 105,
+        "X": 137,
+        "Y": 629
+      }
+    },
+    {
+      "DetectedText": "2024-08-27",
+      "ItemPolygon": {
+        "Height": 24,
+        "Width": 180,
+        "X": 316,
+        "Y": 615
+      }
+    },
+    {
+      "DetectedText": "14.54.57",
+      "ItemPolygon": {
+        "Height": 24,
+        "Width": 143,
+        "X": 393,
+        "Y": 671
+      }
+    },
+    {
+      "DetectedText": "车号VEHICLE NO",
+      "ItemPolygon": {
+        "Height": 32,
+        "Width": 157,
+        "X": 141,
+        "Y": 691
+      }
+    },
+    {
+      "DetectedText": "05648",
+      "ItemPolygon": {
+        "Height": 23,
+        "Width": 91,
+        "X": 358,
+        "Y": 734
+      }
+    },
+    {
+      "DetectedText": "货号GARGO NO",
+      "ItemPolygon": {
+        "Height": 33,
+        "Width": 149,
+        "X": 141,
+        "Y": 755
+      }
+    },
+    {
+      "DetectedText": "078",
+      "ItemPolygon": {
+        "Height": 24,
+        "Width": 54,
+        "X": 399,
+        "Y": 793
+      }
+    },
+    {
+      "DetectedText": "Kg",
+      "ItemPolygon": {
+        "Height": 23,
+        "Width": 27,
+        "X": 522,
+        "Y": 808
+      }
+    },
+    {
+      "DetectedText": "总重GROSS",
+      "ItemPolygon": {
+        "Height": 32,
+        "Width": 116,
+        "X": 143,
+        "Y": 817
+      }
+    },
+    {
+      "DetectedText": "32220",
+      "ItemPolygon": {
+        "Height": 22,
+        "Width": 91,
+        "X": 386,
+        "Y": 845
+      }
+    },
+    {
+      "DetectedText": "皮重TARE",
+      "ItemPolygon": {
+        "Height": 32,
+        "Width": 105,
+        "X": 147,
+        "Y": 878
+      }
+    },
+    {
+      "DetectedText": "Kg",
+      "ItemPolygon": {
+        "Height": 23,
+        "Width": 26,
+        "X": 524,
+        "Y": 871
+      }
+    },
+    {
+      "DetectedText": "13090",
+      "ItemPolygon": {
+        "Height": 24,
+        "Width": 92,
+        "X": 392,
+        "Y": 908
+      }
+    },
+    {
+      "DetectedText": "扣率 DISCOUNT",
+      "ItemPolygon": {
+        "Height": 32,
+        "Width": 146,
+        "X": 147,
+        "Y": 939
+      }
+    },
+    {
+      "DetectedText": "%",
+      "ItemPolygon": {
+        "Height": 24,
+        "Width": 24,
+        "X": 526,
+        "Y": 932
+      }
+    },
+    {
+      "DetectedText": "净重 NET",
+      "ItemPolygon": {
+        "Height": 32,
+        "Width": 94,
+        "X": 151,
+        "Y": 998
+      }
+    },
+    {
+      "DetectedText": "Kg",
+      "ItemPolygon": {
+        "Height": 24,
+        "Width": 26,
+        "X": 533,
+        "Y": 1000
+      }
+    },
+    {
+      "DetectedText": "备注",
+      "ItemPolygon": {
+        "Height": 42,
+        "Width": 85,
+        "X": 162,
+        "Y": 1056
+      }
+    },
+    {
+      "DetectedText": "19130",
+      "ItemPolygon": {
+        "Height": 25,
+        "Width": 90,
+        "X": 392,
+        "Y": 1045
+      }
+    },
+    {
+      "DetectedText": "REMARK",
+      "ItemPolygon": {
+        "Height": 23,
+        "Width": 106,
+        "X": 155,
+        "Y": 1111
+      }
+    },
+    {
+      "DetectedText": "@农家石嫣",
+      "ItemPolygon": {
+        "Height": 20,
+        "Width": 120,
+        "X": 566,
+        "Y": 1197
+      }
+    }
+  ]
+}

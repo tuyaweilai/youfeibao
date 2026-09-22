@@ -47,6 +47,11 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
     private static final String TINY_PNG_BASE64 =
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
+    /**
+     * 「接口未开通」的厂商错误码（#112）：腾讯云的识别接口要按接口开通，车牌识别属其一。
+     */
+    private static final String SERVICE_NOT_OPENED_CODE = "FailedOperation.ServiceNotOpened";
+
     @Resource
     private IcbcCardRecognitionConfigMapper cardRecognitionConfigMapper;
     @Resource
@@ -138,7 +143,8 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
         }
 
         CardRecognitionCheckRespVO resp = new CardRecognitionCheckRespVO();
-        // 只在 AUTH_FAILED 与 NETWORK 上判失败：1x1 占位图必然在识别阶段报业务错（VENDOR_ERROR），
+        // 判失败的只有三类：AUTH_FAILED（密钥被拒）、NETWORK（网络不可达）、SERVICE_NOT_OPENED
+        // （车牌识别接口未开通，#112）。1x1 占位图必然在识别阶段报业务错（VENDOR_ERROR），
         // 那恰恰说明鉴权已通过（照 TencentCardRecognitionLiveTest 的判据）。
         resp.setOk(result == CardRecognitionCheckResultEnum.OK
                 || result == CardRecognitionCheckResultEnum.VENDOR_ERROR);
@@ -177,6 +183,10 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
     /**
      * 自检走同一枚 {@link TencentOcrClient} 的 1x1 占位图，**只在 {@code AuthFailure.*} 上判 AUTH_FAILED**：
      * 占位图必然在解码 / 识别阶段报业务错，那不是密钥的问题，归 VENDOR_ERROR。
+     *
+     * <p>两段：先探 {@code IDCardOCR}（鉴权与网络就这一下能定），再探 {@code LicensePlateOCR}——
+     * 后者是 #112 新接的一路，而腾讯云的接口要**按接口开通**。只有探到它，才能把「接口未开通」
+     * 从「鉴权通过」里择出来。
      */
     private CardRecognitionCheckResultEnum classify(TencentOcrSettings settings) {
         JSONObject payload = JSON.parseObject(
@@ -188,9 +198,38 @@ public class CardRecognitionConfigServiceImpl implements CardRecognitionConfigSe
         }
         JSONObject error = response.getJSONObject("Error");
         if (error == null) {
+            // 鉴权已过，再看车牌识别这一路开没开
+            return classifyPlateAction(settings);
+        }
+        return classifyError(error.getString("Code"));
+    }
+
+    /**
+     * 探一路 {@code LicensePlateOCR}：判据与上一段相同，只多一条——{@code FailedOperation.ServiceNotOpened}
+     * 单独成类（它既不是密钥被拒，也不能归「鉴权通过」）。
+     *
+     * <p>这里的 1x1 占位图同样**不会**真的识别出车牌，仍会计入腾讯云调用次数（照本类自检的承诺：
+     * 不留存影像，不承诺不消耗额度）。
+     */
+    private CardRecognitionCheckResultEnum classifyPlateAction(TencentOcrSettings settings) {
+        JSONObject payload = JSON.parseObject("{\"ImageBase64\":\"" + TINY_PNG_BASE64 + "\"}");
+        JSONObject response = tencentOcrClient.callRaw(settings, "LicensePlateOCR", payload);
+        if (response == null) {
+            return CardRecognitionCheckResultEnum.NETWORK;
+        }
+        JSONObject error = response.getJSONObject("Error");
+        if (error == null) {
             return CardRecognitionCheckResultEnum.OK;
         }
         String code = error.getString("Code");
+        if (SERVICE_NOT_OPENED_CODE.equals(code)) {
+            return CardRecognitionCheckResultEnum.SERVICE_NOT_OPENED;
+        }
+        return classifyError(code);
+    }
+
+    /** 厂商错误码 → 分类：只有 {@code AuthFailure.*} 是密钥问题，其余都是「鉴权已通过、占位图识别不了」。 */
+    private CardRecognitionCheckResultEnum classifyError(String code) {
         return code != null && code.startsWith("AuthFailure")
                 ? CardRecognitionCheckResultEnum.AUTH_FAILED
                 : CardRecognitionCheckResultEnum.VENDOR_ERROR;

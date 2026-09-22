@@ -62,7 +62,7 @@ public class TencentCardRecognition implements CardRecognitionPort {
     @Override
     public IdCardFront recognizeIdCardFront(String imageBase64) {
         JSONObject payload = new JSONObject();
-        payload.put("ImageBase64", plainBase64(imageBase64));
+        payload.put("ImageBase64", TencentOcrClient.plainBase64(imageBase64));
         payload.put("CardSide", "FRONT");
         payload.put("Config", ID_CARD_CONFIG);
         return mapOrEmpty("IDCardOCR", payload, TencentOcrResultMapper::toIdCardFront, IdCardFront.empty());
@@ -71,7 +71,7 @@ public class TencentCardRecognition implements CardRecognitionPort {
     @Override
     public IdCardBack recognizeIdCardBack(String imageBase64) {
         JSONObject payload = new JSONObject();
-        payload.put("ImageBase64", plainBase64(imageBase64));
+        payload.put("ImageBase64", TencentOcrClient.plainBase64(imageBase64));
         payload.put("CardSide", "BACK");
         payload.put("Config", ID_CARD_CONFIG);
         return mapOrEmpty("IDCardOCR", payload, TencentOcrResultMapper::toIdCardBack, IdCardBack.empty());
@@ -80,7 +80,7 @@ public class TencentCardRecognition implements CardRecognitionPort {
     @Override
     public BankCard recognizeBankCard(String imageBase64) {
         JSONObject payload = new JSONObject();
-        payload.put("ImageBase64", plainBase64(imageBase64));
+        payload.put("ImageBase64", TencentOcrClient.plainBase64(imageBase64));
         // BankCardOCR 没有 Config 参数，但告警与质量分是四个独立的 bool 开关，且官方默认全 false：
         // 不带开关则 WarningCode / QualityValue 什么都不回（独立评审 SP-2）。四个都是官方文档字段。
         payload.put("EnableCopyCheck", true);
@@ -119,18 +119,6 @@ public class TencentCardRecognition implements CardRecognitionPort {
             log.warn("[mapOrEmpty][腾讯云 OCR 结果处理失败：action={}, error={}]", action, e.getMessage());
             return empty;
         }
-    }
-
-    /**
-     * 去掉 dataURL 前缀：识别接口要的是纯 base64。前端已按注释不带前缀，这里再兜一道，
-     * 免得把 {@code data:image/jpeg;base64,} 当成影像内容发给厂商。
-     */
-    static String plainBase64(String imageBase64) {
-        if (imageBase64 == null) {
-            return null;
-        }
-        int index = imageBase64.indexOf("base64,");
-        return index >= 0 ? imageBase64.substring(index + "base64,".length()) : imageBase64;
     }
 
 }

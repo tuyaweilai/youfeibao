@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.icbc.controller.admin.acquisition;
 
+import cn.iocoder.yudao.framework.apilog.core.annotation.ApiAccessLog;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
@@ -64,6 +65,28 @@ public class IcbcAcquisitionController {
     public CommonResult<List<AcquisitionSyncResultVO>> syncOffline(
             @Valid @RequestBody AcquisitionOfflineSyncReqVO reqVO) {
         return success(acquisitionService.syncOffline(reqVO));
+    }
+
+    @PostMapping("/recognition/plate")
+    @Operation(summary = "识别车头 / 车尾照片上的车牌",
+            description = "无状态：照片随请求进来、识别完即弃，不落库、不留存。识别失败或未配置供应商时"
+                    + "返回空车牌，现场退化为手工录入，不阻断登记（ADR 0013 / 0037）")
+    @ApiAccessLog(requestEnable = false)
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.ACQUISITION_CREATE + "')")
+    public CommonResult<AcquisitionPlateRecognitionRespVO> recognizePlate(
+            @Valid @RequestBody AcquisitionPlateRecognitionReqVO reqVO) {
+        return success(acquisitionService.recognizePlate(reqVO));
+    }
+
+    @PostMapping("/recognition/weight-ticket")
+    @Operation(summary = "识别磅单照片上的字段（磅单号 / 毛重 / 皮重 / 净重 / 车号 / 扣率）",
+            description = "无状态：照片随请求进来、识别完即弃，不落库、不留存。通用印刷体识别 + 平台侧解析，"
+                    + "读不出来的字段留空；原始文字行一并回，供现场端核对。不阻断登记（ADR 0013 / 0037）")
+    @ApiAccessLog(requestEnable = false)
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.ACQUISITION_CREATE + "')")
+    public CommonResult<AcquisitionWeightTicketRecognitionRespVO> recognizeWeightTicket(
+            @Valid @RequestBody AcquisitionWeightTicketRecognitionReqVO reqVO) {
+        return success(acquisitionService.recognizeWeightTicket(reqVO));
     }
 
     @PostMapping("/correct")

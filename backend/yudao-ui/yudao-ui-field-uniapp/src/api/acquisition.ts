@@ -198,6 +198,66 @@ export const getUsablePurchaseArrangements = (payeeId: number) =>
 export const createAcquisition = (data: AcquisitionCreateReq) =>
   post<AcquisitionCreateResp>('/icbc/acquisition/create', data)
 
+export interface PlateRecognitionReq {
+  /** 车头 / 车尾照片的 base64（不带 dataURL 前缀） */
+  imageBase64: string
+}
+
+export interface PlateRecognitionResp {
+  /** 识别出的车牌号；为空表示未识别 */
+  plateNo?: string
+  /** 置信度（0-100）；为空表示厂商没给 */
+  confidence?: number
+  /** 提示类告警（可读文案），如「识别置信度偏低，请核对车牌」；不拦继续 */
+  warnings?: string[]
+}
+
+/**
+ * 识别车头 / 车尾照片上的车牌（#112）。
+ *
+ * 无状态：照片随请求进来、识别完即弃，不落库、不留存影像；照片本身仍走 `/infra/file/upload` 留档。
+ * 传 base64 而不是照片 URL：识别不依赖照片有没有上传成功（现场弱网下上传失败是常事），
+ * 也免得后端按客户端给的地址出站下载（ADR 0013 的修订注记）。
+ *
+ * 识别失败或未配置供应商时返回空的车牌（`plateNo` 为空），现场退化为手工录入，不阻断登记。
+ */
+export const recognizeAcquisitionPlate = (data: PlateRecognitionReq) =>
+  post<PlateRecognitionResp>('/icbc/acquisition/recognition/plate', data)
+
+export interface WeightTicketRecognitionReq {
+  /** 磅单照片的 base64（不带 dataURL 前缀） */
+  imageBase64: string
+}
+
+export interface WeightTicketRecognitionResp {
+  /** 磅单号；为空表示未识别 */
+  weightTicketNo?: string
+  /** 毛重（磅单上多印作「总重 GROSS」）：**照抄磅单数字，不做单位换算** */
+  grossWeight?: number
+  tareWeight?: number
+  netWeight?: number
+  /** 磅单上的车号；可能只读到一部分（看 warnings） */
+  plateNo?: string
+  /** 扣杂：磅单上的「扣率 %」已换成 0~1 的比例 */
+  deduction?: number
+  /** 扣杂录法：磅单上读的是扣率，所以是 RATIO */
+  deductionMethod?: string
+  /** 提示类告警（重量不自洽 / 车号可能不完整），不拦继续 */
+  warnings?: string[]
+  /** 识别到的原始文字行：解析取不到时人还能照着填，**只回显、不落库** */
+  rawLines?: string[]
+}
+
+/**
+ * 识别磅单照片上的字段（#113）：磅单号、毛重、皮重、净重、车号、扣率。
+ *
+ * 无状态：照片随请求进来、识别完即弃，不落库（照片本身仍走 `/infra/file/upload` 留档）。
+ * 磅单格式因磅房而异，后端靠关键词 + 坐标解析，**读不出来的字段留空**，所以回填时必须只在
+ * 空缺处填（人工值优先），并把 `rawLines` 回给现场端核对。
+ */
+export const recognizeAcquisitionWeightTicket = (data: WeightTicketRecognitionReq) =>
+  post<WeightTicketRecognitionResp>('/icbc/acquisition/recognition/weight-ticket', data)
+
 /** 人工修正磅单 / 车牌识别结果，修正后后端重新做车牌比对 */
 export const correctAcquisition = (data: AcquisitionCorrectionReq) =>
   post<boolean>('/icbc/acquisition/correct', data)

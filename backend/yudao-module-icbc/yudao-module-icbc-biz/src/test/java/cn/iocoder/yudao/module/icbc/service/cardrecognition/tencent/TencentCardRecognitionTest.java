@@ -155,9 +155,9 @@ public class TencentCardRecognitionTest {
 
     @Test
     public void testPlainBase64_stripsPrefixAndKeepsPlainValue() {
-        assertEquals("QUJD", TencentCardRecognition.plainBase64("data:image/jpeg;base64,QUJD"));
-        assertEquals("QUJD", TencentCardRecognition.plainBase64("QUJD"));
-        assertNull(TencentCardRecognition.plainBase64(null));
+        assertEquals("QUJD", TencentOcrClient.plainBase64("data:image/jpeg;base64,QUJD"));
+        assertEquals("QUJD", TencentOcrClient.plainBase64("QUJD"));
+        assertNull(TencentOcrClient.plainBase64(null));
     }
 
     @Test

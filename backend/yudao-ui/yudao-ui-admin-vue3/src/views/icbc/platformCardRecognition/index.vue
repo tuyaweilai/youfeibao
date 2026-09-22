@@ -217,7 +217,8 @@ const checkResult = computed(() => {
   }
   const result = config.value.lastCheckResult
   return {
-    // 与后端同一判据：只有 AUTH_FAILED / NETWORK 算失败，厂商在识别阶段报错说明鉴权已通过
+    // 与后端同一判据：AUTH_FAILED / NETWORK / SERVICE_NOT_OPENED 算失败，
+    // 厂商在识别阶段报错说明鉴权已通过（#112 起 SERVICE_NOT_OPENED 是硬失败：车牌识别接口没开通）
     ok: result === 'OK' || result === 'VENDOR_ERROR',
     resultName: config.value.lastCheckResultName,
     checkTime: config.value.lastCheckTime,

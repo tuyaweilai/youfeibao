@@ -119,4 +119,18 @@ public class TencentOcrClient {
         return result;
     }
 
+    /**
+     * 去掉 dataURL 前缀：识别接口要的是纯 base64。
+     *
+     * <p>两个识别端口（卡证、收购现场的磅单与车牌）都要做这一步，所以判据只留这一处，
+     * 不各自再写一遍（{@code IDCardOCR} / {@code BankCardOCR} / {@code LicensePlateOCR} 同理）。
+     */
+    public static String plainBase64(String imageBase64) {
+        if (imageBase64 == null) {
+            return null;
+        }
+        int index = imageBase64.indexOf("base64,");
+        return index >= 0 ? imageBase64.substring(index + "base64,".length()) : imageBase64;
+    }
+
 }

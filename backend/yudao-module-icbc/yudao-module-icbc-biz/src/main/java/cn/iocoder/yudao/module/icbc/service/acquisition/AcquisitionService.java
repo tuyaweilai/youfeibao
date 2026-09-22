@@ -35,6 +35,24 @@ public interface AcquisitionService {
     List<AcquisitionSyncResultVO> syncOffline(@Valid AcquisitionOfflineSyncReqVO reqVO);
 
     /**
+     * 识别车头 / 车尾照片上的车牌（#112）。
+     *
+     * <p>无状态：图片随请求进来、识别完即弃，不落库、不留存影像。识别失败、未配置供应商
+     * 一律返回空的车牌（{@code plateNo} 为空），现场端据此退化为手工录入，**不阻断登记**
+     * （ADR 0013 / 0037 的安静降级）。
+     */
+    AcquisitionPlateRecognitionRespVO recognizePlate(@Valid AcquisitionPlateRecognitionReqVO reqVO);
+
+    /**
+     * 识别磅单上的字段（#113）：磅单号、毛重、皮重、净重、车号、扣率。
+     *
+     * <p>无状态：照片随请求进来、识别完即弃。字段靠**平台侧的解析规则**从识别的文字行里取
+     * （磅单格式因磅房而异），读不出来的留空、由收货员手工补录；原始文字行一并回给现场端核对。
+     */
+    AcquisitionWeightTicketRecognitionRespVO recognizeWeightTicket(
+            @Valid AcquisitionWeightTicketRecognitionReqVO reqVO);
+
+    /**
      * 人工修正磅单 / 车牌的识别结果，并重新做车牌比对。
      */
     void correctRecognition(@Valid AcquisitionCorrectionReqVO reqVO);

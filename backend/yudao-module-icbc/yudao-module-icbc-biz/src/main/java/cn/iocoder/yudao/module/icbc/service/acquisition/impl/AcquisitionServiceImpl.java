@@ -97,7 +97,7 @@ public class AcquisitionServiceImpl implements AcquisitionService {
     }
 
     /**
-     * 落一笔收购单。幂等、要件校验、识别回填都在这里，额度提示留给调用方（离线补传不做提示）。
+     * 落一笔收购单。幂等、要件校验都在这里，额度提示留给调用方（离线补传不做提示）。
      */
     private IcbcAcquisitionDO register(AcquisitionCreateReqVO reqVO) {
         // 1. 幂等：同一 clientRequestId 重复登记只落一条（离线补传的核心保证）
@@ -108,10 +108,7 @@ public class AcquisitionServiceImpl implements AcquisitionService {
             }
         }
 
-        // 2. 现场识别回填（人工已填的值优先，识别只在空缺处补）
-        fillByRecognition(reqVO);
-
-        // 3. 交接批次与有效磅次（#50 T12）：挂上批次时，计量只认被选定的那一次，不采用请求里的重量
+        // 2. 交接批次与有效磅次（#50 T12）：挂上批次时，计量只认被选定的那一次，不采用请求里的重量
         IcbcAcquisitionDO acquisition = BeanUtils.toBean(reqVO, IcbcAcquisitionDO.class);
         acquisition.setId(null);
         applyHandoverBatch(reqVO, acquisition);
@@ -480,42 +477,6 @@ public class AcquisitionServiceImpl implements AcquisitionService {
     }
 
     /**
-     * 用识别服务补全空缺的磅单字段与车牌。识别失败（空结果）不阻断，仍可人工录入。
-     */
-    private void fillByRecognition(AcquisitionCreateReqVO reqVO) {
-        if (StrUtil.isNotBlank(reqVO.getWeightTicketImageUrl())) {
-            AcquisitionRecognitionPort.WeightTicketRecognition recognition =
-                    recognitionPort.recognizeWeightTicket(reqVO.getWeightTicketImageUrl());
-            if (recognition != null) {
-                if (StrUtil.isBlank(reqVO.getWeightTicketNo())) {
-                    reqVO.setWeightTicketNo(recognition.getWeightTicketNo());
-                }
-                if (reqVO.getGrossWeight() == null) {
-                    reqVO.setGrossWeight(recognition.getGrossWeight());
-                }
-                if (reqVO.getTareWeight() == null) {
-                    reqVO.setTareWeight(recognition.getTareWeight());
-                }
-                if (reqVO.getNetWeight() == null) {
-                    reqVO.setNetWeight(recognition.getNetWeight());
-                }
-                if (StrUtil.isBlank(reqVO.getWeightTicketPlateNo())) {
-                    reqVO.setWeightTicketPlateNo(recognition.getPlateNo());
-                }
-            }
-        }
-        String vehicleImageUrl = StrUtil.isNotBlank(reqVO.getVehicleFrontImageUrl())
-                ? reqVO.getVehicleFrontImageUrl() : reqVO.getVehicleRearImageUrl();
-        if (StrUtil.isNotBlank(vehicleImageUrl) && StrUtil.isBlank(reqVO.getVehiclePlateNo())) {
-            AcquisitionRecognitionPort.PlateRecognition recognition =
-                    recognitionPort.recognizePlate(vehicleImageUrl);
-            if (recognition != null) {
-                reqVO.setVehiclePlateNo(recognition.getPlateNo());
-            }
-        }
-    }
-
-    /**
      * 卖方主体准入（ADR 0029）：反向开票通道（收购单）只收自然人。
      *
      * <p>个体工商户 / 个人独资企业 / 合伙企业 / 企业法人 / 农民专业合作社一律拦下，错误信息指向
@@ -634,7 +595,56 @@ public class AcquisitionServiceImpl implements AcquisitionService {
         return result;
     }
 
-    // ==================== 识别结果人工修正 ====================
+    // ==================== 现场识别（#112）与识别结果人工修正 ====================
+
+    /**
+     * 识别车头 / 车尾照片上的车牌。**无状态**：图片随请求进来、识别完即弃，不落库、不留存影像。
+     *
+     * <p>识别从「提交时后端静默回填」搬到「现场端拍照那一刻」（#112）：图片字节只在现场端手上，
+     * 提交路径上没有它；而且只有当场回显给收货员，识别结果才有被核对的机会。
+     *
+     * <p>这里只有一层薄转发：业务规则「人工值优先、只在空缺处回填」在**现场端**——它才知道
+     * 收货员手里那个输入框此刻是不是空的。留这一层是为了让规则将来真需要搬到服务端时不用改控制器。
+     */
+    @Override
+    public AcquisitionPlateRecognitionRespVO recognizePlate(@Valid AcquisitionPlateRecognitionReqVO reqVO) {
+        AcquisitionRecognitionPort.PlateRecognition recognition =
+                recognitionPort.recognizePlate(reqVO.getImageBase64());
+        AcquisitionPlateRecognitionRespVO resp = new AcquisitionPlateRecognitionRespVO();
+        if (recognition == null) {
+            // 端口契约是「读不出来返回空结果」，null 只是防御：两条路都退化为未识别
+            return resp;
+        }
+        resp.setPlateNo(recognition.getPlateNo());
+        resp.setConfidence(recognition.getConfidence());
+        resp.setWarnings(recognition.getWarnings());
+        return resp;
+    }
+
+    /**
+     * 识别磅单字段（#113）。与车牌一样是薄转发：**人工值优先、只在空缺处回填**的规则在现场端，
+     * 因为只有它知道收货员手里那几个输入框此刻是不是空的。
+     */
+    @Override
+    public AcquisitionWeightTicketRecognitionRespVO recognizeWeightTicket(
+            @Valid AcquisitionWeightTicketRecognitionReqVO reqVO) {
+        AcquisitionRecognitionPort.WeightTicketRecognition recognition =
+                recognitionPort.recognizeWeightTicket(reqVO.getImageBase64());
+        AcquisitionWeightTicketRecognitionRespVO resp = new AcquisitionWeightTicketRecognitionRespVO();
+        if (recognition == null) {
+            return resp;
+        }
+        resp.setWeightTicketNo(recognition.getWeightTicketNo());
+        resp.setGrossWeight(recognition.getGrossWeight());
+        resp.setTareWeight(recognition.getTareWeight());
+        resp.setNetWeight(recognition.getNetWeight());
+        resp.setPlateNo(recognition.getPlateNo());
+        resp.setDeduction(recognition.getDeduction());
+        resp.setDeductionMethod(recognition.getDeductionMethod());
+        resp.setWarnings(recognition.getWarnings());
+        resp.setRawLines(recognition.getRawLines());
+        return resp;
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)

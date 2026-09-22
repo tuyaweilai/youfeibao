@@ -51,6 +51,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.Collections;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -59,6 +61,7 @@ import static cn.iocoder.yudao.framework.test.core.util.AssertUtils.assertServic
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -477,41 +480,94 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testCreateAcquisition_recognitionFillsBlanksButHumanValueWins() {
+    public void testCreateAcquisition_doesNotCallRecognition() {
+        // #112：识别从「提交时后端静默回填」搬到「现场拍照那一刻」，登记路径上不再调识别——
+        // 图片字节只在现场端手上，且只有当场回显给收货员，识别结果才有被核对的机会。
         PayeeInfoDO payee = insertPayee("钱十一", "13800138008");
         IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
-
-        when(recognitionPort.recognizeWeightTicket("https://cdn/w.jpg")).thenReturn(
-                AcquisitionRecognitionPort.WeightTicketRecognition.builder()
-                        .weightTicketNo("WD_RECOG")
-                        .grossWeight(new BigDecimal("18000"))
-                        .tareWeight(new BigDecimal("5500"))
-                        .plateNo("京B00001")
-                        .build());
-        when(recognitionPort.recognizePlate("https://cdn/front.jpg")).thenReturn(
-                AcquisitionRecognitionPort.PlateRecognition.builder().plateNo("京B00001").build());
 
         AcquisitionCreateReqVO reqVO = baseReq(payee.getId(), config.getId());
         reqVO.setQuantity(new BigDecimal("5"));
         reqVO.setAmount(new BigDecimal("500.00"));
-        reqVO.setWeightTicketNo(null);
+        reqVO.setWeightTicketNo("WD20261201001");
         reqVO.setWeightTicketImageUrl("https://cdn/w.jpg");
         reqVO.setVehicleFrontImageUrl("https://cdn/front.jpg");
-        // 人工已经填了毛重，识别不得覆盖
-        reqVO.setGrossWeight(new BigDecimal("19000"));
 
         Long id = acquisitionService.createAcquisition(reqVO).getId();
 
         IcbcAcquisitionDO saved = acquisitionMapper.selectById(id);
-        // 识别回填
-        assertEquals("WD_RECOG", saved.getWeightTicketNo());
-        assertEquals(0, new BigDecimal("5500").compareTo(saved.getTareWeight()));
-        assertEquals("京B00001", saved.getVehiclePlateNo());
-        assertEquals("京B00001", saved.getWeightTicketPlateNo());
-        // 人工值优先
-        assertEquals(0, new BigDecimal("19000").compareTo(saved.getGrossWeight()));
-        // 净重按人工毛重与识别皮重算出
-        assertEquals(0, new BigDecimal("13500").compareTo(saved.getNetWeight()));
+        assertNull(saved.getVehiclePlateNo(), "没有识别回填，车牌留给现场手工录入");
+        verifyNoInteractions(recognitionPort);
+    }
+
+    @Test
+    public void testRecognizePlate_mapsPortResultToResp() {
+        when(recognitionPort.recognizePlate("QUJD")).thenReturn(
+                AcquisitionRecognitionPort.PlateRecognition.builder()
+                        .plateNo("京B00001").confidence(95)
+                        .warnings(Collections.singletonList("识别置信度偏低，请核对车牌"))
+                        .build());
+
+        AcquisitionPlateRecognitionReqVO reqVO = new AcquisitionPlateRecognitionReqVO();
+        reqVO.setImageBase64("QUJD");
+        AcquisitionPlateRecognitionRespVO resp = acquisitionService.recognizePlate(reqVO);
+
+        assertEquals("京B00001", resp.getPlateNo());
+        assertEquals(95, resp.getConfidence());
+        assertEquals(Collections.singletonList("识别置信度偏低，请核对车牌"), resp.getWarnings());
+    }
+
+    @Test
+    public void testRecognizeWeightTicket_mapsPortResultToResp() {
+        when(recognitionPort.recognizeWeightTicket("QUJD")).thenReturn(
+                AcquisitionRecognitionPort.WeightTicketRecognition.builder()
+                        .weightTicketNo("2105").grossWeight(new BigDecimal("32220"))
+                        .tareWeight(new BigDecimal("13090")).netWeight(new BigDecimal("19130"))
+                        .plateNo("豫A05648").deduction(new BigDecimal("0.025")).deductionMethod("RATIO")
+                        .warnings(Collections.singletonList("磅单三个重量不自洽（毛重-皮重≠净重），请核对"))
+                        .rawLines(Arrays.asList("过磅单", "总重 GROSS 32220 Kg"))
+                        .build());
+
+        AcquisitionWeightTicketRecognitionReqVO reqVO = new AcquisitionWeightTicketRecognitionReqVO();
+        reqVO.setImageBase64("QUJD");
+        AcquisitionWeightTicketRecognitionRespVO resp = acquisitionService.recognizeWeightTicket(reqVO);
+
+        assertEquals("2105", resp.getWeightTicketNo());
+        assertEquals(0, new BigDecimal("32220").compareTo(resp.getGrossWeight()));
+        assertEquals(0, new BigDecimal("19130").compareTo(resp.getNetWeight()));
+        assertEquals("豫A05648", resp.getPlateNo());
+        assertEquals(0, new BigDecimal("0.025").compareTo(resp.getDeduction()));
+        assertEquals("RATIO", resp.getDeductionMethod());
+        assertEquals(Arrays.asList("过磅单", "总重 GROSS 32220 Kg"), resp.getRawLines());
+        assertEquals(1, resp.getWarnings().size());
+    }
+
+    @Test
+    public void testRecognizeWeightTicket_emptyResultIsNotAnError() {
+        // 读不出来、未配置供应商、厂商报错都走空结果这条路：现场手工录入，不抛异常
+        when(recognitionPort.recognizeWeightTicket("QUJD"))
+                .thenReturn(AcquisitionRecognitionPort.WeightTicketRecognition.empty());
+
+        AcquisitionWeightTicketRecognitionReqVO reqVO = new AcquisitionWeightTicketRecognitionReqVO();
+        reqVO.setImageBase64("QUJD");
+        AcquisitionWeightTicketRecognitionRespVO resp = acquisitionService.recognizeWeightTicket(reqVO);
+
+        assertNull(resp.getWeightTicketNo());
+        assertNull(resp.getGrossWeight());
+    }
+
+    @Test
+    public void testRecognizePlate_emptyResultIsNotAnError() {
+        // 识别失败（stub / 未配 / 厂商报错）必须走空结果这条路，现场退化为手工录入，不抛异常
+        when(recognitionPort.recognizePlate("QUJD"))
+                .thenReturn(AcquisitionRecognitionPort.PlateRecognition.empty());
+
+        AcquisitionPlateRecognitionReqVO reqVO = new AcquisitionPlateRecognitionReqVO();
+        reqVO.setImageBase64("QUJD");
+        AcquisitionPlateRecognitionRespVO resp = acquisitionService.recognizePlate(reqVO);
+
+        assertNull(resp.getPlateNo());
+        assertNull(resp.getConfidence());
     }
 
     @Test

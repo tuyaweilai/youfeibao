@@ -22,6 +22,7 @@ import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.CARD_RECOGNI
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -42,6 +43,9 @@ public class CardRecognitionConfigServiceTest extends BaseDbUnitTest {
     private static final String VENDOR_ERROR_BODY = "{\"Response\":{"
             + "\"Error\":{\"Code\":\"FailedOperation.ImageDecodeFailed\",\"Message\":\"图片解码失败\"},"
             + "\"RequestId\":\"req-vendor\"}}";
+    private static final String SERVICE_NOT_OPENED_BODY = "{\"Response\":{"
+            + "\"Error\":{\"Code\":\"FailedOperation.ServiceNotOpened\",\"Message\":\"服务未开通\"},"
+            + "\"RequestId\":\"req-not-opened\"}}";
     private static final String OK_BODY = "{\"Response\":{\"Name\":\"张三\",\"RequestId\":\"req-ok\"}}";
 
     @Resource
@@ -190,7 +194,8 @@ public class CardRecognitionConfigServiceTest extends BaseDbUnitTest {
                 requestWithSecret());
 
         assertTrue(resp.getOk());
-        verify(tencentOcrTransport).post(any());
+        // #112 起自检探两路（身份证 + 车牌），所以是两次调用而不是一次
+        verify(tencentOcrTransport, atLeastOnce()).post(any());
         // 审评观察 3：未保存的密钥只是「临时凭据试通」，不是「已存配置验证通过」
         assertFalse(resp.getPersisted());
         assertNull(cardRecognitionConfigMapper.selectConfig(), "临时凭据的结果不落库");
@@ -208,7 +213,24 @@ public class CardRecognitionConfigServiceTest extends BaseDbUnitTest {
 
         assertTrue(resp.getOk(), "请求留空时必须用已存密钥，否则会因 hasCredentials=false 直接抛未配置");
         assertTrue(resp.getPersisted());
-        verify(tencentOcrTransport).post(any());
+        verify(tencentOcrTransport, atLeastOnce()).post(any());
+    }
+
+    @Test
+    public void testCheck_plateActionNotOpened_isHardFailure() {
+        // #112：腾讯云的识别接口按接口开通，车牌那一路没开时报 FailedOperation.ServiceNotOpened。
+        // 它是硬失败，不能被当成「鉴权已通过」——否则自检通过、现场第一次拍车头照才失败。
+        cardRecognitionConfigService.saveConfig(fullTencent());
+        given(tencentOcrTransport.post(any()))
+                .willReturn(new TencentOcrTransport.Result(200, OK_BODY))
+                .willReturn(new TencentOcrTransport.Result(200, SERVICE_NOT_OPENED_BODY));
+
+        CardRecognitionCheckRespVO resp = cardRecognitionConfigService.checkConnectivity(
+                new CardRecognitionCheckReqVO());
+
+        assertFalse(resp.getOk());
+        assertEquals("SERVICE_NOT_OPENED", resp.getResult());
+        assertEquals("SERVICE_NOT_OPENED", cardRecognitionConfigMapper.selectConfig().getLastCheckResult());
     }
 
     @Test
