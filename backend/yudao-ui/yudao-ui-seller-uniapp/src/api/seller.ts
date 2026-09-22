@@ -356,6 +356,26 @@ export const listAppointments = (naturalPersonId: number) =>
 export const getSettlement = (naturalPersonId: number, id: number) =>
   appGet<Settlement>('/icbc/seller/settlement/get', { naturalPersonId, id })
 
+/** 一张收购单的开票信息确认进度（#106）：确认结算之后，这一批每张票都要本人在工行页面上确认一次 */
+export interface InvoiceConfirmItem {
+  acquisitionId?: number
+  acquisitionNo?: string
+  categoryName?: string
+  amount?: number
+  /** BLOCKED-还不能发起，WAITING_CONFIRM-待本人确认，CONFIRMED-已确认等付款 */
+  stage?: string
+  stageName?: string
+  message?: string
+  /** 不能发起时的逐项原因与补齐方式 */
+  failures?: { code?: string; name?: string; message?: string; remedy?: string }[]
+  /** 工行确认页地址（带一次性令牌，可直接打开） */
+  confirmPageUrl?: string
+  confirmPageAvailable?: boolean
+}
+
+export const getSettlementInvoiceStatus = (naturalPersonId: number, settlementId: number) =>
+  appGet<InvoiceConfirmItem[]>('/icbc/seller/settlement/invoice-status', { naturalPersonId, id: settlementId })
+
 export const confirmSettlement = (naturalPersonId: number, settlementId: number, versionId: number) =>
   appPost<boolean>('/icbc/seller/settlement/confirm', { naturalPersonId, settlementId, versionId })
 

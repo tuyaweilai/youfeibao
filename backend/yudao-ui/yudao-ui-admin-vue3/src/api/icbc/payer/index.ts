@@ -15,6 +15,9 @@ export interface PayerVO {
   contactName?: string // 联系人姓名
   contactMobile?: string // 联系人手机号
   taxpayerType?: string // 01-一般纳税人，02-小规模纳税人
+  drawerName?: string // 开票人姓名（工行预下单必输，自动预下单要用）
+  drawerCardNumber?: string // 开票人证件号码
+  areaCode?: string // 应税行为发生地（省级税务机关代码，如 110000）
   businessType?: string // 业务类型
   status?: number // 0-待审核，1-审核通过，2-审核拒绝
   auditMsg?: string

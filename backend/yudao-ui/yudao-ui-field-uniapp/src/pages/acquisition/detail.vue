@@ -150,7 +150,7 @@
       <button class="btn btn--ghost" @click="onPrint">打印本页</button>
     </view>
     <view class="actions">
-      <view class="actions__hint">结束收货后生成结算单，交由出售者确认</view>
+      <view class="actions__hint">结束收货后生成结算单，交由出售者确认；他一确认，系统就自动发起开票</view>
       <button class="btn btn--primary" :loading="generating" :disabled="generating" @click="onEndBatch">结束本次收货 · 生成结算单</button>
     </view>
   </view>
