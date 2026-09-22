@@ -5,6 +5,10 @@ import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.invoice.RedInvoiceDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * 红字发票 Mapper
  */
@@ -24,6 +28,19 @@ public interface RedInvoiceMapper extends BaseMapperX<RedInvoiceDO> {
                 .eq(RedInvoiceDO::getPartnerOrderId, partnerOrderId)
                 .orderByDesc(RedInvoiceDO::getId)
                 .last("LIMIT 1"));
+    }
+
+    /**
+     * 按合作方订单号批量取红冲记录（收购进度列表用：不能逐行查库）。
+     * 同一张蓝票可有多条（撤销后再冲），取用时按 id 倒序取第一条。
+     */
+    default List<RedInvoiceDO> selectListByPartnerOrderIds(Collection<String> partnerOrderIds) {
+        if (partnerOrderIds == null || partnerOrderIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<RedInvoiceDO>()
+                .in(RedInvoiceDO::getPartnerOrderId, partnerOrderIds)
+                .orderByDesc(RedInvoiceDO::getId));
     }
 
 }

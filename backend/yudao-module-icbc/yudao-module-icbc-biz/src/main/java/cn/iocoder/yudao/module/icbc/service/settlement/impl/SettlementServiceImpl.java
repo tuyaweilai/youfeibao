@@ -21,6 +21,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.settlement.IcbcSettlementVersionMa
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.SettlementConfirmStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.SettlementDisputeReasonEnum;
+import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionProgressService;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.naturalperson.NaturalPersonService;
 import cn.iocoder.yudao.module.icbc.service.notify.SellerNotifyService;
@@ -85,6 +86,8 @@ public class SettlementServiceImpl implements SettlementService {
     private IcbcAcquisitionMapper acquisitionMapper;
     @Resource
     private AcquisitionService acquisitionService;
+    @Resource
+    private AcquisitionProgressService acquisitionProgressService;
     @Resource
     private PayeeInfoService payeeInfoService;
     @Resource
@@ -302,9 +305,11 @@ public class SettlementServiceImpl implements SettlementService {
         }
         IcbcAcquisitionDO update = new IcbcAcquisitionDO();
         update.setId(acquisition.getId());
-        update.setStatus(AcquisitionStatusEnum.CANCELLED.getStatus());
         update.setCancelReason(reqVO.getReason());
         acquisitionMapper.updateById(update);
+        // 档位由派生单点写（ADR 0038）：「已作废」是「带原因的作废」派生出来的，不在这里手写状态
+        acquisition.setCancelReason(reqVO.getReason());
+        acquisitionProgressService.sync(acquisition);
         // 关联了采购安排的，把这一车的成交按相反方向扣回（#58）：作废的计量不再成立，
         // 订单的验收 / 结算口径要跟着退回去（按来源幂等，重复作废不会扣两次）
         acquisitionService.syncPurchaseDeal(acquisition, -1);
@@ -450,11 +455,12 @@ public class SettlementServiceImpl implements SettlementService {
         }
     }
 
+    /**
+     * 是否已发起开票：开票单一旦挂上就是不可回头的事实（ADR 0038：一张收购单只对应一张票）。
+     * <p>不看档位——档位是派生结果，拿派生结果做判断会绕回来咬自己。
+     */
     private boolean isInvoiceStarted(IcbcAcquisitionDO acquisition) {
-        return StrUtil.isNotBlank(acquisition.getInvoicePartnerOrderId())
-                || Objects.equals(acquisition.getStatus(), AcquisitionStatusEnum.PENDING_PAYMENT.getStatus())
-                || Objects.equals(acquisition.getStatus(), AcquisitionStatusEnum.PAID.getStatus())
-                || Objects.equals(acquisition.getStatus(), AcquisitionStatusEnum.INVOICED.getStatus());
+        return StrUtil.isNotBlank(acquisition.getInvoicePartnerOrderId());
     }
 
     private void applyPending(IcbcSettlementDO settlement, IcbcSettlementVersionDO version, String note) {

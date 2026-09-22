@@ -202,11 +202,20 @@ public class AcquisitionRespVO {
     @Schema(description = "结算方式", example = "银行转账，过磅后 3 日内结清")
     private String settlementMethod;
 
-    @Schema(description = "状态：0-已登记，1-待付款，2-已付款，3-已开票，9-已取消", example = "0")
+    @Schema(description = "状态：0-已登记，4-待自然人确认，1-待付款，2-已付款，3-已开票，9-已作废", example = "0")
     private Integer status;
 
-    @Schema(description = "状态名称", example = "已登记")
+    @Schema(description = "档位名称", example = "已登记")
     private String statusName;
+
+    @Schema(description = "下一步是谁的事", example = "等出售者本人在工行页面确认开票信息；未确认不能付款")
+    private String statusNextStep;
+
+    @Schema(description = "进度是否异常：预开票 / 付款 / 开票 / 缴税 / 上传五条线任一出问题；异常不替换档位（ADR 0021 / 0038）")
+    private Boolean abnormal;
+
+    @Schema(description = "异常标注，形如「付款：支付失败」；无异常时为空数组")
+    private java.util.List<String> abnormalReasons;
 
     @Schema(description = "关联开票合作方订单号", example = "ORDER_20261201_001")
     private String invoicePartnerOrderId;

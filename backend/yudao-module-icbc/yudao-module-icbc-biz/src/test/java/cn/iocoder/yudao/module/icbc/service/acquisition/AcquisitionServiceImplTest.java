@@ -30,6 +30,7 @@ import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionDocumentStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.HandoverSourceTypeEnum;
 import cn.iocoder.yudao.module.icbc.enums.InvoiceIssueStatusEnum;
+import cn.iocoder.yudao.module.icbc.enums.PaymentStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PreInvoiceStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PurchaseOrderPriceModeEnum;
 import cn.iocoder.yudao.module.icbc.enums.PurchaseOrderStatusEnum;
@@ -83,6 +84,8 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
     private PayeeInfoMapper payeeInfoMapper;
     @Resource
     private IcbcGoodsConfigMapper goodsConfigMapper;
+    @Resource
+    private AcquisitionProgressService acquisitionProgressService;
     @Resource
     private InvoiceOrderMapper invoiceOrderMapper;
     @Resource
@@ -539,10 +542,10 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         assertEquals("车牌识别错位，已按照片改正", saved.getRemark());
     }
 
-    // ==================== 状态推进 ====================
+    // ==================== 进度派生（ADR 0038） ====================
 
     @Test
-    public void testLinkInvoiceAndStatusTransitions() {
+    public void testProgress_derivedFromInvoiceOrder() {
         PayeeInfoDO payee = insertPayee("陈十三", "13800138010");
         IcbcGoodsConfigDO config = insertGoodsConfig("废钢", "吨", "0.01", "GENERAL");
 
@@ -550,17 +553,32 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
         reqVO.setQuantity(new BigDecimal("5"));
         reqVO.setAmount(new BigDecimal("500.00"));
         Long id = acquisitionService.createAcquisition(reqVO).getId();
+        assertEquals(AcquisitionStatusEnum.REGISTERED.getStatus(),
+                acquisitionMapper.selectById(id).getStatus());
 
-        acquisitionService.linkInvoice(id, "ORDER_LINK_1");
+        // 预下单返回后挂单：预开票还在途、出售者也还没在工行页面上确认——不是「待付款」
+        insertInvoiceOrder("ORDER_PROGRESS_1", id, PreInvoiceStatusEnum.IN_PROGRESS.getStatus(),
+                PaymentStatusEnum.PENDING.getStatus(), InvoiceIssueStatusEnum.NOT_ISSUED.getStatus());
+        acquisitionService.linkInvoice(id, "ORDER_PROGRESS_1");
         IcbcAcquisitionDO linked = acquisitionMapper.selectById(id);
-        assertEquals(AcquisitionStatusEnum.PENDING_PAYMENT.getStatus(), linked.getStatus());
-        assertEquals("ORDER_LINK_1", linked.getInvoicePartnerOrderId());
+        assertEquals("ORDER_PROGRESS_1", linked.getInvoicePartnerOrderId());
+        assertEquals(AcquisitionStatusEnum.WAITING_SELLER_CONFIRM.getStatus(), linked.getStatus());
 
-        acquisitionService.markPaidByInvoicePartnerOrderId("ORDER_LINK_1");
+        // 预开票成功：票已备好、等回收企业掏钱——这才是「待付款」
+        syncOrderState("ORDER_PROGRESS_1", PreInvoiceStatusEnum.SUCCESS.getStatus(),
+                PaymentStatusEnum.PENDING.getStatus(), InvoiceIssueStatusEnum.NOT_ISSUED.getStatus());
+        assertEquals(AcquisitionStatusEnum.PENDING_PAYMENT.getStatus(),
+                acquisitionMapper.selectById(id).getStatus());
+
+        // 付款成功：货款已到出售者卡上，票还没开出来
+        syncOrderState("ORDER_PROGRESS_1", PreInvoiceStatusEnum.SUCCESS.getStatus(),
+                PaymentStatusEnum.SUCCESS.getStatus(), InvoiceIssueStatusEnum.ISSUING.getStatus());
         assertEquals(AcquisitionStatusEnum.PAID.getStatus(),
                 acquisitionMapper.selectById(id).getStatus());
 
-        acquisitionService.markInvoicedByInvoicePartnerOrderId("ORDER_LINK_1");
+        // 票开出：「已开票」不再是一个永远不会出现的档位
+        syncOrderState("ORDER_PROGRESS_1", PreInvoiceStatusEnum.SUCCESS.getStatus(),
+                PaymentStatusEnum.SUCCESS.getStatus(), InvoiceIssueStatusEnum.ISSUED.getStatus());
         assertEquals(AcquisitionStatusEnum.INVOICED.getStatus(),
                 acquisitionMapper.selectById(id).getStatus());
     }
@@ -1368,6 +1386,37 @@ public class AcquisitionServiceImplTest extends BaseDbUnitTest {
                 .preInvoiceStatus(PreInvoiceStatusEnum.SUCCESS.getStatus())
                 .invoiceDate(LocalDateTime.now().minusDays(10))
                 .build());
+    }
+
+    private void insertInvoiceOrder(String partnerOrderId, Long acquisitionId, Integer preInvoiceStatus,
+                                    Integer paymentStatus, Integer invoiceStatus) {
+        invoiceOrderMapper.insert(InvoiceOrderDO.builder()
+                .orderNo("INV_" + partnerOrderId)
+                .partnerOrderId(partnerOrderId)
+                .acquisitionId(acquisitionId)
+                .totalAmount(new BigDecimal("500.00"))
+                .orderStatus(0)
+                .invoiceStatus(invoiceStatus)
+                .paymentStatus(paymentStatus)
+                .taxStatus(0)
+                .confirmStatus(0)
+                .preInvoiceStatus(preInvoiceStatus)
+                .build());
+    }
+
+    /**
+     * 把开票单推到指定状态并触发一次进度收敛——走的就是回调那条路
+     * （{@code AcquisitionProgressService#syncByPartnerOrderId}）。
+     */
+    private void syncOrderState(String partnerOrderId, Integer preInvoiceStatus,
+                               Integer paymentStatus, Integer invoiceStatus) {
+        InvoiceOrderDO update = new InvoiceOrderDO();
+        update.setId(invoiceOrderMapper.selectByPartnerOrderId(partnerOrderId).getId());
+        update.setPreInvoiceStatus(preInvoiceStatus);
+        update.setPaymentStatus(paymentStatus);
+        update.setInvoiceStatus(invoiceStatus);
+        invoiceOrderMapper.updateById(update);
+        acquisitionProgressService.syncByPartnerOrderId(partnerOrderId);
     }
 
     private IcbcGoodsConfigDO insertGoodsConfig(String name, String unit, String taxRate, String taxMethod) {

@@ -21,6 +21,7 @@ import cn.iocoder.yudao.module.icbc.gateway.IcbcGatewayResult;
 import cn.iocoder.yudao.module.icbc.gateway.fake.FakeIcbcGateway;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceInfo;
 import cn.iocoder.yudao.module.icbc.gateway.model.PaymentReq;
+import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionProgressService;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.service.payment.impl.PaymentServiceImpl;
@@ -67,6 +68,9 @@ public class PaymentServiceImplTest extends BaseDbUnitTest {
 
     @MockBean
     private AcquisitionService acquisitionService;
+
+    @MockBean
+    private AcquisitionProgressService acquisitionProgressService;
 
     @MockBean
     private InvoiceOrderService invoiceOrderService;
@@ -279,7 +283,7 @@ public class PaymentServiceImplTest extends BaseDbUnitTest {
         // 开票单支付状态回写，收购单推进为「已付款」
         verify(invoiceOrderService).updateOrderStatus(invoiceOrderId, null, null,
                 PaymentStatusEnum.SUCCESS.getStatus(), null);
-        verify(acquisitionService).markPaidByInvoicePartnerOrderId(PARTNER_ORDER_ID);
+        verify(acquisitionProgressService).syncByPartnerOrderId(PARTNER_ORDER_ID);
     }
 
     @Test
@@ -293,7 +297,7 @@ public class PaymentServiceImplTest extends BaseDbUnitTest {
         assertEquals(PaymentStatusEnum.REVERSED.getStatus(), order.getPaymentStatus());
         assertEquals("已冲正", PaymentStatusEnum.nameOf(order.getPaymentStatus()));
         assertTrue(PaymentStatusEnum.isReInitiable(order.getPaymentStatus()));
-        verify(acquisitionService, never()).markPaidByInvoicePartnerOrderId(anyString());
+        verify(acquisitionProgressService, never()).syncByPartnerOrderId(anyString());
     }
 
     @Test
@@ -306,7 +310,7 @@ public class PaymentServiceImplTest extends BaseDbUnitTest {
         PaymentOrderDO order = paymentOrderMapper.selectByPartnerOrderId(PARTNER_ORDER_ID);
         assertEquals(PaymentStatusEnum.REFUNDED.getStatus(), order.getPaymentStatus());
         assertTrue(PaymentStatusEnum.isReInitiable(order.getPaymentStatus()));
-        verify(acquisitionService, never()).markPaidByInvoicePartnerOrderId(anyString());
+        verify(acquisitionProgressService, never()).syncByPartnerOrderId(anyString());
     }
 
     @Test
@@ -320,7 +324,7 @@ public class PaymentServiceImplTest extends BaseDbUnitTest {
         assertEquals(PaymentStatusEnum.PARTIAL_SUCCESS.getStatus(), order.getPaymentStatus());
         assertEquals(new BigDecimal("600.00"), order.getActuallyReceivedAmount());
         assertTrue(PaymentStatusEnum.isReInitiable(order.getPaymentStatus()));
-        verify(acquisitionService, never()).markPaidByInvoicePartnerOrderId(anyString());
+        verify(acquisitionProgressService, never()).syncByPartnerOrderId(anyString());
     }
 
     @Test
