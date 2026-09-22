@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS icbc_payment_order (
     invoice_order_id BIGINT,
     icbc_order_no VARCHAR(64),
     payee_no VARCHAR(40),
-    payer_no VARCHAR(20),
+    payer_no VARCHAR(64),
     payment_amount DECIMAL(10,2) DEFAULT 0.00,
     payment_status TINYINT DEFAULT 0,
     pay_status VARCHAR(8),

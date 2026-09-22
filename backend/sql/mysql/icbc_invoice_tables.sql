@@ -12,7 +12,7 @@ CREATE TABLE `icbc_invoice_order` (
   `payee_id` bigint DEFAULT NULL COMMENT '收方ID',
   `payee_no` varchar(40) NOT NULL COMMENT '收方编号',
   `payer_id` bigint DEFAULT NULL COMMENT '付方ID',
-  `payer_no` varchar(20) NOT NULL COMMENT '付方编号',
+  `payer_no` varchar(64) NOT NULL COMMENT '付方编号（付方平台外部编号 / 工行子商户编号 = 回收企业，即付方档案的 partnerPayerId）',
   `total_amount` decimal(14,2) NOT NULL COMMENT '订单总金额（元）',
   `tax_rate` decimal(5,4) DEFAULT NULL COMMENT '适用征收率（0.01=3%减按1%，0.03=放弃减按）',
   `invoice_type` tinyint NOT NULL DEFAULT '1' COMMENT '发票类型：1-增值税普通发票，2-增值税专用发票',

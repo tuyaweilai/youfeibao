@@ -12,7 +12,7 @@ CREATE TABLE `icbc_payment_order` (
   `invoice_order_id` bigint DEFAULT NULL COMMENT '来源开票订单编号',
   `icbc_order_no` varchar(64) DEFAULT NULL COMMENT '工行订单号',
   `payee_no` varchar(40) DEFAULT NULL COMMENT '收方编号',
-  `payer_no` varchar(20) DEFAULT NULL COMMENT '付方编号',
+  `payer_no` varchar(64) DEFAULT NULL COMMENT '付方编号（与 icbc_invoice_order.payer_no 同口径）',
   `payment_amount` decimal(10,2) DEFAULT '0.00' COMMENT '支付金额',
   `payment_status` tinyint DEFAULT '0' COMMENT '支付状态：0-待支付，1-支付中，2-支付成功，3-支付失败，4-订单关闭，5-已冲正，6-已退汇，7-他行已扣款本行未入账，8-已支付待签收，9-部分成功',
   `pay_status` varchar(8) DEFAULT NULL COMMENT '工行原始支付状态码：-1/00/01/02/03/04/05/06/07/12/25',
