@@ -65,9 +65,14 @@
           <div v-if="row.documentGap" class="text-12px text-red-500">{{ row.documentGap }}</div>
         </template>
       </el-table-column>
-      <el-table-column label="状态" align="center" width="100">
+      <el-table-column label="状态" align="center" width="160">
         <template #default="{ row }">
-          <el-tag :type="statusTagType(row.status)">{{ row.statusName || '-' }}</el-tag>
+          <el-tag :type="statusTagType(row)">{{ row.statusName || '-' }}</el-tag>
+          <!-- 异常不替换档位：钱付了但票没开出来这种事，不能让一个「已付款」盖住（ADR 0021） -->
+          <div v-if="row.abnormal" class="text-12px text-red-500" :title="(row.abnormalReasons || []).join('；')">
+            {{ (row.abnormalReasons || []).join('；') }}
+          </div>
+          <div v-else-if="row.statusNextStep" class="text-12px text-gray-400">{{ row.statusNextStep }}</div>
         </template>
       </el-table-column>
       <el-table-column label="操作" align="center" width="280" fixed="right">
@@ -128,15 +133,17 @@ const queryFormRef = ref()
 
 const statusOptions = [
   { label: '已登记', value: 0 },
+  { label: '待自然人确认', value: 4 },
   { label: '待付款', value: 1 },
   { label: '已付款', value: 2 },
   { label: '已开票', value: 3 },
-  { label: '已取消', value: 9 }
+  { label: '已作废', value: 9 }
 ]
-const statusTagType = (status?: number) => {
-  if (status === 3) return 'success'
-  if (status === 1 || status === 2) return 'warning'
-  if (status === 9) return 'info'
+const statusTagType = (row: AcquisitionVO) => {
+  if (row.abnormal) return 'danger'
+  if (row.status === 3) return 'success'
+  if (row.status === 1 || row.status === 2 || row.status === 4) return 'warning'
+  if (row.status === 9) return 'info'
   return ''
 }
 

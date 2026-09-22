@@ -49,6 +49,12 @@ export interface AcquisitionVO {
   settlementMethod?: string
   status?: number
   statusName?: string
+  /** 下一步是谁的事（档位派生，见 ADR 0038） */
+  statusNextStep?: string
+  /** 进度是否异常：预开票 / 付款 / 开票 / 缴税 / 上传任一出问题；异常不替换档位 */
+  abnormal?: boolean
+  /** 异常标注，形如「付款：支付失败」 */
+  abnormalReasons?: string[]
   /** 要件状态：COMPLETE-已齐，PENDING-待补档（缺身份证或银行卡，付款与开票被门禁拦住） */
   documentStatus?: string
   documentStatusName?: string

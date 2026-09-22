@@ -31,6 +31,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceInfo;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceQueryReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderGoods;
 import cn.iocoder.yudao.module.icbc.gateway.model.PreOrderReq;
+import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionProgressService;
 import cn.iocoder.yudao.module.icbc.service.admission.SellerAdmissionService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.util.AmountUtils;
@@ -63,6 +64,9 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
 
     @Resource
     private InvoiceOrderMapper invoiceOrderMapper;
+
+    @Resource
+    private AcquisitionProgressService acquisitionProgressService;
     
     @Resource
     private OrderItemMapper orderItemMapper;
@@ -307,6 +311,8 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
             }
         }
         invoiceOrderMapper.updateById(update);
+        // 档位由派生单点写（ADR 0038）：四条状态线任一变动都重算一次，异常另以标注呈现
+        acquisitionProgressService.syncByPartnerOrderId(partnerOrderId);
         if (!wasIssued && InvoiceIssueStatusEnum.isIssued(issue)) {
             // 票首次开出才提醒：他自己有票可下载（幂等键=合作方订单号，重复通知不重复发）
             sellerNotifyService.onInvoiceIssued(partnerOrderId);
@@ -367,6 +373,8 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
             update.setOrderStatus(9);
         }
         invoiceOrderMapper.updateById(update);
+        // 预开票取消：档位派生为「已作废」，同时把「为什么」交给异常标注，不让它成为一个没来由的作废
+        acquisitionProgressService.syncByPartnerOrderId(partnerOrderId);
         log.info("发票取消状态收敛 - partnerOrderId: {}", partnerOrderId);
     }
 

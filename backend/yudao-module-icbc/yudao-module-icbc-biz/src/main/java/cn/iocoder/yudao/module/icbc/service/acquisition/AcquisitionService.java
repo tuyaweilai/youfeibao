@@ -85,19 +85,12 @@ public interface AcquisitionService {
     // ==================== 与开票 / 付款链路的关联 ====================
 
     /**
-     * 把收购单挂到开票合作方订单号上，状态推进为「待付款」。
+     * 把收购单挂到开票合作方订单号上。
+     *
+     * <p><b>不写状态</b>：档位由 {@code AcquisitionProgressService} 从开票单的四条状态线派生
+     * （ADR 0038）。挂上单号后这里只触发一次派生。
      */
     void linkInvoice(Long acquisitionId, String partnerOrderId);
-
-    /**
-     * 按开票合作方订单号把收购单标记为「已付款」。
-     */
-    void markPaidByInvoicePartnerOrderId(String partnerOrderId);
-
-    /**
-     * 按开票合作方订单号把收购单标记为「已开票」。
-     */
-    void markInvoicedByInvoicePartnerOrderId(String partnerOrderId);
 
     // ==================== 确认书导出 ====================
 

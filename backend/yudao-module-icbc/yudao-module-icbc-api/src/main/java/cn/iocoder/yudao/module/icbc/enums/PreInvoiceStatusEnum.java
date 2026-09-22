@@ -59,6 +59,10 @@ public enum PreInvoiceStatusEnum {
         return Arrays.stream(values()).filter(item -> item.code.equals(code)).findFirst();
     }
 
+    public static String nameOf(Integer status) {
+        return ofStatus(status).map(PreInvoiceStatusEnum::getName).orElse("未知");
+    }
+
     /**
      * 是否为需要人工关注的异常态
      */

@@ -25,6 +25,7 @@ import cn.iocoder.yudao.module.erp.enums.purchase.SellerSubjectTypeEnum;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionDocumentStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.DeductionMethodEnum;
+import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionProgressService;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.acquisition.recognition.AcquisitionRecognitionPort;
 import cn.iocoder.yudao.module.icbc.service.admission.SellerAdmissionService;
@@ -84,6 +85,8 @@ public class AcquisitionServiceImpl implements AcquisitionService {
     private HandoverBatchService handoverBatchService;
     @Resource
     private PurchaseOrderService purchaseOrderService;
+    @Resource
+    private AcquisitionProgressService acquisitionProgressService;
 
     // ==================== 登记 ====================
 
@@ -840,35 +843,12 @@ public class AcquisitionServiceImpl implements AcquisitionService {
     public void linkInvoice(Long acquisitionId, String partnerOrderId) {
         IcbcAcquisitionDO acquisition = getAcquisition(acquisitionId);
         acquisition.setInvoicePartnerOrderId(partnerOrderId);
-        acquisition.setStatus(AcquisitionStatusEnum.PENDING_PAYMENT.getStatus());
-        acquisitionMapper.updateById(acquisition);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void markPaidByInvoicePartnerOrderId(String partnerOrderId) {
-        updateStatusByInvoice(partnerOrderId, AcquisitionStatusEnum.PAID);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void markInvoicedByInvoicePartnerOrderId(String partnerOrderId) {
-        updateStatusByInvoice(partnerOrderId, AcquisitionStatusEnum.INVOICED);
-    }
-
-    private void updateStatusByInvoice(String partnerOrderId, AcquisitionStatusEnum status) {
-        List<IcbcAcquisitionDO> acquisitions = acquisitionMapper.selectListByInvoicePartnerOrderIds(
-                Collections.singletonList(partnerOrderId));
-        if (acquisitions.isEmpty()) {
-            log.warn("按合作方订单号回写收购单状态时未找到收购单 - partnerOrderId: {}", partnerOrderId);
-            return;
-        }
-        for (IcbcAcquisitionDO acquisition : acquisitions) {
-            IcbcAcquisitionDO update = new IcbcAcquisitionDO();
-            update.setId(acquisition.getId());
-            update.setStatus(status.getStatus());
-            acquisitionMapper.updateById(update);
-        }
+        IcbcAcquisitionDO update = new IcbcAcquisitionDO();
+        update.setId(acquisition.getId());
+        update.setInvoicePartnerOrderId(partnerOrderId);
+        acquisitionMapper.updateById(update);
+        // 档位只能由派生单点写（ADR 0038）：这里只把新挂上的单号告诉它
+        acquisitionProgressService.sync(acquisition);
     }
 
     // ==================== 确认书导出 ====================

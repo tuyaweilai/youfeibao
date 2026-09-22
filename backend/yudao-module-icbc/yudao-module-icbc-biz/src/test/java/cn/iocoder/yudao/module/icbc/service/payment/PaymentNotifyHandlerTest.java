@@ -10,6 +10,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.invoice.InvoiceOrderMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.payment.PaymentOrderMapper;
 import cn.iocoder.yudao.module.icbc.enums.CallbackProcessStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.PaymentStatusEnum;
+import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionProgressService;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.callback.IcbcNotifyParser;
 import cn.iocoder.yudao.module.icbc.service.callback.handler.PaymentNotifyHandler;
@@ -60,6 +61,9 @@ public class PaymentNotifyHandlerTest extends BaseDbUnitTest {
     private AcquisitionService acquisitionService;
 
     @MockBean
+    private AcquisitionProgressService acquisitionProgressService;
+
+    @MockBean
     private InvoiceOrderService invoiceOrderService;
 
     /** 出站电子签端口不在这里测；置空以免走真实实现（它需要平台租户配置） */
@@ -80,7 +84,7 @@ public class PaymentNotifyHandlerTest extends BaseDbUnitTest {
         assertEquals(PaymentStatusEnum.SUCCESS.getStatus(), order.getPaymentStatus());
         assertEquals("SN-NOTIFY", order.getReceiptNo());
         assertNotNull(order.getReceiptTime());
-        verify(acquisitionService).markPaidByInvoicePartnerOrderId(PARTNER_ORDER_ID);
+        verify(acquisitionProgressService).syncByPartnerOrderId(PARTNER_ORDER_ID);
     }
 
     @Test

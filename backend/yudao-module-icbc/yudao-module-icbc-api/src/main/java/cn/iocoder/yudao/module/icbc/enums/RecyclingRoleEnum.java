@@ -100,6 +100,10 @@ public enum RecyclingRoleEnum {
             RecyclingPermission.ACQUISITION_CREATE, RecyclingPermission.ACQUISITION_UPDATE,
             RecyclingPermission.ACQUISITION_QUERY, RecyclingPermission.ACQUISITION_EXPORT,
             RecyclingPermission.ACQUISITION_ACCEPTANCE, RecyclingPermission.ACQUISITION_WEIGHT_DIFF_QUERY,
+            // 票开出来后现场端要看得到原件（#105）：只给「下载原件」，不给重新发起 / 重试——
+            // 重试是开票员与财务的事，收货员拿着它重发只会造成重复调用
+            RecyclingPermission.DOWNLOAD_EXECUTE, RecyclingPermission.DOWNLOAD_QUERY,
+            RecyclingPermission.DOWNLOAD_FILE,
             RecyclingPermission.EVIDENCE_QUERY, RecyclingPermission.EVIDENCE_ATTACH,
             RecyclingPermission.GOODS_CONFIG_QUERY,
             RecyclingPermission.QUOTA_QUERY, RecyclingPermission.QUOTA_GUIDANCE_HANDLE,

@@ -10,6 +10,8 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.acquisition.IcbcAcquisitionDO
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionDocumentStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.AcquisitionStatusEnum;
 import cn.iocoder.yudao.module.icbc.enums.RecyclingPermission;
+import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionProgress;
+import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionProgressService;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.purchaseorder.PurchaseOrderService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,7 +25,9 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
@@ -42,6 +46,8 @@ public class IcbcAcquisitionController {
 
     @Resource
     private AcquisitionService acquisitionService;
+    @Resource
+    private AcquisitionProgressService acquisitionProgressService;
     @Resource
     private PurchaseOrderService purchaseOrderService;
 
@@ -82,7 +88,9 @@ public class IcbcAcquisitionController {
     @Parameter(name = "id", description = "收购单编号", required = true, example = "1024")
     @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.ACQUISITION_QUERY + "')")
     public CommonResult<AcquisitionRespVO> getAcquisition(@RequestParam("id") Long id) {
-        return success(toRespVO(acquisitionService.getAcquisition(id)));
+        IcbcAcquisitionDO acquisition = acquisitionService.getAcquisition(id);
+        return success(toRespVO(acquisition,
+                acquisitionProgressService.deriveFor(Collections.singletonList(acquisition)).get(id)));
     }
 
     @GetMapping("/page")
@@ -91,8 +99,12 @@ public class IcbcAcquisitionController {
     public CommonResult<PageResult<AcquisitionRespVO>> getAcquisitionPage(
             @Valid AcquisitionPageReqVO pageReqVO) {
         PageResult<IcbcAcquisitionDO> page = acquisitionService.getAcquisitionPage(pageReqVO);
+        // 进度一次批量派生（不逐行查开票单）：档位与异常标注都从这一份来
+        Map<Long, AcquisitionProgress> progressMap =
+                acquisitionProgressService.deriveFor(page.getList());
         return success(new PageResult<>(page.getList().stream()
-                .map(this::toRespVO).collect(Collectors.toList()), page.getTotal()));
+                .map(acquisition -> toRespVO(acquisition, progressMap.get(acquisition.getId())))
+                .collect(Collectors.toList()), page.getTotal()));
     }
 
     @GetMapping("/list-by-payee")
@@ -101,8 +113,12 @@ public class IcbcAcquisitionController {
     @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.ACQUISITION_QUERY + "')")
     public CommonResult<List<AcquisitionRespVO>> getAcquisitionsByPayee(
             @RequestParam("payeeId") Long payeeId) {
-        return success(acquisitionService.getAcquisitionsByPayeeId(payeeId).stream()
-                .map(this::toRespVO).collect(Collectors.toList()));
+        List<IcbcAcquisitionDO> acquisitions = acquisitionService.getAcquisitionsByPayeeId(payeeId);
+        Map<Long, AcquisitionProgress> progressMap =
+                acquisitionProgressService.deriveFor(acquisitions);
+        return success(acquisitions.stream()
+                .map(acquisition -> toRespVO(acquisition, progressMap.get(acquisition.getId())))
+                .collect(Collectors.toList()));
     }
 
     @GetMapping("/confirmation/export")
@@ -155,10 +171,18 @@ public class IcbcAcquisitionController {
         return vo;
     }
 
-    private AcquisitionRespVO toRespVO(IcbcAcquisitionDO acquisition) {
+    private AcquisitionRespVO toRespVO(IcbcAcquisitionDO acquisition, AcquisitionProgress progress) {
         AcquisitionRespVO vo = BeanUtils.toBean(acquisition, AcquisitionRespVO.class);
-        AcquisitionStatusEnum.ofStatus(acquisition.getStatus())
-                .ifPresent(status -> vo.setStatusName(status.getName()));
+        vo.setStatusName(AcquisitionStatusEnum.nameOf(acquisition.getStatus()));
+        vo.setStatusNextStep(AcquisitionStatusEnum.nextStepOf(acquisition.getStatus()));
+        // 档位是派生结果，异常不占档位：两条都回给前端，让「已付款」盖不住「开票失败」
+        if (progress != null) {
+            vo.setAbnormal(progress.isAbnormal());
+            vo.setAbnormalReasons(progress.getAbnormalReasons());
+        } else {
+            vo.setAbnormal(false);
+            vo.setAbnormalReasons(Collections.emptyList());
+        }
         vo.setSellerSubjectTypeName(SellerSubjectTypeEnum.nameOf(acquisition.getSellerSubjectType()));
         // 「直接收购」是报表 / 列表口径，不是失败态：未关联采购安排（0 / 空）即直接收购（#51）
         boolean direct = acquisition.getPurchaseOrderId() == null

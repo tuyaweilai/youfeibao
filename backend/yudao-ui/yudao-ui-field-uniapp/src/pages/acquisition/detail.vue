@@ -7,6 +7,12 @@
       </view>
       <view class="summary__amount">{{ money(acquisition.amount) }}</view>
       <view class="summary__hint">{{ statusHint }}</view>
+      <!-- 异常不替换档位：钱付了但票没开出来这种事，不能让一个「已付款」盖住（ADR 0021 / 0038） -->
+      <view v-if="acquisition.abnormal" class="summary__abnormal">
+        <text v-for="reason in acquisition.abnormalReasons || []" :key="reason" class="summary__abnormal-item">
+          {{ reason }}
+        </text>
+      </view>
       <view class="summary__order"><text>收购单号</text><text selectable>{{ acquisition.acquisitionNo || '—' }}</text></view>
     </view>
 
@@ -53,6 +59,15 @@
       <view v-if="acquisition.invoicePartnerOrderId" class="kv">
         <text class="kv__k">开票单号</text><text selectable>{{ acquisition.invoicePartnerOrderId }}</text>
       </view>
+      <button
+        v-if="canDownloadInvoice"
+        class="btn btn--ghost invoice-download"
+        :loading="downloadingInvoice"
+        :disabled="downloadingInvoice"
+        @click="onDownloadInvoice"
+      >
+        下载反向发票（PDF）
+      </button>
     </view>
 
     <view class="card">
@@ -149,7 +164,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { getAcquisition, correctAcquisition, AcquisitionVO } from '@/api/acquisition'
+import { downloadInvoice, getAcquisition, correctAcquisition, AcquisitionVO } from '@/api/acquisition'
 import { generateSettlement } from '@/api/settlement'
 import { downloadWithAuth } from '@/utils/download'
 import { comparePlate } from '@/utils/plate'
@@ -204,19 +219,43 @@ const photoViews = computed(() => [
 ])
 
 const statusHint = computed(() => {
-  switch (acquisition.value?.status) {
-    case 0:
-      return '已登记，等待发起开票'
-    case 1:
-      return '待付款：预开票成功后由付方支付'
-    case 2:
-      return '已付款，等待开出并上传发票'
-    case 3:
-      return '已开票：可在「我的收购单」看到发票号'
-    default:
-      return ''
-  }
+  // 档位与「下一步是谁的事」都由后端按开票单的四条状态线派生（ADR 0038），前端不再自己拼一套
+  return acquisition.value?.statusNextStep || ''
 })
+
+/** 票开出来了才有原件可下（「已上传税局」是另一条线，不影响能不能下） */
+const canDownloadInvoice = computed(
+  () => acquisition.value?.status === 3 && !!acquisition.value?.invoicePartnerOrderId
+)
+const downloadingInvoice = ref(false)
+
+async function onDownloadInvoice() {
+  const partnerOrderId = acquisition.value?.invoicePartnerOrderId
+  if (!partnerOrderId) return
+  downloadingInvoice.value = true
+  try {
+    const record = await downloadInvoice(partnerOrderId)
+    const files = record.files || []
+    // 工行只回 PDF（工行答复 2026-09-18）；真拿了别的格式也照下，不把票扣在手里
+    const file = files.find((item) => (item.fileType || '').toUpperCase() === 'PDF') || files[0]
+    if (!file?.downloadId) {
+      uni.showModal({
+        title: '暂时拿不到发票原件',
+        content: record.errorMsg || '工行还没回发票文件，稍后再试，或让开票员在后台重试。',
+        showCancel: false
+      })
+      return
+    }
+    await downloadWithAuth(
+      `/icbc/invoice-download/download-file?downloadId=${file.downloadId}&fileType=${file.fileType || 'PDF'}`,
+      file.fileName || `${acquisition.value?.acquisitionNo || 'invoice'}.pdf`
+    )
+  } catch (e) {
+    uni.showModal({ title: '下载失败', content: (e as Error).message, showCancel: false })
+  } finally {
+    downloadingInvoice.value = false
+  }
+}
 
 const plateText = computed(() => {
   const matched = acquisition.value?.plateMatched
@@ -352,6 +391,9 @@ button { cursor: pointer; &::after { border: 0; } &:focus-visible { outline: 3px
   &__badge { padding: 5px 10px; color: #e2f6e9; background: #346650; border: 1px solid #4f7e65; border-radius: 7px; font-size: 12px; }
   &__amount { margin: 16px 0 10px; font-size: 32px; font-weight: 600; line-height: 1.3; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   &__hint { font-size: 12px; line-height: 1.7; color: #d3e5da; }
+  &__abnormal { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; padding: 10px 12px; background: rgba(255, 255, 255, 0.14); border-left: 3px solid #ffd9a0; border-radius: 8px;
+    &-item { font-size: 12px; line-height: 1.6; color: #ffe9c7; }
+  }
   &__order { display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: space-between; padding-top: 15px; margin-top: 18px; border-top: 1px solid #41705b; font-size: 11px; color: #d3e5da; overflow-wrap: anywhere; }
 }
 .card { padding: 20px 16px; margin-bottom: 14px; background: #fff; border: 1px solid #e4ece7; border-radius: 18px;
@@ -362,6 +404,7 @@ button { cursor: pointer; &::after { border: 0; } &:focus-visible { outline: 3px
   &__k { color: #6b7e71; flex: 0 0 auto; max-width: 48%; }
   > :last-child { min-width: 0; text-align: right; overflow-wrap: anywhere; }
 }
+.invoice-download { margin-top: 14px; }
 .seller { display: flex; align-items: center; gap: 12px; padding-bottom: 12px;
   &__avatar { display: flex; justify-content: center; align-items: center; flex-shrink: 0; width: 42px; height: 42px; color: #176b4c; background: #eaf3ed; border-radius: 13px; font-size: 19px; font-weight: 600; }
   &__body { min-width: 0; }

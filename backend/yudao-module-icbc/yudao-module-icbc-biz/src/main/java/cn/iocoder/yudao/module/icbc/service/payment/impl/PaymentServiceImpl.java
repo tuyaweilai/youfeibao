@@ -21,6 +21,7 @@ import cn.iocoder.yudao.module.icbc.gateway.model.IcbcPage;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceInfo;
 import cn.iocoder.yudao.module.icbc.gateway.model.InvoiceQueryReq;
 import cn.iocoder.yudao.module.icbc.gateway.model.PaymentReq;
+import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionProgressService;
 import cn.iocoder.yudao.module.icbc.service.acquisition.AcquisitionService;
 import cn.iocoder.yudao.module.icbc.service.invoice.InvoiceOrderService;
 import cn.iocoder.yudao.module.icbc.service.notify.SellerNotifyService;
@@ -67,6 +68,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Resource
     private AcquisitionService acquisitionService;
+
+    @Resource
+    private AcquisitionProgressService acquisitionProgressService;
 
     @Resource
     private InvoiceOrderService invoiceOrderService;
@@ -347,7 +351,7 @@ public class PaymentServiceImpl implements PaymentService {
             invoiceOrderService.updateOrderStatus(order.getInvoiceOrderId(), null, null, platformStatus, null);
         }
         if (PaymentStatusEnum.isSuccess(platformStatus)) {
-            acquisitionService.markPaidByInvoicePartnerOrderId(partnerOrderId);
+            acquisitionProgressService.syncByPartnerOrderId(partnerOrderId);
         }
         if (firstSuccess) {
             // 付款成功是「真正开票」的触发点：推进为开票中，并尽力向工行确认一次开票状态
