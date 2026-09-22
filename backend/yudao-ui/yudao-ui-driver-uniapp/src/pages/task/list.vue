@@ -1,11 +1,12 @@
 <template>
   <view class="page">
     <view class="header">
+      <view class="header__eyebrow">优废宝 · 司机工作台</view>
       <view class="header__name">{{ profile?.name || auth.nickname || '司机' }}</view>
       <view class="header__meta">
         {{ profile?.sourceName || '' }}{{ profile?.mobile ? ' · ' + profile.mobile : '' }}
       </view>
-      <view class="header__logout" @click="onLogout">退出</view>
+      <button class="header__logout" @click="onLogout">退出</button>
     </view>
 
     <view v-if="draftCount > 0" class="draft-bar" @click="goOffline">
@@ -13,14 +14,14 @@
     </view>
 
     <view class="filters">
-      <view
+      <button
         v-for="tab in tabs"
         :key="tab.value ?? 'all'"
         :class="['filters__item', { 'filters__item--active': status === tab.value }]"
         @click="switchTab(tab.value)"
       >
         {{ tab.label }}
-      </view>
+      </button>
     </view>
 
     <view v-if="loading" class="empty">加载中…</view>
@@ -155,13 +156,20 @@ onPullDownRefresh(async () => {
 </script>
 
 <style scoped lang="scss">
+@use "@/styles/theme.scss" as *;
 .page {
   padding: 24rpx 24rpx 80rpx;
 }
 
 .header {
   position: relative;
-  padding: 8rpx 8rpx 24rpx;
+  padding: 28px 24px;
+  margin-bottom: 24px;
+  border-radius: 20px;
+  background: #103f43;
+  color: #fff;
+
+  &__eyebrow { margin-bottom: 16px; font-size: 12px; color: #b5d8d4; }
 
   &__name {
     font-size: 40rpx;
@@ -170,16 +178,20 @@ onPullDownRefresh(async () => {
 
   &__meta {
     margin-top: 8rpx;
-    color: #6b7a72;
+    color: #c6dedb;
     font-size: 24rpx;
   }
 
   &__logout {
     position: absolute;
-    right: 8rpx;
-    top: 8rpx;
-    color: #6b7a72;
-    font-size: 26rpx;
+    right: 12px;
+    top: 12px;
+    padding: 0 12px;
+    min-height: 44px;
+    line-height: 44px;
+    background: transparent;
+    color: #d0e2e0;
+    font-size: 13px;
   }
 }
 
@@ -195,20 +207,26 @@ onPullDownRefresh(async () => {
 
 .filters {
   display: flex;
-  gap: 12rpx;
-  margin-bottom: 20rpx;
+  gap: 6px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
 
   &__item {
-    padding: 10rpx 24rpx;
+    flex: 1;
+    white-space: nowrap;
+    margin: 0;
+    min-height: 44px;
+    line-height: 44px;
+    padding: 0 8px;
     background-color: #fff;
-    border: 1rpx solid #e5e7eb;
+    border: 1rpx solid $driver-border;
     border-radius: 999rpx;
     color: #4b5563;
-    font-size: 24rpx;
+    font-size: 13px;
 
     &--active {
-      background-color: #16a34a;
-      border-color: #16a34a;
+      background-color: $driver-primary;
+      border-color: $driver-primary;
       color: #fff;
     }
   }
@@ -218,7 +236,7 @@ onPullDownRefresh(async () => {
   margin-bottom: 20rpx;
   padding: 24rpx;
   background-color: #fff;
-  border-radius: 16rpx;
+  border-radius: 18px;
 
   &__top {
     display: flex;
@@ -240,12 +258,12 @@ onPullDownRefresh(async () => {
 
   &__label {
     width: 120rpx;
-    color: #8a919f;
+    color: $driver-muted;
   }
 
   &__value {
     flex: 1;
-    color: #17221d;
+    color: $driver-text;
   }
 }
 
@@ -260,12 +278,12 @@ onPullDownRefresh(async () => {
   }
 
   &--doing {
-    background-color: #dcfce7;
-    color: #15803d;
+    background-color: $driver-soft;
+    color: $driver-primary;
   }
 
   &--done {
-    background-color: #e5e7eb;
+    background-color: $driver-border;
     color: #4b5563;
   }
 
@@ -278,11 +296,11 @@ onPullDownRefresh(async () => {
 .empty {
   padding: 120rpx 24rpx;
   text-align: center;
-  color: #8a919f;
+  color: $driver-muted;
 
   &__title {
     font-size: 32rpx;
-    color: #17221d;
+    color: $driver-text;
   }
 
   &__desc {
@@ -295,7 +313,7 @@ onPullDownRefresh(async () => {
 .footer-tip {
   margin-top: 24rpx;
   text-align: center;
-  color: #9ca3af;
+  color: $driver-muted;
   font-size: 22rpx;
 }
 </style>

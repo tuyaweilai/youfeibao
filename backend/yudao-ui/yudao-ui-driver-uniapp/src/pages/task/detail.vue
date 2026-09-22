@@ -549,6 +549,7 @@ onLoad((options) => {
 </script>
 
 <style scoped lang="scss">
+@use "@/styles/theme.scss" as *;
 .page {
   padding: 24rpx 24rpx 80rpx;
 }
@@ -585,7 +586,7 @@ onLoad((options) => {
 
   &__label {
     width: 130rpx;
-    color: #8a919f;
+    color: $driver-muted;
   }
 
   &__value {
@@ -599,9 +600,9 @@ onLoad((options) => {
 
 .tag {
   padding: 4rpx 16rpx;
-  background-color: #dcfce7;
+  background-color: $driver-soft;
   border-radius: 999rpx;
-  color: #15803d;
+  color: $driver-primary;
   font-size: 22rpx;
 }
 
@@ -633,7 +634,7 @@ onLoad((options) => {
   }
 
   &__status {
-    color: #6b7a72;
+    color: $driver-muted;
     font-size: 24rpx;
   }
 }
@@ -654,13 +655,13 @@ onLoad((options) => {
   }
 
   &__time {
-    color: #6b7a72;
+    color: $driver-muted;
     font-size: 24rpx;
   }
 
   &__line {
     margin-top: 6rpx;
-    color: #6b7a72;
+    color: $driver-muted;
     font-size: 24rpx;
 
     &--warn {
@@ -716,7 +717,7 @@ onLoad((options) => {
     height: 160rpx;
     border: 1rpx dashed #cbd5e1;
     border-radius: 12rpx;
-    color: #8a919f;
+    color: $driver-muted;
     font-size: 26rpx;
     line-height: 160rpx;
     text-align: center;
@@ -738,7 +739,7 @@ onLoad((options) => {
 .chip {
   padding: 10rpx 24rpx;
   background-color: #f3f4f6;
-  border: 1rpx solid #e5e7eb;
+  border: 1rpx solid $driver-border;
   border-radius: 999rpx;
   color: #4b5563;
   font-size: 24rpx;
@@ -749,8 +750,8 @@ onLoad((options) => {
   }
 
   &--active {
-    background-color: #16a34a;
-    border-color: #16a34a;
+    background-color: $driver-primary;
+    border-color: $driver-primary;
     color: #fff;
   }
 
@@ -768,7 +769,7 @@ onLoad((options) => {
   box-sizing: border-box;
   padding: 16rpx;
   background-color: #f9fafb;
-  border: 1rpx solid #e5e7eb;
+  border: 1rpx solid $driver-border;
   border-radius: 12rpx;
   font-size: 26rpx;
 }
@@ -779,7 +780,7 @@ onLoad((options) => {
 
 .btn {
   &--primary {
-    background-color: #16a34a;
+    background-color: $driver-primary;
     color: #fff;
     border-radius: 12rpx;
   }
@@ -792,14 +793,14 @@ onLoad((options) => {
 
   &--ghost {
     background-color: transparent;
-    border: 1rpx solid #e5e7eb;
-    color: #6b7a72;
+    border: 1rpx solid $driver-border;
+    color: $driver-muted;
     font-size: 26rpx;
   }
 }
 
 .tip {
-  color: #8a919f;
+  color: $driver-muted;
   font-size: 24rpx;
   line-height: 1.6;
 
@@ -824,7 +825,7 @@ onLoad((options) => {
 .empty {
   padding: 80rpx 0;
   text-align: center;
-  color: #8a919f;
+  color: $driver-muted;
   font-size: 26rpx;
 
   &--inline {

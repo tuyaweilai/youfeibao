@@ -239,13 +239,14 @@ onLoad((options) => {
 </script>
 
 <style scoped lang="scss">
+@use "@/styles/theme.scss" as *;
 .page {
   padding: 24rpx;
 }
 
 .steps__tip {
   margin-bottom: 20rpx;
-  color: #6b7a72;
+  color: $driver-muted;
   font-size: 24rpx;
   line-height: 1.6;
 }
@@ -271,7 +272,7 @@ onLoad((options) => {
 
   &__tip {
     margin: 10rpx 0 16rpx;
-    color: #8a919f;
+    color: $driver-muted;
     font-size: 24rpx;
     line-height: 1.6;
   }
@@ -307,7 +308,7 @@ onLoad((options) => {
 
   &__reset {
     float: right;
-    color: #6b7a72;
+    color: $driver-muted;
   }
 }
 
@@ -317,8 +318,8 @@ onLoad((options) => {
   font-size: 22rpx;
 
   &--ok {
-    background-color: #dcfce7;
-    color: #15803d;
+    background-color: $driver-soft;
+    color: $driver-primary;
   }
 
   &--todo {
@@ -343,7 +344,7 @@ onLoad((options) => {
     height: 72rpx;
     padding: 0 20rpx;
     background-color: #f8fafc;
-    border: 1rpx solid #e5e7eb;
+    border: 1rpx solid $driver-border;
     border-radius: 10rpx;
   }
 }
@@ -357,30 +358,30 @@ onLoad((options) => {
 
 .btn {
   margin-top: 16rpx;
-  background-color: #16a34a;
+  background-color: $driver-primary;
   border-radius: 12rpx;
   color: #fff;
 
   &--ghost {
     background-color: transparent;
-    border: 1rpx solid #e5e7eb;
+    border: 1rpx solid $driver-border;
     color: #4b5563;
   }
 
   &--primary {
-    background-color: #16a34a;
+    background-color: $driver-primary;
   }
 }
 
 .fallback {
   margin-top: 20rpx;
   padding-top: 16rpx;
-  border-top: 1rpx dashed #e5e7eb;
+  border-top: 1rpx dashed $driver-border;
 
   &__title {
     display: block;
     margin-bottom: 10rpx;
-    color: #8a919f;
+    color: $driver-muted;
     font-size: 24rpx;
   }
 
@@ -388,7 +389,7 @@ onLoad((options) => {
     height: 72rpx;
     padding: 0 20rpx;
     background-color: #f8fafc;
-    border: 1rpx solid #e5e7eb;
+    border: 1rpx solid $driver-border;
     border-radius: 10rpx;
   }
 }

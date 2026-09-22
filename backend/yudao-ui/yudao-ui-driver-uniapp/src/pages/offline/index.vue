@@ -75,6 +75,7 @@ onShow(refresh)
 </script>
 
 <style scoped lang="scss">
+@use "@/styles/theme.scss" as *;
 .page {
   padding: 24rpx 24rpx 80rpx;
 }
@@ -105,7 +106,7 @@ onShow(refresh)
 
 .line {
   margin-top: 6rpx;
-  color: #6b7a72;
+  color: $driver-muted;
   font-size: 24rpx;
 
   &--error {
@@ -118,14 +119,14 @@ onShow(refresh)
   border-radius: 12rpx;
 
   &--primary {
-    background-color: #16a34a;
+    background-color: $driver-primary;
     color: #fff;
   }
 
   &--ghost {
     background-color: transparent;
-    border: 1rpx solid #e5e7eb;
-    color: #6b7a72;
+    border: 1rpx solid $driver-border;
+    color: $driver-muted;
     font-size: 26rpx;
   }
 }
@@ -133,11 +134,11 @@ onShow(refresh)
 .empty {
   padding: 120rpx 24rpx;
   text-align: center;
-  color: #8a919f;
+  color: $driver-muted;
 
   &__title {
     font-size: 32rpx;
-    color: #17221d;
+    color: $driver-text;
   }
 
   &__desc {

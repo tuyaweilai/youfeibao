@@ -16,9 +16,10 @@ onLaunch(() => {
 </template>
 
 <style lang="scss">
+@use "@/styles/theme.scss" as *;
 page {
-  background-color: #f3f7f5;
-  color: #17221d;
+  background-color: $driver-background;
+  color: $driver-text;
   font-size: 28rpx;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
@@ -33,8 +34,17 @@ page {
 
   &__desc {
     margin-top: 20rpx;
-    color: #8a919f;
+    color: $driver-muted;
     line-height: 1.6;
   }
 }
+
+.page { max-width: 760px; margin: 0 auto; box-sizing: border-box; }
+button { cursor: pointer; transition: background-color 180ms ease, box-shadow 180ms ease; }
+button:focus-visible { outline: 3px solid #69a69e; outline-offset: 3px; }
+button::after { border: none; }
+.btn { min-height: 48px; border-radius: 12px; }
+.card { border: 1px solid $driver-border; box-shadow: 0 3px 12px #18383c04; }
+.field__input:focus-within, .textarea:focus-within { outline: 2px solid #69a69e; outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { button { transition: none; } }
 </style>
