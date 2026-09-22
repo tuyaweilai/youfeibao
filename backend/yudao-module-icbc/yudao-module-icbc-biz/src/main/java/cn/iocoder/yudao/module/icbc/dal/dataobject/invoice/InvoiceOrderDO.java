@@ -150,6 +150,14 @@ public class InvoiceOrderDO extends TenantBaseDO {
      * 预下单发起时间（预下单成功、等待自然人确认的时刻）
      */
     private LocalDateTime preOrderTime;
+
+    /**
+     * 自然人确认页面的工行表单 HTML（预下单返回，供按需重开）。
+     *
+     * <p>工行预下单是 UI 接口，返回一段自动提交到工行的表单；不落库的话，自然人在手机上
+     * 关掉页面就再也拿不到（#106 / ADR 0039）。表单里带工行签名，跨天重开可能已过期。
+     */
+    private String confirmPageHtml;
     
     /**
      * 发票号码

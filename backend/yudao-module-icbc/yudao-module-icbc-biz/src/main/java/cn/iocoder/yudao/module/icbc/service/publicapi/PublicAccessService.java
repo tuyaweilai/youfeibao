@@ -63,6 +63,15 @@ public interface PublicAccessService {
     void writeOnboardingForm(String token, HttpServletResponse response);
 
     /**
+     * 用令牌直接输出「自然人确认开票信息」的工行页面 HTML（自动提交表单，见 #106 / ADR 0039）。
+     *
+     * <p>它与 {@link #writeOnboardingForm} 同形，但里面是**工行预下单返回的那张表单**：
+     * 自然人在自己的手机上打开，就是「本人在工行页面上确认开票信息」那一步的落点。
+     * 页面在手机上是可关掉的，所以只要还没确认，重开同一张页面是安全的。
+     */
+    void writeInvoiceConfirmPage(String token, HttpServletResponse response);
+
+    /**
      * 解析场站二维码：只编码场站码，服务端解析出企业与场站的公开信息。
      *
      * <p>二维码不带令牌（公开且长期贴），所以本方法不需要令牌；按 IP 限流，且**不返回个人数据**。

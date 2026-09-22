@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.icbc.service.publicapi.impl;
 
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
+import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceFileRespVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.onboarding.vo.SellerOnboardingRespVO;
@@ -23,6 +24,7 @@ import cn.iocoder.yudao.module.icbc.dal.mysql.lead.IcbcContactLeadMapper;
 import cn.iocoder.yudao.module.icbc.enums.FrameworkAgreementSignMethodEnum;
 import cn.iocoder.yudao.module.icbc.enums.PublicTokenPurposeEnum;
 import cn.iocoder.yudao.module.icbc.service.download.InvoiceDownloadService;
+import cn.iocoder.yudao.module.icbc.service.invoice.AutoInvoiceApplicationService;
 import cn.iocoder.yudao.module.icbc.service.onboarding.SellerOnboardingService;
 import cn.iocoder.yudao.module.icbc.service.notify.SellerNotifyService;
 import cn.iocoder.yudao.module.icbc.service.publicapi.PublicAccessService;
@@ -76,6 +78,8 @@ public class PublicAccessServiceImpl implements PublicAccessService {
     private SellerOnboardingService sellerOnboardingService;
     @Resource
     private SellerNotifyService sellerNotifyService;
+    @Resource
+    private AutoInvoiceApplicationService autoInvoiceApplicationService;
     @Resource
     private cn.iocoder.yudao.module.icbc.service.station.StationService stationService;
 
@@ -196,17 +200,36 @@ public class PublicAccessServiceImpl implements PublicAccessService {
         String formHtml = PublicTenantCall.execute(payload.getTenantId(),
                 () -> buildOnboardingPage(payeeId).getFormHtml());
         if (formHtml == null || formHtml.isBlank()) {
-            formHtml = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
-                    + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>"
-                    + "<body style=\"font-family:sans-serif;padding:48px;text-align:center;color:#8a919f\">"
-                    + "建档已完成，无需再办。</body></html>";
+            formHtml = htmlPage("建档已完成", "无需再办。");
         }
+        writeHtml(response, formHtml);
+    }
+
+    @Override
+    public void writeInvoiceConfirmPage(String token, HttpServletResponse response) {
+        PublicTokenPayload payload = publicTokenService.verify(token, PublicTokenPurposeEnum.INVOICE_CONFIRM_PAGE);
+        String formHtml = PublicTenantCall.execute(payload.getTenantId(),
+                () -> autoInvoiceApplicationService.confirmPageHtml(payload.getBusinessKey()));
+        if (StrUtil.isBlank(formHtml)) {
+            formHtml = htmlPage("确认页已过期", "请回到平台重新发起这一张开票申请，或联系回收企业。");
+        }
+        writeHtml(response, formHtml);
+    }
+
+    private void writeHtml(HttpServletResponse response, String html) {
         response.setContentType("text/html;charset=UTF-8");
         try {
-            response.getWriter().write(formHtml);
+            response.getWriter().write(html);
         } catch (IOException e) {
             throw exception(ICBC_API_CALL_FAILED);
         }
+    }
+
+    private String htmlPage(String title, String desc) {
+        return "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+                + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>"
+                + "<body style=\"font-family:sans-serif;padding:48px;text-align:center;color:#8a919f\">"
+                + "<h3 style=\"color:#374151\">" + title + "</h3><p>" + desc + "</p></body></html>";
     }
 
     private PublicOnboardingStatusRespVO toOnboardingStatus(Long payeeId, SellerOnboardingRespVO overview) {

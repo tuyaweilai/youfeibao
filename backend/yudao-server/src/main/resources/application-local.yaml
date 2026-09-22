@@ -320,6 +320,20 @@ icbc:
     # 已确认但长期未开票时限（天）：只提醒企业尽快开票付款，不自动作废
     uninvoiced-timeout-days: ${ICBC_SETTLEMENT_UNINVOICED_TIMEOUT_DAYS:30}
 
+  # 结算确认后自动预下单（#106，ADR 0039）。
+  # 自然人在手机上确认结算的那一刻没有开票员在场，所以「开票人 + 应税行为发生地」落在付方档案上
+  # （基础资料 → 付方档案）；三项不齐就不自动发起，改走开票申请那个兜底入口。
+  invoice:
+    # 工行确认完成后回跳的地址前缀（工行要求必输）；不配则退回 notify.seller-app-url
+    jump-url-base: ${ICBC_INVOICE_JUMP_URL_BASE:}
+    # 待付款超时（天）：预开票成功却一直没付款，超过它就进工作台待办（只提醒，不自动取消）
+    pending-payment-days: ${ICBC_INVOICE_PENDING_PAYMENT_DAYS:7}
+
+  # 公开页面基地址（#106）：自然人的「开票信息确认页」由后端输出 HTML，链接要指回后端。
+  # 形如 https://<域名>/admin-api；不配则退化为当前请求的 origin + public-api-prefix（本地联调可用）。
+  public-base-url: ${ICBC_PUBLIC_BASE_URL:}
+  public-api-prefix: ${ICBC_PUBLIC_API_PREFIX:/admin-api}
+
   # 出售者建档：工行 UI 页面接口的**结果通知**地址，须为外网可达地址（不是工行地址）。
   # 实名结果页的「确认」跳转地址（jump / fail-jump，#82）现在是按单笔拼业务键的，
   # 基地址取自然人端入口 icbc.notify.seller-app-url（见下方 notify），不再单独配置：

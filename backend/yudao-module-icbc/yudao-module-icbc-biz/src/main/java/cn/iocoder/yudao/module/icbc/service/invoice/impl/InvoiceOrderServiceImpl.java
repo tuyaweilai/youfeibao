@@ -144,6 +144,8 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
             throw exception(ErrorCodeConstants.ICBC_API_CALL_FAILED);
         }
         String redirectUrl = preOrderResult.getData().getFormHtml();
+        // 把确认页表单落库（#106/ADR 0039）：自然人在手机上关掉页面后要能按需重开
+        storeConfirmPageHtml(order.getId(), redirectUrl);
 
         // 7. 构造响应
         InvoicePreOrderRespVO response = new InvoicePreOrderRespVO();
@@ -704,6 +706,8 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
 
     /**
      * 重复发起时返回既有订单：不再调工行预下单，只把已存在的业务单号与订单号交回。
+     *
+     * <p>落库过的确认页一并交回：重复发起往往就是「他还没确认、想再开一次页面」。
      */
     private InvoicePreOrderRespVO buildIdempotentResponse(InvoiceOrderDO order) {
         InvoicePreOrderRespVO response = new InvoicePreOrderRespVO();
@@ -711,7 +715,21 @@ public class InvoiceOrderServiceImpl implements InvoiceOrderService {
         response.setReturnMsg("该收购单已发起过开票申请，未重复下单");
         response.setOrderNo(order.getOrderNo());
         response.setPartnerOrderId(order.getPartnerOrderId());
+        response.setRedirectUrl(order.getConfirmPageHtml());
         return response;
+    }
+
+    /**
+     * 落库自然人确认页面的表单 HTML。写失败不影响预下单结果（页面还能当场打开），只记日志。
+     */
+    private void storeConfirmPageHtml(Long orderId, String formHtml) {
+        if (orderId == null || StrUtil.isBlank(formHtml)) {
+            return;
+        }
+        InvoiceOrderDO update = new InvoiceOrderDO();
+        update.setId(orderId);
+        update.setConfirmPageHtml(formHtml);
+        invoiceOrderMapper.updateById(update);
     }
 
     /**
