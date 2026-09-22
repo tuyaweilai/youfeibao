@@ -109,6 +109,29 @@ public class SmsCodeServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
+    public void sendSmsCode_dayLimitDisabled() {
+        // mock 数据：当天已发满 10 条
+        SmsCodeDO smsCodeDO = randomPojo(SmsCodeDO.class,
+                o -> o.setMobile("15601691300").setTodayIndex(10).setCreateTime(LocalDateTime.now()));
+        smsCodeMapper.insert(smsCodeDO);
+        // mock 配置：0 表示不限制
+        when(smsCodeProperties.getSendMaximumQuantityPerDay()).thenReturn(0);
+        // 准备参数
+        SmsCodeSendReqDTO reqDTO = randomPojo(SmsCodeSendReqDTO.class, o -> {
+            o.setMobile("15601691300");
+            o.setScene(SmsSceneEnum.MEMBER_LOGIN.getScene());
+        });
+        when(smsCodeProperties.getSendFrequency()).thenReturn(Duration.ofMillis(0));
+
+        // 调用，不报错
+        smsCodeService.sendSmsCode(reqDTO);
+        // 断言：新验证码落库，todayIndex 继续累加
+        SmsCodeDO newSmsCode = smsCodeMapper.selectLastByMobile("15601691300", null, null);
+        assertEquals("9999", newSmsCode.getCode());
+        assertEquals(11, newSmsCode.getTodayIndex());
+    }
+
+    @Test
     public void testUseSmsCode_success() {
         // 准备参数
         SmsCodeUseReqDTO reqDTO = randomPojo(SmsCodeUseReqDTO.class, o -> {

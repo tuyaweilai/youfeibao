@@ -23,7 +23,7 @@ public class SmsCodeProperties {
     @NotNull(message = "短信发送频率不能为空")
     private Duration sendFrequency;
     /**
-     * 每日发送最大数量
+     * 每日发送最大数量。小于等于 0 表示不限制。
      */
     @NotNull(message = "每日发送最大数量不能为空")
     private Integer sendMaximumQuantityPerDay;

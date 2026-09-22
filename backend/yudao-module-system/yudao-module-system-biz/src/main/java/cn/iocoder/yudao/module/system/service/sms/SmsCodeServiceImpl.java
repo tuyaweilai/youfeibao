@@ -58,8 +58,7 @@ public class SmsCodeServiceImpl implements SmsCodeService {
                     < smsCodeProperties.getSendFrequency().toMillis()) { // 发送过于频繁
                 throw exception(SMS_CODE_SEND_TOO_FAST);
             }
-            if (isToday(lastSmsCode.getCreateTime()) && // 必须是今天，才能计算超过当天的上限
-                    lastSmsCode.getTodayIndex() >= smsCodeProperties.getSendMaximumQuantityPerDay()) { // 超过当天发送的上限。
+            if (isExceedDayLimit(lastSmsCode)) { // 超过当天发送的上限
                 throw exception(SMS_CODE_EXCEED_SEND_MAXIMUM_QUANTITY_PER_DAY);
             }
             // TODO 芋艿：提升，每个 IP 每天可发送数量
@@ -74,6 +73,19 @@ public class SmsCodeServiceImpl implements SmsCodeService {
                 .createIp(ip).used(false).build();
         smsCodeMapper.insert(newSmsCode);
         return code;
+    }
+
+    /**
+     * 是否超过单手机号每日发送上限。配置 &lt;= 0 或未配置时不限制。
+     */
+    private boolean isExceedDayLimit(SmsCodeDO lastSmsCode) {
+        Integer sendMaximumQuantityPerDay = smsCodeProperties.getSendMaximumQuantityPerDay();
+        if (sendMaximumQuantityPerDay == null || sendMaximumQuantityPerDay <= 0) {
+            return false;
+        }
+        // 必须是今天，才能计算超过当天的上限
+        return isToday(lastSmsCode.getCreateTime())
+                && lastSmsCode.getTodayIndex() >= sendMaximumQuantityPerDay;
     }
 
     @Override
