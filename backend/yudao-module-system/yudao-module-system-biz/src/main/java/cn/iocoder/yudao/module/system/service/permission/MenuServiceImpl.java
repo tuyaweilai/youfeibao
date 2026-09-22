@@ -27,6 +27,7 @@ import java.util.*;
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertList;
 import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertMap;
+import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertSet;
 import static cn.iocoder.yudao.module.system.dal.dataobject.permission.MenuDO.ID_ROOT;
 import static cn.iocoder.yudao.module.system.enums.ErrorCodeConstants.*;
 
@@ -107,6 +108,23 @@ public class MenuServiceImpl implements MenuService {
     @Override
     public List<MenuDO> getMenuList() {
         return menuMapper.selectList();
+    }
+
+    @Override
+    public MenuDO getMenuByComponentName(String componentName) {
+        // 组件名在 validateMenuComponentName 里被约束为唯一，但菜单 SQL 直接插库可以绕过校验：
+        // 实测 ErpStock / ErpSupplier 各两行（已停用的 ERP 那一棵与 icbc 页面各一行）。
+        List<MenuDO> menus = menuMapper.selectListByComponentName(componentName);
+        if (menus.size() <= 1) {
+            return menus.isEmpty() ? null : menus.get(0);
+        }
+        // 同名多行时取「自身与所有祖先都启用」的那一个：停用模块里那一棵整棵不算数
+        //（ERP 的停用只标在树根上，子孙行自身还是启用态，看 status 看不出来）
+        Set<Long> enabledIds = convertSet(filterDisableMenus(getMenuList()), MenuDO::getId);
+        return menus.stream()
+                .filter(menu -> enabledIds.contains(menu.getId()))
+                .findFirst()
+                .orElse(menus.get(0));
     }
 
     @Override

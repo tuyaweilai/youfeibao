@@ -85,6 +85,18 @@ public interface MenuService {
     MenuDO getMenu(Long id);
 
     /**
+     * 按组件名获得菜单
+     *
+     * <p>业务模块据此把「代码里写的权限」挂到「SQL 里编排的页面」下（见 {@code MenuApi} 的权限归集）。
+     * 组件名在 {@link #validateMenuComponentName(String, Long)} 里被约束为唯一，但**菜单 SQL 直接插库可以绕过校验**
+     * （实测 {@code ErpStock} / {@code ErpSupplier} 各两行），因此同名多行时取「自身与所有祖先都启用」的那一个。
+     *
+     * @param componentName 组件名
+     * @return 菜单；不存在时返回 {@code null}
+     */
+    MenuDO getMenuByComponentName(String componentName);
+
+    /**
      * 获得菜单数组
      *
      * @param ids 菜单编号数组

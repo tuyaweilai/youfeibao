@@ -48,7 +48,7 @@ public class RecyclingPermissionSyncDriverGrantTest extends BaseMockitoUnitTest 
         // 权限行都还不存在 → 逐个建，且各自拿到不同的 id（同一个 id 会被 Set 去重，验不出条数）
         when(menuApi.getMenuIdByPermission(anyString())).thenReturn(null);
         java.util.concurrent.atomic.AtomicLong seq = new java.util.concurrent.atomic.AtomicLong(100L);
-        when(menuApi.createPermissionMenu(anyString(), anyString()))
+        when(menuApi.ensurePermissionMenu(anyString(), anyString(), any(), any()))
                 .thenAnswer(invocation -> seq.incrementAndGet());
         // 回收域的四个角色已存在；司机角色也在（物流域的 init 先跑过）
         when(roleApi.getRoleIdByCode(anyString())).thenReturn(2L);
@@ -67,6 +67,7 @@ public class RecyclingPermissionSyncDriverGrantTest extends BaseMockitoUnitTest 
     @Test
     public void testSync_driverRoleNotExists_skipsWithoutError() {
         when(menuApi.getMenuIdByPermission(anyString())).thenReturn(1L);
+        when(menuApi.ensurePermissionMenu(anyString(), anyString(), any(), any())).thenReturn(1L);
         Map<String, Long> roleIds = new HashMap<>();
         roleIds.put(RecyclingRoleEnum.ADMIN.getCode(), 10L);
         roleIds.put(RecyclingRoleEnum.RECEIVER.getCode(), 11L);
