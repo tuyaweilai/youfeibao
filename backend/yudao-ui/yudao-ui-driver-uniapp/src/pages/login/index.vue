@@ -79,8 +79,8 @@ async function onSubmit() {
 </script>
 
 <style scoped lang="scss">
-.login { min-height: 100vh; background: #f4f7f7; }
-.login__hero { position: relative; overflow: hidden; padding: 28px 28px 42px; background: #103f43; color: #fff; }
+.login { width: 100%; max-width: 480px; min-height: 100vh; margin: 0 auto; background: #f4f7f7; }
+.login__hero { position: relative; overflow: hidden; padding: calc(28px + env(safe-area-inset-top)) 28px 42px; background: #103f43; color: #fff; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 650; }
 .brand__symbol { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 10px; background: #d2eee5; color: #103f43; font-size: 21px; }
 .brand__tag { margin-left: 2px; padding: 3px 9px; border: 1px solid #507477; border-radius: 5px; font-size: 11px; font-weight: 400; color: #d8e9e8; }
@@ -91,7 +91,7 @@ async function onSubmit() {
 .hero-art { position: absolute; right: -20px; top: 68px; width: 210px; height: 180px; opacity: .7; }
 .hero-steps { display: flex; align-items: center; gap: 12px; margin-top: 28px; font-size: 12px; color: #d0e2e0; }
 .step-line { width: 24px; height: 1px; background: #648b89; }
-.login__body { position: relative; padding: 0 18px 24px; }
+.login__body { position: relative; padding: 0 18px calc(24px + env(safe-area-inset-bottom)); }
 .login__form { position: relative; margin: -20px auto 0; padding: 27px 24px 24px; max-width: 420px; box-sizing: border-box; border: 1px solid #e2eaea; border-radius: 22px; background: #fff; box-shadow: 0 10px 32px #183f4310; }
 .form-heading { margin-bottom: 25px; }
 .form-title { font-size: 24px; font-weight: 650; color: #18383c; }
@@ -113,17 +113,5 @@ async function onSubmit() {
 .tip-icon { flex-shrink: 0; width: 16px; height: 16px; margin-top: 3px; border: 1px solid #718689; border-radius: 50%; text-align: center; font-size: 11px; line-height: 16px; }
 .tip-title { margin-bottom: 3px; color: #39595c; font-weight: 550; }
 .login__footer { margin-top: 23px; text-align: center; font-size: 11px; letter-spacing: 1px; color: #6c8083; }
-@media (min-width: 768px) {
-  .login { display: flex; align-items: stretch; }
-  .login__hero { display: flex; flex-direction: column; justify-content: center; width: 48%; min-height: 100vh; box-sizing: border-box; padding: 60px; }
-  .brand { position: absolute; top: 45px; left: 60px; }
-  .hero-copy { margin-top: 0; }
-  .hero-title { font-size: 48px; }
-  .hero-desc { font-size: 16px; }
-  .hero-art { position: relative; top: auto; right: auto; width: 100%; max-width: 360px; height: 210px; margin-top: 25px; opacity: 1; }
-  .hero-steps { margin-top: 20px; }
-  .login__body { flex: 1; align-self: center; padding: 48px 28px; }
-  .login__form { margin-top: 0; padding: 36px; }
-}
 @media (max-width: 374px) { .login__hero { padding-left: 22px; } .hero-art { right: -65px; opacity: .4; } .login__form { padding: 24px 18px; } }
 </style>

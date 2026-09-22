@@ -18,6 +18,7 @@
         v-for="tab in tabs"
         :key="tab.value ?? 'all'"
         :class="['filters__item', { 'filters__item--active': status === tab.value }]"
+        :aria-pressed="status === tab.value"
         @click="switchTab(tab.value)"
       >
         {{ tab.label }}
@@ -33,17 +34,17 @@
     <view v-else class="list">
       <view v-for="task in list" :key="task.id" class="card" @click="goDetail(task.id!)">
         <view class="card__top">
-          <text class="card__no">{{ task.taskNo }}</text>
+          <view class="card__identifier"><text class="card__caption">任务编号</text><text class="card__no">{{ task.taskNo }}</text></view>
           <text :class="['tag', statusClass(task.status)]">{{ task.statusName }}</text>
         </view>
-        <view class="card__line">
-          <text class="card__label">提货点</text>
-          <text class="card__value">{{ task.pickupAddress }}</text>
+        <view class="card__destination">
+          <text class="card__caption">提货点</text>
+          <view class="card__address">{{ task.pickupAddress || '未填写提货地址' }}</view>
         </view>
         <view class="card__line">
           <text class="card__label">联系人</text>
           <text class="card__value">
-            {{ task.pickupContactName || '—' }}{{ task.pickupContactPhone ? ' · ' + task.pickupContactPhone : '' }}
+            <text>{{ task.pickupContactName || '—' }}</text><text v-if="task.pickupContactPhone" class="card__phone">{{ task.pickupContactPhone }}</text>
           </text>
         </view>
         <view class="card__line">
@@ -54,19 +55,19 @@
           </text>
         </view>
         <view class="card__line">
-          <text class="card__label">待提</text>
+          <text class="card__label">待提货</text>
           <text class="card__value">
             {{ (task.pendingStopCount ?? 0) > 0 ? `还剩 ${task.pendingStopCount} 家没提` : '—' }}
           </text>
         </view>
         <view class="card__line">
-          <text class="card__label">时间窗</text>
+          <text class="card__label">计划时间</text>
           <text class="card__value">{{ timeRange(task.expectedStartTime, task.expectedEndTime) }}</text>
         </view>
       </view>
     </view>
 
-    <view class="footer-tip">下拉刷新任务列表；上报节点在任务详情里。</view>
+    <view class="footer-tip">下拉刷新列表 · 点击任务查看详情与上报节点</view>
   </view>
 </template>
 
@@ -158,162 +159,60 @@ onPullDownRefresh(async () => {
 <style scoped lang="scss">
 @use "@/styles/theme.scss" as *;
 .page {
-  padding: 24rpx 24rpx 80rpx;
+  padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
+  font-size: 16px;
+  line-height: 1.6;
 }
-
 .header {
   position: relative;
-  padding: 28px 24px;
-  margin-bottom: 24px;
-  border-radius: 20px;
+  padding: 22px 20px;
+  margin-bottom: 20px;
+  border-radius: 18px;
   background: #103f43;
   color: #fff;
-
-  &__eyebrow { margin-bottom: 16px; font-size: 12px; color: #b5d8d4; }
-
-  &__name {
-    font-size: 40rpx;
-    font-weight: 700;
-  }
-
-  &__meta {
-    margin-top: 8rpx;
-    color: #c6dedb;
-    font-size: 24rpx;
-  }
-
-  &__logout {
-    position: absolute;
-    right: 12px;
-    top: 12px;
-    padding: 0 12px;
-    min-height: 44px;
-    line-height: 44px;
-    background: transparent;
-    color: #d0e2e0;
-    font-size: 13px;
-  }
+  &__eyebrow { margin-bottom: 14px; padding-right: 48px; font-size: 12px; line-height: 20px; color: #b5d8d4; }
+  &__name { font-size: 24px; font-weight: 600; line-height: 34px; overflow-wrap: anywhere; }
+  &__meta { margin-top: 6px; font-size: 14px; line-height: 22px; color: #c6dedb; font-variant-numeric: tabular-nums; }
+  &__logout { position: absolute; right: 10px; top: 10px; margin: 0; padding: 0 10px; min-width: 44px; height: 44px; line-height: 44px; background: transparent; color: #d0e2e0; font-size: 13px; border-radius: 8px; }
+  &__logout::after { border: none; }
 }
-
-.draft-bar {
-  margin-bottom: 20rpx;
-  padding: 20rpx 24rpx;
-  background-color: #fff7ed;
-  border: 1rpx solid #fed7aa;
-  border-radius: 12rpx;
-  color: #b45309;
-  font-size: 26rpx;
-}
-
+.draft-bar { margin-bottom: 16px; padding: 12px 14px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; color: #9a4a0b; font-size: 14px; line-height: 22px; cursor: pointer; }
 .filters {
   display: flex;
-  gap: 6px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-
-  &__item {
-    flex: 1;
-    white-space: nowrap;
-    margin: 0;
-    min-height: 44px;
-    line-height: 44px;
-    padding: 0 8px;
-    background-color: #fff;
-    border: 1rpx solid $driver-border;
-    border-radius: 999rpx;
-    color: #4b5563;
-    font-size: 13px;
-
-    &--active {
-      background-color: $driver-primary;
-      border-color: $driver-primary;
-      color: #fff;
-    }
-  }
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px;
+  border: 1px solid $driver-border;
+  border-radius: 13px;
+  background: #eaf0ef;
+  &__item { flex: 1; min-width: 0; white-space: nowrap; margin: 0; height: 44px; line-height: 44px; padding: 0; background: transparent; border: none; border-radius: 9px; color: #4b6164; font-size: 13px; font-weight: 500; }
+  &__item::after { border: none; }
+  &__item--active { background: $driver-primary; color: #fff; font-weight: 600; }
 }
-
 .card {
-  margin-bottom: 20rpx;
-  padding: 24rpx;
-  background-color: #fff;
-  border-radius: 18px;
-
-  &__top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16rpx;
-  }
-
-  &__no {
-    font-size: 26rpx;
-    font-weight: 600;
-  }
-
-  &__line {
-    display: flex;
-    margin-top: 8rpx;
-    font-size: 26rpx;
-  }
-
-  &__label {
-    width: 120rpx;
-    color: $driver-muted;
-  }
-
-  &__value {
-    flex: 1;
-    color: $driver-text;
-  }
+  margin-bottom: 16px;
+  padding: 18px;
+  background: #fff;
+  border-radius: 16px;
+  cursor: pointer;
+  &__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #edf1f1; }
+  &__identifier { min-width: 0; }
+  &__caption { display: block; font-size: 12px; line-height: 18px; color: $driver-muted; }
+  &__no { display: block; margin-top: 3px; font-size: 13px; line-height: 20px; font-weight: 500; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; color: #496065; }
+  &__destination { margin: 16px 0; }
+  &__address { margin-top: 4px; font-size: 18px; font-weight: 600; line-height: 28px; color: $driver-text; overflow-wrap: anywhere; }
+  &__line { display: flex; align-items: baseline; gap: 12px; margin-top: 10px; font-size: 16px; line-height: 25px; }
+  &__label { flex: 0 0 56px; color: $driver-muted; font-size: 14px; }
+  &__value { flex: 1; min-width: 0; color: $driver-text; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  &__phone { display: inline-block; margin-left: 8px; white-space: nowrap; }
 }
-
-.tag {
-  padding: 4rpx 16rpx;
-  border-radius: 999rpx;
-  font-size: 22rpx;
-
-  &--todo {
-    background-color: #fef3c7;
-    color: #b45309;
-  }
-
-  &--doing {
-    background-color: $driver-soft;
-    color: $driver-primary;
-  }
-
-  &--done {
-    background-color: $driver-border;
-    color: #4b5563;
-  }
-
-  &--cancel {
-    background-color: #fee2e2;
-    color: #b91c1c;
-  }
-}
-
-.empty {
-  padding: 120rpx 24rpx;
-  text-align: center;
-  color: $driver-muted;
-
-  &__title {
-    font-size: 32rpx;
-    color: $driver-text;
-  }
-
-  &__desc {
-    margin-top: 16rpx;
-    font-size: 26rpx;
-    line-height: 1.6;
-  }
-}
-
-.footer-tip {
-  margin-top: 24rpx;
-  text-align: center;
-  color: $driver-muted;
-  font-size: 22rpx;
-}
+.tag { flex-shrink: 0; white-space: nowrap; padding: 4px 10px; border-radius: 7px; font-size: 12px; font-weight: 500; line-height: 20px; }
+.tag--todo { background: #fef3c7; color: #92400e; }
+.tag--doing { background: $driver-soft; color: $driver-primary; }
+.tag--done { background: #edf1f1; color: #4b6164; }
+.tag--cancel { background: #fee2e2; color: #b91c1c; }
+.empty { padding: 64px 16px; text-align: center; color: $driver-muted; font-size: 16px; line-height: 26px; }
+.empty__title { font-size: 18px; font-weight: 600; color: $driver-text; }
+.empty__desc { margin-top: 10px; font-size: 14px; line-height: 24px; }
+.footer-tip { margin-top: 20px; padding: 0 8px; text-align: center; color: $driver-muted; font-size: 12px; line-height: 20px; }
 </style>

@@ -39,7 +39,7 @@ page {
   }
 }
 
-.page { max-width: 760px; margin: 0 auto; box-sizing: border-box; }
+.page { max-width: 480px; margin: 0 auto; box-sizing: border-box; }
 button { cursor: pointer; transition: background-color 180ms ease, box-shadow 180ms ease; }
 button:focus-visible { outline: 3px solid #69a69e; outline-offset: 3px; }
 button::after { border: none; }

@@ -551,46 +551,55 @@ onLoad((options) => {
 <style scoped lang="scss">
 @use "@/styles/theme.scss" as *;
 .page {
-  padding: 24rpx 24rpx 80rpx;
+  padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
+  font-size: 16px;
+  line-height: 1.6;
 }
 
 .card {
-  margin-bottom: 24rpx;
-  padding: 24rpx;
+  margin-bottom: 12px;
+  padding: 18px;
   background-color: #fff;
-  border-radius: 16rpx;
+  border-radius: 16px;
 
   &__top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 16rpx;
+    gap: 12px;
+    margin-bottom: 8px;
   }
 
   &__no {
-    font-size: 28rpx;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+    color: $driver-muted;
     font-weight: 600;
   }
 
   &__title {
-    margin-bottom: 16rpx;
-    font-size: 30rpx;
+    margin-bottom: 8px;
+    font-size: 18px;
     font-weight: 600;
   }
 }
 
 .line {
   display: flex;
-  margin-top: 10rpx;
-  font-size: 26rpx;
+  margin-top: 10px;
+  font-size: 16px;
 
   &__label {
-    width: 130rpx;
+    flex: 0 0 64px;
+    font-size: 14px;
     color: $driver-muted;
   }
 
   &__value {
     flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
 
     &--warn {
       color: #b45309;
@@ -599,20 +608,22 @@ onLoad((options) => {
 }
 
 .tag {
-  padding: 4rpx 16rpx;
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 2px 8px;
   background-color: $driver-soft;
-  border-radius: 999rpx;
+  border-radius: 499.5px;
   color: $driver-primary;
-  font-size: 22rpx;
+  font-size: 12px;
 }
 
 .actions {
-  margin-bottom: 24rpx;
+  margin-bottom: 12px;
 }
 
 .stop {
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  padding: 10px 0;
+  border-bottom: 0.5px solid #f1f5f9;
 
   &--done {
     opacity: 0.7;
@@ -626,43 +637,45 @@ onLoad((options) => {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
   }
 
   &__name {
-    font-size: 28rpx;
+    font-size: 14px;
     font-weight: 600;
   }
 
   &__status {
     color: $driver-muted;
-    font-size: 24rpx;
+    font-size: 14px;
   }
 }
 
 .node {
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  padding: 10px 0;
+  border-bottom: 0.5px solid #f1f5f9;
 
   &__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
   }
 
   &__name {
-    font-size: 28rpx;
+    font-size: 14px;
     font-weight: 600;
   }
 
   &__time {
     color: $driver-muted;
-    font-size: 24rpx;
+    font-size: 14px;
   }
 
   &__line {
-    margin-top: 6rpx;
+    margin-top: 3px;
     color: $driver-muted;
-    font-size: 24rpx;
+    font-size: 14px;
 
     &--warn {
       color: #b45309;
@@ -671,55 +684,55 @@ onLoad((options) => {
 
   &__photos {
     display: flex;
-    gap: 12rpx;
-    margin-top: 12rpx;
+    gap: 6px;
+    margin-top: 6px;
   }
 
   &__photo {
-    width: 140rpx;
-    height: 140rpx;
-    border-radius: 12rpx;
+    width: 70px;
+    height: 70px;
+    border-radius: 6px;
   }
 }
 
 .photos {
   display: flex;
   flex-wrap: wrap;
-  gap: 16rpx;
-  margin: 20rpx 0;
+  gap: 8px;
+  margin: 10px 0;
 
   &__item {
     position: relative;
   }
 
   &__img {
-    width: 160rpx;
-    height: 160rpx;
-    border-radius: 12rpx;
+    width: 80px;
+    height: 80px;
+    border-radius: 6px;
   }
 
   &__del {
     position: absolute;
-    right: -10rpx;
-    top: -10rpx;
-    width: 40rpx;
-    height: 40rpx;
+    right: -5px;
+    top: -5px;
+    width: 20px;
+    height: 20px;
     background-color: rgba(0, 0, 0, 0.6);
     border-radius: 50%;
     color: #fff;
-    font-size: 28rpx;
-    line-height: 40rpx;
+    font-size: 14px;
+    line-height: 20px;
     text-align: center;
   }
 
   &__add {
-    width: 160rpx;
-    height: 160rpx;
-    border: 1rpx dashed #cbd5e1;
-    border-radius: 12rpx;
+    width: 80px;
+    height: 80px;
+    border: 0.5px dashed #cbd5e1;
+    border-radius: 6px;
     color: $driver-muted;
-    font-size: 26rpx;
-    line-height: 160rpx;
+    font-size: 16px;
+    line-height: 80px;
     text-align: center;
   }
 }
@@ -727,26 +740,31 @@ onLoad((options) => {
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 12rpx;
-  margin: 16rpx 0;
+  gap: 6px;
+  margin: 8px 0;
 
   &--tight {
-    gap: 8rpx;
-    margin: 8rpx 0 0;
+    gap: 4px;
+    margin: 4px 0 0;
   }
 }
 
 .chip {
-  padding: 10rpx 24rpx;
+  box-sizing: border-box;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 5px 12px;
   background-color: #f3f4f6;
-  border: 1rpx solid $driver-border;
-  border-radius: 999rpx;
+  border: 0.5px solid $driver-border;
+  border-radius: 499.5px;
   color: #4b5563;
-  font-size: 24rpx;
+  font-size: 14px;
 
   &--mini {
-    padding: 4rpx 16rpx;
-    font-size: 22rpx;
+    padding: 2px 8px;
+    font-size: 12px;
   }
 
   &--active {
@@ -764,44 +782,47 @@ onLoad((options) => {
 
 .textarea {
   width: 100%;
-  min-height: 120rpx;
-  margin: 8rpx 0 4rpx;
+  min-height: 60px;
+  margin: 4px 0 2px;
   box-sizing: border-box;
-  padding: 16rpx;
+  padding: 8px;
   background-color: #f9fafb;
-  border: 1rpx solid $driver-border;
-  border-radius: 12rpx;
-  font-size: 26rpx;
+  border: 0.5px solid $driver-border;
+  border-radius: 6px;
+  font-size: 16px;
 }
 
 .card--abnormal {
-  border: 1rpx solid #fecaca;
+  border: 0.5px solid #fecaca;
 }
 
 .btn {
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 12px;
   &--primary {
     background-color: $driver-primary;
     color: #fff;
-    border-radius: 12rpx;
+    border-radius: 6px;
   }
 
   &--danger {
     background-color: #dc2626;
     color: #fff;
-    border-radius: 12rpx;
+    border-radius: 6px;
   }
 
   &--ghost {
     background-color: transparent;
-    border: 1rpx solid $driver-border;
+    border: 0.5px solid $driver-border;
     color: $driver-muted;
-    font-size: 26rpx;
+    font-size: 16px;
   }
 }
 
 .tip {
   color: $driver-muted;
-  font-size: 24rpx;
+  font-size: 14px;
   line-height: 1.6;
 
   &--warn {
@@ -809,27 +830,27 @@ onLoad((options) => {
   }
 
   &--note {
-    margin-bottom: 20rpx;
-    padding: 16rpx 20rpx;
+    margin-bottom: 10px;
+    padding: 8px 10px;
     background-color: #eff6ff;
-    border-radius: 12rpx;
+    border-radius: 6px;
     color: #1d4ed8;
   }
 
   &--bottom {
-    margin-top: 16rpx;
+    margin-top: 8px;
     text-align: center;
   }
 }
 
 .empty {
-  padding: 80rpx 0;
+  padding: 40px 0;
   text-align: center;
   color: $driver-muted;
-  font-size: 26rpx;
+  font-size: 16px;
 
   &--inline {
-    padding: 32rpx 0;
+    padding: 16px 0;
   }
 }
 </style>
