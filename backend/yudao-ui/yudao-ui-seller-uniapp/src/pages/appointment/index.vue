@@ -8,14 +8,16 @@
 
     <template v-else>
       <view class="card notice">
-        <view class="notice__title">预约到站不是订单</view>
+        <view class="notice__badge">预约说明</view>
+        <view class="notice__title">提前告知场站你的到达时间</view>
         <view class="notice__line">· 不占额度、不产生开票、不进五流</view>
         <view class="notice__line">· 没有「企业接受 / 拒绝」，只有到场与未到场</view>
         <view class="notice__line">· 到场后仍由收货员按实际过磅建收购单</view>
       </view>
 
-      <view class="card">
+      <view v-if="stationCode" class="card">
         <view class="card__title">发起预约</view>
+        <view class="card__subtitle">以下信息仅用于场站提前安排接待</view>
         <view v-if="stationName" class="station">
           {{ enterpriseName || '回收企业' }} · {{ stationName }}
         </view>
@@ -28,8 +30,8 @@
         </view>
 
         <view class="field">
-          <text class="field__label">预计数量（可空，只是一句「约」）</text>
-          <input v-model="form.expectedQuantity" class="input" type="digit" placeholder="0" />
+          <text class="field__label">预计数量 <text class="field__optional">选填，仅供参考</text></text>
+          <input v-model="form.expectedQuantity" class="input" type="digit" placeholder="请输入大概数量" />
         </view>
 
         <view class="field">
@@ -52,11 +54,21 @@
         </view>
 
         <view class="field">
-          <text class="field__label">备注</text>
-          <input v-model="form.remark" class="input" placeholder="选填" />
+          <text class="field__label">备注 <text class="field__optional">选填</text></text>
+          <input v-model="form.remark" class="input" placeholder="需要场站提前了解的情况" />
         </view>
 
         <button class="btn btn--primary" :loading="submitting" @click="onSubmit">提交预约</button>
+      </view>
+
+      <view v-else class="card appointment-entry">
+        <view class="appointment-entry__icon" aria-hidden="true"></view>
+        <view class="appointment-entry__body">
+          <view class="appointment-entry__title">新预约请扫描场站二维码</view>
+          <view class="appointment-entry__desc">
+            预约必须确定具体场站。从首页进入时可查看已有预约；需要新增时，请扫描场站现场二维码。
+          </view>
+        </view>
       </view>
 
       <view class="card">
@@ -241,65 +253,123 @@ function formatTime(value?: string | number) {
 
 <style lang="scss" scoped>
 .page {
-  padding: 24rpx;
+  box-sizing: border-box;
+  min-height: calc(100vh - 44px);
+  padding: 32rpx 32rpx 60rpx;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(58, 149, 255, 0.11), transparent 28%),
+    linear-gradient(180deg, #f7faff 0%, #f4f7fb 100%);
 }
 
 .card {
-  padding: 32rpx;
+  padding: 34rpx 32rpx;
   margin-bottom: 24rpx;
   background-color: #ffffff;
-  border-radius: 16rpx;
+  border: 1rpx solid rgba(22, 119, 255, 0.08);
+  border-radius: 26rpx;
+  box-shadow: 0 16rpx 44rpx rgba(31, 55, 88, 0.07);
 
   &__title {
-    margin-bottom: 20rpx;
-    font-size: 32rpx;
-    font-weight: 600;
+    font-size: 34rpx;
+    font-weight: 800;
+  }
+
+  &__subtitle {
+    margin: 8rpx 0 28rpx;
+    color: $seller-text-secondary;
+    font-size: 24rpx;
   }
 }
 
 .notice {
-  background-color: #f0f5ff;
+  background: linear-gradient(135deg, #f0f6ff, #eaf3ff);
+  box-shadow: none;
+
+  &__badge {
+    display: inline-block;
+    padding: 7rpx 14rpx;
+    margin-bottom: 14rpx;
+    color: #2869bf;
+    background-color: rgba(255, 255, 255, 0.72);
+    border-radius: 999rpx;
+    font-size: 22rpx;
+    font-weight: 700;
+  }
 
   &__title {
-    margin-bottom: 8rpx;
-    font-weight: 600;
+    margin-bottom: 12rpx;
+    color: #244d80;
+    font-size: 30rpx;
+    font-weight: 800;
   }
 
   &__line {
-    color: $seller-text-secondary;
-    font-size: 26rpx;
-    line-height: 1.8;
+    color: #5a6e87;
+    font-size: 24rpx;
+    line-height: 1.75;
   }
 }
 
 .station {
-  margin-bottom: 20rpx;
-  color: $seller-text-secondary;
-  font-size: 26rpx;
+  margin-bottom: 26rpx;
+  padding: 18rpx 20rpx;
+  color: #2f619e;
+  background-color: #edf5ff;
+  border-radius: 14rpx;
+  font-size: 25rpx;
+  font-weight: 600;
 }
 
 .field {
-  margin-bottom: 20rpx;
+  margin-bottom: 26rpx;
 
   &__label {
     display: block;
-    margin-bottom: 8rpx;
-    color: $seller-text-secondary;
+    margin-bottom: 12rpx;
+    color: #344054;
     font-size: 26rpx;
+    font-weight: 600;
+  }
+
+  &__optional {
+    margin-left: 8rpx;
+    color: #98a2b3;
+    font-size: 22rpx;
+    font-weight: 400;
   }
 }
 
 .input,
 .picker {
-  height: 80rpx;
-  line-height: 80rpx;
-  padding: 0 20rpx;
-  background-color: #f5f6f8;
-  border-radius: 12rpx;
+  box-sizing: border-box;
+  height: 96rpx;
+  padding: 0 24rpx;
+  color: $seller-text;
+  background-color: #f7f9fc;
+  border: 2rpx solid #e7ebf2;
+  border-radius: 18rpx;
+  font-size: 28rpx;
+  line-height: 92rpx;
+}
+
+.picker {
+  position: relative;
+
+  &::after {
+    position: absolute;
+    top: 35rpx;
+    right: 26rpx;
+    width: 13rpx;
+    height: 13rpx;
+    border-right: 3rpx solid #8c96a6;
+    border-bottom: 3rpx solid #8c96a6;
+    transform: rotate(45deg);
+    content: '';
+  }
 }
 
 .appointment {
-  padding: 16rpx 0;
+  padding: 24rpx 0;
   border-top: 1rpx solid #eef0f3;
 
   &__row {
@@ -309,7 +379,9 @@ function formatTime(value?: string | number) {
   }
 
   &__cat {
-    font-weight: 600;
+    color: #344054;
+    font-size: 29rpx;
+    font-weight: 700;
   }
 
   &__meta {
@@ -324,13 +396,55 @@ function formatTime(value?: string | number) {
   }
 }
 
+.appointment-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 22rpx;
+  background: linear-gradient(135deg, #f0f6ff, #eaf3ff);
+  box-shadow: none;
+
+  &__icon {
+    position: relative;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 54rpx;
+    height: 54rpx;
+    border: 4rpx solid #4d8fdf;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg) scale(0.75);
+
+    &::after {
+      position: absolute;
+      top: 14rpx;
+      left: 14rpx;
+      width: 16rpx;
+      height: 16rpx;
+      border: 4rpx solid #4d8fdf;
+      border-radius: 50%;
+      content: '';
+    }
+  }
+
+  &__body { flex: 1; min-width: 0; }
+  &__title { color: #295a95; font-size: 28rpx; font-weight: 800; }
+  &__desc { margin-top: 8rpx; color: #5d6f86; font-size: 24rpx; line-height: 1.65; }
+}
+
 .btn {
+  box-sizing: border-box;
   width: 100%;
+  height: 96rpx;
+  margin: 0;
+  border-radius: 18rpx;
   color: #ffffff;
-  background-color: $seller-primary;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 96rpx;
 
   &--primary {
-    margin-top: 8rpx;
+    margin-top: 6rpx;
+    background: linear-gradient(100deg, $seller-primary 0%, #2d8bff 100%);
+    box-shadow: 0 14rpx 28rpx rgba(22, 119, 255, 0.2);
   }
 }
 
@@ -356,19 +470,20 @@ function formatTime(value?: string | number) {
 }
 
 .scope-note {
-  margin-top: 12rpx;
-  color: $seller-text-secondary;
-  font-size: 24rpx;
+  margin: 14rpx 14rpx 0;
+  color: #98a2b3;
+  font-size: 22rpx;
   line-height: 1.7;
+  text-align: center;
 }
 
 .empty {
-  margin-top: 80rpx;
+  margin-top: 70rpx;
   text-align: center;
 
   &__title {
     font-size: 34rpx;
-    font-weight: 700;
+    font-weight: 800;
   }
 
   &__desc {

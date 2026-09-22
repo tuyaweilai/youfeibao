@@ -79,6 +79,11 @@ public class StationServiceImpl implements StationService {
     }
 
     @Override
+    public IcbcStationDO getStationOrNull(Long id) {
+        return id == null ? null : stationMapper.selectById(id);
+    }
+
+    @Override
     public PageResult<IcbcStationDO> getStationPage(StationPageReqVO pageReqVO) {
         return stationMapper.selectPage(pageReqVO);
     }

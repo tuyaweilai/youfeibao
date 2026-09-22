@@ -21,6 +21,7 @@ import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.IcbcPayeeBankCardChange
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payee.PayeeInfoDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.payment.PaymentOrderDO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.settlement.IcbcSettlementDO;
+import cn.iocoder.yudao.module.icbc.dal.dataobject.station.IcbcStationDO;
 import cn.iocoder.yudao.module.icbc.dal.mysql.acquisition.IcbcAcquisitionMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.agreement.IcbcFrameworkAgreementMapper;
 import cn.iocoder.yudao.module.icbc.dal.mysql.authorization.IcbcSellerAuthorizationMapper;
@@ -129,11 +130,17 @@ public class SellerPortalServiceImpl implements SellerPortalService {
         Map<Long, PayeeInfoDO> payeeById = payees.stream()
                 .collect(Collectors.toMap(PayeeInfoDO::getId, Function.identity(), (a, b) -> a));
 
+        // 场站编号是客户端（扫场站码进屋）带来的**提示**，可能已过期（场站被删、换过库、旧链接）：
+        // 查不到就当没带——不按它筛待办、也不显示场站名。过期的提示不许把首页整个打成 500。
+        IcbcStationDO station = stationId == null ? null
+                : TenantUtils.executeIgnore(() -> stationService.getStationOrNull(stationId));
+        Long matchedStationId = station == null ? null : stationId;
+
         List<SellerPendingItemVO> items = new ArrayList<>();
         // 1) 待确认结算单：待确认 / 需线下签字（有异议是等企业回复，不算他需要动作的事）。
         //    扫码进入时按「该场站 + 该自然人主体」匹配（#34 / ADR 0018）；不传场站则不按场站筛。
         TenantUtils.executeIgnore(() -> settlementMapper
-                        .selectListByNaturalPersonIdAndStation(naturalPersonId, stationId))
+                        .selectListByNaturalPersonIdAndStation(naturalPersonId, matchedStationId))
                 .stream()
                 .filter(settlement -> PENDING_SETTLEMENT_STATUSES.contains(settlement.getConfirmStatus()))
                 .forEach(settlement -> items.add(toPendingSettlement(settlement)));
@@ -151,9 +158,10 @@ public class SellerPortalServiceImpl implements SellerPortalService {
         resp.setPendingAgreementCount((int) items.stream()
                 .filter(item -> "AGREEMENT".equals(item.getType())).count());
         resp.setAmountScopeNote("本平台累计，不含你在其他渠道的交易");
-        resp.setStationId(stationId);
-        if (stationId != null) {
-            resp.setStationName(TenantUtils.executeIgnore(() -> stationService.getStation(stationId).getName()));
+        // 认不出来的场站编号不回给前端，前端据此清掉本地提示（下次不再拿它去请求）
+        resp.setStationId(matchedStationId);
+        if (station != null) {
+            resp.setStationName(station.getName());
         }
         return resp;
     }

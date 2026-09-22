@@ -567,18 +567,25 @@ function goRealName() {
 
 <style lang="scss" scoped>
 .page {
-  padding: 24rpx 24rpx 60rpx;
+  box-sizing: border-box;
+  min-height: calc(100vh - 44px);
+  padding: 32rpx 32rpx 64rpx;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(58, 149, 255, 0.11), transparent 28%),
+    linear-gradient(180deg, #f7faff 0%, #f4f7fb 100%);
 }
 
 .banner {
-  padding: 24rpx 28rpx;
-  margin-bottom: 20rpx;
-  background-color: #eef4ff;
-  border-radius: 16rpx;
+  padding: 30rpx 30rpx;
+  margin-bottom: 24rpx;
+  background: linear-gradient(135deg, #eaf3ff, #f5f9ff);
+  border: 1rpx solid #d9e9ff;
+  border-radius: 24rpx;
 
   &__title {
-    font-size: 32rpx;
-    font-weight: 700;
+    color: #234f86;
+    font-size: 34rpx;
+    font-weight: 800;
   }
 
   &__desc {
@@ -614,15 +621,17 @@ function goRealName() {
 .steps {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 24rpx;
+  margin: 6rpx -8rpx 28rpx;
+  padding: 0 4rpx;
 
   &__item {
     display: flex;
     flex-direction: column;
     align-items: center;
     flex: 1;
-    color: $seller-text-secondary;
-    font-size: 22rpx;
+    min-width: 0;
+    color: #8a94a4;
+    font-size: 20rpx;
   }
 
   &__no {
@@ -631,9 +640,9 @@ function goRealName() {
     justify-content: center;
     width: 44rpx;
     height: 44rpx;
-    margin-bottom: 6rpx;
+    margin-bottom: 8rpx;
     border-radius: 50%;
-    background-color: #e7eaf0;
+    background-color: #e3e8ef;
     font-size: 24rpx;
   }
 
@@ -653,10 +662,11 @@ function goRealName() {
 }
 
 .resume {
-  padding: 20rpx 24rpx;
-  margin-bottom: 20rpx;
-  background-color: #eef4ff;
-  border-radius: 12rpx;
+  padding: 22rpx 24rpx;
+  margin-bottom: 24rpx;
+  background-color: #eef5ff;
+  border: 1rpx solid #d7e7fc;
+  border-radius: 16rpx;
 
   &__title {
     font-size: 28rpx;
@@ -672,34 +682,42 @@ function goRealName() {
 }
 
 .card {
-  padding: 32rpx;
+  padding: 36rpx 32rpx;
   margin-bottom: 24rpx;
   background-color: #ffffff;
-  border-radius: 16rpx;
+  border: 1rpx solid rgba(22, 119, 255, 0.08);
+  border-radius: 26rpx;
+  box-shadow: 0 16rpx 44rpx rgba(31, 55, 88, 0.07);
 
   &__title {
-    margin-bottom: 20rpx;
-    font-size: 32rpx;
-    font-weight: 600;
+    margin-bottom: 22rpx;
+    color: $seller-text;
+    font-size: 33rpx;
+    font-weight: 800;
   }
 }
 
 .input {
+  box-sizing: border-box;
   width: 100%;
-  height: 80rpx;
-  padding: 0 20rpx;
-  background-color: #f5f6f8;
-  border-radius: 12rpx;
+  height: 96rpx;
+  padding: 0 24rpx;
+  color: $seller-text;
+  background-color: #f7f9fc;
+  border: 2rpx solid #e7ebf2;
+  border-radius: 18rpx;
+  font-size: 29rpx;
 }
 
 .field {
-  margin-bottom: 20rpx;
+  margin-bottom: 26rpx;
 
   &__label {
     display: block;
-    margin-bottom: 8rpx;
-    color: $seller-text-secondary;
+    margin-bottom: 12rpx;
+    color: #344054;
     font-size: 26rpx;
+    font-weight: 600;
   }
 }
 
@@ -707,12 +725,12 @@ function goRealName() {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 300rpx;
-  margin-top: 20rpx;
+  height: 320rpx;
+  margin-top: 24rpx;
   overflow: hidden;
-  background-color: #f5f6f8;
-  border: 1rpx dashed #c8cdd8;
-  border-radius: 12rpx;
+  background: linear-gradient(145deg, #f8fafc, #f1f5fa);
+  border: 3rpx dashed #b9cae0;
+  border-radius: 20rpx;
 
   &__img {
     width: 100%;
@@ -720,7 +738,8 @@ function goRealName() {
   }
 
   &__empty {
-    color: $seller-text-secondary;
+    color: #6c7f97;
+    font-weight: 600;
   }
 
   &__hint {
@@ -742,45 +761,66 @@ function goRealName() {
 
   &__item {
     flex: 1;
-    padding: 16rpx 0;
+    min-height: 88rpx;
+    padding: 0 12rpx;
     text-align: center;
-    background-color: #f5f6f8;
-    border-radius: 12rpx;
+    background-color: #f7f9fc;
+    border: 2rpx solid #e7ebf2;
+    border-radius: 16rpx;
     font-size: 26rpx;
+    line-height: 84rpx;
   }
 
   &__item--active {
-    color: #ffffff;
-    background-color: $seller-primary;
+    color: $seller-primary;
+    background-color: #edf5ff;
+    border-color: #75aaf1;
+    font-weight: 700;
   }
 }
 
 .actions {
   display: flex;
   gap: 16rpx;
-  margin-top: 24rpx;
+  margin-top: 30rpx;
 }
 
 .btn {
+  box-sizing: border-box;
   flex: 1;
+  min-width: 0;
+  height: 94rpx;
+  margin: 0;
+  border-radius: 18rpx;
+  font-size: 27rpx;
+  font-weight: 700;
+  line-height: 94rpx;
 
   &--primary {
     color: #ffffff;
-    background-color: $seller-primary;
+    background: linear-gradient(100deg, $seller-primary 0%, #2d8bff 100%);
+    box-shadow: 0 12rpx 24rpx rgba(22, 119, 255, 0.18);
   }
 
   &--ghost {
     color: $seller-primary;
-    background-color: #ffffff;
-    border: 1rpx solid $seller-primary;
+    background-color: #edf5ff;
+    border: 2rpx solid #d4e7ff;
+  }
+
+  &[disabled] {
+    color: #ffffff;
+    background: #aabed8;
+    box-shadow: none;
   }
 }
 
 .notice {
-  padding: 20rpx 24rpx;
+  padding: 24rpx;
   margin-bottom: 20rpx;
-  background-color: #fff7e6;
-  border-radius: 12rpx;
+  background: linear-gradient(135deg, #fff9ec, #fff4dc);
+  border: 1rpx solid #f2deb4;
+  border-radius: 18rpx;
 
   &__title {
     font-size: 30rpx;
@@ -803,9 +843,9 @@ function goRealName() {
 }
 
 .alerts {
-  padding: 16rpx 20rpx;
+  padding: 20rpx 22rpx;
   margin-top: 20rpx;
-  border-radius: 12rpx;
+  border-radius: 16rpx;
   line-height: 1.6;
   font-size: 24rpx;
 
@@ -828,5 +868,11 @@ function goRealName() {
   font-size: 26rpx;
   background-color: transparent;
   text-align: left;
+}
+
+@media (max-width: 380px) {
+  .steps__name { font-size: 18rpx; }
+  .actions { gap: 10rpx; }
+  .btn { font-size: 25rpx; }
 }
 </style>

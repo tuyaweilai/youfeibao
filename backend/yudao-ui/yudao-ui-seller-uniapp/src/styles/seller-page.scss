@@ -1,0 +1,290 @@
+/**
+ * 登录后四个主页面（首页 / 交易 / 我的 / 发票与税费）共用的版式。
+ *
+ * <p>原先进来的首页把「首页 + 待我确认 + 记录 + 收款 + 发票 + 资料」塞在一页的横向页签里，
+ * 六个页签一屏放不下、只能横向滚动——拆成底部导航（首页 / 交易 / 我的）加一个独立的
+ * 发票页之后，卡片、列表、页签这几套样式就成了四页共用的东西，收在这里免得四份各漂一半。
+ *
+ * <p>`padding-bottom` 要给底部导航让位：H5 的 tabBar 高度由 uni 注入 `--window-bottom`；
+ * 小程序里底部导航是原生渲染的、没有这个变量，取 0。
+ */
+
+/* 配色变量由 `uni.scss` 注入，但 **开发服务器是在启动那一刻把 uni.scss 读进内存的**：
+   改了 uni.scss 而没重启 dev server，这里就会 `Undefined variable`（页面直接白屏报
+   「连接服务器超时，点击屏幕重试」——那是 uni 的动态 import 失败提示，不是网络问题）。
+   所以兜一层 `!default`：uni.scss 里有就用它的，注进来的是旧版就用同一份值。 */
+$seller-primary: #1677ff !default;
+$seller-text: #172033 !default;
+$seller-text-secondary: #667085 !default;
+$seller-success: #16834b !default;
+$seller-warning: #b26a00 !default;
+$seller-danger: #c4322b !default;
+
+.page {
+  box-sizing: border-box;
+  min-height: calc(100vh - 44px - var(--window-bottom, 0px));
+  padding: 28rpx 28rpx calc(48rpx + var(--window-bottom, 0px));
+  background:
+    radial-gradient(circle at 88% 0%, rgba(58, 149, 255, 0.11), transparent 28%),
+    linear-gradient(180deg, #f7faff 0%, #f4f7fb 100%);
+
+  &--empty {
+    padding: 60rpx 32rpx calc(48rpx + var(--window-bottom, 0px));
+    background:
+      radial-gradient(circle at 88% 2%, rgba(58, 149, 255, 0.13), transparent 32%),
+      linear-gradient(180deg, #f7faff 0%, #f4f7fb 62%, #f7f8fa 100%);
+  }
+}
+
+.card {
+  padding: 32rpx;
+  margin-bottom: 24rpx;
+  background-color: #ffffff;
+  border: 1rpx solid rgba(22, 119, 255, 0.08);
+  border-radius: 24rpx;
+  box-shadow: 0 14rpx 40rpx rgba(31, 55, 88, 0.06);
+
+  &__title {
+    margin-bottom: 20rpx;
+    color: $seller-text;
+    font-size: 32rpx;
+    font-weight: 600;
+  }
+}
+
+/* 交易页的三个子页签：三个等宽平分一行，不再横向滚动 */
+.tabs {
+  display: flex;
+  gap: 8rpx;
+  margin-bottom: 20rpx;
+  padding: 8rpx;
+  background-color: #e9eef5;
+  border-radius: 18rpx;
+
+  &__item {
+    flex: 1;
+    padding: 19rpx 8rpx;
+    text-align: center;
+    color: $seller-text-secondary;
+    border-radius: 13rpx;
+    font-size: 25rpx;
+
+    &--active {
+      color: #1f5fae;
+      background-color: #ffffff;
+      box-shadow: 0 4rpx 12rpx rgba(31, 55, 88, 0.08);
+      font-weight: 700;
+    }
+  }
+}
+
+.kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 12rpx 0;
+  color: #344054;
+
+  &__k {
+    color: $seller-text-secondary;
+  }
+}
+
+.group-summary {
+  margin-bottom: 12rpx;
+  color: $seller-text-secondary;
+}
+
+.record {
+  padding: 16rpx 0;
+  border-top: 1rpx solid #eef0f3;
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16rpx;
+  }
+
+  &__cat {
+    font-weight: 600;
+  }
+
+  &__amount {
+    color: $seller-primary;
+    font-weight: 600;
+  }
+
+  &__meta {
+    margin-top: 6rpx;
+    color: $seller-text-secondary;
+    font-size: 26rpx;
+    line-height: 1.6;
+  }
+
+  &__cancel,
+  &__warn {
+    margin-top: 6rpx;
+    color: $seller-warning;
+    font-size: 26rpx;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 20rpx;
+    margin-top: 12rpx;
+  }
+}
+
+.status-line {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6rpx;
+
+  &__label {
+    color: $seller-text-secondary;
+  }
+}
+
+.three-lines {
+  margin-top: 12rpx;
+  padding-top: 12rpx;
+  border-top: 1rpx solid #eef0f3;
+}
+
+.year-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.year {
+  font-weight: 600;
+}
+
+.pending {
+  padding: 20rpx;
+  margin-bottom: 16rpx;
+  border: 1rpx solid #eef0f3;
+  border-radius: 12rpx;
+
+  &--urgent {
+    background-color: #fff5f5;
+    border-color: #ffd6d6;
+  }
+
+  &__top {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  &__type {
+    color: $seller-primary;
+    font-weight: 600;
+  }
+
+  &__status {
+    color: $seller-text-secondary;
+    font-size: 26rpx;
+  }
+
+  &__title {
+    margin-top: 8rpx;
+    font-size: 30rpx;
+    font-weight: 600;
+  }
+
+  &__ent,
+  &__deadline {
+    margin-top: 6rpx;
+    color: $seller-text-secondary;
+    font-size: 26rpx;
+  }
+
+  &__actions {
+    margin-top: 12rpx;
+  }
+}
+
+.pending-count {
+  margin-bottom: 16rpx;
+  color: $seller-warning;
+}
+
+.bank-card,
+.auth {
+  padding: 16rpx 0;
+  border-top: 1rpx solid #eef0f3;
+}
+
+.change-status {
+  margin-top: 6rpx;
+  color: $seller-warning;
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.logout-note {
+  margin-bottom: 16rpx;
+  color: $seller-text-secondary;
+  font-size: 26rpx;
+  line-height: 1.7;
+}
+
+.scope-note {
+  margin-top: 12rpx;
+  color: $seller-text-secondary;
+  font-size: 24rpx;
+  line-height: 1.7;
+}
+
+.muted {
+  color: $seller-text-secondary;
+  line-height: 1.7;
+}
+
+.link {
+  color: $seller-primary;
+
+  &--danger {
+    color: $seller-danger;
+  }
+}
+
+.open {
+  color: $seller-success;
+}
+
+.closed {
+  color: $seller-danger;
+}
+
+.mini-btn {
+  display: inline-block;
+  height: 60rpx;
+  padding: 0 24rpx;
+  color: #ffffff;
+  background-color: $seller-primary;
+  border-radius: 30rpx;
+  font-size: 26rpx;
+  line-height: 60rpx;
+}
+
+.btn {
+  box-sizing: border-box;
+  width: 100%;
+  height: 88rpx;
+  margin-top: 12rpx;
+  color: $seller-primary;
+  background-color: #ffffff;
+  border: 1rpx solid $seller-primary;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  line-height: 88rpx;
+
+  &--danger {
+    color: $seller-danger;
+    border-color: $seller-danger;
+  }
+}

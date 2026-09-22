@@ -144,7 +144,7 @@ public class SellerPortalServiceTest extends BaseDbUnitTest {
         PayeeInfoDO payee = insertPayee(person.getId(), 1L, "PARTNER_A");
         insertSettlement(payee, 101L, SettlementConfirmStatusEnum.PENDING.getStatus());
         insertSettlement(payee, 102L, SettlementConfirmStatusEnum.PENDING.getStatus());
-        when(stationService.getStation(101L)).thenReturn(station(101L, "城东"));
+        when(stationService.getStationOrNull(101L)).thenReturn(station(101L, "城东"));
 
         // 扫城东的码：只看到城东那张待确认（按「该场站 + 该自然人主体」匹配）
         SellerHomeRespVO east = sellerPortalService.getHome(person.getId(), 101L);
@@ -155,6 +155,26 @@ public class SellerPortalServiceTest extends BaseDbUnitTest {
         // 不传场站（令牌链接入口）：两张都能看到
         SellerHomeRespVO all = sellerPortalService.getHome(person.getId(), null);
         assertEquals(2, all.getPendingSettlementCount());
+    }
+
+    /**
+     * 场站编号是客户端带来的提示，可能已过期（场站被删 / 换过库 / 旧链接）。
+     * 过期的编号必须当「没带场站」处理：不报错、不拿它筛、也不回给前端。
+     */
+    @Test
+    public void testHome_expiredStationHintIgnored() {
+        IcbcNaturalPersonDO person = register("110101199001011234", "13800138000");
+        bindLogin(person);
+        PayeeInfoDO payee = insertPayee(person.getId(), 1L, "PARTNER_A");
+        insertSettlement(payee, 101L, SettlementConfirmStatusEnum.PENDING.getStatus());
+        when(stationService.getStationOrNull(999L)).thenReturn(null);
+
+        SellerHomeRespVO resp = sellerPortalService.getHome(person.getId(), 999L);
+
+        // 没报异常（曾经是 500 系统异常），且不因为一个不存在的场站把待办筛空
+        assertEquals(1, resp.getPendingSettlementCount());
+        assertNull(resp.getStationId());
+        assertNull(resp.getStationName());
     }
 
     @Test

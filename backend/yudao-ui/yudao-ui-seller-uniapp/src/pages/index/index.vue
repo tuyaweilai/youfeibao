@@ -191,6 +191,7 @@ import { setTenantId } from '@/config/env'
 import { REAL_NAME_STATUS } from '@/api/seller'
 import { downloadInvoicePdf } from '@/utils/download'
 import { openExternalUrl } from '@/utils/external'
+import { goSellerHome } from '@/utils/nav'
 
 defineOptions({ name: 'SellerIndex' })
 
@@ -275,7 +276,7 @@ onLoad(() => {
   }
   // 没有一次性令牌：这是自然人端正式入口，按登录态路由
   if (getToken() && getSubject()) {
-    uni.redirectTo({ url: '/pages/home/index' })
+    goSellerHome()
   } else {
     uni.redirectTo({ url: '/pages/login/index' })
   }
@@ -455,29 +456,37 @@ async function onSubmitContact() {
 
 <style lang="scss" scoped>
 .page {
-  padding: 24rpx 24rpx 60rpx;
+  box-sizing: border-box;
+  min-height: calc(100vh - 44px);
+  padding: 32rpx 32rpx 64rpx;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(58, 149, 255, 0.11), transparent 28%),
+    linear-gradient(180deg, #f7faff 0%, #f4f7fb 100%);
 }
 
 .card {
-  padding: 32rpx;
+  padding: 36rpx 32rpx;
   margin-bottom: 24rpx;
   background-color: #ffffff;
-  border-radius: 16rpx;
+  border: 1rpx solid rgba(22, 119, 255, 0.08);
+  border-radius: 26rpx;
+  box-shadow: 0 16rpx 44rpx rgba(31, 55, 88, 0.07);
 
   &__title {
-    margin-bottom: 20rpx;
-    font-size: 32rpx;
-    font-weight: 600;
+    margin-bottom: 22rpx;
+    color: $seller-text;
+    font-size: 34rpx;
+    font-weight: 800;
   }
 }
 
 .empty {
-  margin-top: 160rpx;
+  margin-top: 110rpx;
   text-align: center;
 
   &__title {
     font-size: 36rpx;
-    font-weight: 700;
+    font-weight: 800;
   }
 
   &__desc {
@@ -489,29 +498,36 @@ async function onSubmitContact() {
 
 .tabs {
   display: flex;
-  margin-bottom: 20rpx;
-  background-color: #ffffff;
-  border-radius: 16rpx;
-  overflow: hidden;
+  gap: 8rpx;
+  margin-bottom: 24rpx;
+  padding: 8rpx;
+  overflow-x: auto;
+  background-color: #e9eef5;
+  border-radius: 18rpx;
 
   &__item {
-    flex: 1;
-    padding: 24rpx 0;
+    flex: 1 0 auto;
+    min-width: 128rpx;
+    padding: 20rpx 18rpx;
     text-align: center;
     color: $seller-text-secondary;
+    border-radius: 13rpx;
+    font-size: 25rpx;
 
     &--active {
-      color: $seller-primary;
-      font-weight: 600;
-      border-bottom: 4rpx solid $seller-primary;
+      color: #1f5fae;
+      background-color: #ffffff;
+      box-shadow: 0 4rpx 12rpx rgba(31, 55, 88, 0.08);
+      font-weight: 700;
     }
   }
 }
 
 .quota {
   &__name {
-    font-size: 34rpx;
-    font-weight: 700;
+    color: $seller-text;
+    font-size: 36rpx;
+    font-weight: 800;
   }
 
   &__id {
@@ -522,10 +538,12 @@ async function onSubmitContact() {
   }
 
   &__remaining {
-    margin-top: 12rpx;
-    font-size: 40rpx;
-    font-weight: 700;
-    color: $seller-primary;
+    margin: 20rpx -32rpx 18rpx;
+    padding: 28rpx 32rpx;
+    color: #ffffff;
+    background: linear-gradient(115deg, #1677ff 0%, #3b91ff 100%);
+    font-size: 44rpx;
+    font-weight: 800;
   }
 
   &__message {
@@ -535,8 +553,8 @@ async function onSubmitContact() {
   }
 
   &__exempt {
-    margin-top: 16rpx;
-    padding: 16rpx 20rpx;
+    margin-top: 20rpx;
+    padding: 20rpx 22rpx;
     background-color: #e8f7ee;
     color: #1a7f43;
     border-radius: 12rpx;
@@ -552,8 +570,9 @@ async function onSubmitContact() {
 .kv {
   display: flex;
   justify-content: space-between;
-  padding: 8rpx 0;
+  padding: 12rpx 0;
   gap: 24rpx;
+  color: #344054;
 
   &__k {
     color: $seller-text-secondary;
@@ -575,33 +594,48 @@ async function onSubmitContact() {
 }
 
 .field {
+  margin-bottom: 26rpx;
+
   &__label {
     display: block;
-    margin-bottom: 8rpx;
-    color: $seller-text-secondary;
+    margin-bottom: 12rpx;
+    color: #344054;
     font-size: 26rpx;
+    font-weight: 600;
   }
 }
 
 .input {
-  height: 80rpx;
-  padding: 0 20rpx;
-  margin-bottom: 20rpx;
-  background-color: #f5f6f8;
-  border-radius: 12rpx;
+  box-sizing: border-box;
+  width: 100%;
+  height: 96rpx;
+  padding: 0 24rpx;
+  color: $seller-text;
+  background-color: #f7f9fc;
+  border: 2rpx solid #e7ebf2;
+  border-radius: 18rpx;
+  font-size: 29rpx;
 }
 
 .btn {
+  box-sizing: border-box;
   width: 100%;
-  margin-top: 8rpx;
+  height: 94rpx;
+  margin-top: 16rpx;
   color: #ffffff;
-  background-color: $seller-primary;
+  background: linear-gradient(100deg, $seller-primary 0%, #2d8bff 100%);
+  border-radius: 18rpx;
+  box-shadow: 0 12rpx 24rpx rgba(22, 119, 255, 0.18);
+  font-size: 29rpx;
+  font-weight: 700;
+  line-height: 94rpx;
 }
 
 .btn--ghost {
   color: $seller-primary;
-  background-color: #ffffff;
-  border: 1rpx solid $seller-primary;
+  background: #edf5ff;
+  border: 2rpx solid #d4e7ff;
+  box-shadow: none;
 }
 
 .webview {
@@ -612,7 +646,7 @@ async function onSubmitContact() {
 .tip {
   margin-bottom: 20rpx;
   color: $seller-text-secondary;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 .loading,
@@ -632,7 +666,7 @@ async function onSubmitContact() {
 }
 
 .notice-item {
-  padding: 20rpx 0;
+  padding: 24rpx 0;
   border-top: 1rpx solid #eef0f3;
 
   &__top {
@@ -674,9 +708,10 @@ async function onSubmitContact() {
 
 .wechat-guide {
   margin-top: 16rpx;
-  padding: 20rpx 24rpx;
-  background-color: #fff7e6;
-  border-radius: 12rpx;
+  padding: 24rpx;
+  background: linear-gradient(135deg, #fff9ec, #fff4dc);
+  border: 1rpx solid #f2deb4;
+  border-radius: 18rpx;
 
   &__title {
     font-weight: 600;
@@ -707,8 +742,9 @@ async function onSubmitContact() {
 .sign-block {
   margin-top: 16rpx;
   padding: 24rpx;
-  background-color: #fff7e6;
-  border-radius: 12rpx;
+  background: linear-gradient(135deg, #fff9ec, #fff4dc);
+  border: 1rpx solid #f2deb4;
+  border-radius: 18rpx;
 
   &__title {
     font-weight: 600;
@@ -725,8 +761,8 @@ async function onSubmitContact() {
 
 .face-return {
   margin-top: 16rpx;
-  padding: 20rpx 24rpx;
-  border-radius: 12rpx;
+  padding: 22rpx 24rpx;
+  border-radius: 16rpx;
   line-height: 1.6;
 
   &--ok {

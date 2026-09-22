@@ -77,6 +77,7 @@ import { onUnmounted, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { bindByLoginMobile, sendSmsCode, smsLogin, SellerSubject } from '@/api/seller'
 import { useSellerAuthStore } from '@/store/auth'
+import { rememberStationId, switchSellerTab } from '@/utils/nav'
 
 defineOptions({ name: 'SellerLogin' })
 
@@ -84,18 +85,22 @@ const auth = useSellerAuthStore()
 const mobile = ref('')
 const code = ref('')
 const stationCode = ref('')
-const stationId = ref('')
 const error = ref('')
 const submitting = ref(false)
 const counting = ref(0)
 let timer: ReturnType<typeof setInterval> | null = null
 
+/** 登录后的落点固定在首页 tab：场站编号由上一页存进本地（底部导航换页带不了 query） */
+function goHomeTab() {
+  switchSellerTab('/pages/home/index')
+}
+
 onLoad((query) => {
   stationCode.value = (query?.station as string) || ''
-  stationId.value = (query?.stationId as string) || ''
+  rememberStationId((query?.stationId as string) || '')
   // 已登录直接进首页
   if (auth.token && auth.subject) {
-    uni.redirectTo({ url: `/pages/home/index?stationId=${stationId.value}` })
+    goHomeTab()
   }
 })
 
@@ -147,7 +152,7 @@ async function onLogin() {
     if (subjects.length === 0) {
       // 没有匹配到任何身份：只留登录凭证，进首页给明确空态，不造假列表
       auth.signIn(resp.accessToken, null)
-      uni.redirectTo({ url: `/pages/home/index?empty=1&stationId=${stationId.value}` })
+      goHomeTab()
       return
     }
     const first = subjects[0]
@@ -158,7 +163,7 @@ async function onLogin() {
       idCardNo: first.idCardNo,
       realNameStatusName: first.realNameStatusName
     })
-    uni.redirectTo({ url: `/pages/home/index?stationId=${stationId.value}` })
+    goHomeTab()
   } catch (e) {
     error.value = (e as Error).message
   } finally {

@@ -3,7 +3,7 @@
     {
       "path": "pages/index/index",
       "style": {
-        "navigationBarTitleText": "我的发票与额度"
+        "navigationBarTitleText": "业务办理"
       }
     },
     {
@@ -15,7 +15,7 @@
     {
       "path": "pages/station/index",
       "style": {
-        "navigationBarTitleText": "场站"
+        "navigationBarTitleText": "场站信息"
       }
     },
     {
@@ -27,7 +27,25 @@
     {
       "path": "pages/home/index",
       "style": {
+        "navigationBarTitleText": "首页"
+      }
+    },
+    {
+      "path": "pages/transaction/index",
+      "style": {
+        "navigationBarTitleText": "交易"
+      }
+    },
+    {
+      "path": "pages/my/index",
+      "style": {
         "navigationBarTitleText": "我的"
+      }
+    },
+    {
+      "path": "pages/invoice/index",
+      "style": {
+        "navigationBarTitleText": "发票与税费"
       }
     },
     {
@@ -45,16 +63,42 @@
     {
       "path": "pages/bankCard/index",
       "style": {
-        "navigationBarTitleText": "变更收款账户"
+        "navigationBarTitleText": "收款账户变更"
       }
     },
     {
       "path": "pages/webview/index",
       "style": {
-        "navigationBarTitleText": "签署"
+        "navigationBarTitleText": "安全签署"
       }
     }
   ],
+  "tabBar": {
+    "color": "#98a2b3",
+    "selectedColor": "#1677ff",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页",
+        "iconPath": "static/tabbar/home.png",
+        "selectedIconPath": "static/tabbar/home-active.png"
+      },
+      {
+        "pagePath": "pages/transaction/index",
+        "text": "交易",
+        "iconPath": "static/tabbar/transaction.png",
+        "selectedIconPath": "static/tabbar/transaction-active.png"
+      },
+      {
+        "pagePath": "pages/my/index",
+        "text": "我的",
+        "iconPath": "static/tabbar/my.png",
+        "selectedIconPath": "static/tabbar/my-active.png"
+      }
+    ]
+  },
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "我的",

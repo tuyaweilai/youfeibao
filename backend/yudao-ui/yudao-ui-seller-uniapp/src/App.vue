@@ -12,8 +12,22 @@ onLaunch(() => {
 
 <style lang="scss">
 page {
-  background-color: #f5f6f8;
-  color: #1f2329;
+  background-color: #f4f7fb;
+  color: #172033;
   font-size: 28rpx;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  cursor: pointer;
+}
+
+button::after {
+  border: 0;
+}
+
+button[disabled] {
+  cursor: not-allowed;
 }
 </style>

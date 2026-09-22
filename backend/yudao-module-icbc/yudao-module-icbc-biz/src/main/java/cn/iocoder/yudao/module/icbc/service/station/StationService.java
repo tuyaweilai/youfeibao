@@ -27,6 +27,17 @@ public interface StationService {
 
     IcbcStationDO getStation(Long id);
 
+    /**
+     * 按编号查场站，**查不到返回 null**（不抛异常）。
+     *
+     * <p>用在「场站编号是客户端带来的提示」的场景（自然人端扫场站码进屋）：提示可能已过期
+     * （场站被删、换过库、旧链接），过期提示不该让整个接口失败，调用方按「没带场站」处理即可。
+     *
+     * @param id 场站编号，可为 null
+     * @return 场站，不存在时为 null
+     */
+    IcbcStationDO getStationOrNull(Long id);
+
     PageResult<IcbcStationDO> getStationPage(StationPageReqVO pageReqVO);
 
     /**

@@ -1,21 +1,24 @@
 <template>
   <view class="page">
-    <view v-if="loading" class="card muted">加载中…</view>
-    <view v-else-if="error" class="card error">{{ error }}</view>
+    <view v-if="loading" class="card muted state-card">正在加载结算信息…</view>
+    <view v-else-if="error" class="card error state-card">{{ error }}</view>
 
     <template v-else-if="settlement">
-      <view class="card">
+      <view class="card summary-card">
         <view class="head">
           <text class="head__no">{{ settlement.settlementNo }}</text>
-          <text :class="confirmed ? 'open' : 'closed'">{{ settlement.confirmStatusName }}</text>
+          <text class="head__status" :class="confirmed ? 'head__status--open' : 'head__status--pending'">
+            {{ settlement.confirmStatusName }}
+          </text>
+        </view>
+        <view class="summary-total">
+          <view class="summary-total__label">本次结算金额</view>
+          <view class="summary-total__amount"><text>¥</text>{{ settlement.totalAmount ?? 0 }}</view>
+          <view class="summary-total__weight">结算重量 {{ settlement.totalSettlementWeight ?? 0 }}</view>
         </view>
         <view class="kv"><text class="kv__k">出售者</text><text>{{ settlement.sellerName }}</text></view>
         <view class="kv"><text class="kv__k">生成时间</text><text>{{ formatTime(settlement.generateTime) }}</text></view>
         <view class="kv"><text class="kv__k">版本号</text><text>{{ settlement.currentVersionNo }}</text></view>
-        <view class="kv">
-          <text class="kv__k">合计结算重量</text><text>{{ settlement.totalSettlementWeight ?? 0 }}</text>
-        </view>
-        <view class="kv"><text class="kv__k">合计金额</text><text>{{ settlement.totalAmount ?? 0 }} 元</text></view>
         <view v-if="settlement.deadlineTime" class="deadline">确认截止 {{ formatTime(settlement.deadlineTime) }}</view>
       </view>
 
@@ -304,30 +307,101 @@ function formatTime(time?: string) {
 
 <style lang="scss" scoped>
 .page {
-  padding: 24rpx;
+  box-sizing: border-box;
+  min-height: calc(100vh - 44px);
+  padding: 32rpx 32rpx 64rpx;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(58, 149, 255, 0.11), transparent 28%),
+    linear-gradient(180deg, #f7faff 0%, #f4f7fb 100%);
 }
 
 .card {
-  padding: 32rpx;
+  padding: 34rpx 32rpx;
   margin-bottom: 24rpx;
   background-color: #ffffff;
-  border-radius: 16rpx;
+  border: 1rpx solid rgba(22, 119, 255, 0.08);
+  border-radius: 26rpx;
+  box-shadow: 0 16rpx 44rpx rgba(31, 55, 88, 0.07);
 
   &__title {
-    margin-bottom: 20rpx;
+    margin-bottom: 22rpx;
+    color: $seller-text;
     font-size: 32rpx;
-    font-weight: 600;
+    font-weight: 800;
   }
+}
+
+.summary-card {
+  overflow: hidden;
+  border: 0;
 }
 
 .head {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 16rpx;
+  gap: 18rpx;
+  margin-bottom: 24rpx;
 
   &__no {
-    font-size: 34rpx;
+    min-width: 0;
+    color: #566174;
+    font-size: 25rpx;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  &__status {
+    flex-shrink: 0;
+    padding: 8rpx 16rpx;
+    border-radius: 999rpx;
+    font-size: 23rpx;
     font-weight: 700;
+
+    &--open {
+      color: #16734a;
+      background-color: #eaf7f0;
+    }
+
+    &--pending {
+      color: #a05f00;
+      background-color: #fff4df;
+    }
+  }
+}
+
+.summary-total {
+  margin: 0 -32rpx 26rpx;
+  padding: 30rpx 32rpx;
+  color: #ffffff;
+  background: linear-gradient(115deg, #1677ff 0%, #3b91ff 100%);
+
+  &__label {
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 23rpx;
+  }
+
+  &__amount {
+    margin-top: 6rpx;
+    font-size: 54rpx;
+    font-weight: 800;
+    letter-spacing: -1rpx;
+
+    text {
+      margin-right: 8rpx;
+      font-size: 28rpx;
+      font-weight: 600;
+    }
+  }
+
+  &__weight {
+    display: inline-block;
+    margin-top: 10rpx;
+    padding: 7rpx 13rpx;
+    color: rgba(255, 255, 255, 0.9);
+    background-color: rgba(255, 255, 255, 0.14);
+    border-radius: 10rpx;
+    font-size: 23rpx;
   }
 }
 
@@ -335,7 +409,8 @@ function formatTime(time?: string) {
   display: flex;
   justify-content: space-between;
   gap: 24rpx;
-  padding: 8rpx 0;
+  padding: 11rpx 0;
+  color: #344054;
 
   &__k {
     color: $seller-text-secondary;
@@ -343,12 +418,18 @@ function formatTime(time?: string) {
 }
 
 .deadline {
-  margin-top: 12rpx;
-  color: #b26a00;
+  margin-top: 16rpx;
+  padding: 16rpx 18rpx;
+  color: #9a5d00;
+  background-color: #fff6e6;
+  border-radius: 12rpx;
+  font-size: 25rpx;
 }
 
 .reply {
-  background-color: #fff7e6;
+  background-color: #fff8ea;
+  border-color: #f4dfb5;
+  box-shadow: none;
 
   &__line {
     line-height: 1.7;
@@ -361,12 +442,14 @@ function formatTime(time?: string) {
 }
 
 .realname {
-  background-color: #fff7e6;
+  background: linear-gradient(135deg, #fff9ec, #fff5df);
   border: 1rpx solid #f0d9a8;
+  box-shadow: none;
 
   &__title {
-    font-weight: 600;
-    color: #b26a00;
+    color: #8e5600;
+    font-size: 29rpx;
+    font-weight: 800;
   }
 
   &__desc {
@@ -386,7 +469,7 @@ function formatTime(time?: string) {
 }
 
 .invoice {
-  padding: 20rpx 0;
+  padding: 24rpx 0;
   border-bottom: 1px solid #f0f3f1;
 
   &:last-child {
@@ -447,7 +530,7 @@ function formatTime(time?: string) {
 }
 
 .line {
-  padding: 16rpx 0;
+  padding: 22rpx 0;
   border-top: 1rpx solid #eef0f3;
 
   &__row {
@@ -456,7 +539,9 @@ function formatTime(time?: string) {
   }
 
   &__cat {
-    font-weight: 600;
+    color: #344054;
+    font-size: 29rpx;
+    font-weight: 700;
   }
 
   &__amount {
@@ -467,7 +552,8 @@ function formatTime(time?: string) {
   &__meta {
     margin-top: 6rpx;
     color: $seller-text-secondary;
-    font-size: 26rpx;
+    font-size: 24rpx;
+    line-height: 1.65;
   }
 
   &__warn {
@@ -488,7 +574,10 @@ function formatTime(time?: string) {
   display: flex;
   align-items: flex-start;
   gap: 12rpx;
-  margin-bottom: 20rpx;
+  margin-bottom: 22rpx;
+  padding: 20rpx;
+  background-color: #f7f9fc;
+  border-radius: 16rpx;
 
   &__text {
     line-height: 1.6;
@@ -496,18 +585,31 @@ function formatTime(time?: string) {
 }
 
 .btn {
+  box-sizing: border-box;
   width: 100%;
-  margin-top: 8rpx;
+  height: 94rpx;
+  margin-top: 14rpx;
+  border-radius: 18rpx;
+  font-size: 29rpx;
+  font-weight: 700;
+  line-height: 94rpx;
 
   &--primary {
     color: #ffffff;
-    background-color: $seller-primary;
+    background: linear-gradient(100deg, $seller-primary 0%, #2d8bff 100%);
+    box-shadow: 0 12rpx 24rpx rgba(22, 119, 255, 0.18);
   }
 
   &--ghost {
     color: $seller-primary;
-    background-color: #ffffff;
-    border: 1rpx solid $seller-primary;
+    background-color: #edf5ff;
+    border: 2rpx solid #d4e7ff;
+  }
+
+  &[disabled] {
+    color: #ffffff;
+    background: #aabed8;
+    box-shadow: none;
   }
 }
 
@@ -532,6 +634,13 @@ function formatTime(time?: string) {
 }
 
 .error {
-  color: #cf1322;
+  color: #c4322b;
+}
+
+.state-card {
+  margin-top: 70rpx;
+  padding: 44rpx 32rpx;
+  line-height: 1.65;
+  text-align: center;
 }
 </style>
