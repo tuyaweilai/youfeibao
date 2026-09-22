@@ -517,8 +517,8 @@
         </el-timeline-item>
       </el-timeline>
 
-      <h4 class="section">运输轨迹（模拟演示）</h4>
-      <TransportTrackDemo v-if="detail.id" :task-id="detail.id" />
+      <h4 class="section">运输轨迹</h4>
+      <TransportTrackDemo />
     </div>
   </el-drawer>
 </template>
