@@ -58,9 +58,10 @@ const remainingRouter: AppRouteRecordRaw[] = [
     meta: {},
     children: [
       {
+        // 首页是流程导航页（票 #114）。组件名与路由 name 必须一致，tagsView 的 keep-alive 靠它匹配
         path: 'index',
-        component: () => import('@/views/Home/Index.vue'),
-        name: 'Index',
+        component: () => import('@/views/icbc/home/index.vue'),
+        name: 'IcbcHome',
         meta: {
           title: t('router.home'),
           icon: 'ep:home-filled',
