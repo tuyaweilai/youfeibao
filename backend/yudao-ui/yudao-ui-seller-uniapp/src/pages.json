@@ -21,7 +21,7 @@
     {
       "path": "pages/login/index",
       "style": {
-        "navigationBarTitleText": "手机号验证"
+        "navigationBarTitleText": "登录"
       }
     },
     {

@@ -1,31 +1,74 @@
 <template>
   <view class="page">
-    <view class="card">
-      <view class="title">手机号验证</view>
-      <view class="tip">验证只用来确认你是这车货的出售者本人。注册就发生在「确认结算」这一步。</view>
+    <view class="hero">
+      <view class="brand-mark" aria-hidden="true">
+        <view class="brand-mark__drop"></view>
+        <view class="brand-mark__check"></view>
+      </view>
+      <view class="hero__eyebrow">自然人出售者服务</view>
+      <view class="title">验证手机号</view>
+      <view class="tip">登录后查看与你相关的结算、签署和开票进度</view>
+    </view>
 
+    <view class="card form-card">
       <view class="field">
         <text class="field__label">手机号</text>
-        <input v-model="mobile" class="input" type="number" maxlength="11" placeholder="用于接收验证码的手机号" />
+        <view class="input-shell">
+          <text class="input-prefix">+86</text>
+          <view class="input-divider"></view>
+          <input
+            v-model="mobile"
+            class="input"
+            type="number"
+            maxlength="11"
+            placeholder="请输入手机号"
+            placeholder-class="input-placeholder"
+          />
+        </view>
       </view>
       <view class="field">
         <text class="field__label">验证码</text>
         <view class="code-row">
-          <input v-model="code" class="input input--code" type="number" maxlength="6" placeholder="6 位验证码" />
-          <button class="code-btn" :disabled="counting > 0" @click="onSendCode">
-            {{ counting > 0 ? `${counting}s` : '获取验证码' }}
+          <view class="input-shell input-shell--code">
+            <input
+              v-model="code"
+              class="input"
+              type="number"
+              maxlength="6"
+              placeholder="请输入 6 位验证码"
+              placeholder-class="input-placeholder"
+            />
+          </view>
+          <button class="code-btn" :disabled="counting > 0 || submitting" @click="onSendCode">
+            {{ counting > 0 ? `${counting} 秒` : '获取验证码' }}
           </button>
         </view>
       </view>
 
-      <button class="btn btn--primary" :loading="submitting" @click="onLogin">登录并查看</button>
-      <view v-if="error" class="error">{{ error }}</view>
+      <view v-if="error" class="error" role="alert">
+        <view class="error__dot"></view>
+        <text>{{ error }}</text>
+      </view>
+
+      <button class="btn btn--primary" :loading="submitting" :disabled="submitting" @click="onLogin">
+        验证并登录
+      </button>
+      <view class="form-hint">未注册的手机号验证后将自动创建账号</view>
     </view>
 
-    <view class="card note">
-      <view class="note__line">同一手机号只对应一个登录凭证，不会跟着哪一家回收企业重复建。</view>
-      <view class="note__line">注销账号不等于删除交易记录。</view>
+    <view class="trust-row">
+      <view class="trust-item">
+        <view class="trust-item__icon trust-item__icon--phone"></view>
+        <text>仅用于身份验证</text>
+      </view>
+      <view class="trust-divider"></view>
+      <view class="trust-item">
+        <view class="trust-item__icon trust-item__icon--lock"></view>
+        <text>信息安全保护</text>
+      </view>
     </view>
+
+    <view class="legal-note">同一手机号对应唯一登录凭证，不会因回收企业不同重复建号</view>
   </view>
 </template>
 
@@ -126,91 +169,311 @@ async function onLogin() {
 
 <style lang="scss" scoped>
 .page {
-  padding: 24rpx;
+  box-sizing: border-box;
+  min-height: calc(100vh - 44px);
+  padding: 56rpx 32rpx 48rpx;
+  color: #172033;
+  background:
+    radial-gradient(circle at 88% 4%, rgba(58, 149, 255, 0.12), transparent 34%),
+    linear-gradient(180deg, #f7faff 0%, #f4f7fb 56%, #f7f8fa 100%);
 }
 
-.card {
-  padding: 32rpx;
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8rpx 20rpx 44rpx;
+  text-align: center;
+}
+
+.brand-mark {
+  position: relative;
+  width: 104rpx;
+  height: 104rpx;
   margin-bottom: 24rpx;
-  background-color: #ffffff;
-  border-radius: 16rpx;
+  background: linear-gradient(145deg, #2e8cff, #1264e7);
+  border: 8rpx solid rgba(255, 255, 255, 0.9);
+  border-radius: 32rpx;
+  box-shadow: 0 18rpx 44rpx rgba(22, 119, 255, 0.22);
+
+  &__drop {
+    position: absolute;
+    top: 23rpx;
+    left: 33rpx;
+    width: 34rpx;
+    height: 46rpx;
+    border: 5rpx solid #ffffff;
+    border-radius: 60% 40% 58% 42% / 66% 46% 54% 34%;
+    transform: rotate(45deg);
+  }
+
+  &__check {
+    position: absolute;
+    right: 24rpx;
+    bottom: 26rpx;
+    width: 28rpx;
+    height: 13rpx;
+    border-bottom: 5rpx solid #ffffff;
+    border-left: 5rpx solid #ffffff;
+    transform: rotate(-45deg);
+  }
+}
+
+.hero__eyebrow {
+  margin-bottom: 10rpx;
+  color: #3077df;
+  font-size: 24rpx;
+  font-weight: 600;
+  letter-spacing: 4rpx;
 }
 
 .title {
-  font-size: 36rpx;
-  font-weight: 700;
+  font-size: 48rpx;
+  font-weight: 800;
+  letter-spacing: 1rpx;
 }
 
 .tip {
-  margin: 12rpx 0 24rpx;
-  color: $seller-text-secondary;
-  line-height: 1.7;
+  margin-top: 16rpx;
+  color: #667085;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+
+.card {
+  background-color: #ffffff;
+  border: 1rpx solid rgba(22, 119, 255, 0.08);
+  border-radius: 28rpx;
+  box-shadow: 0 18rpx 54rpx rgba(31, 55, 88, 0.08);
+}
+
+.form-card {
+  padding: 40rpx 32rpx 34rpx;
 }
 
 .field {
+  margin-bottom: 28rpx;
+
   &__label {
     display: block;
-    margin-bottom: 8rpx;
-    color: $seller-text-secondary;
+    margin-bottom: 14rpx;
+    color: #344054;
     font-size: 26rpx;
+    font-weight: 600;
   }
 }
 
-.input {
-  height: 84rpx;
-  padding: 0 20rpx;
-  background-color: #f5f6f8;
-  border-radius: 12rpx;
+.input-shell {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 96rpx;
+  padding: 0 24rpx;
+  background-color: #f7f9fc;
+  border: 2rpx solid #e7ebf2;
+  border-radius: 18rpx;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+
+  &:focus-within {
+    background-color: #ffffff;
+    border-color: #4b91f7;
+    box-shadow: 0 0 0 6rpx rgba(22, 119, 255, 0.09);
+  }
 
   &--code {
     flex: 1;
+    min-width: 0;
   }
+}
+
+.input-prefix {
+  flex-shrink: 0;
+  color: #172033;
+  font-size: 29rpx;
+  font-weight: 600;
+}
+
+.input-divider {
+  width: 1rpx;
+  height: 34rpx;
+  margin: 0 22rpx;
+  background-color: #d7dce5;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 92rpx;
+  color: #172033;
+  font-size: 30rpx;
+}
+
+.input-placeholder {
+  color: #a6adba;
 }
 
 .code-row {
   display: flex;
-  gap: 16rpx;
-  margin-bottom: 20rpx;
+  gap: 18rpx;
 }
 
 .code-btn {
-  width: 220rpx;
-  height: 84rpx;
-  line-height: 84rpx;
-  color: $seller-primary;
-  background-color: #ffffff;
-  border: 1rpx solid $seller-primary;
-  border-radius: 12rpx;
+  flex-shrink: 0;
+  width: 218rpx;
+  height: 96rpx;
+  margin: 0;
+  padding: 0;
+  color: #166fe5;
+  background-color: #edf5ff;
+  border: 2rpx solid #d4e7ff;
+  border-radius: 18rpx;
   font-size: 26rpx;
-}
+  font-weight: 600;
+  line-height: 94rpx;
+  transition: background-color 0.2s ease, opacity 0.2s ease;
 
-.field + .field .input {
-  margin-bottom: 20rpx;
+  &::after {
+    border: 0;
+  }
+
+  &[disabled] {
+    color: #98a2b3;
+    background-color: #f2f4f7;
+    border-color: #e4e7ec;
+    opacity: 1;
+  }
 }
 
 .btn {
+  box-sizing: border-box;
   width: 100%;
+  height: 96rpx;
+  margin: 8rpx 0 0;
   color: #ffffff;
-  background-color: $seller-primary;
+  border-radius: 18rpx;
+  font-size: 31rpx;
+  font-weight: 700;
+  line-height: 96rpx;
 
   &--primary {
-    margin-top: 8rpx;
+    background: linear-gradient(100deg, #1677ff 0%, #2d8bff 100%);
+    box-shadow: 0 14rpx 28rpx rgba(22, 119, 255, 0.2);
+  }
+
+  &::after {
+    border: 0;
+  }
+
+  &[disabled] {
+    color: rgba(255, 255, 255, 0.78);
+    opacity: 0.72;
   }
 }
 
-.note {
-  background-color: #f7f8fa;
+.form-hint {
+  margin-top: 24rpx;
+  color: #98a2b3;
+  font-size: 24rpx;
+  line-height: 1.5;
+  text-align: center;
+}
 
-  &__line {
-    color: $seller-text-secondary;
-    font-size: 26rpx;
-    line-height: 1.8;
+.trust-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 34rpx;
+  color: #667085;
+  font-size: 24rpx;
+}
+
+.trust-item {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+
+  &__icon {
+    position: relative;
+    box-sizing: border-box;
+    width: 26rpx;
+    height: 30rpx;
+    border: 3rpx solid #6096dd;
+
+    &--phone {
+      border-radius: 5rpx;
+
+      &::after {
+        position: absolute;
+        bottom: 2rpx;
+        left: 7rpx;
+        width: 6rpx;
+        height: 2rpx;
+        background-color: #6096dd;
+        border-radius: 2rpx;
+        content: '';
+      }
+    }
+
+    &--lock {
+      height: 22rpx;
+      margin-top: 8rpx;
+      border-radius: 5rpx;
+
+      &::before {
+        position: absolute;
+        top: -16rpx;
+        left: 4rpx;
+        box-sizing: border-box;
+        width: 12rpx;
+        height: 16rpx;
+        border: 3rpx solid #6096dd;
+        border-bottom: 0;
+        border-radius: 8rpx 8rpx 0 0;
+        content: '';
+      }
+    }
   }
+}
+
+.trust-divider {
+  width: 1rpx;
+  height: 24rpx;
+  margin: 0 24rpx;
+  background-color: #d0d5dd;
+}
+
+.legal-note {
+  margin: 26rpx auto 0;
+  color: #98a2b3;
+  font-size: 22rpx;
+  line-height: 1.6;
+  text-align: center;
 }
 
 .error {
-  margin-top: 16rpx;
-  color: #cf1322;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin: -8rpx 0 20rpx;
+  padding: 18rpx 20rpx;
+  color: #b42318;
+  background-color: #fff3f1;
+  border-radius: 14rpx;
+  font-size: 25rpx;
+
+  &__dot {
+    flex-shrink: 0;
+    width: 10rpx;
+    height: 10rpx;
+    background-color: #d92d20;
+    border-radius: 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input-shell,
+  .code-btn {
+    transition: none;
+  }
 }
 </style>

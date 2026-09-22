@@ -1,5 +1,9 @@
 <template>
   <view class="page">
+    <view class="wizard-heading">
+      <view><view class="wizard-heading__eyebrow">自然人建档</view><view class="wizard-heading__title">{{ STEP_NAMES[draft.step - 1] }}</view></view>
+      <view class="wizard-heading__count"><text>{{ draft.step }}</text> / 5</view>
+    </view>
     <!-- 五步的进度条自己画：分步状态只在本页 / 本地草稿里，不落后端 -->
     <view class="steps">
       <view
@@ -8,7 +12,7 @@
         class="steps__item"
         :class="{ 'steps__item--active': draft.step === index + 1, 'steps__item--done': draft.step > index + 1 }"
       >
-        <text class="steps__no">{{ index + 1 }}</text>
+        <text class="steps__no">{{ draft.step > index + 1 ? '✓' : index + 1 }}</text>
         <text class="steps__name">{{ name }}</text>
       </view>
     </view>
@@ -21,13 +25,18 @@
 
     <!-- 第 1 步：拍身份证（正反面） -->
     <view v-if="draft.step === 1" class="card">
-      <view class="card__title">1. 拍身份证（正反面）</view>
-      <view class="tip">识别不出也能继续：下一步手工录入就行。照片只用于识别，平台不留存。</view>
+      <view class="card__title">上传身份证照片</view>
+      <view class="tip">请拍摄清晰、完整的证件。识别失败时，可在下一步手动填写。照片只用于识别，平台不留存。</view>
 
-      <view class="shot" @click="shootIdFront">
+      <button class="shot" :disabled="recognizing" aria-label="拍摄人像面" @click="shootIdFront">
         <image v-if="draft.idFrontImage" class="shot__img" :src="draft.idFrontImage" mode="aspectFit" />
-        <view v-else class="shot__empty">拍人像面（带姓名与住址）</view>
-      </view>
+        <view v-else class="shot__empty">
+          <image class="shot__illustration" :src="documentArt.front" mode="aspectFit" aria-hidden="true" />
+          <view class="shot__title">拍摄人像面</view>
+          <view class="shot__subtitle">姓名、身份证号码所在面</view>
+          <view class="shot__capture">{{ recognizing ? '正在识别…' : '拍照 / 从相册选择' }}</view>
+        </view>
+      </button>
       <view class="shot__hint">{{ draft.idFrontImage ? '点击重拍人像面' : '未拍摄人像面' }}</view>
       <view v-if="draft.idFrontWarnings.length" class="alerts alerts--warn">
         <view v-for="(word, i) in draft.idFrontWarnings" :key="i">· {{ word }}</view>
@@ -44,10 +53,15 @@
         {{ idFrontQuality.text }}
       </view>
 
-      <view class="shot" @click="shootIdBack">
+      <button class="shot" :disabled="recognizing" aria-label="拍摄国徽面" @click="shootIdBack">
         <image v-if="draft.idBackImage" class="shot__img" :src="draft.idBackImage" mode="aspectFit" />
-        <view v-else class="shot__empty">拍国徽面（带有效期）</view>
-      </view>
+        <view v-else class="shot__empty">
+          <image class="shot__illustration" :src="documentArt.back" mode="aspectFit" aria-hidden="true" />
+          <view class="shot__title">拍摄国徽面</view>
+          <view class="shot__subtitle">签发机关、有效期限所在面</view>
+          <view class="shot__capture">{{ recognizing ? '正在识别…' : '拍照 / 从相册选择' }}</view>
+        </view>
+      </button>
       <view class="shot__hint">{{ draft.idBackImage ? '点击重拍国徽面' : '未拍摄国徽面' }}</view>
       <view v-if="draft.idBackWarnings.length" class="alerts alerts--warn">
         <view v-for="(word, i) in draft.idBackWarnings" :key="i">· {{ word }}</view>
@@ -64,14 +78,15 @@
         {{ idBackQuality.text }}
       </view>
 
+      <view class="action-note">请先完成人像面和国徽面拍摄，再确认信息</view>
       <view class="actions">
-        <button class="btn btn--primary" :disabled="!canStep1Next" @click="goStep(2)">下一步：确认信息</button>
+        <button class="btn btn--primary" :disabled="!canStep1Next || recognizing" @click="goStep(2)">下一步：确认信息</button>
       </view>
     </view>
 
     <!-- 第 2 步：确认身份信息（可改） -->
     <view v-if="draft.step === 2" class="card">
-      <view class="card__title">2. 确认识别结果（可改）</view>
+      <view class="card__title">核对身份信息</view>
       <view class="tip">以你改过的为准。读不出来的项请手工补上。</view>
 
       <view class="field">
@@ -132,13 +147,18 @@
 
     <!-- 第 3 步：拍银行卡 -->
     <view v-if="draft.step === 3" class="card">
-      <view class="card__title">3. 拍银行卡</view>
+      <view class="card__title">上传银行卡照片</view>
       <view class="tip">拍本人银行卡正面，识别不出就下一步手输。</view>
 
-      <view class="shot" @click="shootBankCard">
+      <button class="shot" :disabled="recognizing" aria-label="拍摄银行卡正面" @click="shootBankCard">
         <image v-if="draft.bankImage" class="shot__img" :src="draft.bankImage" mode="aspectFit" />
-        <view v-else class="shot__empty">拍银行卡正面</view>
-      </view>
+        <view v-else class="shot__empty">
+          <image class="shot__illustration" :src="documentArt.bank" mode="aspectFit" aria-hidden="true" />
+          <view class="shot__title">拍摄银行卡正面</view>
+          <view class="shot__subtitle">请使用本人的收款银行卡</view>
+          <view class="shot__capture">{{ recognizing ? '正在识别…' : '拍照 / 从相册选择' }}</view>
+        </view>
+      </button>
       <view class="shot__hint">{{ draft.bankImage ? '点击重拍银行卡' : '未拍摄银行卡' }}</view>
 
       <view v-if="draft.bankWarnings.length" class="alerts alerts--warn">
@@ -151,13 +171,13 @@
 
       <view class="actions">
         <button class="btn btn--ghost" @click="goStep(2)">上一步</button>
-        <button class="btn btn--primary" :disabled="!canStep3Next" @click="goStep(4)">下一步：确认卡信息</button>
+        <button class="btn btn--primary" :disabled="!canStep3Next || recognizing" @click="goStep(4)">下一步：确认卡信息</button>
       </view>
     </view>
 
     <!-- 第 4 步：确认卡信息（可改）+ 协议要素；确认后一次性落库 -->
     <view v-if="draft.step === 4" class="card">
-      <view class="card__title">4. 确认卡信息（可改）</view>
+      <view class="card__title">核对收款账户</view>
 
       <view class="field">
         <text class="field__label">银行卡号</text>
@@ -226,13 +246,13 @@
 
       <view class="actions">
         <button class="btn btn--ghost" @click="goStep(3)">上一步</button>
-        <button class="btn btn--primary" :loading="submitting" @click="onSubmit">确认并签署（落库）</button>
+        <button class="btn btn--primary" :loading="submitting" :disabled="submitting" @click="onSubmit">确认并发起签署</button>
       </view>
     </view>
 
     <!-- 第 5 步：签署（电子签 = 待签署，纸质 = 当场生效）+ 二维码 / 可复制链接 -->
     <view v-if="draft.step === 5" class="card">
-      <view class="card__title">5. 签署框架收购协议</view>
+      <view class="card__title">签署框架收购协议</view>
 
       <view v-if="draft.signMethod === 'PAPER'" class="notice">
         <view class="notice__title">本企业未开通电子签章：协议走纸质签署</view>
@@ -309,6 +329,15 @@ import {
  *   上点「去签署」），未开通则降级纸质当场生效。
  */
 defineOptions({ name: 'FieldPayeeWizard' })
+
+function documentSvg(content: string) {
+  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="76" viewBox="0 0 120 76" fill="none"><rect x="2" y="2" width="116" height="72" rx="9" fill="#fff" stroke="#a3c7b3" stroke-width="2"/>' + content + '</svg>')
+}
+const documentArt = {
+  front: documentSvg('<rect x="12" y="15" width="34" height="45" rx="5" fill="#e9f3ed"/><circle cx="29" cy="30" r="8" fill="#86b59d"/><path d="M17 52a12 12 0 0 1 24 0" fill="#86b59d"/><path d="M58 24h44M58 36h30M58 48h38M14 65h88" stroke="#a3c7b3" stroke-width="3" stroke-linecap="round"/>'),
+  back: documentSvg('<circle cx="60" cy="26" r="12" fill="#e9f3ed" stroke="#a3c7b3" stroke-width="2"/><path d="M54 26l4 4 8-8M26 48h68M36 59h48" stroke="#86b59d" stroke-width="3" stroke-linecap="round"/>'),
+  bank: documentSvg('<path d="M3 18h114v13H3z" fill="#d4e7dc"/><rect x="15" y="41" width="20" height="14" rx="3" fill="#e9deb7"/><path d="M16 64h18M43 64h18M70 64h18M93 45h11" stroke="#a3c7b3" stroke-width="3" stroke-linecap="round"/>')
+}
 
 const STEP_NAMES = ['拍身份证', '确认身份', '拍银行卡', '确认卡信息', '签署协议']
 
@@ -668,271 +697,50 @@ function finish() {
 </script>
 
 <style lang="scss" scoped>
-.page {
-  padding: 24rpx 24rpx 60rpx;
+.page { box-sizing: border-box; width: 100%; max-width: 480px; min-height: 100vh; margin: 0 auto; padding: 24px 16px calc(108px + env(safe-area-inset-bottom)); color: #203b2e; background: #f3f7f5; }
+button { cursor: pointer; &::after { border: none; } &:focus-visible { outline: 3px solid #80b69a; outline-offset: 3px; } }
+.wizard-heading { display: flex; justify-content: space-between; align-items: center; padding: 0 4px; margin-bottom: 24px;
+  &__eyebrow { color: #64796c; font-size: 12px; margin-bottom: 7px; }
+  &__title { font-size: 26px; font-weight: 700; }
+  &__count { color: #6c8174; font-size: 14px; text { color: #176b4c; font-size: 28px; font-weight: 600; } }
 }
-
-.steps {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 24rpx;
-
-  &__item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex: 1;
-    color: $field-text-secondary;
-    font-size: 22rpx;
+.steps { display: flex; margin: 0 0 24px;
+  &__item { position: relative; display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; color: #697d70; font-size: 10px;
+    &:not(:last-child)::after { content: ''; position: absolute; top: 14px; left: calc(50% + 18px); width: calc(100% - 36px); height: 2px; background: #dce7df; }
   }
-
-  &__no {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 44rpx;
-    height: 44rpx;
-    margin-bottom: 6rpx;
-    border-radius: 50%;
-    background-color: #e7eaf0;
-    font-size: 24rpx;
-  }
-
-  &__item--active {
-    color: $field-primary;
-
-    .steps__no {
-      color: #ffffff;
-      background-color: $field-primary;
-    }
-  }
-
-  &__item--done .steps__no {
-    color: #ffffff;
-    background-color: #1a7f43;
-  }
+  &__no { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-bottom: 8px; border-radius: 50%; background: #e4ece7; font-size: 13px; font-weight: 600; }
+  &__item--active { color: #176b4c; font-weight: 600; .steps__no { background: #176b4c; color: #fff; box-shadow: 0 0 0 4px #e0eee5; } }
+  &__item--done { color: #176b4c; .steps__no { background: #d5eadd; color: #176b4c; } &:not(:last-child)::after { background: #83b899; } }
 }
-
-.resume {
-  padding: 20rpx 24rpx;
-  margin-bottom: 20rpx;
-  background-color: #eef4ff;
-  border-radius: 12rpx;
-
-  &__title {
-    font-size: 28rpx;
-    font-weight: 600;
-  }
-
-  &__desc {
-    margin-top: 8rpx;
-    color: $field-text-secondary;
-    font-size: 24rpx;
-    line-height: 1.6;
-  }
+.card { padding: 20px 16px; background: #fff; border: 1px solid #e4ece7; border-radius: 20px; box-shadow: 0 4px 16px rgba(23,78,59,.025);
+  &__title { margin-bottom: 10px; font-size: 19px; font-weight: 600; line-height: 1.5; }
 }
-
-.card {
-  padding: 32rpx;
-  margin-bottom: 24rpx;
-  background-color: #ffffff;
-  border-radius: 16rpx;
-
-  &__title {
-    margin-bottom: 20rpx;
-    font-size: 32rpx;
-    font-weight: 600;
-  }
+.tip { margin: 8px 0 14px; color: #63766a; font-size: 13px; line-height: 1.7; }
+.field { margin-top: 20px; &__label { display: block; margin-bottom: 9px; color: #354d3f; font-size: 14px; line-height: 1.5; } }
+.input { box-sizing: border-box; width: 100%; height: 52px; padding: 0 14px; font-size: 16px; background: #f7f9f7; border: 1px solid #dce6df; border-radius: 11px; &:focus-within { border-color: #278158; box-shadow: 0 0 0 3px #e8f2eb; } }
+.shot { box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: 100%; min-height: 204px; padding: 18px 12px; margin-top: 18px; overflow: hidden; background: #f6faf7; border: 1px dashed #9ebfad; border-radius: 15px; line-height: 1.5; &[disabled] { background: #f1f5f2; } &:active { background: #eaf4ee; }
+  &__img { width: 100%; height: 170px; }
+  &__empty { display: flex; flex-direction: column; align-items: center; }
+  &__illustration { width: 100px; height: 63px; margin-bottom: 12px; }
+  &__title { color: #254b36; font-size: 16px; font-weight: 600; }
+  &__subtitle { margin-top: 4px; font-size: 12px; color: #6b8071; }
+  &__capture { margin-top: 13px; padding: 6px 14px; color: #176b4c; border: 1px solid #c2dacb; border-radius: 8px; background: #fff; font-size: 12px; }
+  &__hint { margin: 8px 0 0; color: #687d6f; font-size: 12px; text-align: center; }
 }
-
-.input {
-  width: 100%;
-  height: 80rpx;
-  padding: 0 20rpx;
-  background-color: #f5f6f8;
-  border-radius: 12rpx;
+.actions { position: fixed; z-index: 10; bottom: 0; left: 50%; transform: translateX(-50%); box-sizing: border-box; display: flex; gap: 12px; width: 100%; max-width: 480px; padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid #e5ece7; background: #fff; box-shadow: 0 -4px 20px rgba(23,78,59,.04); .btn--ghost { flex: 0 0 88px; } }
+.action-note { margin-top: 18px; color: #687d6f; font-size: 12px; text-align: center; line-height: 1.6; }
+.btn { flex: 1; min-width: 0; min-height: 50px; padding: 0 12px; margin: 0; border-radius: 12px; font-size: 15px; font-weight: 600; line-height: 50px;
+  &--primary { background: #176b4c; color: #fff; &[disabled] { background: #e4ebe6; color: #6d7d72; } }
+  &--ghost { background: #f3f8f5; color: #176b4c; border: 1px solid #cddfd3; }
 }
-
-.field {
-  margin-bottom: 20rpx;
-
-  &__label {
-    display: block;
-    margin-bottom: 8rpx;
-    color: $field-text-secondary;
-    font-size: 26rpx;
-  }
-}
-
-.shot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 300rpx;
-  margin-top: 20rpx;
-  overflow: hidden;
-  background-color: #f5f6f8;
-  border: 1rpx dashed #c8cdd8;
-  border-radius: 12rpx;
-
-  &__img {
-    width: 100%;
-    height: 100%;
-  }
-
-  &__empty {
-    color: $field-text-secondary;
-  }
-
-  &__hint {
-    margin-top: 8rpx;
-    color: $field-text-secondary;
-    font-size: 24rpx;
-  }
-}
-
-.divider {
-  height: 1rpx;
-  margin: 28rpx 0;
-  background-color: #eef0f4;
-}
-
-.toggle {
-  display: flex;
-  gap: 16rpx;
-
-  &__item {
-    flex: 1;
-    padding: 16rpx 0;
-    text-align: center;
-    background-color: #f5f6f8;
-    border-radius: 12rpx;
-    font-size: 26rpx;
-  }
-
-  &__item--active {
-    color: #ffffff;
-    background-color: $field-primary;
-  }
-}
-
-.actions {
-  display: flex;
-  gap: 16rpx;
-  margin-top: 24rpx;
-}
-
-.btn {
-  flex: 1;
-
-  &--primary {
-    color: #ffffff;
-    background-color: $field-primary;
-  }
-
-  &--ghost {
-    color: $field-primary;
-    background-color: #ffffff;
-    border: 1rpx solid $field-primary;
-  }
-}
-
-.notice {
-  padding: 20rpx 24rpx;
-  margin-bottom: 20rpx;
-  background-color: #fff7e6;
-  border-radius: 12rpx;
-
-  &__title {
-    font-size: 30rpx;
-    font-weight: 700;
-    color: #b26a00;
-  }
-
-  &__desc {
-    margin-top: 8rpx;
-    color: #b26a00;
-    line-height: 1.6;
-  }
-}
-
-.handoff__title {
-  margin: 20rpx 0 8rpx;
-  font-size: 30rpx;
-  font-weight: 600;
-}
-
-.qr {
-  display: flex;
-  justify-content: center;
-  padding: 24rpx 0;
-
-  &__img {
-    width: 360rpx;
-    height: 360rpx;
-  }
-}
-
-.link-box {
-  padding: 16rpx 20rpx;
-  background-color: #f5f6f8;
-  border-radius: 12rpx;
-  word-break: break-all;
-
-  &__url {
-    color: $field-text-secondary;
-    font-size: 24rpx;
-    line-height: 1.6;
-  }
-}
-
-.hint {
-  margin-top: 20rpx;
-  line-height: 1.6;
-  color: $field-text-secondary;
-
-  &--warn {
-    color: #b26a00;
-  }
-}
-
-.tip {
-  margin-top: 8rpx;
-  color: $field-text-secondary;
-  font-size: 24rpx;
-  line-height: 1.6;
-}
-
-.alerts {
-  padding: 16rpx 20rpx;
-  margin-top: 20rpx;
-  border-radius: 12rpx;
-  line-height: 1.6;
-  font-size: 24rpx;
-
-  &--warn {
-    color: #b26a00;
-    background-color: #fff7e6;
-  }
-
-  &--block {
-    color: #cf1322;
-    background-color: #fff1f0;
-  }
-
-  &--info {
-    color: $field-text-secondary;
-    background-color: #f5f6f8;
-  }
-}
-
-.link {
-  display: inline-block;
-  padding: 0;
-  margin-top: 12rpx;
-  color: $field-primary;
-  font-size: 26rpx;
-  background-color: transparent;
-  text-align: left;
-}
+.toggle { display: flex; gap: 10px; &__item { flex: 1; padding: 14px 6px; text-align: center; background: #f3f7f4; border: 1px solid #dce6df; border-radius: 11px; font-size: 14px; cursor: pointer; } &__item--active { color: #176b4c; font-weight: 600; border-color: #278158; background: #e5f2ea; } }
+.divider { height: 1px; margin: 28px 0 22px; background: #e6ede8; }
+.resume { padding: 16px; margin-bottom: 18px; background: #edf4ef; border: 1px solid #cddfd3; border-radius: 14px; overflow-wrap: anywhere; &__title { font-size: 14px; font-weight: 600; line-height: 1.6; } &__desc { margin-top: 6px; font-size: 13px; color: #63766a; line-height: 1.6; } }
+.notice { padding: 16px; margin: 16px 0; background: #fff6e5; border: 1px solid #f0dfbc; border-radius: 14px; &__title { color: #805824; font-size: 16px; font-weight: 600; line-height: 1.6; } &__desc { margin-top: 8px; color: #805824; font-size: 14px; line-height: 1.7; } }
+.alerts { padding: 12px; margin-top: 12px; border-radius: 10px; font-size: 13px; line-height: 1.7; &--warn { color: #805824; background: #fff6e5; } &--block { color: #a23434; background: #fff0ef; } &--info { color: #466353; background: #edf5ef; } }
+.handoff__title { margin: 24px 0 8px; font-size: 17px; font-weight: 600; line-height: 1.6; }
+.qr { display: flex; justify-content: center; padding: 20px 0; &__img { width: 200px; height: 200px; } }
+.link-box { padding: 14px; margin-bottom: 16px; background: #f3f7f4; border: 1px solid #e1eae3; border-radius: 12px; overflow-wrap: anywhere; &__url { font-size: 12px; line-height: 1.7; color: #536c5d; } }
+.link { display: inline-block; min-height: 44px; padding: 10px 0; margin: 4px 0 0; background: transparent; color: #176b4c; font-size: 13px; text-align: left; line-height: 24px; }
+.hint { margin: 14px 0; color: #63766a; font-size: 13px; line-height: 1.7; &--warn { color: #805824; } }
 </style>
