@@ -2789,3 +2789,46 @@ admin 登录 / 用户保存（`@Mobile`）。**本票不治这条**，真实理�
 - 分支 `i103-card-recognition-config` → `e2650512`：42 个文件、4 个提交
 - 独立评审：PASS（报告 `.fleet/gates/103.review.md`）
 - 闸门：全量 icbc `[WARNING] Tests run: 924, Failures: 0, Errors: 0, Skipped: 2`；报告 `.fleet/gates/103.md`，运行日志 `/Users/zzh2/Documents/work/youfeibao/.fleet/logs/103.log`（`.fleet/` 与收养票的仓库外日志不入库）
+
+## #105 收购进度派生（已完成）
+
+把手写的收购单状态换成由开票单四条状态线**派生**的进度（ADR 0038），并接上一直在漏的「已开票」。
+
+1. **`AcquisitionStatusEnum` 六档**：已登记 / 待自然人确认 / 待付款 / 已付款 / 已开票 / 已作废，每档带一句
+   `nextStep`（「下一步是谁的事」），前端不再自己拼文案。**码值刻意错开**以免既有数据被读成另一个意思：
+   0 / 1 / 2 / 3 / 9 保持历史取值，「待自然人确认」是新加的 **4**；9 的显示名由「已取消」改为「已作废」。
+2. **单一写入点**：新增 `AcquisitionProgressService`（接口 + impl）——`derive` 是纯函数、`deriveFor` 批量派生、
+   `sync` / `syncByPartnerOrderId` 落缓存。**所有业务代码不再写 `status`**：`linkInvoice` 只挂单号后触发派生，
+   `markPaidByInvoicePartnerOrderId` / `markInvoicedByInvoicePartnerOrderId` / `updateStatusByInvoice` 整个删掉。
+3. **判定点搬家**：「待付款」从「预下单返回」挪到「预开票成功」；预下单返回后是「待自然人确认」——自然人还没确认
+   就显示待付款，会让现场催错人（催企业掏钱，而其实卡在对方手机上）。
+4. **异常不占档位**（ADR 0021）：预开票失败 / 付款失败·冲正·退汇·部分成功·他行已扣款 / 开票失败 / 缴税异常 /
+   上传失败五条线各自独立标注，档位照旧；**红冲成功也走标注**（「发票流：已红冲（原因）」），档位不退成「待付款」——
+   钱真的付了、蓝票真的开过。
+5. **回调接上**：`InvoiceOrderServiceImpl.applyInvoiceInfo` 与 `applyInvoiceCancelled`、`PaymentServiceImpl.applyPaymentStatus`
+   三处都改为调用派生单点。乱序 / 重复天然安全：每次都是拿当前真值重算，不按事件累加。
+6. **`SettlementServiceImpl.isInvoiceStarted` 简化**为「有没有挂开票单」——档位是派生结果，拿派生结果做判断会绕回来咬自己。
+7. **对外可见**：`AcquisitionRespVO` 新增 `statusNextStep` / `abnormal` / `abnormalReasons`；现场端
+   `pages/my-acquisitions`（异常标签 + 下一步）与 `pages/acquisition/detail`（异常条 + 删掉空承诺那句）按六档重写；
+   PC 端 `views/icbc/acquisition` 状态列显示档位 + 异常原因（有异常时标签转红），筛选项加「待自然人确认」。
+8. **发票原件下载**：现场端开票信息卡里「下载反向发票（PDF）」，**只在「已开票」时出现**，走
+   `POST /icbc/invoice-download/download` → `GET /icbc/invoice-download/download-file`；`RecyclingRoleEnum.RECEIVER`
+   加 `DOWNLOAD_EXECUTE` / `DOWNLOAD_QUERY` / `DOWNLOAD_FILE`，**不给** `DOWNLOAD_RETRY`（重发是开票员与财务的事）。
+9. **无新表新字段**：`icbc_acquisition.status` 已有，档位只是它的新语义，故**不涉及迁移 SQL**；权限走
+   `RecyclingPermissionSyncService` 运行期同步，无菜单 SQL。
+
+**已知边界（如实说，别读成「已验」）**：
+
+- **工行侧预开票取消归入「已作废」，连带后果没消除**：`status = 9` 会被入库门禁 `assertNotCancelled` 与各类
+  报表的 `ne(status, 9)` 按「作废」对待。一条真实的预开票取消（未支付）会因此拦住后续入库、且不进收购台账。
+  本次只在异常标注里写明「预开票已取消」，**没有**引入独立档位；若这条线在真实业务里经常发生，值得单开一票。
+- **预开票取消后不能重新发起**：`invoicePartnerOrderId` 唯一且预检查会拦「已发起过」，所以取消后这笔收购单
+  目前是死路。这不是本次引入的，但被「已作废」这个档位显性化了。
+- **红冲只认「红冲成功」**：申请中 / 上传中 / 上传失败都只算在途，不标注（红冲自己的页面有完整状态）。
+- **PC 端收购单没有详情页**：档位与异常只在列表列里呈现，没有单独的详情抽屉可展开看四条线（要看得去
+  「开票申请」查状态）。
+
+**验收实测**：全量 icbc `[WARNING] Tests run: 938, Failures: 0, Errors: 0, Skipped: 2`（基线 924：新增
+`AcquisitionProgressServiceImplTest` 14 条规则表用例，`AcquisitionServiceImplTest` 的状态推进用例改写成
+「挂单 → 预开票成功 → 付款 → 开票」的派生链路）；现场端 `pnpm ts:check` EXIT=0、`pnpm build:h5` DONE；
+PC 后台 `vite build` Build successful。
