@@ -34,6 +34,10 @@ export interface InvoiceDownloadVO {
 
 // 发票下载与证据 API
 export const InvoiceDownloadApi = {
+  // 分页查询下载记录（列表页：已经下载下来的发票原件）
+  getPage: async (params: any) => {
+    return await request.get({ url: `/icbc/invoice-download/page`, params })
+  },
   // 按合作方订单号取下载记录
   getRecord: async (partnerOrderId: string) => {
     return await request.get<InvoiceDownloadVO>({

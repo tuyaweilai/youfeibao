@@ -1,6 +1,8 @@
 package cn.iocoder.yudao.module.icbc.controller.admin.download;
 
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadRespVO;
 import cn.iocoder.yudao.module.icbc.service.download.InvoiceDownloadService;
@@ -39,6 +41,14 @@ public class InvoiceDownloadController {
     @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.DOWNLOAD_EXECUTE + "')")
     public CommonResult<InvoiceDownloadRespVO> downloadInvoice(@Valid @RequestBody InvoiceDownloadReqVO reqVO) {
         InvoiceDownloadRespVO result = invoiceDownloadService.downloadInvoice(reqVO);
+        return success(result);
+    }
+
+    @GetMapping("/page")
+    @Operation(summary = "获取发票下载记录分页")
+    @PreAuthorize("@ss.hasPermission('" + RecyclingPermission.DOWNLOAD_QUERY + "')")
+    public CommonResult<PageResult<InvoiceDownloadRespVO>> getDownloadPage(@Valid InvoiceDownloadPageReqVO reqVO) {
+        PageResult<InvoiceDownloadRespVO> result = invoiceDownloadService.getDownloadPage(reqVO);
         return success(result);
     }
 

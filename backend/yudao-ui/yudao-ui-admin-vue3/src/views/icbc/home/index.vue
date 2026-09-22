@@ -164,9 +164,11 @@ const sellerSteps: HomeStep[] = [
     label: '第4步',
     name: '反向开票',
     summary: '给出售者开反向发票',
-    icon: 'ep:document-add',
-    route: '/finance/invoice',
-    permission: 'icbc:invoice-order:query'
+    // 落点改成「发票下载与证据」（5118 /finance/download）：开票申请由结算确认后自动预下单，
+    // 这一步要人做的是把工行回传的 PDF 取回来，并归到该笔收购的证据里。
+    icon: 'ep:download',
+    route: '/finance/download',
+    permission: 'icbc:invoice-download:query'
   },
   {
     label: '第5步',

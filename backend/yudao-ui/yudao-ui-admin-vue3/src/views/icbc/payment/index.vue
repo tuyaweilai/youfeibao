@@ -11,7 +11,25 @@
       <el-row :gutter="20">
         <el-col :span="8">
           <el-form-item label="开票合作方订单号" prop="partnerOrderId">
-            <el-input v-model="applyForm.partnerOrderId" placeholder="等于收购单号，如 ACQ..." clearable />
+            <!-- 下拉只列「待付款」档（= 预开票成功且未付款，ADR 0038），选完自动带出金额。
+                 allow-create 留着：没有对应收购单的订单号仍可手输（联调 / 补数据时要用） -->
+            <el-select
+              v-model="applyForm.partnerOrderId"
+              :loading="payableLoading"
+              allow-create
+              class="!w-full"
+              clearable
+              filterable
+              placeholder="选一笔待付款的收购单，也可直接输入订单号"
+              @change="handlePartnerOrderChange"
+            >
+              <el-option
+                v-for="item in payableList"
+                :key="item.acquisitionNo"
+                :label="payableLabel(item)"
+                :value="item.acquisitionNo!"
+              />
+            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="8">
@@ -100,6 +118,7 @@
 
 <script setup lang="ts">
 import { PaymentApi, PaymentApplyVO, PaymentReceiptVO, PaymentStatusVO } from '@/api/icbc/payment'
+import { AcquisitionApi, AcquisitionVO } from '@/api/icbc/acquisition'
 import { formatDate } from '@/utils/formatTime'
 import { openIcbcForm } from '../util'
 
@@ -116,7 +135,35 @@ const applyForm = ref<PaymentApplyVO>({
   ukeyId: undefined
 })
 const applyRules = {
-  partnerOrderId: [{ required: true, message: '开票合作方订单号不能为空', trigger: 'blur' }]
+  partnerOrderId: [{ required: true, message: '开票合作方订单号不能为空', trigger: 'change' }]
+}
+
+// 可选的下拉数据：收购单里「待付款」那一档。只有预开票成功的收购才付得了款，
+// 所以这里不是「所有收购单」，而是服务端同一个派生口径（status=1）。
+const payableList = ref<AcquisitionVO[]>([])
+const payableLoading = ref(false)
+const loadPayable = async () => {
+  payableLoading.value = true
+  try {
+    const page = await AcquisitionApi.getAcquisitionPage({ pageNo: 1, pageSize: 100, status: 1 })
+    payableList.value = page.list || []
+  } catch {
+    // 取不到候选清单不影响手输订单号（没有 icbc:acquisition:query 的角色只有这一条路）
+    payableList.value = []
+  } finally {
+    payableLoading.value = false
+  }
+}
+
+const payableLabel = (item: AcquisitionVO) =>
+  `${item.acquisitionNo}｜${item.sellerName || '-'}｜${item.amount ?? '-'} 元`
+
+const handlePartnerOrderChange = (partnerOrderId?: string) => {
+  const hit = payableList.value.find((item) => item.acquisitionNo === partnerOrderId)
+  // 金额必须等于收购单金额（服务端也校验）：选了单子就把金额填上，省得手抄
+  if (hit?.amount != null) {
+    applyForm.value.amount = hit.amount
+  }
 }
 
 const handleApply = async () => {
@@ -134,10 +181,14 @@ const handleApply = async () => {
       queryOrderId.value = res.partnerOrderId
       await handleQuery()
     }
+    // 发起过的单子仍在「待付款」档（要等付款成功才推进），但重载一次能带出最新状态
+    await loadPayable()
   } finally {
     applyLoading.value = false
   }
 }
+
+onMounted(loadPayable)
 
 const queryOrderId = ref('')
 const status = ref<PaymentStatusVO>()

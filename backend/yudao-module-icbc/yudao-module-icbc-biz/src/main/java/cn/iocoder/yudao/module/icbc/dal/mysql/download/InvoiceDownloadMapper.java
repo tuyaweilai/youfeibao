@@ -1,6 +1,9 @@
 package cn.iocoder.yudao.module.icbc.dal.mysql.download;
 
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
+import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
+import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadPageReqVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
 import org.apache.ibatis.annotations.Mapper;
 
@@ -62,6 +65,20 @@ public interface InvoiceDownloadMapper extends BaseMapperX<InvoiceDownloadDO> {
      */
     default InvoiceDownloadDO selectByInvoiceOrderId(Long invoiceOrderId) {
         return selectOne(InvoiceDownloadDO::getInvoiceOrderId, invoiceOrderId);
+    }
+
+    /**
+     * 分页查询下载记录（合作方订单号 / 发票号码支持模糊匹配）
+     *
+     * @param reqVO 分页查询条件
+     * @return 下载记录分页
+     */
+    default PageResult<InvoiceDownloadDO> selectPage(InvoiceDownloadPageReqVO reqVO) {
+        return selectPage(reqVO, new LambdaQueryWrapperX<InvoiceDownloadDO>()
+                .likeIfPresent(InvoiceDownloadDO::getPartnerOrderId, reqVO.getPartnerOrderId())
+                .likeIfPresent(InvoiceDownloadDO::getInvoiceNumber, reqVO.getInvoiceNumber())
+                .eqIfPresent(InvoiceDownloadDO::getDownloadStatus, reqVO.getDownloadStatus())
+                .orderByDesc(InvoiceDownloadDO::getId));
     }
 
 } 

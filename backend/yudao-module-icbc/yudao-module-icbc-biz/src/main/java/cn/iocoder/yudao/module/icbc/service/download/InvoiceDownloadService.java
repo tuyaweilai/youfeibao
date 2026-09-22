@@ -1,5 +1,7 @@
 package cn.iocoder.yudao.module.icbc.service.download;
 
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadRespVO;
 import cn.iocoder.yudao.module.icbc.dal.dataobject.download.InvoiceDownloadDO;
@@ -50,6 +52,14 @@ public interface InvoiceDownloadService {
      * @return 下载记录
      */
     InvoiceDownloadRespVO getDownloadRecordByInvoiceNumber(String invoiceNumber);
+
+    /**
+     * 分页查询发票下载记录（列表页一次把文件带上，行内可直接下载 PDF）
+     *
+     * @param reqVO 分页查询条件
+     * @return 下载记录分页
+     */
+    PageResult<InvoiceDownloadRespVO> getDownloadPage(InvoiceDownloadPageReqVO reqVO);
 
     /**
      * 获取待下载的任务列表

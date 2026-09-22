@@ -5,7 +5,9 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.digest.DigestUtil;
 import cn.hutool.http.HttpUtil;
 import cn.iocoder.yudao.framework.common.exception.ServiceException;
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import java.time.format.DateTimeFormatter;
+import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadPageReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadReqVO;
 import cn.iocoder.yudao.module.icbc.controller.admin.download.vo.InvoiceDownloadRespVO;
 import cn.iocoder.yudao.module.icbc.convert.download.InvoiceDownloadConvert;
@@ -27,7 +29,10 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static cn.iocoder.yudao.module.icbc.enums.ErrorCodeConstants.*;
 
@@ -114,6 +119,24 @@ public class InvoiceDownloadServiceImpl implements InvoiceDownloadService {
             throw new ServiceException(INVOICE_DOWNLOAD_NOT_FOUND);
         }
         return buildDownloadRespVO(downloadDO);
+    }
+
+    @Override
+    public PageResult<InvoiceDownloadRespVO> getDownloadPage(InvoiceDownloadPageReqVO reqVO) {
+        PageResult<InvoiceDownloadDO> page = invoiceDownloadMapper.selectPage(reqVO);
+        if (page.getList().isEmpty()) {
+            return PageResult.empty(page.getTotal());
+        }
+        // 文件一次批量取回：行内的「下载 PDF」要知道文件类型，详情里的文件表也要用
+        List<InvoiceFileDO> files = invoiceFileMapper.selectListByDownloadIds(
+                page.getList().stream().map(InvoiceDownloadDO::getId).collect(Collectors.toList()));
+        Map<Long, List<InvoiceFileDO>> filesByDownloadId = files.stream()
+                .collect(Collectors.groupingBy(InvoiceFileDO::getDownloadId));
+        List<InvoiceDownloadRespVO> list = page.getList().stream()
+                .map(downloadDO -> buildDownloadRespVO(downloadDO,
+                        filesByDownloadId.getOrDefault(downloadDO.getId(), Collections.emptyList())))
+                .collect(Collectors.toList());
+        return new PageResult<>(list, page.getTotal());
     }
 
     @Override
@@ -290,18 +313,23 @@ public class InvoiceDownloadServiceImpl implements InvoiceDownloadService {
      * 构建下载响应VO
      */
     private InvoiceDownloadRespVO buildDownloadRespVO(InvoiceDownloadDO downloadDO) {
+        return buildDownloadRespVO(downloadDO,
+                invoiceFileMapper.selectListByDownloadId(downloadDO.getId()));
+    }
+
+    /**
+     * 构建下载响应VO（文件列表由调用方给：单条查询自己查，列表查询批量查）
+     */
+    private InvoiceDownloadRespVO buildDownloadRespVO(InvoiceDownloadDO downloadDO, List<InvoiceFileDO> files) {
         InvoiceDownloadRespVO respVO = InvoiceDownloadConvert.INSTANCE.convert(downloadDO);
-        
+
         // 设置状态名称
         DownloadStatusEnum statusEnum = getDownloadStatusEnum(downloadDO.getDownloadStatus());
         if (statusEnum != null) {
             respVO.setDownloadStatusName(statusEnum.getName());
         }
-        
-        // 查询文件列表
-        List<InvoiceFileDO> files = invoiceFileMapper.selectListByDownloadId(downloadDO.getId());
+
         respVO.setFiles(InvoiceDownloadConvert.INSTANCE.convertFileList(files));
-        
         return respVO;
     }
 
