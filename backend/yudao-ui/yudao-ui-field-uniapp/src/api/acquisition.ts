@@ -111,11 +111,44 @@ export interface AcquisitionVO {
   settlementMethod?: string
   status?: number
   statusName?: string
+  /** 下一步是谁的事（后端按档位派生，ADR 0038） */
+  statusNextStep?: string
+  /** 进度是否异常：预开票 / 付款 / 开票 / 缴税 / 上传任一出问题；异常不替换档位 */
+  abnormal?: boolean
+  /** 异常标注，形如「付款：支付失败」 */
+  abnormalReasons?: string[]
   invoicePartnerOrderId?: string
   source?: string
   remark?: string
   createTime?: number
 }
+
+/** 发票下载记录（现场端只用到「拿到 downloadId，再取 PDF」） */
+export interface InvoiceDownloadVO {
+  id?: number
+  partnerOrderId?: string
+  invoiceNumber?: string
+  downloadStatus?: number
+  downloadStatusName?: string
+  errorMsg?: string
+  files?: InvoiceDownloadFileVO[]
+}
+
+export interface InvoiceDownloadFileVO {
+  downloadId?: number
+  invoiceNumber?: string
+  fileType?: string
+  fileName?: string
+  fileSize?: number
+}
+
+/**
+ * 发起（或复用）发票原件下载，返回下载记录。
+ *
+ * <p>工行只回 PDF（工行答复 2026-09-18），所以这里不传 fileType，取回的文件里挑 PDF。
+ */
+export const downloadInvoice = (partnerOrderId: string) =>
+  post<InvoiceDownloadVO>('/icbc/invoice-download/download', { partnerOrderId })
 
 export interface AcquisitionCorrectionReq {
   id: number
