@@ -3028,3 +3028,115 @@ brief 里给了做法与上限要求；② 票 2 与票 1 并行，**不许改�
    一票一档页不用另造证据行，发票流本来就由 `icbc_invoice_file` 派生。前后端改动后
    `pnpm ts:check` 仍是 1253 条既有报错、三个改动文件 0 报错（口径见 #114 那节）。
    后端已 `mvn -o -pl yudao-module-icbc/yudao-module-icbc-biz -am -DskipTests install` 并重启（日志 `/tmp/icbc-download-server.log`）。
+
+## 正式服务器部署（已完成，2026-09-23）
+
+线上：阿里云 ECS `47.99.49.104`，`/opt/youfeibao/` 下一套独立 docker compose。
+**完整 runbook 见 [docs/deploy/README.md](/docs/deploy/README.md)**，配置副本见 `docs/deploy/prod-configs/`。
+这里只记结论与踩坑，不复述步骤。
+
+### 四端都在了
+
+| 域名 | 端 | 产物 |
+|---|---|---|
+| `yfbadmin.baibaitan.com` | PC 管理后台 | `yudao-ui-admin-vue3` → `dist-prod` |
+| `yfbwuliu.baibaitan.com` | 司机端 | `yudao-ui-driver-uniapp` → `dist/build/h5` |
+| `yfbgeren.baibaitan.com` | 自然人出售者端 | `yudao-ui-seller-uniapp` → `dist/build/h5` |
+| `yfbqiye.baibaitan.com` | 企业收货端 | `yudao-ui-field-uniapp` → `dist/build/h5` |
+
+四个域名早已解析到 `47.99.49.104`，四端共用一套后端（`yfb-backend`，`127.0.0.1:18080`），
+`/admin-api`、`/app-api`、`/infra/ws` 由宝塔 nginx 反代。目前**只有 HTTP**，SSL 待宝塔申请。
+
+### 数据库是本地库的整体搬迁
+
+本地 `ruoyi-vue-pro`（228 张表）dump 后灌进线上独立实例 `yfb-mysql`，与 `nhzt-mysql`、
+`cms-mysql` 等已有实例互不干扰。校验口径：两边都是 228 张表 / utf8mb4_unicode_ci，
+`system_tenant=4`、`system_users=20`、`system_menu=548`、`icbc_goods_config=1`。
+`YUDAO_ENCRYPTOR_PASSWORD` 与 `ICBC_PUBLIC_TOKEN_SECRET` **刻意沿用本地同值**，否则已加密/已签名的行解不开。
+
+### 七个必须记住的坑
+
+1. **后端跑不了 JRE 8**。pom 写 `java.version=1.8`，但 icbc/erp/enterprise 里有 112 处
+   `Set.of/List.of/Map.of`；本地只有 JDK 21，`-target 1.8` 不拦截新 API，产物是
+   「Java 8 字节码 + Java 9+ 调用」。JRE 8 上启动即 `NoSuchMethodError: java.util.Set.of`。
+   容器基底固定 `eclipse-temurin:17-jre-jammy`，**别换回去**。
+   顺带：jammy 自带字体，`openjdk:8-jre-slim` 没字体导致验证码 `load font error`。
+2. **三个 uniapp 产物都叫 `dist/build/h5/`**，直接一条 `tar` 多 `-C` 会同名覆盖，只剩一个能解出来。
+   必须先复制成 `admin/driver/seller/field` 四个不同顶层目录再打包。
+3. **司机端 `manifest.json` 的 `h5.router.base` 曾是 `/driver/`**（field / seller 都是 `/`），
+   产物 `index.html` 引用 `/driver/assets/*.js`，挂到 `yfbwuliu.baibaitan.com` 根路径下整站 404。
+   已改成 `/` 并重新构建。三个 uniapp 端的 base 应保持一致。
+4. **登录页把默认口令打进了线上 JS**。基础 `.env` 的 `VITE_APP_DEFAULT_LOGIN_USERNAME/PASSWORD`
+   （脚手架自带 `admin` / `admin123`）在 `--mode prod` 下也生效，被 Vite 替换成字面量进产物，
+   登录框直接预填；`/social-login` 还在免登录白名单里且 `SocialLogin.vue` 硬编码了同一组口令。
+   已修：`.env.prod` 覆盖为空 + `SocialLogin.vue` 改读 env。
+   **自查口径**：`grep -rl admin123 dist-prod/` 必须无输出。
+5. **前端把开发机地址打进了产物**。`.env.prod` 的 `VITE_BASE_URL` 原本是
+   `http://localhost:48080`，而 axios 的 `base_url = VITE_BASE_URL + VITE_API_URL`
+   （`src/config/axios/config.ts`），于是浏览器里所有接口都打向访问者自己的 localhost，后台全废。
+   已置空，走同源 `/admin-api`。
+   **教训**：静态资源 200 + 直接 curl 后端接口 200，都不能证明前端在浏览器里是好的。
+   仓库已放 `scripts/deploy/verify-deploy.mjs`（真实浏览器断言四端同源、无 localhost、无失败请求），
+   前端每次部署后必跑。同一批还清掉了基线 `.env` 掺进来的百度统计埋点（`VITE_APP_BAIDU_CODE`）。
+6. **图形验证码不能全局开**。`yudao.captcha.enable` 的校验挂在 `/admin-api/system/auth/login` 上，
+   而司机端 / 企业收货端用的就是同一个接口且没有验证码 UI，开了会让这两端报「验证码不能为空」。
+   已置 `YUDAO_CAPTCHA_ENABLE=false`（与本地一致）+ 后台前端 `VITE_APP_CAPTCHA_ENABLE=false`。
+   以后要给后台单独加图形验证码，得先给 uniapp 拆独立登录接口。
+7. **磁盘差点被日志吃光**。接手时根分区 89%，`/var/lib/docker/containers` 里 `kaojun-server`
+   一个容器的 json-file 日志就 29G。清完 11G → 47G 可用。已加 `daemon.json` 的 log-opts、
+   `/etc/logrotate.d/docker-containers` 每日轮转，本项目的 compose 也逐服务限了大小。
+
+### 短信验证码恒为 9999 —— 演示期有意保留，别改
+
+`application.yaml` 把 `yudao.sms-code.begin-code` / `end-code` 都写成 `9999`（上游注释「测试方便」），
+生成时 `randomInt(9999, 10000)` 恒得 `9999`。线上无真实短信通道，这就是唯一有效码。
+
+**2026-09-23 决策：保留，供现场演示随输随进。** 看到「测试方便」四个字不要顺手改成随机码 ——
+那会让演示当场做不了。
+
+风险与上线闸门（真实出售者接入前必须二选一：配真实短信渠道并让 prod 随机化，或把固定码
+收敛到手机号白名单）已记在 `docs/deploy/README.md` 3.9。演示阶段请只放演示手机号与演示数据。
+
+### 自然人端的租户上下文只来自场站二维码（不是 bug）
+
+`/app-api` 请求必须带 `tenant-id` 头，值 = 他扫码那家回收企业的租户。
+`WebFrameworkUtils.getTenantId()` 只读 HTTP 头、无 query 兜底，所以**必须走**
+`https://yfbgeren.baibaitan.com/#/?station=<场站码>` 进入，由 `resolveStation()` 写入
+`localStorage['seller_tenant_id']`。直接打开不带 `?station=` 必然报
+「请求的租户标识未传递」——这是设计（同一人可能给多家企业卖货）。详见 README 3.10。
+
+### 与本地不同的几处（都是有意为之）
+
+`yudao.security.mock-enable` 本地 `true` → 线上 **`false`**（线上留着等于登录态可伪造）；
+图形验证码本地关 → 线上也**关**（`YUDAO_CAPTCHA_ENABLE` 默认 false；开了会拦死司机端/企业收货端）；
+Druid 控制台与 `/actuator/*` 线上对外 404；Quartz 本地被 exclude、线上启用（QRTZ_ 表齐全）。
+
+### 备用通道：阿里云 Workbench CLI
+
+22 端口受安全组限制（全球探测节点全 timeout）且被云盾 aegis 封过，所以额外挂了一条
+**不碰 22 端口**的通路：阿里云 Workbench CLI（走 443 + 云助手通道）。
+服务器端本来就有 `aliyun.service` 与 `ecs_config_instance_connect`，零改动。
+
+- 实例 `i-bp16czox2yme6947ewrm`（`launch-advisor-20240802`，cn-hangzhou），账号 `1245722240329268`
+- 实测：`exec` 热身后 **60ms**；212MB jar 上传 58s 且 MD5 一致
+- 用法与权限要求见 `docs/deploy/README.md` §6
+
+用它需要一个 AccessKey —— 目前用的是 RAM 用户 `power-application-user`，权限偏宽（跨 region，
+覆盖 ECS/安全组/VPC），**建议轮换并收窄到单实例**。
+
+### 验收记录
+
+外网四端首页均 200 且 `<title>` 正确；`admin` / `admin123` 登录拿到 token，
+`get-permission-info`、`system/tenant/simple-list`、`icbc/goods-config/page`（读到「废钢」）、
+`icbc/payer-info/page`、`icbc/appointment/page`（读到 `APT202609200815113993`）全部返回 `code:0`。
+后端启动 42.7s，稳态 CPU 0.53% / 内存 1.26G，日志 0 条 ERROR。
+
+### 还没做的
+
+- **SSL**：用户自行在宝塔申请。申请完要把 `.env.prod` 里 4 个 `http://yfbgeren.baibaitan.com`
+  改成 `https://`，否则自然人端链接 / 场站二维码 / 工行回跳还是 http。
+- **工行网关**：`apipcs4.dccnet.com.cn`（`219.143.240.50:443`）从这台机器超时，与本地一致，
+  故 `ICBC_GATEWAY_MODE=fake`。要真连需把 `47.99.49.104` 报工行加白。
+- **改 root 密码 / 换密钥登录**：部署期间密码明文传递过；sshd 仍是
+  `PermitRootLogin yes` + `PasswordAuthentication yes`。
+- 短信渠道报备（`ICBC_NOTIFY_SMS_ENABLED=false` 维持关闭）。

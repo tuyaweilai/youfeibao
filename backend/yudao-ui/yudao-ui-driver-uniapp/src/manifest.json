@@ -22,7 +22,7 @@
     "title": "司机端",
     "router": {
       "mode": "hash",
-      "base": "/driver/"
+      "base": "/"
     }
   },
   "vueVersion": "3"

@@ -1,0 +1,248 @@
+# ============================================================================
+# 有废宝 · 生产环境配置（profile = prod）
+#
+# 与 application-local.yaml 的差异，逐条列明（其余刻意保持一致，避免线上行为漂移）：
+#   1. 连接池/驱动不变；MySQL、Redis 指向 compose 内部服务名
+#   2. yudao.security.mock-enable: true -> false  ★ 必须，否则可伪造登录态
+#   3. yudao.captcha.enable: false -> true        ★ 线上开图形验证码
+#   4. Druid 监控台 stat-view-servlet: true -> false（线上不对公网暴露）
+#   5. 日志级别 DEBUG -> INFO（icbc / com.icbc 保留 WARN）
+#   6. Quartz 打开（local 注释说"尽量不要开启"，线上要开定时任务）
+#   7. ICBC 公开地址指向正式域名（local 指向 localhost:5174）
+#
+# 本文件由 Docker 挂载到 /app/config/，配合
+#   SPRING_PROFILES_ACTIVE=prod
+#   SPRING_CONFIG_ADDITIONAL_LOCATION=file:/app/config/
+# 生效，改配置不用重新打包 jar。
+# ============================================================================
+
+server:
+  port: 48080
+
+--- #################### 数据库相关配置 ####################
+spring:
+  autoconfigure:
+    exclude:
+      - com.alibaba.druid.spring.boot.autoconfigure.DruidDataSourceAutoConfigure
+      - de.codecentric.boot.admin.server.config.AdminServerAutoConfiguration
+      - de.codecentric.boot.admin.server.ui.config.AdminServerUiAutoConfiguration
+      - de.codecentric.boot.admin.client.config.SpringBootAdminClientAutoConfiguration
+      - org.springframework.ai.autoconfigure.vectorstore.qdrant.QdrantVectorStoreAutoConfiguration
+      - org.springframework.ai.autoconfigure.vectorstore.milvus.MilvusVectorStoreAutoConfiguration
+  datasource:
+    druid:
+      web-stat-filter:
+        enabled: false
+      stat-view-servlet:
+        enabled: false            # ← 线上不对公网开放 Druid 控制台
+      filter:
+        stat:
+          enabled: true
+          log-slow-sql: true
+          slow-sql-millis: 500      # 线上放宽到 500ms，避免刷日志
+          merge-sql: true
+        wall:
+          config:
+            multi-statement-allow: true
+    dynamic:
+      druid:
+        initial-size: 5
+        min-idle: 5
+        max-active: 50
+        max-wait: 60000
+        time-between-eviction-runs-millis: 30000
+        min-evictable-idle-time-millis: 180000
+        max-evictable-idle-time-millis: 300000
+        validation-query: SELECT 1
+        test-while-idle: true
+        test-on-borrow: false
+        test-on-return: false
+        keep-alive: true
+        pool-prepared-statements: true
+        max-pool-prepared-statement-per-connection-size: 20
+      primary: master
+      datasource:
+        master:
+          url: ${MYSQL_URL}
+          username: ${MYSQL_USERNAME}
+          password: ${MYSQL_PASSWORD}
+          driver-class-name: com.mysql.cj.jdbc.Driver
+        slave:
+          lazy: true
+          url: ${MYSQL_URL}
+          username: ${MYSQL_USERNAME}
+          password: ${MYSQL_PASSWORD}
+          driver-class-name: com.mysql.cj.jdbc.Driver
+  redis:
+    host: ${REDIS_HOST}
+    port: ${REDIS_PORT}
+    database: ${REDIS_DATABASE:0}
+    password: ${REDIS_PASSWORD:}
+  quartz:
+    auto-startup: true
+    scheduler-name: schedulerName
+    job-store-type: jdbc
+    wait-for-jobs-to-complete-on-shutdown: true
+    properties:
+      org:
+        quartz:
+          scheduler:
+            instanceName: schedulerName
+            instanceId: AUTO
+          jobStore:
+            class: org.springframework.scheduling.quartz.LocalDataSourceJobStore
+            isClustered: true
+            clusterCheckinInterval: 15000
+            misfireThreshold: 60000
+          threadPool:
+            threadCount: 25
+            threadPriority: 5
+            class: org.quartz.simpl.SimpleThreadPool
+    jdbc:
+      initialize-schema: NEVER
+
+--- #################### 服务保障相关配置 ####################
+lock4j:
+  acquire-timeout: 3000
+  expire: 30000
+
+--- #################### 监控相关配置 ####################
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info        # ← 线上只暴露健康检查
+  endpoint:
+    health:
+      show-details: never
+
+--- #################### 日志 ####################
+logging:
+  file:
+    name: /app/logs/${spring.application.name}.log
+  charset:
+    console: UTF-8
+    file: UTF-8
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} | %-5level | %thread [%tid] %-40.40logger{39} | %m%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} | %-5level | %thread [%tid] %-40.40logger{39} | %m%n"
+  level:
+    root: INFO
+    cn.iocoder.yudao.module.icbc: INFO      # 线上不用 DEBUG，避免日志爆量
+    com.icbc.api: WARN
+    org.springframework.context.support.PostProcessorRegistrationDelegate: ERROR
+debug: false
+
+--- #################### 微信公众号、小程序相关配置 ####################
+wx:
+  mp:
+    app-id: ${WX_MP_APP_ID:}
+    secret: ${WX_MP_SECRET:}
+    config-storage:
+      type: RedisTemplate
+      key-prefix: wx
+      http-client-type: HttpClient
+  miniapp:
+    appid: ${WX_MINIAPP_APP_ID:}
+    secret: ${WX_MINIAPP_SECRET:}
+    config-storage:
+      type: RedisTemplate
+      key-prefix: wa
+      http-client-type: HttpClient
+
+--- #################### 芋道相关配置 ####################
+yudao:
+  captcha:
+    enable: ${YUDAO_CAPTCHA_ENABLE:false}  # ★ 默认关：三端 uniapp 共用此登录接口且无验证码 UI
+  security:
+    mock-enable: false            # ★★ 线上必须 false，否则任何人都能伪造登录态
+  pay:
+    order-notify-url: https://yfbadmin.baibaitan.com/admin-api/pay/notify/order
+    refund-notify-url: https://yfbadmin.baibaitan.com/admin-api/pay/notify/refund
+    transfer-notify-url: https://yfbadmin.baibaitan.com/admin-api/pay/notify/transfer
+  access-log:
+    enable: true
+  demo: false
+  wxa-code:
+    env-version: release
+  wxa-subscribe-message:
+    miniprogram-state: formal
+  tencent-lbs-key: ${TENCENT_LBS_KEY:}
+
+justauth:
+  enabled: true
+  type:
+    DINGTALK:
+      client-id: ${JUSTAUTH_DINGTALK_CLIENT_ID:}
+      client-secret: ${JUSTAUTH_DINGTALK_CLIENT_SECRET:}
+      ignore-check-redirect-uri: true
+    WECHAT_ENTERPRISE:
+      client-id: ${JUSTAUTH_WECOM_CLIENT_ID:}
+      client-secret: ${JUSTAUTH_WECOM_CLIENT_SECRET:}
+      agent-id: 1000004
+      ignore-check-redirect-uri: true
+    WECHAT_MINI_PROGRAM:
+      client-id: ${wx.miniapp.appid}
+      client-secret: ${wx.miniapp.secret}
+      ignore-check-redirect-uri: true
+      ignore-check-state: true
+    WECHAT_MP:
+      client-id: ${wx.mp.app-id}
+      client-secret: ${wx.mp.secret}
+      ignore-check-redirect-uri: true
+  cache:
+    type: REDIS
+    prefix: 'social_auth_state:'
+    timeout: 24h
+
+--- #################### 工商银行接口配置 ####################
+icbc:
+  gateway:
+    mode: ${ICBC_GATEWAY_MODE:fake}
+  card-recognition:
+    provider: ${ICBC_CARD_RECOGNITION_PROVIDER:stub}
+    secret-id: ${TENCENT_OCR_SECRET_ID:}
+    secret-key: ${TENCENT_OCR_SECRET_KEY:}
+    region: ${TENCENT_OCR_REGION:ap-guangzhou}
+    endpoint: ${TENCENT_OCR_ENDPOINT:ocr.tencentcloudapi.com}
+    timeout: ${TENCENT_OCR_TIMEOUT:10000}
+  public-token:
+    secret: ${ICBC_PUBLIC_TOKEN_SECRET:}
+  seller:
+    platform-tenant-id: ${ICBC_SELLER_PLATFORM_TENANT_ID:0}
+  station:
+    entry-url: ${ICBC_STATION_ENTRY_URL:}
+    resolve-per-minute: ${ICBC_STATION_RESOLVE_PER_MINUTE:60}
+  notify:
+    sms-enabled: ${ICBC_NOTIFY_SMS_ENABLED:false}
+    seller-app-url: ${ICBC_SELLER_APP_URL:}
+  settlement:
+    confirm-timeout-days: ${ICBC_SETTLEMENT_CONFIRM_TIMEOUT_DAYS:7}
+    reply-timeout-days: ${ICBC_SETTLEMENT_REPLY_TIMEOUT_DAYS:3}
+    uninvoiced-timeout-days: ${ICBC_SETTLEMENT_UNINVOICED_TIMEOUT_DAYS:30}
+  invoice:
+    jump-url-base: ${ICBC_INVOICE_JUMP_URL_BASE:}
+    pending-payment-days: ${ICBC_INVOICE_PENDING_PAYMENT_DAYS:7}
+  public-base-url: ${ICBC_PUBLIC_BASE_URL:}
+  public-api-prefix: ${ICBC_PUBLIC_API_PREFIX:/admin-api}
+  seller-onboarding:
+    callback-url: ${ICBC_ONBOARDING_CALLBACK_URL:}
+    face-callback-url: ${ICBC_FACE_CALLBACK_URL:}
+  api:
+    app-id: ${ICBC_APP_ID:}
+    out-vendor-id: ${ICBC_OUT_VENDOR_ID:}
+    private-key: ${ICBC_PRIVATE_KEY:}
+    apigw-public-key: ${ICBC_APIGW_PUBLIC_KEY:}
+    aes-key: ${ICBC_AES_KEY:}
+    sm2-private-key: ${ICBC_SM2_PRIVATE_KEY:}
+    sm2-apigw-public-key: ${ICBC_SM2_APIGW_PUBLIC_KEY:}
+    sign-type: RSA2
+    charset: UTF-8
+    format: json
+    encrypt-type: AES
+    timeout: 30000
+    base-url: ${ICBC_BASE_URL:https://gw.open.icbc.com.cn}
+    payment-url: https://gw.open.icbc.com.cn/ui/jft/ui/invoice/pay/V1
+    invoice-query-url: https://gw.open.icbc.com.cn/api/jft/api/invoice/queryInvoiceInfo/V1
+    user-query-url: https://gw.open.icbc.com.cn/api/jft/api/user/edpreceive/query/V1

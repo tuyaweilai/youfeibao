@@ -1,0 +1,133 @@
+# ============================================================================
+# 有废宝 · 生产 compose（/opt/youfeibao/docker-compose.yml）
+#
+# 用法：
+#   cd /opt/youfeibao
+#   docker compose --env-file .env.prod up -d --build
+#
+# 说明：
+# - MySQL / Redis 都是**独立实例**，不复用 nhzt-mysql、cms-mysql 等已在跑的库。
+# - 只有 backend 暴露到宿主 127.0.0.1:18080，由宝塔 nginx 反代四个域名。
+# - 四个前端 dist 是静态文件，挂在宿主 /opt/youfeibao/dist/，nginx 直接读，
+#   不进容器（改前端不用重建镜像、不用重启）。
+# - 所有容器都限了 json-file 日志大小，避免重演本机 29G 日志撑满磁盘的事故。
+# ============================================================================
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: yfb-mysql
+    restart: always
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+      - --max-connections=500
+      - --innodb-buffer-pool-size=1G
+      - --lower-case-table-names=0
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - /etc/localtime:/etc/localtime:ro
+      - ./deploy/mysql/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:13318:3306"      # 只绑本机，供排查用
+    networks: [yfb-net]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    logging: &loglimit
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  redis:
+    image: redis:7-alpine
+    container_name: yfb-redis
+    restart: always
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy noeviction
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - redis-data:/data
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "127.0.0.1:16392:6379"
+    networks: [yfb-net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *loglimit
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: yfb-backend:latest
+    container_name: yfb-backend
+    restart: always
+    environment:
+      TZ: Asia/Shanghai
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/
+      MYSQL_URL: ${MYSQL_URL}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DATABASE: ${REDIS_DATABASE}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      YUDAO_ENCRYPTOR_PASSWORD: ${YUDAO_ENCRYPTOR_PASSWORD}
+      YUDAO_SMS_CODE_MAX_PER_DAY: ${YUDAO_SMS_CODE_MAX_PER_DAY}
+      YUDAO_CAPTCHA_ENABLE: ${YUDAO_CAPTCHA_ENABLE:-false}
+      ICBC_GATEWAY_MODE: ${ICBC_GATEWAY_MODE}
+      ICBC_PUBLIC_TOKEN_SECRET: ${ICBC_PUBLIC_TOKEN_SECRET}
+      ICBC_SELLER_APP_URL: ${ICBC_SELLER_APP_URL}
+      ICBC_STATION_ENTRY_URL: ${ICBC_STATION_ENTRY_URL}
+      ICBC_INVOICE_JUMP_URL_BASE: ${ICBC_INVOICE_JUMP_URL_BASE}
+      ICBC_PUBLIC_BASE_URL: ${ICBC_PUBLIC_BASE_URL}
+      ICBC_PUBLIC_API_PREFIX: ${ICBC_PUBLIC_API_PREFIX}
+      ICBC_NOTIFY_SMS_ENABLED: ${ICBC_NOTIFY_SMS_ENABLED}
+      ICBC_CARD_RECOGNITION_PROVIDER: ${ICBC_CARD_RECOGNITION_PROVIDER}
+      WX_MP_APP_ID: ${WX_MP_APP_ID}
+      WX_MP_SECRET: ${WX_MP_SECRET}
+      WX_MINIAPP_APP_ID: ${WX_MINIAPP_APP_ID}
+      WX_MINIAPP_SECRET: ${WX_MINIAPP_SECRET}
+      TENCENT_LBS_KEY: ${TENCENT_LBS_KEY}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+      - backend-upload:/app/upload
+    ports:
+      - "127.0.0.1:18080:48080"
+    networks: [yfb-net]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *loglimit
+
+networks:
+  yfb-net:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  redis-data:
+  backend-upload:
