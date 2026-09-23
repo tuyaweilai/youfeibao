@@ -2,6 +2,11 @@
 
 新会话先读 `AGENTS.md`、`CONTEXT.md`、`docs/adr/`，再读本文件与 GitHub issues。
 
+> **要动正式服务器（`47.99.49.104` / 四个 `yfb*.baibaitan.com`）？**
+> 先读 [`docs/deploy/README.md`](../deploy/README.md) —— 那是唯一权威的 runbook（拓扑、
+> 怎么连、更新流程、11 个已踩的坑、安全待办）。本文件末尾的「正式服务器部署」那节
+> 只是摘要，细节以 runbook 为准。前端改完记得跑 `node scripts/deploy/verify-deploy.mjs`。
+
 ## 起本地环境
 
 ```bash

@@ -44,6 +44,51 @@ mvn -pl yudao-server spring-boot:run   # 端口 48080，默认 icbc.gateway.mode
 
 默认登录：请求头 `tenant-id: 1`，账号 `admin` / `admin123`。
 
+## 正式服务器（线上 / 部署）
+
+线上是一台阿里云 ECS `47.99.49.104`（`i-bp16czox2yme6947ewrm`，cn-hangzhou），
+`/opt/youfeibao/` 下独立 docker compose（MySQL + Redis + 后端），宿主宝塔 nginx 反代四个域名：
+
+| 域名 | 端 | 代码位置 |
+|---|---|---|
+| `yfbadmin.baibaitan.com` | PC 管理后台 | `backend/yudao-ui/yudao-ui-admin-vue3` |
+| `yfbwuliu.baibaitan.com` | 司机端 | `backend/yudao-ui/yudao-ui-driver-uniapp` |
+| `yfbgeren.baibaitan.com` | 自然人出售者端 | `backend/yudao-ui/yudao-ui-seller-uniapp` |
+| `yfbqiye.baibaitan.com` | 企业收货端 | `backend/yudao-ui/yudao-ui-field-uniapp` |
+
+**要部署 / 要动线上，先读 [`docs/deploy/README.md`](docs/deploy/README.md)** —— 那是唯一权威的
+部署 runbook，含拓扑、怎么连、更新流程、已踩的 11 个坑、安全待办。服务器上生效的配置副本在 `docs/deploy/prod-configs/`，
+**改线上配置必须同步改那边**，否则两边会漂移。
+
+### 怎么连
+
+两条路，优先用第一条：
+
+```bash
+# ① Workbench CLI —— 不碰 22 端口，不需要密码（本机已装好并配好凭证）
+export PATH="$HOME/.local/bin:$PATH"
+workbench exec -i i-bp16czox2yme6947ewrm -c "docker compose -f /opt/youfeibao/docker-compose.yml --env-file /opt/youfeibao/.env.prod ps"
+workbench upload ./x.jar /opt/youfeibao/app/x.jar -i i-bp16czox2yme6947ewrm
+
+# ② SSH —— 22 端口受安全组限制，且被云盾 aegis 封过
+ssh root@47.99.49.104          # root 口令不在仓库里，需要时问用户
+```
+
+凭证位置：`~/.workbench/config.json`（600）、服务器上 `/opt/youfeibao/.env.prod`（600）。
+**都不入库**。详见 runbook §6。
+
+### 处理线上时的硬规矩
+
+- **前端改完必须跑 `node scripts/deploy/verify-deploy.mjs`** —— 静态资源 200 和直接 curl 接口 200
+  都证明不了前端在浏览器里可用（`VITE_BASE_URL` 那个坑就是这么漏掉的）。
+- **不要改短信验证码的 `9999`**。`backend/yudao-server/.../application.yaml` 里
+  `begin-code` / `end-code` 都是 9999，是现场演示的直接依赖，属有意保留（风险与上线闸门见 runbook §3.9）。
+- **不要重启 docker daemon** —— 这台机器上还跑着 19 个别的容器（nhzt / kaojun / ai-zichan 等），
+  重启 dockerd 会一起带走。
+- **`YUDAO_ENCRYPTOR_PASSWORD` 与 `ICBC_PUBLIC_TOKEN_SECRET` 必须与本地同值**，
+  否则库里已加密 / 已签名的数据解不开（runbook §5）。
+- 后端容器基底固定 `eclipse-temurin:17-jre-jammy`，**不要换回 JRE 8**（runbook §3.1）。
+
 ## Agent skills
 
 ### Issue tracker
